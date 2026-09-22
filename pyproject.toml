@@ -82,8 +82,8 @@ packages = ["src/sluicer"]
 
 [tool.hatch.build.targets.sdist]
 # The sdist carries the source, the tests and the documents a user reads. The
-# working plans under docs/superpowers stay in the repository only.
-exclude = ["/docs/superpowers", "/site"]
+# scoreboard's harness is run from a checkout, and the built site is output.
+exclude = ["/site", "/bench"]
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.16", "mypy>=1.11"]

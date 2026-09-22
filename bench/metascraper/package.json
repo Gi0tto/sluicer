@@ -1,0 +1,12 @@
+{
+  "name": "sluicer-bench-metascraper",
+  "version": "0.0.0",
+  "private": true,
+  "description": "metascraper, pinned, for Sluicer's scoreboard",
+  "dependencies": {
+    "metascraper": "5.58.1",
+    "metascraper-author": "5.56.2",
+    "metascraper-date": "5.56.2",
+    "metascraper-title": "5.56.2"
+  }
+}
