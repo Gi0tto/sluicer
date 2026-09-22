@@ -35,6 +35,9 @@ classifiers = [
 ]
 dependencies = ["lxml>=5.0", "click>=8.1"]
 
+[project.optional-dependencies]
+fetch = ["scrapling>=0.4"]
+
 [project.urls]
 Homepage = "https://github.com/Gi0tto/sluicer"
 Source = "https://github.com/Gi0tto/sluicer"
