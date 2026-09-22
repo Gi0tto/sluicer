@@ -6,7 +6,7 @@ Importing them from here rather than from ``sluicer.fetch.ladder`` names the
 job instead of the implementation, and leaves that module free to move.
 """
 
-from sluicer.fetch.ladder import fetch
+from sluicer.fetch.ladder import RobotsRefused, fetch
 from sluicer.fetch.result import Climb, Fetched
 
-__all__ = ["Climb", "Fetched", "fetch"]
+__all__ = ["Climb", "Fetched", "RobotsRefused", "fetch"]

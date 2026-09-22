@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 
 from sluicer.api import extract as extract_html
-from sluicer.fetch import fetch as fetch_url
+from sluicer.fetch import RobotsRefused, fetch as fetch_url
 from sluicer.fetch.result import Fetched
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
@@ -27,10 +27,11 @@ def _read_source(source: str) -> tuple[str | bytes, str | None, Fetched | None]:
     ``source`` is either a URL or a path to a saved HTML file, exactly as
     ``extract`` and ``markdown`` both accept it. A URL is fetched through the
     same ``fetch_url`` seam; a path is read from disk. Every operational
-    failure along the way -- a missing fetch extra, an operational fetch
-    failure, a missing file, a directory, an empty file -- is reported here
-    with the message and exit code both commands share, so lifting this out
-    keeps that behaviour in one place instead of two.
+    failure along the way -- a missing fetch extra, a site's own robots.txt
+    refusing us, an operational fetch failure, a missing file, a directory,
+    an empty file -- is reported here with the message and exit code both
+    commands share, so lifting this out keeps that behaviour in one place
+    instead of two.
 
     The third element is the ``Fetched`` record when ``source`` was a URL, or
     ``None`` for a file, since only the URL case has a ladder to report on.
@@ -49,6 +50,12 @@ def _read_source(source: str) -> tuple[str | bytes, str | None, Fetched | None]:
         except FetchExtraMissing as missing:
             click.echo(str(missing), err=True)
             raise SystemExit(1) from missing
+        except RobotsRefused as refused:
+            # The site was reachable and told us no. That is an answer, not
+            # a malfunction, so it gets the same message-and-exit treatment
+            # as the operational failures below rather than a traceback.
+            click.echo(str(refused), err=True)
+            raise SystemExit(1) from refused
         except (OSError, ValueError) as failure:
             # At the command line an operational failure is a message and a
             # bug is a traceback. OSError is the operational family: the site

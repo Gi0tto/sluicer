@@ -1,6 +1,6 @@
 import pytest
 
-from sluicer.fetch.ladder import fetch
+from sluicer.fetch.ladder import RobotsRefused, fetch
 from sluicer.fetch.result import Fetched
 
 RICH = (
@@ -103,3 +103,39 @@ def test_two_climbs_are_recorded_in_order():
     assert result.climbs[0].to_rung == "browser"
     assert result.climbs[1].from_rung == "browser"
     assert result.climbs[1].to_rung == "headless"
+
+
+def test_a_refusal_stops_the_ladder_before_the_first_rung():
+    http = rung("http", RICH)
+
+    with pytest.raises(RobotsRefused):
+        fetch(
+            "https://example.com/private/p",
+            rungs=[("http", http)],
+            robots_reader=lambda url: "User-agent: Sluicer\nDisallow: /private/\n",
+        )
+
+    assert http.calls == []
+
+
+def test_a_site_with_no_robots_is_fetched():
+    http = rung("http", RICH)
+
+    result = fetch(
+        "https://example.com/p", rungs=[("http", http)], robots_reader=lambda url: None
+    )
+
+    assert result.rung == "http"
+
+
+def test_robots_can_be_turned_off_deliberately():
+    http = rung("http", RICH)
+
+    result = fetch(
+        "https://example.com/private/p",
+        rungs=[("http", http)],
+        obey_robots=False,
+        robots_reader=lambda url: "User-agent: Sluicer\nDisallow: /private/\n",
+    )
+
+    assert result.rung == "http"

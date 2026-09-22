@@ -106,6 +106,22 @@ def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
     assert isinstance(result.exception, SystemExit)
 
 
+def test_a_url_the_site_refuses_explains_itself_and_does_not_crash(monkeypatch):
+    from sluicer.fetch import RobotsRefused
+
+    def fake_fetch(url, rungs=None):
+        raise RobotsRefused(url)
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/private/p"])
+
+    assert result.exit_code == 1
+    assert "https://example.com/private/p" in result.stderr
+    assert "robots.txt" in result.stderr
+    assert isinstance(result.exception, SystemExit)
+
+
 def test_an_empty_url_result_still_reports_what_the_fetch_cost(monkeypatch):
     from sluicer.fetch.result import Climb, Fetched
 
