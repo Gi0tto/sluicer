@@ -539,10 +539,20 @@ def _fetchers():
     return Fetcher, DynamicFetcher, StealthyFetcher
 
 
-def _as_fetched(response, rung: str) -> Fetched:
+def _as_fetched(response, rung: str, requested: str) -> Fetched:
+    """Turn a scrapling Response into a Fetched, or say the rung failed.
+
+    A response with no HTML is not a page, and passing it on as an empty string
+    would break the promise that ``Fetched.html`` is text. Raising here is the
+    honest answer, and the ladder already knows what to do with a rung that
+    fails: it climbs past it and records why.
+    """
+    html = getattr(response, "html_content", None)
+    if not html:
+        raise ValueError(f"the {rung} rung returned no HTML for {requested}")
     return Fetched(
-        url=getattr(response, "url", ""),
-        html=response.html_content,
+        url=getattr(response, "url", None) or requested,
+        html=html,
         status=response.status,
         rung=rung,
     )
