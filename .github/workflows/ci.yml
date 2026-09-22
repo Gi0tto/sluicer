@@ -48,9 +48,14 @@ jobs:
           cat > /tmp/no_network.py <<'PY'
           """Fail the build if any test tries to reach the network.
 
-          The project's first promise is that a run costs CPU and nothing else.
-          A promise nothing enforces is a wish, so here the socket is removed
-          before pytest starts and any attempt to open one fails loudly.
+          The project's first promise is that a run costs CPU and nothing else,
+          and a promise nothing enforces is a wish.
+
+          This blocks connecting, not the socket type itself. Replacing
+          socket.socket wholesale looks stricter and is simply wrong: the stdlib
+          ssl module does `class SSLSocket(socket)`, so anything importing it
+          dies with a TypeError that has nothing to do with the network. Ask
+          what a test is forbidden to DO, not what it may name.
           """
           import socket
           import sys
@@ -62,11 +67,12 @@ jobs:
 
           def refuse(*args, **kwargs):
               raise Blocked(
-                  "a test tried to open a socket; the suite must never touch the network"
+                  "a test tried to reach the network; the suite must never do that"
               )
 
 
-          socket.socket = refuse
+          socket.socket.connect = refuse
+          socket.socket.connect_ex = refuse
           socket.create_connection = refuse
           socket.getaddrinfo = refuse
 
