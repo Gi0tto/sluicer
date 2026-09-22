@@ -1,0 +1,61 @@
+import pytest
+
+from sluicer.fetch.ladder import fetch
+from sluicer.fetch.result import Fetched
+
+RICH = (
+    '<html><head><script type="application/ld+json">'
+    '{"@type":"Product","name":"Brake pad set"}</script></head>'
+    "<body>" + ("Real content. " * 40) + "</body></html>"
+)
+REFUSED = "<html><body>Forbidden</body></html>"
+
+
+def rung(name, html, status=200):
+    calls = []
+
+    def go(url):
+        calls.append(url)
+        return Fetched(url=url, html=html, status=status, rung=name)
+
+    go.calls = calls
+    return go
+
+
+def test_the_cheapest_rung_is_enough_and_the_others_never_run():
+    http = rung("http", RICH)
+    browser = rung("browser", RICH)
+
+    result = fetch("https://example.com", rungs=[("http", http), ("browser", browser)])
+
+    assert result.rung == "http"
+    assert result.climbs == []
+    assert browser.calls == []
+
+
+def test_a_refusal_climbs_once_and_records_why():
+    http = rung("http", REFUSED, status=403)
+    browser = rung("browser", RICH)
+
+    result = fetch("https://example.com", rungs=[("http", http), ("browser", browser)])
+
+    assert result.rung == "browser"
+    assert len(result.climbs) == 1
+    assert result.climbs[0].from_rung == "http"
+    assert result.climbs[0].to_rung == "browser"
+    assert "403" in result.climbs[0].reason
+
+
+def test_the_last_rung_is_returned_even_when_it_is_still_poor():
+    http = rung("http", REFUSED, status=403)
+    browser = rung("browser", REFUSED, status=403)
+
+    result = fetch("https://example.com", rungs=[("http", http), ("browser", browser)])
+
+    assert result.rung == "browser"
+    assert len(result.climbs) == 1
+
+
+def test_an_empty_ladder_is_a_programming_error():
+    with pytest.raises(ValueError):
+        fetch("https://example.com", rungs=[])
