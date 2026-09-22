@@ -129,6 +129,47 @@ for record in result.records:
         print(name, field.value, "via", field.source)
 ```
 
+## Use it from an agent
+
+Sluicer speaks MCP, so Claude Code, Codex and anything else that speaks the
+protocol can call it directly. Install it with the extra and register it:
+
+```bash
+uv tool install 'sluicer[mcp,fetch,markdown]'
+```
+
+Claude Code, in your project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "sluicer": { "command": "sluicer-mcp" }
+  }
+}
+```
+
+Or in one line: `claude mcp add sluicer -- sluicer-mcp`.
+
+Three tools arrive with it. `extract_declared` returns the structured data a
+page declares, with the provenance of every field. `page_markdown` returns the
+readable content with the furniture stripped. `fetch_page` returns the raw page
+and the record of what it cost to get: which rung, and every climb with the
+measurement that forced it.
+
+Each takes either a URL or the HTML itself, except `fetch_page`, which wants a
+URL and says so rather than handing your own string back to you.
+
+## Read a page as markdown
+
+```bash
+sluicer markdown page.html
+sluicer markdown https://example.com/article
+```
+
+You get the main content and not the navigation, the cookie banner or the
+footer. Boilerplate removal is `trafilatura`'s work, under the `markdown` extra;
+Sluicer hands the page over and passes the result back.
+
 ## How it reads a page
 
 **One cascade, deterministic at every step.**
