@@ -7,6 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import click
+from lxml.etree import ParserError
 
 from sluicer.api import extract as extract_html
 
@@ -21,8 +22,19 @@ def main() -> None:
 @click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 def extract(source: Path) -> None:
     """Read the declared structured data of a saved HTML file."""
-    result = extract_html(source.read_text(errors="replace"), url=str(source))
+    text = source.read_text(errors="replace")
+
+    if not text.strip():
+        click.echo("This file contains no HTML.", err=True)
+        raise SystemExit(1)
+
+    try:
+        result = extract_html(text, url=str(source))
+    except ParserError:
+        click.echo("This file contains no HTML.", err=True)
+        raise SystemExit(1)
+
     if not result.records:
-        click.echo("This page declares no structured data.")
+        click.echo("This page declares no structured data.", err=True)
         raise SystemExit(1)
     click.echo(json.dumps(asdict(result), indent=2, ensure_ascii=False))
