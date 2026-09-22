@@ -60,6 +60,14 @@ and nobody reads it.
 then OpenGraph, and each value carries the reader that won it. You always know
 where a number came from before you act on it.
 
+**Reads pages that declare nothing.** Ask for it with `induce=True` and Sluicer
+looks for the shape the page repeats -- the rows of a listing, the cards of a
+feed -- and returns one record per repetition, naming each field by where it
+sits. Every one of those fields says `"source": "induced"`, so a value the page
+stated and a value we inferred are never the same kind of thing. Induction runs
+only when the page declared nothing about its own subject, so a page that does
+carry JSON-LD is never second-guessed.
+
 **Merges across vocabularies, never inside one.** The same product described
 twice becomes one record. Two products on a listing page stay two products:
 folding them would splice one product's name onto another's price.

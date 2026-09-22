@@ -3,6 +3,26 @@
 Ordered by what unblocks the most, not by what is easiest. Each item ships as
 working software on its own, with tests, before the next one starts.
 
+## Shipped
+
+**Reading what the page declares.** JSON-LD, microdata and OpenGraph, merged
+across vocabularies and never within one, with every field carrying the reader
+that won it.
+
+**A fetch ladder that climbs on a measurement.** Plain HTTP, then a browser, and
+only when the cheap rung brought back a refusal, a challenge page or a skeleton.
+Every climb is reported with the reason that forced it.
+
+**We announce ourselves.** An identifiable user agent, `robots.txt` respected by
+default, and the stealth rung opt-in rather than automatic. A site owner can see
+us coming and turn us away with one line.
+
+**Structure induction.** Pages that declare nothing, read by finding the shape
+the page repeats and aligning field names across the repetitions. Every induced
+field says so, and induction only runs where the page declared nothing about its
+own subject. This was old research that had never shipped as a maintained
+library.
+
 ## Next
 
 **The scoreboard.** A public, continuously run comparison of extraction quality:
@@ -12,18 +32,7 @@ the one that matters. Every claim about being good at this is unfalsifiable
 today, in this project and in every other, because nobody publishes the ruler.
 Until it exists, this repository makes no claim about being better than anything.
 
-**We announce ourselves.** An identifiable user agent, `robots.txt` respected by
-default, and the stealth rung made opt-in rather than automatic. A site owner
-should be able to see us coming and turn us away with one line. The most
-requested unaddressed issue on the largest project in this field asks exactly
-that.
-
 ## After that
-
-**Structure induction.** Reading pages that declare nothing, by finding the
-repeating shapes in the markup and aligning the fields across them. This is old
-research that never shipped as a maintained library, and it is the piece that
-turns Sluicer from a reader of well-behaved pages into a reader of the web.
 
 **Trust scoring.** A number saying how much to believe an extraction, computed
 without a model: two pages built from the same template must produce the same
