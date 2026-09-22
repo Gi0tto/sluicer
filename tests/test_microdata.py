@@ -36,3 +36,14 @@ def test_itemscope_with_only_itemtype_is_kept():
 
     assert len(found) == 1
     assert found[0] == {"@type": "Product"}
+
+
+def test_an_empty_itemprop_is_not_a_value():
+    doc = load(
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<span itemprop="name"> </span>'
+        '<meta itemprop="sku" content="">'
+        "</div>"
+    )
+
+    assert read_microdata(doc) == [{"@type": "Product"}]

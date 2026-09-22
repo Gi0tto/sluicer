@@ -23,8 +23,14 @@ def read_microdata(doc: Document) -> list[dict]:
             item["@type"] = itemtype.rstrip("/").rsplit("/", 1)[-1]
         for prop in scope.xpath(".//*[@itemprop]"):
             name = prop.get("itemprop")
-            if name and name not in item:
-                item[name] = _value(prop)
+            if not name or name in item:
+                continue
+            value = _value(prop)
+            if not value:
+                # An empty value is not a value: recording it here would
+                # shadow the real one another reader may carry.
+                continue
+            item[name] = value
         # Keep any non-empty item; filter out scopes that yielded nothing at all.
         if item:
             found.append(item)

@@ -8,8 +8,10 @@ the same @type are two distinct things and remain separate records.
 This slice extracts scalar values only; complex-typed fields (objects and
 lists, such as JSON-LD's offers or image) are not carried into records.
 
-A JSON-LD null is an absence, not a value: it is dropped, so it can neither
-be recorded as the text "None" nor shadow a real value a later reader has.
+An empty or whitespace-only value is not a value, in any reader: it is
+dropped, so it cannot shadow a real value a later reader has. A JSON-LD
+null is an absence for the same reason, and is never recorded as the text
+"None".
 A real boolean is a value, and is recorded the way the page declared it,
 lowercase "true" or "false", rather than as Python's repr of it."""
 
@@ -79,7 +81,10 @@ def merge(
     if opengraph:
         target = records[0] if records else Record()
         for key, value in opengraph.items():
-            target.fields.setdefault(key, Field(value=str(value), source="opengraph"))
+            text = _scalar(value)
+            if text is None:
+                continue
+            target.fields.setdefault(key, Field(value=text, source="opengraph"))
         if not records:
             records.append(target)
     return records
@@ -113,13 +118,15 @@ def _record_from(item: dict, source: str) -> Record:
 def _scalar(value: object) -> str | None:
     """Render one declared scalar as text, or None when it carries nothing.
 
-    A null carries nothing. A boolean carries "true" or "false", spelt the
-    way the page declared it and not the way Python repr()s it."""
+    A null carries nothing, and neither does a string that is empty or all
+    whitespace. A boolean carries "true" or "false", spelt the way the page
+    declared it and not the way Python repr()s it."""
     if value is None:
         return None
     if isinstance(value, bool):
         return "true" if value else "false"
-    return str(value)
+    text = str(value).strip()
+    return text or None
 
 
 def _types(declared: object) -> tuple[str, ...]:

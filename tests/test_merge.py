@@ -144,3 +144,17 @@ def test_a_boolean_is_recorded_the_way_the_page_declared_it():
 
     assert records[0].fields["isAccessibleForFree"].value == "true"
     assert records[0].fields["isFamilyFriendly"].value == "false"
+
+
+def test_an_empty_value_does_not_shadow_a_real_one_from_a_later_reader():
+    records = merge(
+        jsonld=[{"@type": "Product", "name": "", "sku": "   "}],
+        microdata=[{"@type": "Product", "name": "Brake pad set", "sku": "ATD-1187"}],
+        opengraph={},
+    )
+
+    assert len(records) == 1
+    assert records[0].fields["name"].value == "Brake pad set"
+    assert records[0].fields["name"].source == "microdata"
+    assert records[0].fields["sku"].value == "ATD-1187"
+    assert records[0].fields["sku"].source == "microdata"
