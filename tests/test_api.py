@@ -51,3 +51,28 @@ def test_a_page_whose_type_is_a_list_extracts_instead_of_crashing():
     assert result.sources == ["jsonld"]
     assert result.records[0].type == "Person"
     assert result.records[0].fields["name"].value == "Acme"
+
+
+def test_all_three_readers_fold_into_one_record_and_each_keeps_its_source():
+    html = (FIXTURES / "product_all_three.html").read_text()
+
+    result = sluicer.extract(html, url="https://example.com/p")
+
+    assert result.sources == ["jsonld", "microdata", "opengraph"]
+    assert len(result.records) == 1
+
+    record = result.records[0]
+    assert record.type == "Product"
+
+    # All three vocabularies declare a description, and they disagree.
+    # JSON-LD has precedence, and the value says where it came from.
+    assert record.fields["description"] == sluicer.Field(
+        value="Described by JSON-LD", source="jsonld"
+    )
+
+    # Each reader contributed the field the other two lack.
+    assert record.fields["sku"] == sluicer.Field(value="BP-1187", source="jsonld")
+    assert record.fields["mpn"] == sluicer.Field(value="GDB1330", source="microdata")
+    assert record.fields["image"] == sluicer.Field(
+        value="https://example.com/brake-pad-set.jpg", source="opengraph"
+    )
