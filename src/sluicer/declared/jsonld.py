@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from sluicer.document import Document
 
@@ -10,7 +11,7 @@ _XPATH = "//script[@type]"
 _MEDIA_TYPE = "application/ld+json"
 
 
-def read_jsonld(doc: Document) -> list[dict]:
+def read_jsonld(doc: Document) -> list[dict[str, Any]]:
     """Return every JSON-LD object in the page, with ``@graph`` flattened.
 
     Blocks that are not valid JSON are skipped: a broken block is a fact about
@@ -21,7 +22,7 @@ def read_jsonld(doc: Document) -> list[dict]:
     semicolon: "application/ld+json;charset=UTF-8" is the same media type as
     "application/LD+JSON".
     """
-    found: list[dict] = []
+    found: list[dict[str, Any]] = []
     for script in doc.tree.xpath(_XPATH):
         if not _is_ld_json(script.get("type") or ""):
             continue
@@ -41,7 +42,7 @@ def _is_ld_json(declared: str) -> bool:
     return declared.split(";", 1)[0].strip().lower() == _MEDIA_TYPE
 
 
-def _flatten(parsed: object) -> list[dict]:
+def _flatten(parsed: object) -> list[dict[str, Any]]:
     if isinstance(parsed, list):
         return [item for entry in parsed for item in _flatten(entry)]
     if isinstance(parsed, dict):

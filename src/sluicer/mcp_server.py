@@ -24,8 +24,11 @@ class McpExtraMissing(MissingExtra):
     """The optional ``mcp`` extra is not installed, as opposed to broken."""
 
 
-def _server_class():
+def _server_class() -> Any:
     """Return the SDK's ``MCPServer`` class, or say the extra is not installed.
+
+    ``Any`` for the same reason ``build_server`` returns it: the class cannot
+    be named in a module that must not import ``mcp`` at module level.
 
     Named for what it returns. This built ``mcp.server.fastmcp.FastMCP`` until
     the class was renamed in mcp 2.x, which the extra's pin now follows: the v1
@@ -51,7 +54,7 @@ def _server_class():
     ).MCPServer
 
 
-def _answers_instead_of_raising(tool: Callable) -> Callable:
+def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
     """Turn the two answerable events into the tool's own result, hint intact.
 
     Every tool here can meet an absent extra: two fetch, two read markdown or
@@ -138,9 +141,14 @@ def build_server() -> Any:
     """
     server = _server_class()("sluicer")
 
-    @server.tool()
+    # ``server`` is the SDK instance this module deliberately cannot name, so
+    # its ``tool()`` decorator is untyped and every tool it wraps is untyped
+    # with it. The three ignores below are the whole cost of that ruling, and
+    # they are narrow on purpose: ``warn_unused_ignores`` deletes them the day
+    # the SDK ships type information, which a module-wide relaxation would not.
+    @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def extract_declared(html_or_url: str) -> dict:
+    def extract_declared(html_or_url: str) -> dict[str, Any]:
         """Read the structured data a page declares, with per-field provenance."""
         html, url, fetched = _html_of(html_or_url)
         result = asdict(extract(html, url=url))
@@ -148,9 +156,9 @@ def build_server() -> Any:
             result["fetch"] = fetched
         return result
 
-    @server.tool()
+    @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def page_markdown(html_or_url: str) -> str | dict:
+    def page_markdown(html_or_url: str) -> str | dict[str, Any]:
         """Return the page's main content as markdown, with boilerplate removed.
 
         A ``str`` is the page's markdown. A ``dict`` is never content: it is
@@ -162,9 +170,9 @@ def build_server() -> Any:
         html, url, _fetched = _html_of(html_or_url)
         return to_markdown(html, url=url)
 
-    @server.tool()
+    @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def fetch_page(url: str) -> dict:
+    def fetch_page(url: str) -> dict[str, Any]:
         """Fetch a page and report which rung it took and every climb.
 
         Unlike ``extract_declared`` and ``page_markdown``, literal HTML is

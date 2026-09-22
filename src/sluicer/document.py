@@ -59,11 +59,22 @@ def load(html: str | bytes, url: str | None = None) -> Document:
         # "Unicode strings with encoding declaration are not supported": the
         # refusal is about the str, not about the document, so the document
         # gets a second chance as bytes before it is called empty.
-        try:
-            tree = lxml.html.fromstring(
-                html.encode("utf-8"),
-                parser=lxml.html.HTMLParser(encoding="utf-8"),
-            )
-        except (lxml.etree.LxmlError, ValueError):
+        #
+        # Bytes get no such retry, and the guard is not decoration. The retry
+        # re-encodes the document, which only a str can be asked to do; a
+        # bytes document arriving here would reach `.encode` and leave as an
+        # AttributeError, out of a function whose first line promises it never
+        # raises. Today lxml refuses bytes with an LxmlError and this branch
+        # only ever sees strings, so the guard costs one comparison and closes
+        # the hole the paragraph above already said was closed.
+        if isinstance(html, bytes):
             tree = lxml.html.Element("html")
+        else:
+            try:
+                tree = lxml.html.fromstring(
+                    html.encode("utf-8"),
+                    parser=lxml.html.HTMLParser(encoding="utf-8"),
+                )
+            except (lxml.etree.LxmlError, ValueError):
+                tree = lxml.html.Element("html")
     return Document(html=html, tree=tree, url=url)

@@ -40,7 +40,7 @@ def robots_url_for(url: str) -> str:
 def robots_allows(
     url: str,
     read: Callable[[str], str | None],
-    cache: dict | None = None,
+    cache: dict[str, tuple[float, str | None]] | None = None,
     now: Callable[[], float] = time.monotonic,
 ) -> bool:
     """Say whether ``url`` may be fetched, according to the site's own rules.

@@ -19,6 +19,7 @@ lowercase "true" or "false", rather than as Python's repr of it."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -45,9 +46,9 @@ class Record:
 
 
 def merge(
-    jsonld: list[dict],
-    microdata: list[dict],
-    opengraph: dict,
+    jsonld: list[dict[str, Any]],
+    microdata: list[dict[str, str]],
+    opengraph: dict[str, str],
 ) -> list[Record]:
     """Merge reader output. Earlier sources win; every field keeps its source.
 
@@ -81,8 +82,12 @@ def merge(
 
     if opengraph:
         target = records[0] if records else Record()
-        for key, value in opengraph.items():
-            text = _scalar(value)
+        # ``declared``, not a second ``value``: the fold above binds ``value``
+        # to a ``Field`` and this loop binds it to the raw text OpenGraph
+        # declared. One name for two types is how a reader, and a checker,
+        # both end up believing the wrong one.
+        for key, declared in opengraph.items():
+            text = _scalar(declared)
             if text is None:
                 continue
             target.fields.setdefault(key, Field(value=text, source="opengraph"))
@@ -101,7 +106,7 @@ def _fold_target(records: list[Record], incoming: Record) -> Record | None:
     return None
 
 
-def _record_from(item: dict, source: str) -> Record:
+def _record_from(item: dict[str, Any], source: str) -> Record:
     types = _types(item.get("@type"))
     record = Record(type=types[0] if types else None, types=types)
     for key, value in item.items():

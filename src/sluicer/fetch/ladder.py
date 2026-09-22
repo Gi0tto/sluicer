@@ -92,7 +92,13 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
             return UNAVAILABLE_MEANS_STAY_OUT
         if response.status >= 400:
             return None
-        return load(response.html).tree.text_content()
+        # str(...) is not decoration. lxml ships no type information, so
+        # ``text_content()`` is untyped and this function would be returning
+        # an unchecked value from a signature that promises ``str | None``.
+        # What lxml really returns is a str subclass, so this asserts at
+        # runtime what the signature already claims, for the cost of one copy
+        # of a robots.txt file.
+        return str(load(response.html).tree.text_content())
 
     return read
 
@@ -146,10 +152,14 @@ def fetch(
             if index == last:
                 # Last rung's exception propagates to the caller
                 raise
-            # Record the climb and try the next rung
-            reason = f"the rung raised {type(e).__name__}: {e}"
+            # Record the climb and try the next rung. A name of its own, not
+            # a second use of ``reason``: this one is always a sentence, while
+            # the ``reason`` below is ``why_climb``'s ``str | None`` answer,
+            # and one name for both made the type of each a matter of which
+            # branch you happened to be reading.
+            failure = f"the rung raised {type(e).__name__}: {e}"
             climbs.append(
-                Climb(from_rung=name, to_rung=rungs[index + 1][0], reason=reason)
+                Climb(from_rung=name, to_rung=rungs[index + 1][0], reason=failure)
             )
             continue
 

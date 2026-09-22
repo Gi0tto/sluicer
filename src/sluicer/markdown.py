@@ -9,6 +9,8 @@ asks for markdown should not carry the tree that produces it.
 
 from __future__ import annotations
 
+from types import ModuleType
+
 from sluicer.extras import MissingExtra, import_extra
 
 
@@ -21,7 +23,7 @@ class MarkdownExtraMissing(MissingExtra):
     """
 
 
-def _trafilatura():
+def _trafilatura() -> ModuleType:
     """Import trafilatura, or say the extra is not installed."""
     return import_extra(
         "trafilatura",
@@ -42,7 +44,12 @@ def to_markdown(html: str | bytes, url: str | None = None) -> str:
     themselves, including a declared ``<meta charset>``, which a forced UTF-8
     decode here would only get wrong for non-UTF-8 pages.
     """
-    produced = _trafilatura().extract(
+    # Annotated on the way in, not asserted on the way out: trafilatura is an
+    # optional extra imported by name, so everything it returns is untyped.
+    # ``str | None`` is what its ``extract`` documents and what this function
+    # is written against, and saying so here is what makes the ``-> str``
+    # below something a checker can hold us to.
+    produced: str | None = _trafilatura().extract(
         html,
         output_format="markdown",
         include_links=True,

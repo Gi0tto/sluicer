@@ -107,6 +107,27 @@ select = [
     "RUF",  # ruff's own: unsorted __all__, unused unpacked variables
 ]
 
+[tool.mypy]
+files = ["src"]
+python_version = "3.10"
+strict = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+# lxml ships no type information, and `lxml-stubs` is a separate, partial,
+# third-party package this library does not depend on. Named here, so the
+# silence covers the one library that needs it: `--ignore-missing-imports`
+# across the project would also cover the day a typed dependency stops being
+# found, and say nothing.
+#
+# The optional extras -- scrapling, trafilatura, protego, mcp -- need no entry
+# at all. Not one of them is imported at module level; they arrive through
+# `importlib.import_module` in `sluicer.extras`, so there is no import for
+# mypy to fail to resolve, and this gate runs in a virtualenv with none of
+# them installed exactly as a user's base install does.
+module = ["lxml.*"]
+ignore_missing_imports = true
+
 [tool.ruff.lint.isort]
 # `from sluicer.fetch import RobotsRefused, fetch as fetch_url` is one import
 # of one module and reads as one line. Splitting the aliased name onto a line

@@ -7,6 +7,8 @@ free, so the dependency is looked up when a rung is built, not at import time.
 
 from __future__ import annotations
 
+from typing import Any
+
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch.identity import USER_AGENT
 from sluicer.fetch.result import Fetched, Rung
@@ -22,8 +24,13 @@ class FetchExtraMissing(MissingExtra):
     """
 
 
-def _fetchers():
-    """Return the three scrapling fetchers, or say the extra is not installed."""
+def _fetchers() -> tuple[Any, Any, Any]:
+    """Return the three scrapling fetchers, or say the extra is not installed.
+
+    ``Any``, three times, for the reason ``mcp_server.build_server`` gives for
+    its own: scrapling is an optional extra imported by name at call time, so
+    there is no ``Fetcher`` in this module for an annotation to resolve to.
+    """
     fetchers = import_extra(
         "scrapling.fetchers",
         "fetch",
@@ -33,8 +40,11 @@ def _fetchers():
     return fetchers.Fetcher, fetchers.DynamicFetcher, fetchers.StealthyFetcher
 
 
-def _as_fetched(response, rung: str, requested_url: str) -> Fetched:
+def _as_fetched(response: Any, rung: str, requested_url: str) -> Fetched:
     """Wrap a scrapling Response, treating a response with no HTML as a failure.
+
+    ``response`` is a scrapling ``Response``, a type this module cannot name
+    without importing the extra it exists to not import at module level.
 
     A rung that raises is a rung that failed: ``ladder.fetch`` already climbs
     past a failed rung and records why, so a missing body is reported the same
