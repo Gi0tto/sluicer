@@ -307,7 +307,7 @@ def _names(value: JsonValue) -> str | None:
     for item in items:
         if isinstance(item, dict):
             name = _text(item.get("name", "")) if "name" in item else None
-            if name is None and "givenName" in item:
+            if name is None and ("givenName" in item or "familyName" in item):
                 parts = (_text(item.get(k, "")) for k in ("givenName", "familyName"))
                 name = " ".join(part for part in parts if part) or None
         else:
