@@ -806,7 +806,7 @@ git commit -m "feat: public extract() returning records and their sources"
 
 **Interfaces:**
 - Consumes: `extract` from Task 7.
-- Produces: console script `sluicer extract <path>` printing JSON to stdout; exit code 1 and a message on stderr when nothing was declared.
+- Produces: console script `sluicer extract <path>` printing JSON to stdout; exit code 1 and a message on stderr when nothing was declared, and the same when the file holds no HTML at all. Failures never reach the user as a Python traceback. Note for the tests: `CliRunner.output` merges both streams, so a test asserting on `output` cannot tell stdout from stderr; assert on `result.stderr`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -870,9 +870,13 @@ def main() -> None:
 @click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 def extract(source: Path) -> None:
     """Read the declared structured data of a saved HTML file."""
-    result = extract_html(source.read_text(errors="replace"), url=str(source))
+    text = source.read_text(errors="replace")
+    if not text.strip():
+        click.echo("This file holds no HTML.", err=True)
+        raise SystemExit(1)
+    result = extract_html(text, url=str(source))
     if not result.records:
-        click.echo("This page declares no structured data.")
+        click.echo("This page declares no structured data.", err=True)
         raise SystemExit(1)
     click.echo(json.dumps(asdict(result), indent=2, ensure_ascii=False))
 ```
