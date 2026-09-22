@@ -80,3 +80,26 @@ def test_nothing_outside_the_fetch_package_reaches_past_its_surface():
     ]
 
     assert offenders == [], f"these import past the fetch surface: {offenders}"
+
+
+def test_the_fetch_extra_declares_the_robots_parser_it_uses():
+    """A transitive dependency is not a declared one, and this is the third time.
+
+    ``identity.py`` imports protego to parse robots.txt, and nothing declared
+    it: it arrived only because ``scrapling[fetchers]`` happens to pull it in
+    today. The day scrapling drops it, or a reader installs protego's provider
+    some other way, the robots gate stops working -- and the comment block
+    above that import is this project's own record of learning exactly this
+    lesson, twice, about scrapling's fetchers and about the mcp extra.
+
+    Read out of the built metadata, not out of pyproject.toml, for the same
+    reason the mcp test above does: what the installer will read is the only
+    proof that matters.
+    """
+    import importlib.metadata as metadata
+
+    under_fetch = [line for line in metadata.requires("sluicer") if "extra == 'fetch'" in line]
+
+    assert any(
+        "protego" in line for line in under_fetch
+    ), f"the fetch extra does not declare protego: {under_fetch}"

@@ -1839,6 +1839,7 @@ dependencies = [
 
 [package.optional-dependencies]
 fetch = [
+    { name = "protego" },
     { name = "scrapling", extra = ["fetchers"] },
 ]
 markdown = [
@@ -1846,6 +1847,7 @@ markdown = [
 ]
 mcp = [
     { name = "mcp" },
+    { name = "protego" },
     { name = "scrapling", extra = ["fetchers"] },
     { name = "trafilatura" },
 ]
@@ -1860,6 +1862,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.1" },
     { name = "lxml", specifier = ">=5.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2" },
+    { name = "protego", marker = "extra == 'fetch'", specifier = ">=0.3" },
     { name = "scrapling", extras = ["fetchers"], marker = "extra == 'fetch'", specifier = ">=0.4" },
     { name = "sluicer", extras = ["fetch"], marker = "extra == 'mcp'" },
     { name = "sluicer", extras = ["markdown"], marker = "extra == 'mcp'" },
