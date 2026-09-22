@@ -105,3 +105,42 @@ def test_the_fetch_extra_declares_the_robots_parser_it_uses():
     assert any(
         "protego" in line for line in under_fetch
     ), f"the fetch extra does not declare protego: {under_fetch}"
+
+
+def test_the_structure_package_has_a_surface_of_its_own():
+    """`induce` the function shadowed `sluicer.induce` the package, and won.
+
+    The suite never saw it because every test imported `from sluicer.induce
+    import ...`, which resolves the package before the root `__init__` rebinds
+    the name. Read as an attribute, or imported in a process that had done
+    neither, the package was gone.
+    """
+    import sluicer
+    import sluicer.structure as structure_package
+    from sluicer.structure.groups import repeating_groups
+    from sluicer.structure.records import records_from
+    from sluicer.structure.shape import signature
+
+    assert sluicer.structure is structure_package, "a name means one thing"
+    assert sluicer.induce is structure_package.induce
+    assert structure_package.__all__ == ["induce"]
+    assert structure_package.groups.repeating_groups is repeating_groups
+    assert structure_package.records.records_from is records_from
+    assert structure_package.shape.signature is signature
+
+
+def test_a_submodule_is_importable_in_a_process_that_knows_nothing():
+    """`import sluicer.induce.records as r` raised ImportError in a clean process."""
+    import subprocess
+    import sys
+
+    for statement in (
+        "import sluicer.structure.records as r; assert r.records_from",
+        "import sluicer.structure.records; import sluicer;"
+        " assert sluicer.structure.records.records_from",
+    ):
+        done = subprocess.run(
+            [sys.executable, "-c", statement], capture_output=True, text=True
+        )
+
+        assert done.returncode == 0, f"{statement}\n{done.stderr}"

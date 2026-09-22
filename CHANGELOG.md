@@ -25,6 +25,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - An MCP server and the `sluicer-mcp` command, exposing three tools to any agent
   that speaks the protocol, under the `mcp` extra.
 
+- Structure induction: `extract(html, induce=True)` reads a page that declares
+  nothing by finding the shape it repeats and returning one record per
+  repetition. Fields are named by the path down to them, repeated siblings are
+  numbered rather than dropped, and every field carries `source="induced"` so an
+  inference is never mistaken for a declaration. Induction runs only where the
+  page declared nothing about its own subject.
 - An identifiable user agent on every request, `robots.txt` obeyed by default,
   and `RobotsRefused` when a site says no. The answer is cached for a day, and a
   robots file that answers 5xx is treated as a full disallow, per RFC 9309.
@@ -32,6 +38,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ### Changed
 - The stealth rung has left the automatic ladder. `fetch(url, stealth=True)` adds
   it back for a caller who wants it.
+- An element whose whole text is its children's no longer carries a text fact of
+  its own, so a wrapper around a single value stops reporting that value twice.
 - A bad argument to `sluicer extract` now exits 1 with our own message rather
   than exiting 2 with click's. A missing file and a directory are both covered.
 
