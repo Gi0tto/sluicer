@@ -6,7 +6,12 @@ gaps in the higher-precedence one. Within a single reader, two entries with
 the same @type are two distinct things and remain separate records.
 
 This slice extracts scalar values only; complex-typed fields (objects and
-lists, such as JSON-LD's offers or image) are not carried into records."""
+lists, such as JSON-LD's offers or image) are not carried into records.
+
+A JSON-LD null is an absence, not a value: it is dropped, so it can neither
+be recorded as the text "None" nor shadow a real value a later reader has.
+A real boolean is a value, and is recorded the way the page declared it,
+lowercase "true" or "false", rather than as Python's repr of it."""
 
 from __future__ import annotations
 
@@ -98,8 +103,23 @@ def _record_from(item: dict, source: str) -> Record:
             continue
         if isinstance(value, (dict, list)):
             continue
-        record.fields[key] = Field(value=str(value), source=source)
+        text = _scalar(value)
+        if text is None:
+            continue
+        record.fields[key] = Field(value=text, source=source)
     return record
+
+
+def _scalar(value: object) -> str | None:
+    """Render one declared scalar as text, or None when it carries nothing.
+
+    A null carries nothing. A boolean carries "true" or "false", spelt the
+    way the page declared it and not the way Python repr()s it."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 def _types(declared: object) -> tuple[str, ...]:
