@@ -11,8 +11,9 @@ version: 0.0.1
 date-released: "2026-09-22"
 abstract: >-
   Sluicer reads the structured data a web page already declares, in JSON-LD,
-  microdata and OpenGraph, and returns records in which every field carries the
-  vocabulary that produced it. It calls no language model and requires no paid
+  microdata, RDFa, Dublin Core, OpenGraph, the Twitter card, HTML's own metadata
+  names and, on request, microformats2, and returns records in which every field
+  carries the vocabulary that produced it. It calls no language model and requires no paid
   API, so the same page always yields the same answer. It fetches at the lowest
   cost that works, climbing to a browser only on an explicit measurement, and it
   announces itself by name and obeys robots.txt.
