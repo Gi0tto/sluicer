@@ -33,6 +33,18 @@ def test_the_values_are_the_ones_on_the_page():
     assert "41.99" in values
 
 
+def test_every_slot_of_the_row_is_named_and_the_names_are_these():
+    """The names are the whole interface of an induced record, so they are pinned."""
+    records = induce(listing())
+
+    assert {name: field.value for name, field in records[0].fields.items()} == {
+        "h3.name": "Brake pad set",
+        "span.price": "41.99",
+        "a.more": "details",
+        "a.more@href": "/p/1",
+    }
+
+
 def test_a_link_keeps_its_address():
     records = induce(listing())
 

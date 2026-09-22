@@ -5,6 +5,26 @@ do not invent names for them. A field is named by where it sits in the shape and
 what class it carries, which is exactly as much as the page said, and every one
 of them is marked as induced so a caller never mistakes it for a declaration.
 
+**The names come from the group, not from each member.** A record is a row only
+if the same slot has the same name in every record; a name derived from a
+member's own document order drifts the moment one member holds an element the
+others do not, and members that differ below the signature's depth -- an
+optional ``<em>``, a second badge -- are routine. So a slot is named by the path
+down to it: the tag and first class of each ancestor inside the member, then its
+own, as ``div.meta>span.sku``. Two members that differ deep inside one branch
+still agree about every other branch, and a slot a member does not have is
+simply absent from that record rather than pushing its neighbours' names along.
+
+**Nothing repeated is dropped.** Three ``<span class="tag">`` in one card are
+three facts. Naming them all ``span.tag`` and keeping the first would silently
+lose two, so repeated siblings are numbered -- ``span.tag1``, ``span.tag2``,
+``span.tag3`` -- and the decision to number is taken once for the whole group,
+from the member that holds the most. A card with one tag in a group where some
+card holds three therefore calls its tag ``span.tag1``, and the columns still
+line up. Numbering rather than collecting keeps ``Record.fields`` a flat map of
+one name to one value, which is what a declared record is; a list-valued field
+would be a second kind of record for a caller to handle.
+
 Some parts carry two facts rather than one, and both are kept. An anchor is the
 clearest case: ``<a href="/p0">Product name 0</a>`` is a name *and* a link, and
 returning only the address loses the product's name on the commonest listing
@@ -17,6 +37,8 @@ record never has to guess which name belongs to which.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 from lxml.html import HtmlElement
 
 from sluicer.declared.merge import Field, Record
@@ -26,6 +48,15 @@ from sluicer.declared.merge import Field, Record
 # points somewhere carries something, whether or not it also carries text --
 # and one table is the only way the two can never disagree.
 ADDRESS = {"a": "href", "img": "src", "link": "href", "source": "src"}
+
+# The text of an image is the text its author wrote for the people who cannot
+# see it. Every other element's text is the text inside it.
+_TEXT_ATTRIBUTE = {"img": "alt"}
+
+# One step of the path to a slot: the tag, the first class, and which of the
+# same-named siblings this is.
+_Step = tuple[str, str, int]
+_Path = tuple[_Step, ...]
 
 
 def address_of(element: HtmlElement) -> str | None:
@@ -37,17 +68,6 @@ def address_of(element: HtmlElement) -> str | None:
         return None
     value = element.get(attribute)
     return value.strip() if value else None
-
-
-def _name(element: HtmlElement, position: int) -> str:
-    classes = sorted((element.get("class") or "").split())[:1]
-    tag = element.tag if isinstance(element.tag, str) else "node"
-    return f"{tag}.{classes[0]}" if classes else f"{tag}{position}"
-
-
-# The text of an image is the text its author wrote for the people who cannot
-# see it. Every other element's text is the text inside it.
-_TEXT_ATTRIBUTE = {"img": "alt"}
 
 
 def _text(element: HtmlElement) -> str:
@@ -69,19 +89,52 @@ def _facts(element: HtmlElement) -> list[tuple[str, str]]:
     return facts
 
 
+def _parts(parent: HtmlElement, path: _Path) -> Iterator[tuple[HtmlElement, _Path]]:
+    """Every element under ``parent``, each with the path that reaches it."""
+    counts: dict[tuple[str, str], int] = {}
+    for child in parent:
+        if not isinstance(child.tag, str):
+            continue
+        classes = sorted((child.get("class") or "").split())[:1]
+        label = (child.tag, classes[0] if classes else "")
+        counts[label] = counts.get(label, 0) + 1
+        here = (*path, (*label, counts[label]))
+        yield child, here
+        yield from _parts(child, here)
+
+
+def _repeated(walked: list[list[tuple[HtmlElement, _Path]]]) -> set[_Path]:
+    """The slots some member of the group fills more than once."""
+    return {
+        (*path[:-1], (path[-1][0], path[-1][1], 0))
+        for parts in walked
+        for _, path in parts
+        if path[-1][2] > 1
+    }
+
+
+def _name(path: _Path, repeated: set[_Path]) -> str:
+    """The field name for one slot, numbered where the group needs it numbered."""
+    segments = []
+    for depth, (tag, css_class, ordinal) in enumerate(path):
+        segment = f"{tag}.{css_class}" if css_class else tag
+        if (*path[:depth], (tag, css_class, 0)) in repeated:
+            segment += str(ordinal)
+        segments.append(segment)
+    return ">".join(segments)
+
+
 def records_from(group: list[HtmlElement]) -> list[Record]:
-    """Return one record per member of ``group``."""
+    """Return one record per member of ``group``, all named the same way."""
+    walked = [list(_parts(member, ())) for member in group]
+    repeated = _repeated(walked)
     records: list[Record] = []
-    for member in group:
+    for parts in walked:
         record = Record(type=None)
-        for position, part in enumerate(member.iter()):
-            if part is member or not isinstance(part.tag, str):
-                continue
-            name = _name(part, position)
+        for part, path in parts:
+            name = _name(path, repeated)
             for suffix, value in _facts(part):
-                record.fields.setdefault(
-                    name + suffix, Field(value=value, source="induced")
-                )
+                record.fields[name + suffix] = Field(value=value, source="induced")
         if record.fields:
             records.append(record)
     return records
