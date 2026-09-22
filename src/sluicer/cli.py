@@ -104,7 +104,7 @@ def _read_source(
     The third element is the ``Fetched`` record when ``source`` was a URL, or
     ``None`` for a file, since only the URL case has a ladder to report on.
     """
-    if source.startswith(("http://", "https://")):
+    if source.lower().startswith(("http://", "https://")):
         # FetchExtraMissing means the optional fetch stack (scrapling) is
         # not installed. Its message already names the fix, so it is
         # printed as-is. Catching only this type -- not ImportError itself

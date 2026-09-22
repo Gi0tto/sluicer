@@ -39,15 +39,15 @@ UNAVAILABLE = "sluicer: robots.txt unavailable"
 
 
 class RobotsUnreachable(Exception):
-    """Nothing answered for the robots.txt, so the page was never asked for.
+    """The robots.txt could not be read -- no answer, or a 5xx -- so nothing is.
 
-    RFC 9309 treats this as a full disallow, and nothing is fetched. It is not
+    RFC 9309 treats both as a full disallow, and nothing is fetched. It is not
     reported as the site refusing us, though: a host that does not resolve has
-    refused nothing, and "could not reach it" is the true sentence.
+    refused nothing, and a 503 is a reason to try later, not a rule.
     """
 
     def __init__(self, url: str, detail: str) -> None:
-        super().__init__(f"could not reach the robots.txt for {url}: {detail}")
+        super().__init__(f"could not read the robots.txt for {url}: {detail}")
         self.url = url
         self.detail = detail
 
@@ -98,23 +98,23 @@ def robots_refusal(
 ) -> str | None:
     """Why ``url`` may not be fetched, or None when it may.
 
-    ``robots_allows``, with the reason kept: "its robots.txt disallows it" for
-    a rule the site wrote, and "its robots.txt could not be read" for the
-    stand-in refusal a reader returns for a 5xx, since those are different
-    things to tell a caller. When nothing answered at all it raises
-    ``RobotsUnreachable``, and that answer is not remembered: one timeout must
-    not keep a long-running server away from a site for a day.
+    ``robots_allows``, with the reason kept. When the robots.txt could not be
+    read at all -- nothing answered, or it answered 5xx -- it raises
+    ``RobotsUnreachable`` instead, and that answer is not remembered.
     """
     store = cache if cache is not None else _CACHE
     key = _cache_key(url)
     entry = store.get(key)
     if entry is None or now() - entry[0] >= ROBOTS_TTL_SECONDS:
         entry = (now(), read(robots_url_for(url)))
-        unreachable = f"# {UNREACHABLE}: "
-        if entry[1] and entry[1].startswith(unreachable):
-            store.pop(key, None)
-            detail = entry[1].splitlines()[0][len(unreachable) :]
-            raise RobotsUnreachable(url, detail)
+        first = entry[1].splitlines()[0] if entry[1] else ""
+        for marker, said in ((UNREACHABLE, ""), (UNAVAILABLE, "it answered ")):
+            if first.startswith(f"# {marker}: "):
+                # RFC 9309 puts a 5xx and a network error in one class, and
+                # neither is remembered: one bad minute must not keep a
+                # long-running server away from a site for a day.
+                store.pop(key, None)
+                raise RobotsUnreachable(url, said + first[len(marker) + 4 :])
         store[key] = entry
     text = entry[1]
     if not text:
@@ -137,13 +137,6 @@ def robots_refusal(
     )
     if protego.Protego.parse(text).can_fetch(url, USER_AGENT):
         return None
-    first = text.lstrip().splitlines()[0]
-    marker = f"# {UNAVAILABLE}: "
-    if first.startswith(marker):
-        return (
-            f"its robots.txt answered {first[len(marker) :]}, and RFC 9309 says "
-            "to treat an unavailable robots.txt as a refusal"
-        )
     return "its robots.txt disallows it"
 
 

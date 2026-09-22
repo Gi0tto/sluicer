@@ -26,7 +26,25 @@ _BROWSER_LABELS = {
     "utf-16": "utf-8",
     "utf-16le": "utf-8",
     "utf-16be": "utf-8",
+    # The CJK and Turkish/Thai labels browsers decode with the superset.
+    "gb2312": "gb18030",
+    "gbk": "gb18030",
+    "x-gbk": "gb18030",
+    "shift_jis": "cp932",
+    "shift-jis": "cp932",
+    "sjis": "cp932",
+    "x-sjis": "cp932",
+    "windows-31j": "cp932",
+    "euc-kr": "cp949",
+    "ks_c_5601-1987": "cp949",
+    "big5": "big5hkscs",
+    "iso-8859-9": "cp1254",
+    "latin5": "cp1254",
+    "iso-8859-11": "cp874",
+    "tis-620": "cp874",
 }
+# Labels a browser refuses to decode with, however the page spells them.
+_REFUSED_LABELS = frozenset({"utf-7", "utf7", "unicode-1-1-utf-7"})
 _BOMS = (
     (codecs.BOM_UTF8, "utf-8"),
     (codecs.BOM_UTF16_LE, "utf-16-le"),
@@ -74,11 +92,12 @@ def _declared_encoding(data: bytes) -> str | None:
         found = _codec(match.group(1))
         if found is not None:
             return found
-    head = data[:_SNIFF_LIMIT]
+    # Comments first: a "<body" written inside one ends nothing.
+    head = _COMMENT.sub(b"", data[:_SNIFF_LIMIT])
     body = _BODY.search(head)
     if body:
         head = head[: body.start()]
-    for meta in _META.finditer(_COMMENT.sub(b"", head)):
+    for meta in _META.finditer(head):
         label = _charset_of(meta.group(1))
         found = _codec(label) if label else None
         if found is not None:
@@ -104,6 +123,8 @@ def _charset_of(attributes: bytes) -> bytes | None:
 def _codec(label: bytes) -> str | None:
     """The codec a declared label names, or None when nobody knows it."""
     name = label.decode("ascii", "replace").strip().lower()
+    if name in _REFUSED_LABELS:
+        return None
     name = _BROWSER_LABELS.get(name, name)
     try:
         return codecs.lookup(name).name
@@ -167,7 +188,9 @@ def load(html: str | bytes, url: str | None = None) -> Document:
         # "Unicode strings with encoding declaration are not supported": the
         # refusal is about the str, not about the document, so the document
         # gets a second chance as bytes before it is called empty.
-        tree = _parse_utf8(html.encode("utf-8"))
+        # "replace": a lone surrogate is a character a str can hold and UTF-8
+        # cannot, and this function promises never to raise.
+        tree = _parse_utf8(html.encode("utf-8", "replace"))
     return Document(html=html, tree=tree, url=url)
 
 
@@ -200,7 +223,7 @@ def base_url(doc: Document) -> str | None:
     for base in doc.tree.xpath("//base[@href]"):
         declared = (base.get("href") or "").strip()
         if declared:
-            return urljoin(doc.url, declared) if doc.url else declared
+            return _join(doc.url, declared) if doc.url else declared
     return doc.url
 
 
@@ -208,4 +231,21 @@ def absolute(doc: Document, address: str) -> str:
     """``address`` resolved against the page, or as written with nothing to resolve
     it against."""
     base = base_url(doc)
-    return urljoin(base, address) if base else address
+    return _join(base, address) if base else address
+
+
+def join(base: str | None, address: str) -> str:
+    """``address`` resolved against ``base``, or as written when it cannot be.
+
+    An unfilled template writes ``https://[domain]/p``, which is not a URL and
+    which ``urljoin`` refuses with a ``ValueError``; a page is read whatever
+    its links look like, so the link is kept the way the page wrote it.
+    """
+    return _join(base, address) if base else address
+
+
+def _join(base: str, address: str) -> str:
+    try:
+        return urljoin(base, address)
+    except ValueError:
+        return address

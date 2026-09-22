@@ -351,3 +351,263 @@ def test_an_address_the_server_refuses_is_an_answer(monkeypatch):
     result = registered["fetch_page"]("http://127.0.0.1:8080/admin")
 
     assert result["refused_address"] == "http://127.0.0.1:8080/admin"
+
+
+def _timed(html: str) -> float:
+    import time
+
+    started = time.perf_counter()
+    extract(html)
+    return time.perf_counter() - started
+
+
+def test_items_that_itemref_each_other_cost_a_bounded_amount():
+    """Four items naming each other with itemref took an estimated half hour."""
+    ids = [f"p{i}" for i in range(6)]
+    parts = [
+        '<div itemscope itemtype="https://schema.org/Product" '
+        f'itemref="{" ".join(ids)}"><span itemprop="name">top</span></div>'
+    ]
+    for i in ids:
+        others = " ".join(j for j in ids if j != i)
+        parts.append(
+            f'<div id="{i}" itemprop="isRelatedTo" itemscope '
+            f'itemtype="https://schema.org/Product" itemref="{others}">'
+            f'<span itemprop="name">{i}</span></div>'
+        )
+
+    assert _timed("<html><body>" + "".join(parts) + "</body></html>") < 2
+
+
+def test_thousands_of_references_to_one_large_node_cost_a_bounded_amount():
+    """A 119 KB page took 12 seconds and 4 GB when every reference was copied."""
+    import json
+
+    n = 4000
+    target = {
+        "@type": "Thing",
+        "@id": "#t",
+        "name": "t",
+        "tags": [{"x": str(i)} for i in range(n)],
+    }
+    refs = {
+        "@type": "Product",
+        "name": "p",
+        "isRelatedTo": [{"@id": "#t"} for _ in range(n)],
+    }
+    html = (
+        '<script type="application/ld+json">'
+        + json.dumps({"@graph": [target, refs]})
+        + "</script>"
+    )
+
+    assert _timed(html) < 3
+
+
+def test_a_reference_is_still_resolved_when_the_page_is_small():
+    import json
+
+    html = (
+        '<script type="application/ld+json">'
+        + json.dumps(
+            {
+                "@graph": [
+                    {"@type": "Product", "name": "p", "brand": {"@id": "#b"}},
+                    {"@type": "Brand", "@id": "#b", "name": "Textar"},
+                ]
+            }
+        )
+        + "</script>"
+    )
+
+    assert extract(html).records[0].fields["brand"].value == {
+        "@type": "Brand",
+        "name": "Textar",
+    }
+
+
+def test_a_template_placeholder_address_is_kept_as_written_not_raised():
+    """``https://[domain]/p`` is what an unfilled template writes."""
+    html = (
+        '<link rel="canonical" href="https://[domain]/p"><title>t</title>'
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<a itemprop="url" href="https://[site-url]/p">x</a></div>'
+    )
+
+    result = extract(html, url="https://example.com/")
+
+    assert result.summary["url"].value == "https://[domain]/p"
+    assert result.records[0].fields["url"].value == "https://[site-url]/p"
+    assert extract('<base href="http://[x/"><title>t</title>').summary
+
+
+def test_the_filter_reads_a_host_the_way_the_client_will():
+    from sluicer.fetch.address import why_not_public
+
+    public = lambda host: ["93.184.215.14"]  # noqa: E731
+    for url in (
+        "http://%31%32%37.0.0.1/",
+        "http://0177.0.0.1/",
+        "http://0x7f.1/",
+        "http://2130706433/",
+        "http://127.1/",
+        "http://127.0.0.1\\@nonexistent.invalid/",
+        "http://[::ffff:127.0.0.1]/",
+        "http://[::127.0.0.1]/",
+        "http://[64:ff9b::7f00:1]/",
+        "http://[::1]/",
+    ):
+        assert why_not_public(url, public) is not None, url
+    assert why_not_public("https://bücher.example/", public) is None
+
+
+def test_a_malformed_address_is_a_failed_fetch_not_a_traceback():
+    from sluicer.fetch import FetchFailed, fetch
+
+    with pytest.raises(FetchFailed) as raised:
+        fetch("http://[::1/", rungs=[("http", lambda url: None)])
+
+    assert "not a valid address" in str(raised.value)
+
+
+def test_a_robots_file_that_answers_5xx_is_asked_again_next_time():
+    from sluicer.fetch import FetchFailed, fetch
+    from sluicer.fetch.result import Fetched
+
+    answers = iter([503, 404])
+    page = '<script type="application/ld+json">{"@type":"Product","name":"P"}</script>'
+
+    def http(url):
+        if url.endswith("/robots.txt"):
+            return Fetched(url=url, html="busy", status=next(answers), rung="http")
+        return Fetched(url=url, html=page, status=200, rung="http")
+
+    with pytest.raises(FetchFailed) as raised:
+        fetch("https://busy.example/p", rungs=[("http", http)])
+    assert "503" in str(raised.value)
+    assert fetch("https://busy.example/p", rungs=[("http", http)]).status == 200
+
+
+def test_a_body_tag_inside_a_head_comment_does_not_end_the_head():
+    page = (
+        '<html><head><!-- scripts go after <body> --><meta charset="windows-1251">'
+        "<title>Привет</title></head></html>"
+    )
+
+    assert load(page.encode("windows-1251")).tree.findtext(".//title") == "Привет"
+
+
+def test_a_lone_surrogate_in_an_xml_declared_string_is_not_a_traceback():
+    page = '<?xml version="1.0" encoding="utf-8"?><html><body>\\ud800</body></html>'
+
+    assert load(page).tree is not None
+
+
+def test_the_title_the_page_shows_decides_between_headline_and_name():
+    """Wikipedia's headline is its short description; its name is the title."""
+    html = (
+        "<html><head><title>Sluice - Wikipedia</title>"
+        '<script type="application/ld+json">'
+        '{"@type":"Article","name":"Sluice","headline":"hydraulic structure"}'
+        "</script></head></html>"
+    )
+
+    assert extract(html).summary["title"].value == "Sluice"
+
+
+def test_an_uppercase_scheme_is_still_an_address():
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    seen = []
+
+    def fake(url, **kwargs):
+        from sluicer.fetch.result import Fetched
+
+        seen.append(url)
+        return Fetched(url=url, html="<title>t</title>", status=200, rung="http")
+
+    import sluicer.cli
+
+    original = sluicer.cli.fetch_url
+    sluicer.cli.fetch_url = fake
+    try:
+        CliRunner().invoke(main, ["extract", "HTTPS://example.com/p"])
+    finally:
+        sluicer.cli.fetch_url = original
+
+    assert seen == ["HTTPS://example.com/p"]
+
+
+def test_price_currency_and_availability_come_from_one_offer():
+    html = (
+        '<script type="application/ld+json">{"@type":"Product","name":"P",'
+        '"offers":[{"price":"10"},{"price":"12","priceCurrency":"EUR"}]}</script>'
+    )
+
+    summary = extract(html).summary
+
+    assert summary["price"].value == "10"
+    assert "currency" not in summary
+
+
+def test_the_type_says_the_reader_that_declared_the_record():
+    html = (
+        '<meta property="og:title" content="T">'
+        '<script type="application/ld+json">{"@type":"Product"}</script>'
+    )
+
+    assert extract(html).summary["type"].source == "jsonld"
+
+
+def test_a_json_ld_list_or_set_object_is_its_items():
+    html = (
+        '<script type="application/ld+json">{"@type":"Recipe","name":"R",'
+        '"recipeIngredient":{"@list":["a","b"]},"keywords":{"@set":["k"]}}</script>'
+    )
+
+    fields = extract(html).records[0].fields
+
+    assert fields["recipeIngredient"].value == ["a", "b"]
+    assert fields["keywords"].value == ["k"]
+
+
+def test_an_empty_vocab_resets_the_vocabulary():
+    doc = load(
+        '<div vocab="http://example.org/v#"><div vocab="" typeof="Thing">'
+        '<span property="name">n</span></div></div>'
+    )
+
+    assert read_rdfa(doc) == [{"@type": "Thing", "name": "n"}]
+
+
+def test_every_record_says_which_reader_declared_it():
+    rows = "".join(
+        f"<li class='r'><a href='/p{n}'>Product {n}</a>"
+        f"<span class='p'>{n}.99</span></li>"
+        for n in range(4)
+    )
+    declared = extract(
+        '<script type="application/ld+json">{"@type":"Product","name":"P"}</script>'
+        '<div itemscope itemtype="https://schema.org/Offer">'
+        '<span itemprop="price">1</span></div>'
+    )
+    induced = extract(f"<ul>{rows}</ul>", induce=True)
+    document_only = extract('<meta property="og:title" content="T">')
+
+    assert [r.source for r in declared.records] == ["jsonld", "microdata"]
+    assert {r.source for r in induced.records} == {"induced"}
+    assert [r.source for r in document_only.records] == [None]
+
+
+def test_the_filter_refuses_what_is_not_an_address_at_all():
+    from sluicer.fetch.address import why_not_public
+
+    public = lambda host: ["93.184.215.14"]  # noqa: E731
+
+    assert why_not_public("http://[::1/", public) == "the address is not a valid URL"
+    assert "not a host name" in why_not_public("http://a..b/", public)
+    assert "not a host name" in why_not_public("http://a b.example/", public)
+    assert why_not_public("http://1.2.3.4.5/", public) is None
+    assert why_not_public("http://8.8.8.8/", public) is None

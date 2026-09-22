@@ -150,7 +150,7 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
     HTML there is no URL at all -- ``None`` says "this came from nowhere I can
     name", which is the truth, and is what the library already means by it.
     """
-    if html_or_url.startswith(("http://", "https://")):
+    if html_or_url.strip().lower().startswith(("http://", "https://")):
         from sluicer.fetch import fetch
 
         fetched = fetch(html_or_url, allow_private=_allow_private())
@@ -236,7 +236,7 @@ def build_server() -> Any:
         cut at 200,000 characters; prefer extract_declared or page_markdown,
         which return what is in the page rather than all of it.
         """
-        if not url.startswith(("http://", "https://")):
+        if not url.strip().lower().startswith(("http://", "https://")):
             # Refused rather than echoed back: a caller handed the string it
             # sent, with no way to tell nothing was fetched, is worse off.
             raise _BadInput(f"fetch_page needs an http:// or https:// URL, got {url!r}")

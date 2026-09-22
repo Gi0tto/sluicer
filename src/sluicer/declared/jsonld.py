@@ -58,7 +58,13 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
         if parsed is not None:
             found.extend(_flatten(parsed))
     index = _definitions(found)
-    return [_resolve(node, index, _own_id(node), 0) for node in found]
+    # Every copy a reference makes is paid for from one budget, a multiple of
+    # what the page itself holds: four thousand references to one node of four
+    # thousand items were four gigabytes of copies from a 119 KB page. Past
+    # the budget a reference stays a reference, in document order, so the
+    # answer is the same every time.
+    walk = _Walk(index, [max(10_000, 10 * _size(found))])
+    return [walk.resolve(node, _own_id(node), 0) for node in found]
 
 
 _OPENING = re.compile(r"^\s*(?:(?://|/\*)\s*)?(?:<!\[CDATA\[|<!--)\s*(?:\*/)?")
@@ -144,32 +150,54 @@ def _is_reference(value: dict[str, Any]) -> bool:
     )
 
 
-def _resolve(
-    value: Any,
-    index: dict[str, dict[str, Any]],
-    path: frozenset[str],
-    hops: int,
-    depth: int = 0,
-) -> Any:
-    """``value`` with every reference it holds replaced by what it names.
+class _Walk:
+    """Reference resolution for one page: its definitions, and its budget."""
 
-    Below ``_MAX_DEPTH`` a value is returned as it is: nothing reads that deep,
-    and a block nested nearly as far as the JSON parser allows would otherwise
-    take this walk past Python's own recursion limit.
-    """
-    if depth > _MAX_DEPTH:
-        return value
-    if isinstance(value, list):
-        return [_resolve(item, index, path, hops, depth + 1) for item in value]
-    if not isinstance(value, dict):
-        return value
-    if _is_reference(value):
-        identifier = value["@id"]
-        target = index.get(identifier)
-        if target is None or identifier in path or hops >= MAX_REFERENCE_HOPS:
+    def __init__(self, index: dict[str, dict[str, Any]], budget: list[int]) -> None:
+        self.index = index
+        self.budget = budget
+        self.sizes: dict[str, int] = {}
+
+    def resolve(
+        self, value: Any, path: frozenset[str], hops: int, depth: int = 0
+    ) -> Any:
+        """``value`` with every reference it holds replaced by what it names.
+
+        Below ``_MAX_DEPTH`` a value is returned as it is: nothing reads that
+        deep, and a block nested nearly as far as the JSON parser allows would
+        otherwise take this walk past Python's own recursion limit.
+        """
+        if depth > _MAX_DEPTH:
             return value
-        return _resolve(target, index, path | {identifier}, hops + 1, depth + 1)
-    return {
-        key: _resolve(item, index, path | _own_id(value), hops, depth + 1)
-        for key, item in value.items()
-    }
+        if isinstance(value, list):
+            return [self.resolve(item, path, hops, depth + 1) for item in value]
+        if not isinstance(value, dict):
+            return value
+        if _is_reference(value):
+            identifier = value["@id"]
+            target = self.index.get(identifier)
+            if target is None or identifier in path or hops >= MAX_REFERENCE_HOPS:
+                return value
+            size = self.sizes.setdefault(identifier, _size(target))
+            if size > self.budget[0]:
+                return value
+            self.budget[0] -= size
+            return self.resolve(target, path | {identifier}, hops + 1, depth + 1)
+        return {
+            key: self.resolve(item, path | _own_id(value), hops, depth + 1)
+            for key, item in value.items()
+        }
+
+
+def _size(value: Any) -> int:
+    """How many values ``value`` holds, itself included, counted without recursing."""
+    count = 0
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        count += 1
+        if isinstance(item, dict):
+            pending.extend(item.values())
+        elif isinstance(item, list):
+            pending.extend(item)
+    return count

@@ -73,7 +73,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 - An identifiable user agent on every request, `robots.txt` obeyed by default,
   and `RobotsRefused` when a site says no. The answer is cached for a day, and a
-  robots file that answers 5xx is treated as a full disallow, per RFC 9309.
+  robots file that cannot be read is treated as a full disallow, per RFC 9309.
 
 ### Fixed
 - Bytes are decoded the way a browser decodes them. libxml2 commits to Latin-1
@@ -106,14 +106,32 @@ Dates are the day the work landed. Anything not listed here did not happen.
   in an empty React shell no longer counts as delivered data. A failed climb
   returns what the cheaper rung had instead of a traceback.
 - A redirect to another host is checked against that host's robots.txt. A
-  robots.txt nothing answered for stops the fetch, per RFC 9309, reported as a
-  failed fetch rather than as the site refusing us, and it is not remembered;
-  one that answers 5xx is a refusal that says so.
+  robots.txt that cannot be read -- nothing answered, or a 5xx -- stops the
+  fetch, per RFC 9309, reported as a failed fetch rather than as the site
+  refusing us, and it is not remembered: a 503 used to keep a long-running
+  server away from a site for a day.
 - The CLI passed a file's path to the readers as the page's URL, so relative
   links resolved against the file name. A browser timeout was a traceback.
 - The MCP tools answered a failed fetch with the SDK's bare "Error executing
   tool". They now return an error the agent can read.
 - The Claude Code plugin loaded neither its server nor its skill.
+- Hostile pages cost a bounded amount: microdata items that name each other
+  with `itemref` were exponential (four of them, an estimated half hour), and
+  thousands of JSON-LD references to one large node were copied each time
+  (4 GB from a 119 KB page). Both now have a budget and a memory.
+- A template placeholder such as `https://[domain]/p` raised a `ValueError`
+  out of `extract()`; it is kept as written. A `<body` inside a comment in the
+  head no longer ends the charset search. The CJK, Turkish and Thai charset
+  labels decode as browsers decode them, and UTF-7 is refused.
+- The address filter reads a host the way the client will: percent-encoded,
+  octal, hex and short numeric hosts, a backslash before an `@`, and IPv4
+  addresses inside IPv6 ones (mapped, compatible, NAT64) no longer pass.
+- The summary takes price, currency and availability from one offer, prefers
+  `name` over `headline` when only `name` is in the page's shown title
+  (Wikipedia), and says which reader declared the `type`. Every record has a
+  `source`. JSON-LD `@list` and `@set` are their items. An empty RDFa `vocab`
+  resets the vocabulary.
+- `HTTPS://` is an address at the command line and in the server.
 - Records carrying no field are no longer reported.
 - Induction reads the whole listing. Members were compared by the classes of
   everything inside them, so a rating written as `p.star-rating.Three` or a

@@ -35,8 +35,10 @@ a cloud metadata endpoint, a service bound to localhost, a machine reachable
 only from inside your network.
 
 The server refuses those by default, and the refusal is a filter, not a wall.
-Before any request it resolves the host and refuses `localhost`, `.local` and
-`.internal` names, and any address that is not on the public internet --
+Before any request it reads the host the way the client will -- an octal,
+hex or percent-encoded host, a backslash before an `@`, an IPv4 address
+inside an IPv6 one -- resolves it, and refuses `localhost`, `.local` and
+`.internal` names and any address that is not on the public internet:
 loopback, private ranges, link-local, `169.254.169.254` among them. After the
 fetch it refuses a page whose redirects ended on such an address. What it does
 not stop, and cannot from inside a library: a name that resolves differently

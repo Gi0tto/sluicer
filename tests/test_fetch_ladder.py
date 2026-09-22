@@ -398,16 +398,19 @@ def test_an_unreachable_robots_file_is_asked_again_next_time():
     assert fetch("https://flaky.example/p", rungs=[("http", http)]).status == 200
 
 
-def test_a_robots_file_that_answers_5xx_is_a_refusal_that_says_so():
+def test_a_robots_file_that_answers_5xx_stops_the_fetch_and_says_so():
+    """RFC 9309 puts a 5xx with a network error: unreadable, so nothing is
+    fetched, and a 503 is a reason to try later rather than a rule."""
+
     def http(url):
         if url.endswith("/robots.txt"):
             return Fetched(url=url, html="busy", status=503, rung="http")
         return Fetched(url=url, html=RICH, status=200, rung="http")
 
-    with pytest.raises(RobotsRefused) as raised:
+    with pytest.raises(FetchFailed) as raised:
         fetch("https://busy.example/p", rungs=[("http", http)])
 
-    assert "503" in raised.value.reason
+    assert "503" in str(raised.value)
 
 
 def test_a_site_whose_robots_is_unavailable_is_not_fetched():
@@ -425,7 +428,7 @@ def test_a_site_whose_robots_is_unavailable_is_not_fetched():
             )
         return Fetched(url=url, html=RICH, status=200, rung="http")
 
-    with pytest.raises(RobotsRefused):
+    with pytest.raises(FetchFailed):
         fetch("https://example.com/p", rungs=[("http", http)])
 
     assert calls == ["https://example.com/robots.txt"]

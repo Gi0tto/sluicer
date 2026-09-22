@@ -94,8 +94,10 @@ print(result.summary["title"].value, result.summary["title"].source)
 
 **It announces itself.** Every request says `Sluicer/<version>` with a link to
 the project, sends no borrowed referer, and `robots.txt` is obeyed by default,
-including for a redirect to another host. A robots.txt that cannot be read is a
-refusal, as RFC 9309 says. Pass `obey_robots=False` (`--no-robots`) only when you
+including for a redirect to another host. A robots.txt that cannot be read -- no
+answer, or a 5xx -- means nothing is fetched, as RFC 9309 says; that comes back
+as `fetch_failed`, which is worth retrying later, not as `refused_by_robots`,
+which is not. Pass `obey_robots=False` (`--no-robots`) only when you
 have a reason you would defend.
 
 **It climbs only on a measurement.** Plain HTTP first; a browser only for a

@@ -220,7 +220,7 @@ def records_from(group: list[HtmlElement]) -> list[Record]:
     repeated = _repeated(walked)
     records: list[Record] = []
     for parts in walked:
-        record = Record(type=None)
+        record = Record(type=None, source="induced")
         for part, path in parts:
             name = _name(path, repeated)
             for suffix, value in _facts(part):

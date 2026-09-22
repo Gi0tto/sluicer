@@ -212,10 +212,13 @@ def _resolve(token: str, vocab: str | None, prefixes: dict[str, str]) -> str | N
 def _context(element: HtmlElement) -> tuple[str | None, dict[str, str]]:
     """The ``vocab`` and the prefix mappings in force at ``element``."""
     vocab: str | None = None
+    vocab_found = False
     prefixes: dict[str, str] = {}
     node: HtmlElement | None = element
     while node is not None:
-        if vocab is None and node.get("vocab") is not None:
+        if not vocab_found and node.get("vocab") is not None:
+            # The nearest vocab decides, and an empty one means none at all.
+            vocab_found = True
             vocab = node.get("vocab").strip() or None
         tokens = (node.get("prefix") or "").split()
         for name, iri in zip(tokens[::2], tokens[1::2], strict=False):

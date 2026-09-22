@@ -79,18 +79,23 @@ class Record:
     is every type it declared. JSON-LD allows a list -- Yoast routinely
     emits ``["Person", "Organization"]`` -- and the whole list is what the
     fold matches on.
+
+    ``source`` is the reader that declared the record, and None for the one
+    record the document-level vocabularies make when nothing else declared a
+    thing. Fields folded in from other readers keep their own sources.
     """
 
     type: str | None = None
     types: tuple[str, ...] = ()
     fields: dict[str, Field] = field(default_factory=dict)
+    source: str | None = None
 
 
 def merge(
     jsonld: list[dict[str, Any]],
-    microdata: list[dict[str, str]],
+    microdata: list[dict[str, Any]],
     microformats: list[dict[str, str]],
-    rdfa: list[dict[str, str]],
+    rdfa: list[dict[str, Any]],
     dublincore: dict[str, str],
     opengraph: dict[str, str],
     twitter: dict[str, str],
@@ -201,7 +206,7 @@ def _fold_target(records: list[Record], incoming: Record) -> Record | None:
 
 def _record_from(item: dict[str, Any], source: str) -> Record:
     types = _types(item.get("@type"))
-    record = Record(type=types[0] if types else None, types=types)
+    record = Record(type=types[0] if types else None, types=types, source=source)
     for key, value in item.items():
         if key.startswith("@"):
             continue
@@ -231,8 +236,10 @@ def _json(value: object, depth: int) -> JsonValue | None:
         return items or None
     if not isinstance(value, dict):
         return _scalar(value)
-    if "@value" in value:
-        return _json(value["@value"], depth + 1)
+    for keyword in ("@value", "@list", "@set"):
+        # A value object is its value; a list or set object is its items.
+        if keyword in value:
+            return _json(value[keyword], depth + 1)
     out: dict[str, JsonValue] = {}
     for key, item in value.items():
         if key.startswith("@"):

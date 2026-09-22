@@ -54,25 +54,71 @@ def read_microdata(doc: Document) -> list[dict[str, Any]]:
     than as a record of its own. A property declared more than once is a list
     in document order; declared once, it is its value.
     """
-    by_id = {
-        element.get("id"): element for element in doc.tree.xpath("//*[@id]")
+    by_id: dict[str | None, HtmlElement] = {}
+    for element in doc.tree.xpath("//*[@id]"):
+        # The standard's first element with an id, not the last.
+        by_id.setdefault(element.get("id"), element)
+    referenced = {
+        by_id[ref]
+        for scope in doc.tree.xpath("//*[@itemref]")
+        for ref in (scope.get("itemref") or "").split()
+        if ref in by_id
     }
+    order = {element: index for index, element in enumerate(doc.tree.iter())}
     found: list[dict[str, Any]] = []
     for scope in doc.tree.xpath("//*[@itemscope]"):
-        if scope.get("itemprop") is not None and _nearest_scope(scope) is not None:
+        if scope.get("itemprop") is not None and (
+            _nearest_scope(scope) is not None or _inside(scope, referenced)
+        ):
             continue
-        item = _item(doc, scope, by_id, 0)
+        context = _Context(doc, by_id, order, [_BUDGET])
+        item = _item(context, scope, frozenset({scope}))
         if item:
             found.append(item)
     return found
 
 
+# How many items one top-level item may expand, counting every nested one.
+# Items that name each other with itemref form a graph, and walking every path
+# through it is exponential: four such items were measured at half an hour.
+_BUDGET = 256
+
+
+class _Context:
+    """What every level of one top-level item's walk shares."""
+
+    def __init__(
+        self,
+        doc: Document,
+        by_id: dict[str | None, HtmlElement],
+        order: dict[HtmlElement, int],
+        budget: list[int],
+    ) -> None:
+        self.doc = doc
+        self.by_id = by_id
+        self.order = order
+        self.budget = budget
+
+
+def _inside(element: HtmlElement, roots: set[HtmlElement]) -> bool:
+    """Whether ``element`` is one of ``roots`` or sits inside one of them."""
+    node: HtmlElement | None = element
+    while node is not None:
+        if node in roots:
+            return True
+        node = node.getparent()
+    return False
+
+
 def _item(
-    doc: Document,
-    scope: HtmlElement,
-    by_id: dict[str | None, HtmlElement],
-    depth: int,
+    context: _Context, scope: HtmlElement, chain: frozenset[HtmlElement]
 ) -> dict[str, Any]:
+    """One item and, nested, the items it holds.
+
+    ``chain`` is the items being expanded on the way down, the standard's
+    "memory": an item that holds itself, directly or through itemref, is not
+    expanded again inside itself.
+    """
     item: dict[str, Any] = {}
     types = [
         name
@@ -82,19 +128,20 @@ def _item(
     if types:
         item["@type"] = types[0] if len(types) == 1 else types
     repeated: set[str] = set()
-    for prop in _properties(scope, by_id):
+    for prop in _properties(scope, context.by_id, context.order):
         names = (prop.get("itemprop") or "").split()
         if not names:
             continue
         value: Any
         if prop.get("itemscope") is not None:
-            if depth >= _MAX_DEPTH:
+            if prop in chain or len(chain) > _MAX_DEPTH or context.budget[0] <= 0:
                 continue
-            value = _item(doc, prop, by_id, depth + 1)
+            context.budget[0] -= 1
+            value = _item(context, prop, chain | {prop})
             if not any(not key.startswith("@") for key in value):
                 continue
         else:
-            value = _value(doc, prop)
+            value = _value(context.doc, prop)
             if not value:
                 # An empty value is not a value: recording it here would
                 # shadow the real one another reader may carry.
@@ -111,13 +158,17 @@ def _item(
 
 
 def _properties(
-    scope: HtmlElement, by_id: dict[str | None, HtmlElement]
+    scope: HtmlElement,
+    by_id: dict[str | None, HtmlElement],
+    order: dict[HtmlElement, int],
 ) -> list[HtmlElement]:
     """The elements carrying ``scope``'s properties, in document order.
 
     Its own descendants whose nearest item is ``scope``, and the elements it
     names with ``itemref`` together with their descendants, stopping at any
     item on the way down, since what is inside that belongs to that item.
+    Sorted into tree order, as the standard sorts them, whichever of the two
+    each came from.
     """
     roots = [scope] + [
         by_id[ref]
@@ -142,7 +193,7 @@ def _properties(
                 found.append(element)
             if element.get("itemscope") is None:
                 pending.extend(reversed(element))
-    return found
+    return sorted(found, key=lambda element: order.get(element, 0))
 
 
 def _nearest_scope(element: HtmlElement) -> HtmlElement | None:

@@ -21,11 +21,10 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeAlias
-from urllib.parse import urljoin
 
 from sluicer.declared.merge import ABOUT_A_THING, JsonValue, Record
 from sluicer.declared.opengraph import VERTICALS
-from sluicer.document import Document, base_url
+from sluicer.document import Document, base_url, join
 
 
 @dataclass(frozen=True)
@@ -175,8 +174,7 @@ def summarise(
     offers = subject.fields.get("offers") if subject is not None else None
     questions: dict[str, list[Answer]] = {
         "title": [
-            own("headline"),
-            own("name"),
+            *_headline_or_name(own("headline"), own("name"), doc, opengraph),
             og("title"),
             meta(twitter, "twitter", "title", "twitter:"),
             meta(dublincore, "dublincore", "title", "dc."),
@@ -245,15 +243,15 @@ def summarise(
         ],
         "type": [_type(subject), og("type")],
         "price": [
-            own("offers", _offer("price", "lowPrice")) if offers else None,
+            own("offers", _offer(("price", "lowPrice"))) if offers else None,
             og("price:amount"),
         ],
         "currency": [
-            own("offers", _offer("priceCurrency")) if offers else None,
+            own("offers", _offer(("priceCurrency",))) if offers else None,
             og("price:currency"),
         ],
         "availability": [
-            _short(own("offers", _offer("availability"))) if offers else None,
+            _short(own("offers", _offer(("availability",)))) if offers else None,
             og("availability"),
         ],
         "brand": [own("brand", _names), og("brand")],
@@ -386,31 +384,76 @@ def _address(value: JsonValue) -> str | None:
     return None
 
 
-def _offer(*keys: str) -> Callable[[JsonValue], str | None]:
+def _offer(keys: tuple[str, ...]) -> Callable[[JsonValue], str | None]:
+    """Read ``keys`` from the one offer the summary answers from.
+
+    One offer for every question, so a price and a currency never come from
+    two different offers: the first that states a price, or else the first.
+    """
+
     def read(value: JsonValue) -> str | None:
-        offers = value if isinstance(value, list) else [value]
-        for offer in offers:
-            if not isinstance(offer, dict):
+        offer = _the_offer(value)
+        if offer is None:
+            return None
+        for place in (offer, offer.get("priceSpecification")):
+            specification = _the_offer(place) if place is not offer else offer
+            if specification is None:
                 continue
             for key in keys:
-                if key in offer and (text := _text(offer[key])):
+                if key in specification and (text := _text(specification[key])):
                     return text
-            specification = offer.get("priceSpecification")
-            if specification is not None and (text := read(specification)):
-                return text
         return None
 
     return read
 
 
+def _the_offer(value: JsonValue | None) -> dict[str, JsonValue] | None:
+    offers = [
+        offer
+        for offer in (value if isinstance(value, list) else [value])
+        if isinstance(offer, dict)
+    ]
+    priced = [
+        offer
+        for offer in offers
+        if any(key in offer for key in ("price", "lowPrice", "priceSpecification"))
+    ]
+    chosen = priced or offers
+    return chosen[0] if chosen else None
+
+
 def _type(record: Record | None) -> SummaryField | None:
-    if record is None or record.type is None:
+    if record is None or record.type is None or record.source is None:
         return None
-    return SummaryField(record.type, _first_source(record), "@type")
+    return SummaryField(record.type, record.source, "@type")
 
 
-def _first_source(record: Record) -> str:
-    return next(iter(record.fields.values())).source if record.fields else "jsonld"
+def _headline_or_name(
+    headline: SummaryField | None,
+    name: SummaryField | None,
+    doc: Document,
+    opengraph: dict[str, str],
+) -> list[SummaryField | None]:
+    """``headline`` then ``name``, unless the page's own title says otherwise.
+
+    Wikipedia puts its short description in ``headline`` -- "hydraulic
+    structure" -- and the article's title in ``name``. When only one of the two
+    appears in the title the page shows, in ``<title>`` or ``og:title``, that
+    one is the title.
+    """
+    if headline is None or name is None:
+        return [headline, name]
+    shown = " ".join(
+        text.casefold()
+        for text in (
+            opengraph.get("title"),
+            *(title.text_content() for title in doc.tree.xpath("//title")),
+        )
+        if text
+    )
+    if name.value.casefold() in shown and headline.value.casefold() not in shown:
+        return [name, headline]
+    return [headline, name]
 
 
 def _element_text(doc: Document, path: str, key: str) -> SummaryField | None:
@@ -495,7 +538,7 @@ def _locale(found: SummaryField | None) -> SummaryField | None:
 def _resolved(found: SummaryField, base: str | None) -> SummaryField:
     if base is None:
         return found
-    return SummaryField(urljoin(base, found.value), found.source, found.key)
+    return SummaryField(join(base, found.value), found.source, found.key)
 
 
 def _short(found: SummaryField | None) -> SummaryField | None:

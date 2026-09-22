@@ -76,18 +76,13 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
     * 2xx -- the body is the rules, and they are read.
     * 4xx -- the site published no rules, so nothing is refused. A 404 is the
       ordinary case, and the RFC treats the whole family the same way.
-    * 5xx -- the rules exist but are unavailable, and the RFC says to treat
-      that as a full disallow. Returning the text of one -- ``User-agent: *``
-      then ``Disallow: /`` -- encodes "unavailable means stay out" in the one
-      type this reader already returns, rather than inventing a third return
-      value that every caller would then have to learn.
-    * the rung raised -- the connection never opened, it timed out. RFC 9309
-      section 2.3.1.4 calls that unreachable and says to treat it as a full
-      disallow: nothing is fetched, and the caller gets ``FetchFailed``
-      saying the robots.txt could not be reached, not that the site said no.
+    * 5xx, or the rung raised -- RFC 9309 section 2.3.1.4 calls both
+      unreachable and says to treat them as a full disallow. Nothing is
+      fetched, the caller gets ``FetchFailed`` saying the robots.txt could not
+      be read, not that the site said no, and the answer is not cached.
 
-    Both stand-ins carry their reason in a comment line, which robots parsers
-    skip and ``robots_refusal`` reads.
+    The stand-in is the text of a full disallow with its reason in a comment
+    line, which robots parsers skip and ``robots_refusal`` reads.
 
         A rung returns ``Fetched.html``, not plain text, and a rung that fetches
     a plain-text robots.txt does not mean the body arrives as plain text:
@@ -167,6 +162,12 @@ def fetch(
         rungs = [*rungs, stealth_rung()]
     if not rungs:
         raise ValueError("A ladder needs at least one rung.")
+    try:
+        urlsplit(url).port  # noqa: B018 -- parsing is the check
+    except ValueError as invalid:
+        raise FetchFailed(
+            url, [], f"{url!r} is not a valid address: {invalid}"
+        ) from None
 
     if not allow_private:
         refused = why_not_public(url, resolve)
@@ -257,5 +258,8 @@ def _robots(url: str, read: Callable[[str], str | None]) -> str | None:
 
 
 def _origin(url: str) -> tuple[str, str]:
-    parts = urlsplit(url)
-    return parts.scheme, (parts.hostname or "").lower()
+    try:
+        parts = urlsplit(url)
+        return parts.scheme.lower(), (parts.hostname or "").lower()
+    except ValueError:
+        return "", url
