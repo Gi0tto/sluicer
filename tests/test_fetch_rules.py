@@ -37,3 +37,22 @@ def test_a_thin_page_that_declared_records_stays_put():
     thin = "<html><body><p>Short.</p></body></html>"
 
     assert why_climb(200, thin, found_records=True) is None
+
+
+def test_a_page_that_declared_nothing_and_says_little_climbs():
+    thin = "<html><body><p>Short.</p></body></html>"
+
+    reason = why_climb(200, thin, found_records=False)
+
+    assert reason is not None
+    assert "characters" in reason.lower()
+
+
+def test_a_refusal_that_is_also_a_challenge_names_the_challenge():
+    challenge_refusal = '<html><body><div id="cf-challenge-running"></div>Forbidden</body></html>'
+
+    reason = why_climb(403, challenge_refusal, found_records=False)
+
+    assert reason is not None
+    assert "challenge" in reason.lower()
+    assert "403" not in reason
