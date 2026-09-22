@@ -1,6 +1,6 @@
 ---
 name: sluicer
-description: Read the structured data a web page already declares (JSON-LD, microdata, RDFa, Dublin Core, OpenGraph, Twitter cards) and get back records where every field says which vocabulary it came from, with no model and no API key. Use when asked for a product's price, an article's author or date, a recipe's ingredients, a book's metadata, or any field that a page states about itself; when a scrape must be reproducible or auditable; when you need a page as clean markdown; or when fetching should announce itself and obey robots.txt.
+description: Read the structured data a web page already declares (JSON-LD, microdata, RDFa, Dublin Core, OpenGraph, Twitter cards, and microformats2 on request) and get back records where every field says which vocabulary it came from, with no model and no API key. Use when asked for a product's price, an article's author or date, a recipe's ingredients, a book's metadata, or any field that a page states about itself; when a scrape must be reproducible or auditable; when you need a page as clean markdown; or when fetching should announce itself and obey robots.txt.
 version: "0.0.1"
 license: MIT
 metadata:
@@ -10,10 +10,10 @@ metadata:
 # Sluicer
 
 Most commercial pages already state their own facts in machine-readable form, in
-the source, in several vocabularies at once. Sluicer reads six of them and hands
-the result back with the provenance attached, the reader that won each field
-decided by a stated order of precedence rather than by the order the page's
-author typed. No model is asked for an opinion, so the same
+the source, in several vocabularies at once. Sluicer reads seven of them and
+hands the result back with the provenance attached, the reader that won each
+field decided by a stated order of precedence rather than by the order the
+page's author typed. No model is asked for an opinion, so the same
 page always gives the same answer and a run costs CPU and nothing else.
 
 ## When to reach for this
@@ -36,6 +36,13 @@ uv tool install 'sluicer[fetch,markdown]'
 
 Fetching needs the `fetch` extra, markdown needs the `markdown` extra, and the
 base install reads HTML you already have.
+
+Six of the seven vocabularies are read by the base install. The seventh,
+microformats2, needs `sluicer[microformats]` and is off until asked for:
+`sluicer.extract(html, microformats=True)`. Do not install it expecting to read
+more pages -- measured across twenty live pages, microformats appeared on one,
+which declared OpenGraph as well. Install it when you need parity with
+`extruct`.
 
 ## Use it
 

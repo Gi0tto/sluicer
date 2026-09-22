@@ -47,18 +47,18 @@ one record, and every field still says which vocabulary it came from.
 ## What it does
 
 **Reads what the page already declares.** JSON-LD, microdata, RDFa, Dublin
-Core, OpenGraph and the Twitter card. On a large part of the commercial web the
-structured data is sitting in the source and nobody reads it. The newer readers
-buy compatibility rather than reach: measured on 2026-09-22 across twenty pages,
-Dublin Core, RDFa and microformats unlock zero pages that JSON-LD, microdata or
-OpenGraph do not already cover. What they buy is parity with `extruct`, which
-reads six vocabularies, takes 540,765 installs a month, and has had no release
-in 683 days.
+Core, OpenGraph, the Twitter card, and microformats2 when you ask for it. On a
+large part of the commercial web the structured data is sitting in the source
+and nobody reads it. The newer readers buy compatibility rather than reach:
+measured on 2026-09-22 across twenty pages, Dublin Core, RDFa and microformats
+unlock zero pages that JSON-LD, microdata or OpenGraph do not already cover.
+What they buy is parity with `extruct`, which reads six vocabularies, takes
+540,765 installs a month, and has had no release in 683 days.
 
 **Keeps the provenance of every field.** Precedence is JSON-LD, then microdata,
-then RDFa, then Dublin Core, then OpenGraph, then the Twitter card, and each
-value carries the reader that won it. You always know where a number came from
-before you act on it.
+then microformats, then RDFa, then Dublin Core, then OpenGraph, then the Twitter
+card, and each value carries the reader that won it. You always know where a
+number came from before you act on it.
 
 **Merges across vocabularies, never inside one.** The same product described
 twice becomes one record. Two products on a listing page stay two products:
@@ -122,12 +122,22 @@ the record of what it cost to get.
 ```bash
 uv tool install sluicer                            # the command
 uv pip install sluicer                             # the library
-uv pip install 'sluicer[fetch,markdown,mcp]'       # everything
+uv pip install 'sluicer[fetch,markdown,mcp]'       # fetching, markdown, the server
+uv pip install 'sluicer[microformats]'             # the seventh vocabulary
 ```
 
 The base install is `lxml` and `click`. Fetching, markdown and the MCP server
 each sit behind an extra, so a reader who only parses HTML never carries a
 browser.
+
+Microformats is behind one too, and it is the only reader that is off by
+default: its reference parser costs twelve packages against a base install of
+three. Turn it on per call with `extract(html, microformats=True)`, and without
+the extra that call raises `MicroformatsExtraMissing` with the install line in
+the message. It is worth what it is worth: measured on 2026-09-22 across twenty
+live pages, microformats appeared on exactly one, and that page carried
+OpenGraph as well, so it was already readable. What it buys is compatibility
+with `extruct`.
 
 ## Principles
 
