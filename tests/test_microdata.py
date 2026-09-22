@@ -25,3 +25,14 @@ def test_content_attribute_wins_over_text():
     )
 
     assert read_microdata(doc)[0]["price"] == "19.50"
+
+
+def test_itemscope_with_only_itemtype_is_kept():
+    doc = load(
+        '<div itemscope itemtype="https://schema.org/Product"></div>'
+    )
+
+    found = read_microdata(doc)
+
+    assert len(found) == 1
+    assert found[0] == {"@type": "Product"}

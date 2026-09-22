@@ -340,7 +340,7 @@ git commit -m "feat: read JSON-LD blocks, skipping malformed ones"
 
 **Interfaces:**
 - Consumes: `Document` from Task 2.
-- Produces: `read_microdata(doc: Document) -> list[dict]` - one dict per `itemscope`, `@type` carrying the `itemtype` leaf name.
+- Produces: `read_microdata(doc: Document) -> list[dict]` - one dict per `itemscope` that yielded anything, `@type` carrying the `itemtype` leaf name. An itemscope declaring only a type is kept, matching the JSON-LD reader; one that yielded neither a type nor a property is not a record.
 
 **Known limitation, deferred on purpose:** a nested `itemscope` has its properties absorbed by the outer scope. Real nesting arrives with the structure induction plan, which needs the same tree walk; building it twice would be waste.
 
@@ -425,7 +425,11 @@ def read_microdata(doc: Document) -> list[dict]:
             name = prop.get("itemprop")
             if name and name not in item:
                 item[name] = _value(prop)
-        if len(item) > 1 or (item and "@type" not in item):
+        # An itemscope that yielded nothing at all, neither a type nor a
+        # property, is not a record. A type on its own still is one: the
+        # JSON-LD reader keeps typed records with no scalar fields, and two
+        # readers must not disagree about the same question.
+        if item:
             found.append(item)
     return found
 
