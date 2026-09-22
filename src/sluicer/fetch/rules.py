@@ -45,7 +45,12 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
         return None
 
     text = _TAGS.sub(" ", html).strip()
-    if len(text) < TEXT_FLOOR and len(html) > MARKUP_CEILING:
+    # Both remaining rules are about a page that gave us nothing, so both are
+    # off once records were found: a page that declared its data has delivered,
+    # whatever its visible text looks like, and _TAGS strips <script> bodies,
+    # so a complete JSON-LD block counts as zero characters of text. Climbing
+    # there would buy a browser for a page we have already extracted.
+    if not found_records and len(text) < TEXT_FLOOR and len(html) > MARKUP_CEILING:
         return (
             f"the body is skeletal: {len(text)} characters of text "
             f"inside {len(html)} of markup"

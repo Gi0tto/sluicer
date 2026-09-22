@@ -1,4 +1,6 @@
-from sluicer.fetch.rules import why_climb
+import json
+
+from sluicer.fetch.rules import MARKUP_CEILING, why_climb
 
 FULL_PAGE = "<html><body>" + ("Real sentences of real content. " * 40) + "</body></html>"
 
@@ -56,3 +58,35 @@ def test_a_refusal_that_is_also_a_challenge_names_the_challenge():
     assert reason is not None
     assert "challenge" in reason.lower()
     assert "403" not in reason
+
+
+# A page that says everything in JSON-LD and nothing to the eye: the markup is
+# heavy, the visible text is empty, and the record is already complete.
+DECLARED_ONLY_PAGE = (
+    '<html><head><script type="application/ld+json">'
+    + json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "name": "Brake pad set",
+            "sku": "BP-1234",
+            "description": "Front axle brake pads for a 2014 hatchback. " * 40,
+            "offers": {"@type": "Offer", "price": "49.90", "priceCurrency": "EUR"},
+        }
+    )
+    + '</script></head><body><div id="app"></div></body></html>'
+)
+
+
+def test_a_skeletal_page_that_declared_records_stays_put():
+    """A page that already yielded records has delivered: climbing buys nothing."""
+    assert len(DECLARED_ONLY_PAGE) > MARKUP_CEILING
+
+    assert why_climb(200, DECLARED_ONLY_PAGE, found_records=True) is None
+
+
+def test_the_same_skeletal_page_climbs_when_nothing_was_declared():
+    reason = why_climb(200, DECLARED_ONLY_PAGE, found_records=False)
+
+    assert reason is not None
+    assert "skeletal" in reason
