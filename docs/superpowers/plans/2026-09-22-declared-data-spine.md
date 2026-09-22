@@ -19,7 +19,10 @@
 - Deterministic: the same input bytes must always produce the same output.
 - English only: code, comments, docstrings, test names, commit messages, docs.
 - Unit tests never touch the network. Fixtures live on disk under `tests/fixtures/`.
-- Every public function is typed and returns a dataclass, never a bare dict.
+- Every public function is typed. The public surface (`extract`, `merge`) returns
+  dataclasses; the declared-data readers return the shapes the page itself uses
+  (`list[dict]`, `dict`), because the schema.org vocabulary is open-ended and a
+  dataclass per vocabulary would be waste.
 
 ---
 
