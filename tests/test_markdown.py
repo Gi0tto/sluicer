@@ -35,13 +35,13 @@ def test_a_page_with_no_main_content_gives_an_empty_string(monkeypatch):
     assert to_markdown("<html><body></body></html>") == ""
 
 
-def test_bytes_are_accepted(monkeypatch):
+def test_bytes_reach_trafilatura_undecoded(monkeypatch):
     seen = fake_trafilatura(monkeypatch)
     from sluicer.markdown import to_markdown
 
     to_markdown("<html><body>hi</body></html>".encode())
 
-    assert isinstance(seen["called_with"][0], str)
+    assert isinstance(seen["called_with"][0], bytes)
 
 
 def test_a_missing_extra_says_how_to_install_it(monkeypatch):
