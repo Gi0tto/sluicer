@@ -1,11 +1,20 @@
-"""Reading the pages that declare nothing, by what their markup repeats."""
+"""Reading the pages that declare nothing, by what their markup repeats.
+
+This is the structure surface: ``induce`` is the one call, and ``shape``,
+``groups`` and ``records`` are the three steps it takes. The package is named
+for the subject and the function for the act, because they cannot share a name:
+while both were called ``induce``, the function exported from ``sluicer`` shadowed
+the package, and ``import sluicer.induce.records`` raised ImportError in any
+process that had not already imported it some other way. The function is what
+callers hold, so the package is what was renamed.
+"""
 
 from __future__ import annotations
 
 from sluicer.declared.merge import Record
 from sluicer.document import Document
-from sluicer.induce.groups import repeating_groups
-from sluicer.induce.records import records_from
+from sluicer.structure.groups import repeating_groups
+from sluicer.structure.records import records_from
 
 __all__ = ["induce"]
 

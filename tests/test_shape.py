@@ -1,6 +1,6 @@
 import lxml.html
 
-from sluicer.induce.shape import signature
+from sluicer.structure.shape import signature
 
 
 def element(html):

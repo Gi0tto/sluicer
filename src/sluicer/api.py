@@ -9,7 +9,7 @@ from sluicer.declared.merge import Record, merge
 from sluicer.declared.microdata import read_microdata
 from sluicer.declared.opengraph import read_opengraph
 from sluicer.document import load
-from sluicer.induce import induce as induce_records
+from sluicer.structure import induce as induce_records
 
 
 @dataclass

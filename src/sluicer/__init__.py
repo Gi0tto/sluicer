@@ -2,8 +2,8 @@
 
 from sluicer.api import Extraction, extract
 from sluicer.declared.merge import Field, Record
-from sluicer.induce import induce
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
+from sluicer.structure import induce
 
 __all__ = [
     "Extraction",

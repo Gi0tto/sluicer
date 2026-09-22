@@ -2,7 +2,7 @@ from pathlib import Path
 
 import sluicer
 from sluicer.document import load
-from sluicer.induce import induce
+from sluicer.structure import induce
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

@@ -32,8 +32,8 @@ from collections import defaultdict
 
 from lxml.html import HtmlElement
 
-from sluicer.induce.records import address_of
-from sluicer.induce.shape import signature
+from sluicer.structure.records import address_of
+from sluicer.structure.shape import signature
 
 # Regions a reader skips on the way to the content, wherever inside them the
 # repetition sits.

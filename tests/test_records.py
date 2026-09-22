@@ -1,6 +1,6 @@
 import lxml.html
 
-from sluicer.induce.records import records_from
+from sluicer.structure.records import records_from
 
 
 def rows(html):

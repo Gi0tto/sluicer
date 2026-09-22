@@ -2,7 +2,7 @@ from pathlib import Path
 
 import lxml.html
 
-from sluicer.induce.groups import repeating_groups
+from sluicer.structure.groups import repeating_groups
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
