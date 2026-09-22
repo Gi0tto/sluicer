@@ -137,6 +137,81 @@ git commit -m "feat: read Dublin Core, which the older web still carries"
 
 ---
 
+- [ ] **Step 6: Write the failing test for the induction gate**
+
+Dublin Core describes the *document*, exactly as OpenGraph does. The gate that
+decides whether to induce asks `field.source != "opengraph"`, so the moment
+`dublincore` lands, a page carrying `<meta name="DC.title">` counts as having
+declared something about its rows and induction switches off there — silently,
+with nothing failing.
+
+```python
+# add to tests/test_api.py
+def test_a_document_level_declaration_does_not_switch_induction_off():
+    """DC.title says what the page is, not what is in its list."""
+    rows = "".join(
+        f'<li class="row"><span class="sku">A{n}</span></li>' for n in range(5)
+    )
+    html = (
+        '<html><head><meta name="DC.title" content="Catalogue"></head>'
+        f"<body><ul>{rows}</ul></body></html>"
+    )
+
+    result = sluicer.extract(html, induce=True)
+
+    assert "induced" in result.sources
+    assert len([r for r in result.records if r.fields.get("span.sku")]) == 5
+```
+
+- [ ] **Step 7: Run test to verify it fails**
+
+Run: `uv run pytest tests/test_api.py::test_a_document_level_declaration_does_not_switch_induction_off -v`
+Expected: FAIL — `induced` is not in `sources`, because the Dublin Core field
+satisfied the gate.
+
+- [ ] **Step 8: Invert the gate**
+
+Do not add `"dublincore"` to the exclusion. An exclusion list fixes today and
+breaks again on the next document-level vocabulary, because the list is where
+the defect goes to live. Name instead the sources that describe a *thing*:
+
+```python
+# src/sluicer/api.py
+# The vocabularies that describe a thing on the page rather than the page
+# itself. Named positively on purpose: the gate used to ask which source was
+# not OpenGraph, and every document-level vocabulary added after it would have
+# switched induction off silently. A reader added here is a reader claiming to
+# describe the page's subject; anything unlisted is taken to describe the
+# document, which is the safe side -- it lets induction run.
+ABOUT_A_THING = frozenset({"jsonld", "microdata", "rdfa", "microformats"})
+
+
+def _declared_about_its_things(records: list[Record]) -> bool:
+    """True when a reader produced a field about a thing on the page."""
+    return any(
+        field.source in ABOUT_A_THING
+        for record in records
+        for field in record.fields.values()
+    )
+```
+
+`rdfa` and `microformats` are listed before their readers exist, in this one
+task, because the set is the statement of the rule and splitting it across
+three tasks would leave two windows where a page is judged by a half-written
+rule.
+
+- [ ] **Step 9: Run the whole suite and commit**
+
+Run: `uv run pytest -q`
+Expected: PASS, including every induction test that merged before this branch.
+
+```bash
+git add src/sluicer/api.py tests/test_api.py
+git commit -m "fix: the induction gate names what describes a thing"
+```
+
+---
+
 ### Task 2: RDFa Lite
 
 **Files:**
