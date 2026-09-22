@@ -166,8 +166,12 @@ def test_a_document_level_declaration_does_not_switch_induction_off():
 - [ ] **Step 7: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_api.py::test_a_document_level_declaration_does_not_switch_induction_off -v`
-Expected: FAIL — `induced` is not in `sources`, because the Dublin Core field
-satisfied the gate.
+Expected: this end-to-end test **passes** today, because wiring the reader into
+`extract()` is Task 3 and no page can yet reach the gate carrying a `dublincore`
+field. Keep it as Task 3's regression guard, and add a test that does fail now,
+asserting `_declared_about_its_things` directly on a `Record` whose field has
+`source="dublincore"`. A step that predicts a failure which cannot happen is a
+step that proves nothing.
 
 - [ ] **Step 8: Invert the gate**
 
