@@ -5,6 +5,7 @@ from __future__ import annotations
 import codecs
 import re
 from dataclasses import dataclass
+from urllib.parse import urljoin
 
 import lxml.etree
 import lxml.html
@@ -110,6 +111,14 @@ def _codec(label: bytes) -> str | None:
         return None
 
 
+# ``huge_tree``, because libxml2 otherwise stops at 256 levels of nesting and
+# drops everything below without a word -- JSON-LD included. Unclosed <div>s
+# add up on real pages, and a parser that silently loses the end of a page is
+# the failure this package exists not to have.
+_TEXT_PARSER = lxml.html.HTMLParser(huge_tree=True)
+_UTF8_PARSER = lxml.html.HTMLParser(encoding="utf-8", huge_tree=True)
+
+
 @dataclass(frozen=True)
 class Document:
     """A page that has been parsed once and is read many times."""
@@ -149,7 +158,7 @@ def load(html: str | bytes, url: str | None = None) -> Document:
     if isinstance(html, bytes):
         return Document(html=html, tree=_parse_bytes(html), url=url)
     try:
-        tree = lxml.html.fromstring(html)
+        tree = lxml.html.fromstring(html, parser=_TEXT_PARSER)
     except lxml.etree.LxmlError:
         # ParserError ("Document is empty") for a document lxml considers
         # empty. Not a reason to explode in the caller's face.
@@ -176,9 +185,27 @@ def _parse_bytes(data: bytes) -> lxml.html.HtmlElement:
 def _parse_utf8(data: bytes) -> lxml.html.HtmlElement:
     """Parse UTF-8 bytes, telling lxml so, or return an empty ``<html>``."""
     try:
-        tree: lxml.html.HtmlElement = lxml.html.fromstring(
-            data, parser=lxml.html.HTMLParser(encoding="utf-8")
-        )
+        tree: lxml.html.HtmlElement = lxml.html.fromstring(data, parser=_UTF8_PARSER)
     except (lxml.etree.LxmlError, ValueError):
         tree = lxml.html.Element("html")
     return tree
+
+
+def base_url(doc: Document) -> str | None:
+    """The address relative links on the page resolve against, or None.
+
+    The page's own ``<base href>`` when it has one, itself resolved against the
+    page's address, and the page's address otherwise.
+    """
+    for base in doc.tree.xpath("//base[@href]"):
+        declared = (base.get("href") or "").strip()
+        if declared:
+            return urljoin(doc.url, declared) if doc.url else declared
+    return doc.url
+
+
+def absolute(doc: Document, address: str) -> str:
+    """``address`` resolved against the page, or as written with nothing to resolve
+    it against."""
+    base = base_url(doc)
+    return urljoin(base, address) if base else address

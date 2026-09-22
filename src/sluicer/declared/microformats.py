@@ -29,6 +29,7 @@ subject.
 
 from __future__ import annotations
 
+import warnings
 from types import ModuleType
 from typing import Any
 
@@ -99,9 +100,14 @@ def read_microformats(doc: Document) -> list[dict[str, str]]:
     and Twitter card meta tags as microformats, and this package has a reader
     for each of those, every field naming the vocabulary it truly came from.
     """
-    parsed: dict[str, Any] = _mf2py().parse(
-        doc=doc.html, url=doc.url, metaformats=False
-    )
+    mf2py = _mf2py()
+    # mf2py's own parser warns on every XHTML page, into the caller's stderr,
+    # about a choice it made itself; the caller can do nothing with it.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        parsed: dict[str, Any] = mf2py.parse(
+            doc=doc.html, url=doc.url, metaformats=False
+        )
     found: list[dict[str, str]] = []
     for item in parsed.get("items") or []:
         flat = _flatten(item)

@@ -43,7 +43,7 @@ from typing import Any
 from lxml.html import HtmlElement
 
 from sluicer.declared.types import type_name
-from sluicer.document import Document
+from sluicer.document import Document, absolute
 
 # The address attributes RDFa reads a value from when an element carries no
 # `content` and no `resource`. `href` on the elements HTML gives it, `src` on
@@ -90,13 +90,13 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
         is_a_property = subject.get("property") is not None
         if is_a_property and _nearest_subject(subject) is not None:
             continue
-        item = _subject(subject, 0)
+        item = _subject(doc, subject, 0)
         if item:
             found.append(item)
     return found
 
 
-def _subject(subject: HtmlElement, depth: int) -> dict[str, Any]:
+def _subject(doc: Document, subject: HtmlElement, depth: int) -> dict[str, Any]:
     item: dict[str, Any] = {}
     types = _names(subject, subject.get("typeof"))
     if types:
@@ -110,11 +110,11 @@ def _subject(subject: HtmlElement, depth: int) -> dict[str, Any]:
         if prop.get("typeof") is not None:
             if depth >= _MAX_DEPTH:
                 continue
-            value = _subject(prop, depth + 1)
+            value = _subject(doc, prop, depth + 1)
             if not any(not key.startswith("@") for key in value):
                 continue
         else:
-            value = _value(prop)
+            value = _value(doc, prop)
             if not value:
                 # An empty value is not a value: recording it here would
                 # shadow the real one another reader may carry.
@@ -155,25 +155,26 @@ def _nearest_subject(element: HtmlElement) -> HtmlElement | None:
     return None
 
 
-def _value(element: HtmlElement) -> str:
+def _value(doc: Document, element: HtmlElement) -> str:
     """The value one property declares.
 
     ``content`` first, because it is there precisely to say what the visible
     text means; then ``resource``, then the element's own address attribute,
     because the value of a link is where it points and not the words on it;
-    and only then the text.
+    and only then the text. The two addresses are resolved against the page.
     """
     content: str | None = element.get("content")
     if content:
         return content.strip()
     resource: str | None = element.get("resource")
-    if resource:
-        return resource.strip()
+    if resource and resource.strip():
+        return absolute(doc, resource.strip())
     attr = _VALUE_ATTRS.get(element.tag)
     if attr is not None:
         declared: str | None = element.get(attr)
-        if declared:
-            return declared.strip()
+        if declared and declared.strip():
+            address = declared.strip()
+            return address if attr == "datetime" else absolute(doc, address)
     text: str | None = element.text_content()
     return " ".join((text or "").split())
 

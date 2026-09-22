@@ -196,3 +196,24 @@ def test_an_xml_declaration_on_bytes_is_still_honoured():
     )
 
     assert _title(page.encode("latin-1")) == "Bremsöl"
+
+
+def test_the_base_url_is_the_page_s_own_base_resolved_against_its_address():
+    from sluicer.document import base_url
+
+    doc = load('<html><head><base href="/shop/"></head></html>', url="https://x.eu/a/b")
+
+    assert base_url(doc) == "https://x.eu/shop/"
+    assert base_url(load("<p>", url="https://x.eu/a/b")) == "https://x.eu/a/b"
+    assert base_url(load("<p>")) is None
+
+
+def test_content_nested_deeper_than_libxml2_s_default_limit_is_kept():
+    deep = "<div>" * 400 + '<span id="deep">here</span>' + "</div>" * 400
+
+    assert load(f"<html><body>{deep}</body></html>").tree.xpath(
+        "string(//span[@id='deep'])"
+    ) == "here"
+    assert load(f"<html><body>{deep}</body></html>".encode()).tree.xpath(
+        "string(//span[@id='deep'])"
+    ) == "here"

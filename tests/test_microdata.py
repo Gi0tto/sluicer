@@ -103,3 +103,29 @@ def test_a_property_after_thousands_of_plain_elements_is_still_found():
 
     assert item["name"] == "adbar"
     assert item["text"] == "README"
+
+
+def test_an_address_is_resolved_against_the_page_the_way_the_standard_says():
+    doc = load(
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<a itemprop="url" href="/p/1">details</a>'
+        '<img itemprop="image" src="img/1.jpg">'
+        '<span itemprop="name">/not/a/url</span>'
+        "</div>",
+        url="https://shop.example/c/brakes",
+    )
+
+    item = read_microdata(doc)[0]
+
+    assert item["url"] == "https://shop.example/p/1"
+    assert item["image"] == "https://shop.example/c/img/1.jpg"
+    assert item["name"] == "/not/a/url"
+
+
+def test_without_a_page_address_an_address_stays_as_written():
+    doc = load(
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<a itemprop="url" href="/p/1">details</a></div>'
+    )
+
+    assert read_microdata(doc)[0]["url"] == "/p/1"

@@ -33,20 +33,27 @@ from collections.abc import Iterator
 from sluicer.document import Document
 
 
-def _meta_tags(doc: Document) -> Iterator[tuple[str, str, str]]:
-    """Yield ``(property, name, content)`` for every ``<meta>`` carrying a value.
+def _meta_tags(doc: Document) -> Iterator[tuple[list[str], str, str]]:
+    """Yield ``(keys, name, content)`` for every ``<meta>`` carrying a value.
+
+    ``keys`` holds the ``property`` and then the ``name`` attribute, trimmed and
+    lowercased, so ``OG:Title`` is ``og:title`` and a tag whose ``property``
+    says something else is still read by its ``name``. ``name`` is also given
+    as written, for the reader that matches HTML's own metadata names.
 
     The one place this package looks for a ``<meta>`` tag. An empty or
     whitespace-only ``content`` is not a value and never leaves here, so no
     caller has to remember to drop it and none of them can disagree about
-    which tags the page has. A missing attribute is an empty string rather
-    than ``None``, so a caller can ask ``startswith`` of it without checking.
+    which tags the page has.
     """
     for meta in doc.tree.xpath("//meta[@property or @name]"):
         content = (meta.get("content") or "").strip()
         if not content:
             continue
-        yield meta.get("property") or "", meta.get("name") or "", content
+        name = meta.get("name") or ""
+        prop = (meta.get("property") or "").strip().lower()
+        keys = [key for key in (prop, name.strip().lower()) if key]
+        yield keys, name, content
 
 
 def read_prefixed_meta(doc: Document, prefix: str) -> dict[str, str]:
@@ -59,17 +66,15 @@ def read_prefixed_meta(doc: Document, prefix: str) -> dict[str, str]:
     carries.
     """
     found: dict[str, str] = {}
-    for prop, name, content in _meta_tags(doc):
-        key = prop or name
-        if not key.startswith(prefix):
-            continue
-        found.setdefault(key[len(prefix):], content)
+    for keys, _name, content in _meta_tags(doc):
+        for key in keys:
+            if key.startswith(prefix):
+                found.setdefault(key[len(prefix) :], content)
+                break
     return found
 
 
-def read_namespaced_meta(
-    doc: Document, prefixes: tuple[str, ...]
-) -> dict[str, str]:
+def read_namespaced_meta(doc: Document, prefixes: tuple[str, ...]) -> dict[str, str]:
     """Return the meta tags under one of ``prefixes``, the prefix kept in the key.
 
     The counterpart of ``read_prefixed_meta``, for the case where the prefix
@@ -83,12 +88,13 @@ def read_namespaced_meta(
     stops at the first one that matches it.
     """
     found: dict[str, str] = {}
-    for prop, name, content in _meta_tags(doc):
-        key = prop or name
-        for prefix in prefixes:
-            if key.startswith(prefix):
-                found.setdefault(key, content)
-                break
+    for keys, _name, content in _meta_tags(doc):
+        match = next(
+            (key for key in keys for prefix in prefixes if key.startswith(prefix)),
+            None,
+        )
+        if match is not None:
+            found.setdefault(match, content)
     return found
 
 
@@ -109,7 +115,7 @@ def read_named_meta(doc: Document, names: frozenset[str]) -> dict[str, str]:
     reader does not know.
     """
     found: dict[str, str] = {}
-    for _prop, name, content in _meta_tags(doc):
+    for _keys, name, content in _meta_tags(doc):
         key = name.strip().lower()
         if key in names:
             found.setdefault(key, content)

@@ -83,3 +83,21 @@ def test_a_vertical_that_is_not_the_protocol_s_is_left_alone():
     doc = load('<html><head><meta property="fb:app_id" content="1234"></head></html>')
 
     assert read_opengraph(doc) == {}
+
+
+def test_a_tag_written_in_capitals_or_with_padding_is_still_read():
+    doc = load(
+        '<meta property="OG:Title" content="Shouted">'
+        '<meta property=" og:description " content="Padded">'
+    )
+
+    found = read_opengraph(doc)
+
+    assert found["title"] == "Shouted"
+    assert found["description"] == "Padded"
+
+
+def test_a_name_attribute_is_read_when_property_holds_something_else():
+    doc = load('<meta property="description" name="og:title" content="From name">')
+
+    assert read_opengraph(doc)["title"] == "From name"

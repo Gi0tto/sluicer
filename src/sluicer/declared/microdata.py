@@ -14,7 +14,7 @@ from typing import Any
 from lxml.html import HtmlElement
 
 from sluicer.declared.types import type_name
-from sluicer.document import Document
+from sluicer.document import Document, absolute
 
 # The element whose value is an attribute rather than its text, and which one.
 # The standard's list, in full: a ``<video itemprop>`` is its URL, not the
@@ -37,6 +37,9 @@ _VALUE_ATTRS = {
     "time": "datetime",
 }
 
+# The attributes among those that hold an address.
+_ADDRESSES = frozenset({"src", "href", "data"})
+
 # Deeper than any real page nests items; a bound so a hostile one costs a
 # fixed amount, and so an itemref that points back up cannot loop.
 _MAX_DEPTH = 16
@@ -58,14 +61,17 @@ def read_microdata(doc: Document) -> list[dict[str, Any]]:
     for scope in doc.tree.xpath("//*[@itemscope]"):
         if scope.get("itemprop") is not None and _nearest_scope(scope) is not None:
             continue
-        item = _item(scope, by_id, 0)
+        item = _item(doc, scope, by_id, 0)
         if item:
             found.append(item)
     return found
 
 
 def _item(
-    scope: HtmlElement, by_id: dict[str | None, HtmlElement], depth: int
+    doc: Document,
+    scope: HtmlElement,
+    by_id: dict[str | None, HtmlElement],
+    depth: int,
 ) -> dict[str, Any]:
     item: dict[str, Any] = {}
     types = [
@@ -84,11 +90,11 @@ def _item(
         if prop.get("itemscope") is not None:
             if depth >= _MAX_DEPTH:
                 continue
-            value = _item(prop, by_id, depth + 1)
+            value = _item(doc, prop, by_id, depth + 1)
             if not any(not key.startswith("@") for key in value):
                 continue
         else:
-            value = _value(prop)
+            value = _value(doc, prop)
             if not value:
                 # An empty value is not a value: recording it here would
                 # shadow the real one another reader may carry.
@@ -149,15 +155,21 @@ def _nearest_scope(element: HtmlElement) -> HtmlElement | None:
     return None
 
 
-def _value(element: HtmlElement) -> str:
-    """The text one itemprop declares: its value attribute, or its own text."""
+def _value(doc: Document, element: HtmlElement) -> str:
+    """The text one itemprop declares: its value attribute, or its own text.
+
+    An address attribute is resolved against the page, because the standard
+    defines that property's value as the absolute URL and not as the text the
+    attribute happens to hold.
+    """
     attr = _VALUE_ATTRS.get(element.tag)
     if attr is not None:
         declared: str | None = element.get(attr)
         # A <time> without a datetime is its text; every other element in the
         # list is its attribute or nothing.
         if declared is not None or element.tag != "time":
-            return (declared or "").strip()
+            found = (declared or "").strip()
+            return absolute(doc, found) if found and attr in _ADDRESSES else found
     content: str | None = element.get("content")
     if content:
         return content.strip()

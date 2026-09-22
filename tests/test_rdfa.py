@@ -259,3 +259,18 @@ def test_a_property_deeper_in_the_markup_still_finds_its_subject():
     )
 
     assert read_rdfa(doc) == [{"@type": "Product", "name": "Brake pad set"}]
+
+
+def test_an_rdfa_address_is_resolved_against_the_page():
+    doc = load(
+        '<div vocab="https://schema.org/" typeof="Product">'
+        '<a property="url" href="/p/1">details</a>'
+        '<span property="sameAs" resource="/wiki/Pad">Pad</span>'
+        "</div>",
+        url="https://shop.example/c/",
+    )
+
+    item = read_rdfa(doc)[0]
+
+    assert item["url"] == "https://shop.example/p/1"
+    assert item["sameAs"] == "https://shop.example/wiki/Pad"
