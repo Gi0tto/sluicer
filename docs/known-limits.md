@@ -76,6 +76,16 @@ input; nothing bounds this output either. A limit is the most likely next
 breaking change to this surface, and guessing a number now would be worse than
 saying it is unbounded.
 
+**A missing extra answers with `is_error` false.** It is a result, not a
+protocol failure, so an agent that branches only on that flag will not notice.
+The payload is unmistakable and the alternative is worse: a raised exception
+becomes `UnexpectedToolError: Error executing tool fetch_page` and the install
+sentence is discarded by the SDK. Measured against mcp 2.2.0.
+
+**Nothing validates the shape a tool returns.** `structured_content` is None in
+mcp 2.2.0 even for a tool annotated as returning a mapping, so the contract
+between us and an agent is prose, not schema.
+
 **The three tools are pinned by set equality**, so a fourth cannot appear
 unnoticed.
 

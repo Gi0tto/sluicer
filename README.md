@@ -159,6 +159,15 @@ measurement that forced it.
 Each takes either a URL or the HTML itself, except `fetch_page`, which wants a
 URL and says so rather than handing your own string back to you.
 
+When an extra is missing, a tool answers with the explanation rather than
+failing: `{"error": "<the sentence, with the install command>", "missing_extra":
+"fetch" | "markdown"}`. Two things about that are worth knowing, both measured
+against the SDK rather than assumed. The result arrives with `is_error` false,
+because it is an answer and not a protocol failure, so an agent reading only
+that flag learns nothing; the payload is the signal. And it is deliberate: when
+a tool raises instead, the SDK replaces the message with `UnexpectedToolError:
+Error executing tool fetch_page`, and the install line never reaches anybody.
+
 ## Read a page as markdown
 
 ```bash
