@@ -63,6 +63,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   template among them -- and every UTF-8 page declaring no charset at all came
   back as mojibake in every field, from `sluicer extract page.html` and from
   `extract(bytes)`. A fetched page was unaffected, because it arrives as text.
+- Induction reads the whole listing. Members were compared by the classes of
+  everything inside them, so a rating written as `p.star-rating.Three` or a
+  quote with five tags instead of two made a new kind of row: books.toscrape.com
+  gave 6 of its 20 books and quotes.toscrape.com 3 of its 10. A member now
+  matches its own tag and classes exactly and its inside loosely, by the tag
+  paths it shares with the first member: 20 of 20 and 10 of 10, with Hacker News
+  still 30 of 30.
+- Induced field names no longer carry classes a build tool generated
+  (`dcr-1t2r5md`, `css-1x2y3z`, `sc-bdVaJa`), which change on every deploy; a
+  CSS module keeps the part a person wrote. A wrapper around several children,
+  or around children and separators, no longer repeats their text as a field of
+  its own.
 
 ### Changed
 - The Twitter card is a reader of its own, and its fields say

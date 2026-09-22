@@ -33,7 +33,7 @@ from collections import defaultdict
 from lxml.html import HtmlElement
 
 from sluicer.structure.records import address_of
-from sluicer.structure.shape import signature
+from sluicer.structure.shape import alike, kind, outline
 
 # Regions a reader skips on the way to the content, wherever inside them the
 # repetition sits.
@@ -71,6 +71,31 @@ def _worth(member: HtmlElement) -> int:
     return len(text) + addresses * _ADDRESS_WORTH
 
 
+def _same_shape_siblings(parent: HtmlElement) -> list[list[HtmlElement]]:
+    """``parent``'s children, gathered into groups of one kind, in document order.
+
+    A child joins the first group whose first member it matches, so the answer
+    depends on nothing but the page.
+    """
+    groups: dict[str, list[tuple[frozenset[str], list[HtmlElement]]]] = defaultdict(
+        list
+    )
+    ordered: list[list[HtmlElement]] = []
+    for child in parent:
+        if not _member(child):
+            continue
+        own, inside = kind(child), outline(child)
+        for first, members in groups[own]:
+            if alike(first, inside):
+                members.append(child)
+                break
+        else:
+            members = [child]
+            groups[own].append((inside, members))
+            ordered.append(members)
+    return ordered
+
+
 def repeating_groups(
     tree: HtmlElement, minimum: int = 3
 ) -> list[list[HtmlElement]]:
@@ -79,11 +104,7 @@ def repeating_groups(
     for order, parent in enumerate(tree.iter()):
         if _furniture(parent):
             continue
-        by_shape: dict[str, list[HtmlElement]] = defaultdict(list)
-        for child in parent:
-            if _member(child):
-                by_shape[signature(child)].append(child)
-        for members in by_shape.values():
+        for members in _same_shape_siblings(parent):
             if len(members) >= minimum:
                 richest = max(_worth(member) for member in members)
                 found.append((len(members) * richest, order, members))

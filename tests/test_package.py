@@ -126,14 +126,14 @@ def test_the_structure_package_has_a_surface_of_its_own():
     import sluicer.structure as structure_package
     from sluicer.structure.groups import repeating_groups
     from sluicer.structure.records import records_from
-    from sluicer.structure.shape import signature
+    from sluicer.structure.shape import same_kind
 
     assert sluicer.structure is structure_package, "a name means one thing"
     assert sluicer.induce is structure_package.induce
     assert structure_package.__all__ == ["induce"]
     assert structure_package.groups.repeating_groups is repeating_groups
     assert structure_package.records.records_from is records_from
-    assert structure_package.shape.signature is signature
+    assert structure_package.shape.same_kind is same_kind
 
 
 def test_a_submodule_is_importable_in_a_process_that_knows_nothing():

@@ -75,7 +75,7 @@ def slot_holding(record, value):
 
 
 def test_the_same_slot_keeps_its_name_in_every_record():
-    """Members differing below the signature's depth are rows, not four shapes."""
+    """Members differing below the compared depth are rows, not four shapes."""
     records = records_from(rows(OPTIONAL_EMPHASIS))
 
     names = {slot_holding(record, "in stock") for record in records}
@@ -166,3 +166,118 @@ def test_a_comment_inside_a_row_is_not_a_slot():
     assert {name: field.value for name, field in record.fields.items()} == {
         "span.sku": "ABC"
     }
+
+
+def test_a_class_a_build_tool_generated_never_names_a_field():
+    """CSS-in-JS hashes change with every deploy, and a name must not.
+
+    The Guardian's front page names everything ``dcr-1t2r5md`` and the like, so
+    every field came back under a name that would not survive the next release.
+    A generated class is skipped and the next honest label is used: a class a
+    person wrote, and failing that the tag.
+    """
+    group = rows(
+        "<ul>"
+        + (
+            "<li class='dcr-1t2r5md'>"
+            "<h3 class='dcr-7co5ks card-headline'>Headline</h3>"
+            "<span class='css-1x2y3z'>kicker</span>"
+            "<p class='sc-bdVaJa kPXmIq'>blurb</p>"
+            "<div class='dcr-mmqaso'>standfirst</div>"
+            "</li>"
+        )
+        * 3
+        + "</ul>"
+    )
+
+    record = records_from(group)[0]
+
+    assert {name: field.value for name, field in record.fields.items()} == {
+        "h3.card-headline": "Headline",
+        "span": "kicker",
+        "p": "blurb",
+        "div": "standfirst",
+    }
+
+
+def test_a_css_module_keeps_the_name_a_person_wrote_and_loses_the_hash():
+    group = rows(
+        "<ul>"
+        + (
+            "<li class='row'><span class='Card_title__a1B2c'>T</span>"
+            "<span class='card__price'>9</span></li>"
+        )
+        * 3
+        + "</ul>"
+    )
+
+    record = records_from(group)[0]
+
+    assert set(record.fields) == {"span.Card_title", "span.card__price"}
+
+
+def test_a_class_that_only_looks_technical_still_names_its_field():
+    """Tailwind, Bootstrap and BEM are written by people and change by hand."""
+    group = rows(
+        "<ul>"
+        + (
+            "<li class='row'><span class='col-md-6'>a</span>"
+            "<span class='title1'>b</span><span class='h-full'>c</span>"
+            "<span class='iPhone'>d</span></li>"
+        )
+        * 3
+        + "</ul>"
+    )
+
+    record = records_from(group)[0]
+
+    assert set(record.fields) == {
+        "span.col-md-6",
+        "span.title1",
+        "span.h-full",
+        "span.iPhone",
+    }
+
+
+def test_a_wrapper_around_several_children_repeats_none_of_them():
+    """The Guardian's card list: a ``ul`` whose text is its items' run together.
+
+    ``text_content`` joins children with no space, so the wrapper's "AB" never
+    equalled its children's "A B" and the wrapper kept a value that was only
+    theirs.
+    """
+    group = rows(
+        "<ul>"
+        + (
+            "<li class='row'><div class='tags'><a href='/a'>alpha</a>"
+            "<a href='/b'>beta</a></div></li>"
+        )
+        * 3
+        + "</ul>"
+    )
+
+    record = records_from(group)[0]
+
+    assert "div.tags" not in record.fields, record.fields
+    assert {field.value for field in record.fields.values()} == {
+        "alpha",
+        "/a",
+        "beta",
+        "/b",
+    }
+
+
+def test_a_separator_between_children_is_not_text_of_the_wrapper_s_own():
+    group = rows(
+        "<ul>"
+        + (
+            "<li class='row'><span class='meta'><a href='/u'>user</a> | "
+            "<a href='/c'>3 comments</a> · </span></li>"
+        )
+        * 3
+        + "</ul>"
+    )
+
+    record = records_from(group)[0]
+
+    assert "span.meta" not in record.fields, record.fields

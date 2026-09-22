@@ -1,24 +1,36 @@
 import lxml.html
 
-from sluicer.structure.shape import signature
+from sluicer.structure.shape import same_kind
 
 
 def element(html):
     return lxml.html.fromstring(html)
 
 
-def test_two_items_of_the_same_kind_share_a_signature():
+def test_two_items_of_the_same_kind_are_the_same_kind():
     one = element('<li class="row"><h3>A</h3><span class="price">1</span></li>')
     two = element('<li class="row"><h3>B</h3><span class="price">2</span></li>')
 
-    assert signature(one) == signature(two)
+    assert same_kind(one, two)
 
 
-def test_different_shapes_do_not_share_a_signature():
+def test_a_different_structure_is_a_different_kind_of_thing():
     item = element('<li class="row"><h3>A</h3></li>')
     other = element('<li class="row"><h3>A</h3><img src="x"></li>')
 
-    assert signature(item) != signature(other)
+    assert not same_kind(item, other)
+
+
+def test_one_optional_part_in_a_full_card_does_not_make_another_kind():
+    """A badge one card has and its neighbours lack is a card, not a new shape."""
+    card = (
+        '<li class="row"><h3>A</h3><p><span>x</span></p><div><a>y</a>'
+        "<img src='z'></div><span>{}</span></li>"
+    )
+    plain = element(card.format(""))
+    badged = element(card.replace("<h3>A</h3>", "<h3>A</h3><em>new</em>"))
+
+    assert same_kind(plain, badged)
 
 
 def test_a_different_class_is_a_different_kind_of_thing():
@@ -26,7 +38,7 @@ def test_a_different_class_is_a_different_kind_of_thing():
     row = element('<li class="row"><h3>A</h3></li>')
     banner = element('<li class="banner"><h3>A</h3></li>')
 
-    assert signature(row) != signature(banner)
+    assert not same_kind(row, banner)
 
 
 def test_three_classes_are_compared_and_the_fourth_is_not():
@@ -35,12 +47,40 @@ def test_three_classes_are_compared_and_the_fourth_is_not():
     third_differs = element('<li class="a b c"><p>x</p></li>')
     third_agrees = element('<li class="a b d"><p>x</p></li>')
 
-    assert signature(third_differs) != signature(third_agrees)
+    assert not same_kind(third_differs, third_agrees)
 
     fourth_differs = element('<li class="a b c d"><p>x</p></li>')
     fourth_agrees = element('<li class="a b c e"><p>x</p></li>')
 
-    assert signature(fourth_differs) == signature(fourth_agrees)
+    assert same_kind(fourth_differs, fourth_agrees)
+
+
+def test_a_class_below_the_member_does_not_split_the_kind():
+    """books.toscrape.com writes each rating as a class on a descendant.
+
+    ``p.star-rating.One`` and ``p.star-rating.Three`` are one card with two
+    values, and comparing them as two shapes split twenty books into five
+    groups, of which induction read the largest: six.
+    """
+    one = element(
+        '<article class="product_pod"><p class="star-rating One"><i></i></p>'
+        "<h3><a>A</a></h3></article>"
+    )
+    three = element(
+        '<article class="product_pod"><p class="star-rating Three"><i></i></p>'
+        "<h3><a>B</a></h3></article>"
+    )
+
+    assert same_kind(one, three)
+
+
+def test_how_many_times_a_child_repeats_does_not_split_the_kind():
+    """A quote with two tags and a quote with five are both quotes."""
+    quote = '<div class="quote"><span>q</span><div>{}</div></div>'
+    two = element(quote.format("<a>t</a>" * 2))
+    five = element(quote.format("<a>t</a>" * 5))
+
+    assert same_kind(two, five)
 
 
 def test_the_default_depth_sees_past_the_first_generation():
@@ -49,7 +89,7 @@ def test_the_default_depth_sees_past_the_first_generation():
     bold = element("<div><p><span><b>x</b></span></p></div>")
     italic = element("<div><p><span><i>x</i></span></p></div>")
 
-    assert signature(bold) != signature(italic)
+    assert not same_kind(bold, italic)
 
 
 def test_the_default_depth_stops_at_three():
@@ -57,25 +97,25 @@ def test_the_default_depth_stops_at_three():
     plain = element("<div><p><span><b>x</b></span></p></div>")
     nested = element("<div><p><span><b><em>x</em></b></span></p></div>")
 
-    assert signature(plain) == signature(nested)
+    assert same_kind(plain, nested)
 
 
 def test_the_words_inside_do_not_change_the_shape():
     short = element("<li><p>hi</p></li>")
     long = element("<li><p>" + ("a lot of words " * 50) + "</p></li>")
 
-    assert signature(short) == signature(long)
+    assert same_kind(short, long)
 
 
 def test_class_order_does_not_change_the_shape():
     one = element('<li class="a b"><p>x</p></li>')
     two = element('<li class="b a"><p>x</p></li>')
 
-    assert signature(one) == signature(two)
+    assert same_kind(one, two)
 
 
 def test_depth_is_bounded_so_a_deep_page_stays_comparable():
     shallow = element("<div><p>x</p></div>")
     deep = element("<div><p>x<em><b><i><u>deep</u></i></b></em></p></div>")
 
-    assert signature(shallow, depth=1) == signature(deep, depth=1)
+    assert same_kind(shallow, deep, depth=1)

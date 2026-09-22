@@ -200,3 +200,52 @@ def test_a_row_that_only_points_somewhere_is_still_worth_something():
     groups = repeating_groups(tree)
 
     assert [member.tag for member in groups[0]] == ["a"] * 4
+
+
+def test_a_rating_written_as_a_class_does_not_split_the_listing():
+    """Every book on books.toscrape.com is one group, whatever its stars."""
+    stars = ["One", "Three", "Five", "Two", "Three", "Four"]
+    books = "".join(
+        f"<li><article class='product_pod'><p class='star-rating {rating}'>"
+        f"<i></i></p><h3><a href='/b{n}'>Book {n}</a></h3>"
+        f"<p class='price_color'>{n}.00</p></article></li>"
+        for n, rating in enumerate(stars)
+    )
+    tree = lxml.html.fromstring(f"<main><ol class='row'>{books}</ol></main>")
+
+    groups = repeating_groups(tree)
+
+    assert len(groups[0]) == 6
+
+
+def test_a_varying_number_of_tags_does_not_split_the_listing():
+    quotes = "".join(
+        f"<div class='quote'><span class='text'>Quote {n}</span><div class='tags'>"
+        + "<a class='tag' href='/t'>tag</a>" * (n + 1)
+        + "</div></div>"
+        for n in range(5)
+    )
+    tree = lxml.html.fromstring(f"<main><div class='col'>{quotes}</div></main>")
+
+    groups = repeating_groups(tree)
+
+    assert [member.get("class") for member in groups[0]] == ["quote"] * 5
+
+
+def test_rows_of_another_class_between_the_rows_stay_out_of_the_group():
+    """Hacker News interleaves each story with a subtext row and a spacer."""
+    rows = "".join(
+        f"<tr class='athing'><td><span class='rank'>{n}.</span></td>"
+        f"<td><span><a href='/s{n}'>Story {n}</a></span></td></tr>"
+        f"<tr><td></td><td><span>{n} points</span><a href='/u'>user</a></td></tr>"
+        "<tr class='spacer'></tr>"
+        for n in range(4)
+    )
+    tree = lxml.html.fromstring(f"<body><table>{rows}</table></body>")
+
+    groups = repeating_groups(tree)
+
+    for group in groups:
+        assert len({member.get("class") for member in group}) == 1, group
+    stories = next(group for group in groups if group[0].get("class") == "athing")
+    assert len(stories) == 4
