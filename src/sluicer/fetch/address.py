@@ -47,6 +47,14 @@ def why_not_public(
     if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
         return f"{host} is a name for this machine or its network"
     try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        if literal.is_global:
+            return None
+        return f"{host} is not on the public internet"
+    try:
         addresses = [ipaddress.ip_address(host)]
     except ValueError:
         try:

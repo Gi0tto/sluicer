@@ -38,14 +38,18 @@ def main() -> None:
 
 
 def _quiet_scrapling() -> None:
-    """Keep scrapling's per-request INFO lines out of stderr.
+    """Keep scrapling's own log lines out of this command's stderr.
+
+    Every one of them is said again here, better: a request is part of the
+    ladder this command reports, and a failure is the message it exits with.
+    Printed as well, a failed fetch read twice, once in scrapling's words.
 
     A filter and not a level: scrapling sets its logger to INFO when it is
     imported, which happens later, at the first fetch, and would undo a level
     set here. A filter on the logger survives that.
     """
     logging.getLogger("scrapling").addFilter(
-        lambda record: record.levelno >= logging.WARNING
+        lambda record: record.levelno >= logging.CRITICAL
     )
 
 
