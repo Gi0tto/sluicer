@@ -54,21 +54,29 @@ def _explains_a_missing_extra(tool: Callable) -> Callable:
     a duty this package discharges at every entry point; the CLI does it in
     ``cli.py``, and this is the server's one place to do it.
 
-    The shape follows the tool's declared return type, because FastMCP builds
-    an output schema from that annotation: a ``dict`` tool gets the sentence
-    under ``error`` alongside the extra's name, and a ``str`` tool gets the
-    sentence itself. Only ``MissingExtra`` is caught. A real bug inside a tool
-    is still a bug and still raises.
+    One shape for all three, and deliberately not the shape of any tool's
+    content. This first followed each tool's declared return type, so
+    ``page_markdown`` -- which returns a page's markdown as a ``str`` -- got
+    the explanation as a ``str`` too. Measured, an agent then received
+    "Turning a page into markdown needs trafilatura..." in the exact place a
+    page's own words go, with nothing to tell it apart: it would summarise it,
+    quote it, or act on it. A failure wearing the shape of a success is the
+    defect this project keeps finding, and it is worse here than at the
+    command line, because a person reading a terminal notices and an agent
+    does not. A return type that differs between success and failure is mildly
+    awkward; this is the trade, and ``page_markdown`` is annotated
+    ``str | dict`` so the annotation tells the truth and FastMCP builds an
+    output schema that admits both.
+
+    Only ``MissingExtra`` is caught. A real bug inside a tool is still a bug
+    and still raises.
     """
-    returns_text = tool.__annotations__.get("return") in ("str", str)
 
     @functools.wraps(tool)
     def guarded(*args: Any, **kwargs: Any) -> Any:
         try:
             return tool(*args, **kwargs)
         except MissingExtra as missing:
-            if returns_text:
-                return str(missing)
             return {"error": str(missing), "missing_extra": missing.extra}
 
     return guarded
@@ -123,8 +131,14 @@ def build_server() -> Any:
 
     @server.tool()
     @_explains_a_missing_extra
-    def page_markdown(html_or_url: str) -> str:
-        """Return the page's main content as markdown, with boilerplate removed."""
+    def page_markdown(html_or_url: str) -> str | dict:
+        """Return the page's main content as markdown, with boilerplate removed.
+
+        A ``str`` is the page's markdown. A ``dict`` is never content: it is
+        the ``{"error", "missing_extra"}`` report the three tools share when an
+        optional extra is absent. The two cannot be confused, which is the
+        whole reason the failure is not a ``str``.
+        """
         html, url, _fetched = _html_of(html_or_url)
         return to_markdown(html, url=url)
 

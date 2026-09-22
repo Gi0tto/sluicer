@@ -276,8 +276,14 @@ def test_fetch_page_without_the_fetch_extra_returns_the_sentence(monkeypatch):
     assert result["missing_extra"] == "fetch"
 
 
-def test_page_markdown_without_the_markdown_extra_returns_the_sentence(monkeypatch):
-    """This tool returns a str, so the explanation has to arrive as one."""
+def test_page_markdown_without_the_markdown_extra_reports_it_as_an_error(monkeypatch):
+    """Replaces a test that asserted the defect.
+
+    Its first version asserted ``isinstance(result, str)`` and called that
+    right, reasoning from the tool's declared return type instead of from what
+    the reader of the result can tell apart. That is what let a failure keep
+    the shape of a page's content all the way through a round of review.
+    """
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
@@ -286,8 +292,8 @@ def test_page_markdown_without_the_markdown_extra_returns_the_sentence(monkeypat
 
     result = registered["page_markdown"]("<html><body>hi</body></html>")
 
-    assert isinstance(result, str)
-    assert "uv pip install 'sluicer[markdown]'" in result
+    assert "uv pip install 'sluicer[markdown]'" in result["error"]
+    assert result["missing_extra"] == "markdown"
 
 
 def test_a_tool_that_works_is_left_alone_by_the_guard(monkeypatch):
@@ -339,3 +345,36 @@ def test_main_starts_the_server(monkeypatch):
     main()
 
     assert registered["__ran__"] is True
+
+
+def test_a_missing_extra_is_never_mistakable_for_content(monkeypatch):
+    """A failure must not wear the shape of a success, for any of the three.
+
+    page_markdown returns a str when it works, so returning the explanation as
+    a str handed an agent a sentence it could not tell apart from the page's
+    own words -- it would summarise it, quote it, or act on it. A person at a
+    terminal notices; an agent does not. So all three report a missing extra
+    in one shape, and that shape is not the shape of any tool's content.
+    """
+    from collections.abc import Mapping
+
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    absent(monkeypatch, "scrapling", "trafilatura")
+
+    results = {
+        "extract_declared": registered["extract_declared"]("https://example.com/p"),
+        "page_markdown": registered["page_markdown"]("<html><body>hi</body></html>"),
+        "fetch_page": registered["fetch_page"]("https://example.com/p"),
+    }
+
+    assert not isinstance(results["page_markdown"], str), (
+        "page_markdown returned the explanation in the same shape as a page's "
+        f"content: {results['page_markdown']!r}"
+    )
+    for name, result in results.items():
+        assert isinstance(result, Mapping), f"{name} returned {type(result).__name__}"
+        assert "error" in result, f"{name} carries no error key: {result!r}"
+        assert "uv pip install 'sluicer[" in result["error"], name
