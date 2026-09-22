@@ -65,10 +65,7 @@ def test_the_default_rungs_come_back_in_cost_order(monkeypatch):
         rung("https://example.com/p")
 
     assert seen["http"][1] == {"timeout": 30, "headers": {"User-Agent": USER_AGENT}}
-    assert seen["browser"][1] == {
-        "network_idle": True,
-        "extra_headers": {"User-Agent": USER_AGENT},
-    }
+    assert seen["browser"][1] == {"network_idle": True, "useragent": USER_AGENT}
 
 
 def test_the_stealth_rung_comes_after_the_default_ladder_in_cost(monkeypatch):
@@ -133,14 +130,23 @@ def test_the_http_rung_says_who_it_is(monkeypatch):
 
 
 def test_the_browser_rung_says_who_it_is(monkeypatch):
+    """Measured against a live request: ``extra_headers`` is overridden by the
+
+    browser context's own generated user agent, and never reaches the wire.
+    ``useragent`` is the keyword the browser context itself actually applies.
+    Both are asserted so the wrong one cannot silently come back: a fake
+    accepts whatever it is handed, so the test that only checked
+    ``extra_headers`` passed while the real request still said Chrome.
+    """
     seen = fake_scrapling(monkeypatch)
     from sluicer.fetch.identity import USER_AGENT
     from sluicer.fetch.scrapling_rungs import default_rungs
 
     dict(default_rungs())["browser"]("https://example.com/p")
 
-    headers = seen["browser"][1].get("extra_headers") or seen["browser"][1].get("headers") or {}
-    assert headers.get("User-Agent") == USER_AGENT
+    kwargs = seen["browser"][1]
+    assert kwargs.get("useragent") == USER_AGENT
+    assert (kwargs.get("extra_headers") or {}).get("User-Agent") is None
 
 
 def test_the_stealth_rung_sends_no_user_agent(monkeypatch):

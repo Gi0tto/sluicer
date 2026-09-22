@@ -57,6 +57,14 @@ def default_rungs() -> list[tuple[str, Rung]]:
     site that does not want us can refuse us, the way it refuses anyone else
     who says who they are. Climbing from "plain HTTP" to "a browser" is a
     change of cost, not a change of what we are, so both rungs stay here.
+
+    The browser rung uses ``useragent``, not ``extra_headers``, and this was
+    measured, not assumed: against a live request to
+    ``https://httpbin.org/user-agent``, ``extra_headers={"User-Agent": ...}``
+    was silently overridden by the browser context's own generated user
+    agent (the server still saw Chrome), while ``useragent=...`` reached the
+    wire correctly. A unit test cannot catch this on its own, because a fake
+    accepts whatever keyword it is handed; it took a real server to find it.
     """
     fetcher, dynamic, _ = _fetchers()
 
@@ -69,7 +77,7 @@ def default_rungs() -> list[tuple[str, Rung]]:
 
     def browser(url: str) -> Fetched:
         return _as_fetched(
-            dynamic.fetch(url, network_idle=True, extra_headers={"User-Agent": USER_AGENT}),
+            dynamic.fetch(url, network_idle=True, useragent=USER_AGENT),
             "browser",
             url,
         )
