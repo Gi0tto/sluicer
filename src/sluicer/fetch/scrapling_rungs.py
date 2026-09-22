@@ -7,8 +7,7 @@ free, so the dependency is looked up when a rung is built, not at import time.
 
 from __future__ import annotations
 
-from sluicer.fetch.ladder import Rung
-from sluicer.fetch.result import Fetched
+from sluicer.fetch.result import Fetched, Rung
 
 _MISSING = (
     "Fetching a URL needs scrapling, which is not installed. "

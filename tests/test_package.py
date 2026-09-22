@@ -23,3 +23,11 @@ def test_the_fetch_package_has_a_surface_of_its_own():
     assert fetch_package.Fetched is Fetched
     assert fetch_package.Climb is Climb
     assert set(fetch_package.__all__) == {"Climb", "Fetched", "fetch"}
+
+
+def test_the_rung_type_lives_beside_the_result_it_returns():
+    """The adapter must not have to import a type from the orchestrator."""
+    import sluicer.fetch.result as result
+    import sluicer.fetch.scrapling_rungs as adapter
+
+    assert adapter.Rung is result.Rung

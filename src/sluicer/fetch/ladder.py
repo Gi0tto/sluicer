@@ -11,13 +11,11 @@ is the caller's to handle.
 
 from __future__ import annotations
 
-from typing import Callable, Sequence
+from typing import Sequence
 
 from sluicer.api import extract
-from sluicer.fetch.result import Climb, Fetched
+from sluicer.fetch.result import Climb, Fetched, Rung
 from sluicer.fetch.rules import why_climb
-
-Rung = Callable[[str], Fetched]
 
 
 def fetch(url: str, rungs: Sequence[tuple[str, Rung]] | None = None) -> Fetched:
