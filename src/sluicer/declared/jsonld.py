@@ -178,7 +178,11 @@ class _Walk:
             target = self.index.get(identifier)
             if target is None or identifier in path or hops >= MAX_REFERENCE_HOPS:
                 return value
-            size = self.sizes.setdefault(identifier, _size(target))
+            # Not ``setdefault``: its default is evaluated on every call, and
+            # sizing the same large node once per reference was the whole cost.
+            size = self.sizes.get(identifier)
+            if size is None:
+                size = self.sizes[identifier] = _size(target)
             if size > self.budget[0]:
                 return value
             self.budget[0] -= size

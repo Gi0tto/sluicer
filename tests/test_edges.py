@@ -362,6 +362,7 @@ def _timed(html: str) -> float:
 
 
 def test_items_that_itemref_each_other_cost_a_bounded_amount():
+    # Seconds, with a margin of hundreds: the unbounded walk took half an hour.
     """Four items naming each other with itemref took an estimated half hour."""
     ids = [f"p{i}" for i in range(6)]
     parts = [
@@ -401,7 +402,27 @@ def test_thousands_of_references_to_one_large_node_cost_a_bounded_amount():
         + "</script>"
     )
 
-    assert _timed(html) < 3
+    from sluicer.declared import jsonld
+
+    sized = []
+    real_size = jsonld._size
+
+    def counting(value):
+        sized.append(1)
+        return real_size(value)
+
+    jsonld._size = counting
+    try:
+        records = extract(html).records
+    finally:
+        jsonld._size = real_size
+
+    # The page itself is sized once, and the node its references name once.
+    assert len(sized) == 2
+    related = records[-1].fields["isRelatedTo"].value
+    resolved = [item for item in related if "tags" in item]
+    assert 0 < len(resolved) < 50
+    assert all(item == {"@id": "#t"} for item in related if "tags" not in item)
 
 
 def test_a_reference_is_still_resolved_when_the_page_is_small():
