@@ -17,5 +17,6 @@
     "markdown",
     "robots-txt",
     "deterministic"
-  ]
+  ],
+  "mcpServers": "./.claude-plugin/mcp.json"
 }

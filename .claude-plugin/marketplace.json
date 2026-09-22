@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "sluicer",
-      "description": "Read what a page declares about itself, in three vocabularies at once, and get back records where every field names the vocabulary it came from. Fetches only as expensively as it must, announces itself by name, and obeys robots.txt.",
+      "description": "Read what a page declares about itself, in eight vocabularies at once, and get back records where every field names the vocabulary it came from. Fetches only as expensively as it must, announces itself by name, and obeys robots.txt. Needs uv on the PATH: the MCP server runs from the plugin's own copy through uvx.",
       "source": "./",
       "category": "productivity",
       "homepage": "https://github.com/Gi0tto/sluicer"
