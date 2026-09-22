@@ -1,0 +1,10 @@
+# Everything is left out, and only what the image is built from comes back in.
+# A list of exclusions forgets the next cache directory; a list of inclusions
+# cannot send a .venv, a .git or a site/ it never named.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!src/
+**/__pycache__
+**/*.pyc

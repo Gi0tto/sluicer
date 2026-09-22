@@ -268,3 +268,45 @@ jobs:
           assert tools == ['extract_declared', 'fetch_page', 'page_markdown'], tools
           print('still building against the newest published extras')
           "
+
+  docker:
+    name: The image builds, runs unprivileged, and reads a page
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image
+        run: docker build -t sluicer:ci .
+      - name: Use it
+        # A page handed to it needs no network, so this proves the install in
+        # the image without depending on any site being up.
+        run: |
+          uid=$(docker run --rm sluicer:ci id -u)
+          test "$uid" != 0 || { echo "the image runs as root"; exit 1; }
+          printf '%s' '<script type="application/ld+json">{"@type":"Product","name":"Pad"}</script>' > page.html
+          docker run --rm -v "$PWD/page.html:/tmp/page.html:ro" sluicer:ci \
+            sluicer extract /tmp/page.html | tee out.json
+          grep -q '"Pad"' out.json
+
+  docker-browser:
+    # The browser variant is most of a gigabyte and minutes to build, so it is
+    # proven weekly rather than on every push -- but proven, because a build
+    # argument nobody builds is a claim in a comment.
+    name: The image builds with its browser
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image with Chromium
+        run: docker build --build-arg WITH_BROWSER=1 -t sluicer:browser .
+      - name: The unprivileged user can launch the browser
+        run: |
+          docker run --rm sluicer:browser python -c "
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              page = browser.new_page()
+              page.set_content('<p>ok</p>')
+              assert page.inner_text('p') == 'ok'
+              browser.close()
+          print('chromium launches as', __import__('os').getuid())
+          "
