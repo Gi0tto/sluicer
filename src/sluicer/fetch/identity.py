@@ -74,8 +74,15 @@ def robots_allows(
 
 
 def _cache_key(url: str) -> str:
-    """The robots resource ``url`` is governed by, as one string."""
-    return urlsplit(url).netloc
+    """The robots resource ``url`` is governed by, as one string.
+
+    Scheme and host, not host alone: ``http://example.com/robots.txt`` and
+    ``https://example.com/robots.txt`` are two resources, and a site is free
+    to publish different rules at each. Keyed on the host alone, whichever
+    scheme was asked for first answered for both.
+    """
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}"
 
 
 _CACHE: dict[str, tuple[float, str | None]] = {}

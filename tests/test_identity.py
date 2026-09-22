@@ -87,3 +87,25 @@ def test_an_answer_older_than_a_day_is_asked_again():
     clock[0] = 24 * 60 * 60 + 1
     assert robots_allows("https://example.com/p", read=read, cache=cache, now=now) is False
     assert len(calls) == 2, "the expired entry was not read again"
+
+
+def test_http_and_https_on_one_host_are_two_different_robots_files():
+    """They are two resources, and a site is free to publish different rules.
+
+    The key was the netloc alone, so whichever scheme was asked for first
+    answered for both -- an http:// page could be refused on the strength of
+    an https://robots.txt that was never fetched, or allowed against one that
+    would have refused it. ``robots_url_for`` has always kept the scheme; only
+    the cache threw it away.
+    """
+    calls: list[str] = []
+
+    def read(url):
+        calls.append(url)
+        return "User-agent: *\nDisallow: /\n" if url.startswith("http://") else ALLOW_ALL
+
+    cache: dict = {}
+
+    assert robots_allows("http://example.com/p", read=read, cache=cache) is False
+    assert robots_allows("https://example.com/p", read=read, cache=cache) is True
+    assert calls == ["http://example.com/robots.txt", "https://example.com/robots.txt"]
