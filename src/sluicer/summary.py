@@ -29,7 +29,13 @@ from sluicer.document import Document, base_url, join
 
 @dataclass(frozen=True)
 class SummaryField:
-    """One answer, the reader that declared it, and the key it was read from."""
+    """One answer, the reader that declared it, and the key it was read from.
+
+    ``value`` is text. ``source`` is a reader name, as on ``Field``, with
+    ``"html"`` also covering ``<title>``, ``<html lang>``, ``<link
+    rel=canonical>`` and meta names outside any vocabulary. ``key`` is what was
+    read: ``Product.offers``, ``og:title``, ``<title>``, ``meta name=author``.
+    """
 
     value: str
     source: str

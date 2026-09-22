@@ -92,48 +92,30 @@ def _read_source(
 ) -> tuple[str | bytes, str | None, Fetched | None]:
     """Return the HTML of ``source``, the URL to attribute it to, and the fetch record.
 
-    ``source`` is either a URL or a path to a saved HTML file, exactly as
-    ``extract`` and ``markdown`` both accept it. A URL is fetched through the
-    same ``fetch_url`` seam; a path is read from disk. Every operational
-    failure along the way -- a missing fetch extra, a site's own robots.txt
-    refusing us, an operational fetch failure, a missing file, a directory,
-    an empty file -- is reported here with the message and exit code both
-    commands share, so lifting this out keeps that behaviour in one place
-    instead of two.
-
-    The third element is the ``Fetched`` record when ``source`` was a URL, or
-    ``None`` for a file, since only the URL case has a ladder to report on.
+    ``source`` is a URL, a path, or ``-`` for standard input. Every way of
+    failing to read it -- a missing extra, a refusal, a failed fetch, a missing,
+    empty or non-file path -- exits here with a message and ``COULD_NOT_READ``,
+    one place for both commands. The fetch record is None for a file or stdin.
     """
     if source.lower().startswith(("http://", "https://")):
-        # FetchExtraMissing means the optional fetch stack (scrapling) is
-        # not installed. Its message already names the fix, so it is
-        # printed as-is. Catching only this type -- not ImportError itself
-        # -- matters: a real import failure from inside a working scrapling
-        # install must surface as the bug it is, not be mistaken for the
-        # extra simply being absent, and a wider except would also risk
-        # swallowing a real fetch failure, which the ladder already decides
-        # what to do with.
+        # Only FetchExtraMissing, not ImportError: an import failure inside a
+        # working scrapling install is a bug and keeps its traceback.
         try:
             fetched = fetch_url(source, stealth=stealth, obey_robots=not no_robots)
         except FetchExtraMissing as missing:
             _fail(str(missing), missing)
         except RobotsRefused as refused:
-            # The site was reachable and told us no. That is an answer, not
-            # a malfunction, so it gets the same message-and-exit treatment
-            # as the operational failures below rather than a traceback.
+            # The site told us no: an answer, not a malfunction.
             _fail(str(refused), refused)
         except FetchFailed as failed:
             # Every rung failed, whatever library it was built on: a browser's
-            # timeout is not an OSError, and was a traceback until this.
+            # timeout, for one, is not an OSError.
             _fail(str(failed), failed)
         except (OSError, ValueError) as failure:
-            # At the command line an operational failure is a message and a
-            # bug is a traceback. OSError is the operational family: the site
-            # was down, the name did not resolve, the connection timed out
-            # (ConnectionError and TimeoutError are both OSError). ValueError
-            # is what a rung raises when it comes back with no HTML. Anything
-            # else -- a broken install, a wrong type -- is a bug and keeps its
-            # full diagnostics, so it is deliberately not caught here.
+            # An operational failure is a message and a bug is a traceback.
+            # OSError covers down, unresolvable and timed out; ValueError is a
+            # rung that came back with no HTML. Anything else keeps its
+            # traceback, deliberately.
             _fail(
                 f"Could not fetch {source}: {type(failure).__name__}: {failure}",
                 failure,
@@ -148,31 +130,19 @@ def _read_source(
 
     path = Path(source)
 
-    # click.Path(exists=True) used to guard this. A plain string argument no
-    # longer gets that check for free, since the same argument must also
-    # accept a URL, so the existence check is made by hand here -- and it
-    # must fail with a clear message, not a traceback from read_text().
+    # By hand, not click.Path(exists=True): the same argument also takes a URL.
     if not path.is_file():
         _fail(
             f"{source} is not a file." if path.exists() else f"{source} does not exist."
         )
 
-    # Read as bytes, not text: a file's own declared encoding (a <meta
-    # charset>, an XML declaration) is only visible to lxml and trafilatura
-    # when they get to make that decision themselves. Decoding here first --
-    # even tolerantly, with errors="replace" -- picks the process default
-    # (UTF-8) before either reader is ever called, and permanently destroys
-    # any byte that was not already UTF-8. extract() and to_markdown() both
-    # accept str | bytes and both do better with bytes for exactly this
-    # reason; document.load() already relies on this happening.
+    # Bytes, not text: decoding here would pick the process default before
+    # the page's own charset declaration is read, and destroy every byte that
+    # was not UTF-8. extract() and to_markdown() both decode bytes properly.
     data = path.read_bytes()
 
-    # This guard is not a duplicate of the one in load(). It answers a
-    # different question: a file with nothing in it is a user mistake and
-    # deserves a message about the file. load() answers for the library,
-    # promising it never raises on anything else lxml refuses to parse.
-    # b"   ".strip() is falsy exactly as the text version was, so this still
-    # catches an all-whitespace file.
+    # An empty file is a user mistake and gets a message about the file;
+    # load() would quietly read it as a page that declares nothing.
     if not data.strip():
         _fail("This file contains no HTML.")
 
@@ -211,11 +181,7 @@ def extract(
     if not result.records:
         click.echo("This page declares no structured data.", err=True)
         if fetched is not None:
-            # A file that declares nothing and a page that took three
-            # climbs to reach a rung that also declares nothing are not the
-            # same event: the whole point of the ladder is to say what a
-            # page cost, so that cost is reported here even when the
-            # answer is "nothing found".
+            # What the page cost is reported even when it declared nothing.
             click.echo(f"Fetch reached the '{fetched.rung}' rung.", err=True)
             for climb in fetched.climbs:
                 click.echo(
@@ -239,9 +205,7 @@ def extract(
 def markdown(source: str, stealth: bool, no_robots: bool, base_url: str | None) -> None:
     """Print the main content of a URL, a file or stdin as markdown."""
     html, url, _fetched = _read_source(source, stealth, no_robots, base_url)
-    # MarkdownExtraMissing means trafilatura is not installed. Its message
-    # already names the fix, so it is printed as-is, the same way
-    # FetchExtraMissing is handled in _read_source above.
+    # MarkdownExtraMissing: trafilatura is not installed; the message says how.
     try:
         content = to_markdown(html, url=url)
     except MarkdownExtraMissing as missing:

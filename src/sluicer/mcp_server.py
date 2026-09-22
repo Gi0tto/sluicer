@@ -1,9 +1,8 @@
-"""Sluicer as a tool an agent can call.
+"""Sluicer as a tool an agent can call, over the Model Context Protocol.
 
-Nine percent of the live projects in this field now ship an MCP server, which
-makes it table stakes rather than an edge: a tool an agent cannot install is a
-tool an agent will not use. The server adds no logic. It exposes what the
-library already does and gets out of the way.
+Three tools -- ``extract_declared``, ``page_markdown``, ``fetch_page`` -- expose
+what the library does and add no logic of their own. Run it with
+``sluicer-mcp``; it needs the ``mcp`` extra.
 """
 
 from __future__ import annotations
@@ -46,23 +45,14 @@ class McpExtraMissing(MissingExtra):
 def _server_class() -> Any:
     """Return the SDK's ``MCPServer`` class, or say the extra is not installed.
 
-    ``Any`` for the same reason ``build_server`` returns it: the class cannot
-    be named in a module that must not import ``mcp`` at module level.
+    ``Any``, because ``mcp`` is never imported at module level and there is no
+    class here to name. The extra pins ``mcp>=2``: 2.x renamed ``FastMCP`` to
+    ``MCPServer`` and removed the old name.
 
-    Named for what it returns. This built ``mcp.server.fastmcp.FastMCP`` until
-    the class was renamed in mcp 2.x, which the extra's pin now follows: the v1
-    name is gone from the package, and supporting both spellings would double
-    this surface for a project at 0.0.1 with no users to keep working.
-
-    The match here is on the top-level ``mcp`` only, the same rule the other
-    two extras use, and the rename is the proof that it is the right one.
-    mcp 2.x ships ``mcp/server/fastmcp.py`` as a module that exists solely to
-    raise ``ModuleNotFoundError(name="mcp.server.fastmcp")`` carrying its
-    migration guide. Under the wider ``mcp.*`` match this file used to have,
-    that would have been swallowed and reported as "the mcp package is not
-    installed. Install it with: uv pip install 'sluicer[mcp]'" -- sending a
-    reader to install what they already had, and throwing away the one
-    sentence that says what to do. The narrow rule lets it through untouched.
+    Only a missing top-level ``mcp`` counts as the extra being absent. mcp 2.x
+    ships ``mcp/server/fastmcp.py`` solely to raise ``ModuleNotFoundError``
+    with a migration guide; a wider match would report that as "install
+    sluicer[mcp]" to someone who has it, and throw the guide away.
     """
     return import_extra(
         "mcp.server.mcpserver",
@@ -74,45 +64,20 @@ def _server_class() -> Any:
 
 
 def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
-    """Turn the two answerable events into the tool's own result, hint intact.
+    """Return the answerable failures as the tool's result, never as its content.
 
-    Every tool here can meet an absent extra: two fetch, two read markdown or
-    structured data. Every tool here can also be aimed at a URL whose site
-    refuses us, since ``fetch`` asks robots.txt before any rung runs and raises
-    ``RobotsRefused`` when the answer is no. Without this, either one leaves
-    the tool body as an exception, and what the agent on the other end sees is
-    whatever the SDK decides to do with one -- which is not this project's to
-    promise, is not tested here, and is not written down anywhere. "Explain
-    what happened" is a duty this package discharges at every entry point; the
-    CLI does it in ``cli.py``, and this is the server's one place to do it.
+    Each is a mapping with ``error`` and a key saying which kind, because they
+    call for different responses: ``missing_extra`` (install what the message
+    says), ``refused_by_robots`` (do not work around it), ``refused_address``
+    (a private address, refused by default), ``fetch_failed`` (worth trying
+    later) and ``bad_input``. Raised instead, each reached the agent as the
+    SDK's bare "Error executing tool".
 
-    Both answers share one shape -- a mapping with ``error`` -- and carry a
-    different second key, because they call for opposite responses: a missing
-    extra is fixed by the one install command in its own message, and a
-    refusal is not to be worked around at all. ``missing_extra`` names the
-    extra; ``refused_by_robots`` names the URL the site refused. A reader that
-    saw only ``error`` would have to parse English to tell them apart.
-
-    That shape is deliberately not the shape of any tool's content. This first
-    followed each tool's declared return type, so ``page_markdown`` -- which
-    returns a page's markdown as a ``str`` -- got the explanation as a ``str``
-    too. Measured, an agent then received "Turning a page into markdown needs
-    trafilatura..." in the exact place a page's own words go, with nothing to
-    tell it apart: it would summarise it, quote it, or act on it. A failure
-    wearing the shape of a success is the defect this project keeps finding,
-    and it is worse here than at the command line, because a person reading a
-    terminal notices and an agent does not. A return type that differs between
-    success and failure is mildly awkward; this is the trade, and
-    ``page_markdown`` is annotated ``str | dict`` because that is what it
-    returns. Measured against mcp 2.2.0, a tool returning text gets no
-    generated output schema, so the annotation costs nothing there either.
-
-    Three operational failures get the same shape with a key of their own: a
-    fetch where every rung failed (``fetch_failed``), an address off the public
-    internet (``refused_address``) and an input the tool cannot take
-    (``bad_input``). Raised instead, each reached the agent as the SDK's bare
-    "Error executing tool", with the one sentence that said what went wrong
-    thrown away. A real bug inside a tool is still a bug, and still raises.
+    The shape is deliberately not the shape of any tool's content: returned as
+    a ``str``, "Turning a page into markdown needs trafilatura" sat exactly
+    where a page's words go, and an agent would summarise it as the page. So
+    ``page_markdown`` returns ``str | dict``. A real bug inside a tool still
+    raises.
     """
 
     @functools.wraps(tool)
@@ -144,11 +109,8 @@ def _allow_private() -> bool:
 def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
     """Return the page's HTML, the URL to attribute it to, and the fetch record.
 
-    The URL is the *response's* own ``fetched.url``, not the string the caller
-    passed: a fetch that followed a redirect landed somewhere else, and every
-    relative link on the page resolves against where it landed. For literal
-    HTML there is no URL at all -- ``None`` says "this came from nowhere I can
-    name", which is the truth, and is what the library already means by it.
+    The URL is where the fetch landed, after redirects, since that is what the
+    page's relative links resolve against; for literal HTML it is None.
     """
     if html_or_url.strip().lower().startswith(("http://", "https://")):
         from sluicer.fetch import fetch
@@ -169,12 +131,8 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
 def build_server() -> Any:
     """Build the server with its three tools registered.
 
-    Returns the mcp SDK's ``MCPServer`` instance. That type cannot be named in
-    this signature: ``mcp`` is an optional extra, and this module's whole
-    point is to not import it at module level, so there is no ``MCPServer``
-    name here for even a string annotation to resolve to. ``Any`` says that
-    honestly rather than writing a forward reference to a name nothing in
-    this file ever defines.
+    Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
+    imported at module level.
     """
     server = _server_class()(
         "sluicer",
@@ -186,11 +144,9 @@ def build_server() -> Any:
         ),
     )
 
-    # ``server`` is the SDK instance this module deliberately cannot name, so
-    # its ``tool()`` decorator is untyped and every tool it wraps is untyped
-    # with it. The three ignores below are the whole cost of that ruling, and
-    # they are narrow on purpose: ``warn_unused_ignores`` deletes them the day
-    # the SDK ships type information, which a module-wide relaxation would not.
+    # The SDK instance is untyped here, so its decorator is too. The ignores
+    # are narrow on purpose: ``warn_unused_ignores`` flags them the day the SDK
+    # ships types, which a module-wide relaxation would not.
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
     def extract_declared(html_or_url: str, induce: bool = False) -> dict[str, Any]:
@@ -253,12 +209,9 @@ def build_server() -> Any:
 
 
 def main() -> None:
-    """Run the server over stdio, or explain a missing extra in one line.
+    """Run the server over stdio, or explain a missing ``mcp`` extra in one line.
 
-    Only ``McpExtraMissing`` is caught here, the same as ``FetchExtraMissing``
-    and ``MarkdownExtraMissing`` are caught at their own entry points: a
-    genuinely absent extra becomes a one-line message, while a real import
-    failure from inside a broken install keeps its traceback.
+    A broken install, as opposed to a missing one, keeps its traceback.
     """
     try:
         server = build_server()

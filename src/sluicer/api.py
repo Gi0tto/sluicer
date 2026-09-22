@@ -22,10 +22,11 @@ from sluicer.summary import SummaryField, summarise
 class Extraction:
     """What Sluicer found in one page, and where it came from.
 
-    ``summary`` answers the questions most callers ask -- title, author, date,
-    price -- one value each, chosen from the records by fixed rules, each
-    saying which reader and which key it came from. ``records`` is everything
-    the page declared, of which the summary is a reading.
+    ``url`` is the address given to ``extract``. ``summary`` answers the
+    questions most callers ask -- title, author, date, price -- one value each,
+    chosen from the records by fixed rules, each naming its reader and key (see
+    ``sluicer.summary.FIELDS``). ``records`` is everything the page declared.
+    ``sources`` names every reader that found something.
     """
 
     url: str | None = None
@@ -40,70 +41,35 @@ def extract(
     induce: bool = False,
     microformats: bool = False,
 ) -> Extraction:
-    """Read every kind of declared data in ``html`` and merge it.
+    """Read the structured data ``html`` declares, merged, with its provenance.
 
-    Eight readers exist, and they have a stated order of precedence: JSON-LD,
-    microdata, microformats, RDFa, Dublin Core, OpenGraph, the Twitter card,
-    HTML's own metadata names. Where two of them declare the same field the
-    earlier one wins, and the field says which one that was. ``sources`` names
-    every reader that found something, in that same order. The first four
-    describe the thing the page is about; the last four describe the document,
-    which is why they come last.
+    Args:
+        html: the page. Bytes are best: the page's own charset is then honoured
+            (see ``sluicer.document.load``).
+        url: the address the page came from, used to resolve its links.
+        induce: when the page declares nothing about the things on it, also
+            read the rows its markup repeats; those fields say
+            ``source="induced"``. Never fills a gap in a declared record.
+        microformats: also read microformats2. Off by default; needs
+            ``sluicer[microformats]``.
 
-    ``html`` is last of all, and deliberately. ``<meta name="description">``
-    is on 87% of real pages and is very often the same sentence as
-    ``og:description``, but it is the weakest of the eight statements -- no
-    vocabulary, no schema, no type -- so it fills what the others left empty
-    and never overrides one of them. Reading it is still what reaches most
-    pages: it and ``<meta name="author">`` are declared by pages that carry no
-    other structured data at all.
+    Returns:
+        An ``Extraction``: the ``summary``, the ``records`` (a record with no
+        field is never reported), and the ``sources`` that found something,
+        in the order of precedence -- JSON-LD, microdata, microformats, RDFa,
+        Dublin Core, OpenGraph, the Twitter card, HTML's own meta names.
 
-    ``microformats`` is off by default, and it is the only reader that is.
-    Every other one is written in ``lxml``, which the base install already
-    carries; microformats2 has a reference parser, ``mf2py``, and reaching for
-    it costs twelve packages against a base install of three. So it lives
-    behind ``sluicer[microformats]``, and a reader that raises unless someone
-    installed something is not a default. Asking for it without that extra
-    raises ``MicroformatsExtraMissing``, whose message names the install line.
-    Turning it on buys compatibility with ``extruct`` rather than reach:
-    measured on 2026-09-22 across twenty live pages, microformats appeared on
-    exactly one, which carried OpenGraph too and so was already readable.
+    Raises:
+        MicroformatsExtraMissing: ``microformats=True`` without the extra.
+        Nothing else: any input, however broken, is read or reported empty.
 
-    ``induce`` is off by default and stays off for any page that declared
-    something about the things on it. Declared data is what a page says about
-    itself; induced data is what we noticed about its markup, and the two are
-    not the same kind of claim. So induction runs only when asked, it never
-    fills a gap in a declared record, and every field it produces carries
-    ``source="induced"`` so the two can never be confused.
-
-    What "declared something" means is counted in fields, not in parses. An
-    empty ``<script type="application/ld+json">{}</script>``, an object that is
-    nothing but an ``@type``, and an ``itemscope`` with no property all parse,
-    and all say nothing about anything; treating them as a declaration blocked
-    induction on pages whose list was right there, and contradicted this
-    repository's own rule that an empty value is not a value. Dublin Core,
-    OpenGraph, the Twitter card and HTML's own metadata names are counted out
-    for a different reason: ``DC.title``, ``og:site_name``, ``twitter:card``
-    and ``<meta name="description">`` describe the page or the site, and a
-    page whose only declaration is that chrome has declared nothing about its
-    rows. They are not counted out by name, though: the gate names the
-    vocabularies that describe a *thing*, in ``ABOUT_A_THING``, and every
-    other reader is taken to describe the document. Each of them still
-    appears in ``sources`` when it parsed, because that is true; what changes
-    is only what the gate decides on.
-
-    A declared record carrying no field at all is never reported: it is a type
-    and nothing else, and the gate has already judged it to be nothing. When
-    induction does run and finds something, its records are added to the
-    declared ones rather than replacing them.
+    Why the order is what it is, and when induction runs, is in
+    ``docs/design-notes.md``.
     """
     doc = load(html, url=url)
     jsonld = read_jsonld(doc)
     microdata = read_microdata(doc)
-    # ``found_microformats``, because ``microformats`` is the flag the caller
-    # wrote and one name must mean one thing. Off means never imported: the
-    # reader is what reaches for mf2py, so not calling it is what keeps a base
-    # install working.
+    # Not calling the reader is what keeps mf2py unimported on a base install.
     found_microformats = read_microformats(doc) if microformats else []
     rdfa = read_rdfa(doc)
     dublincore = read_dublincore(doc)
@@ -146,8 +112,6 @@ def extract(
             records = [*records, *induced]
             sources = [*sources, "induced"]
     return Extraction(url=url, summary=summary, records=records, sources=sources)
-
-
 
 
 def _declared_about_its_things(records: list[Record]) -> bool:
