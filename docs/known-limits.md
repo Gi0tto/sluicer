@@ -60,6 +60,18 @@ the two is more trustworthy needs a measurement nobody has taken yet.
 to decide whether to climb and once by the caller. Deterministic, so the cost is
 time rather than correctness.
 
+## In the MCP server
+
+**There is no allowlist on what it will fetch.** `fetch_page` requests any URL
+an agent gives it, from wherever the server runs. This is deliberate and
+documented in SECURITY.md: a partial defence would be trusted more than it
+deserves, because a name can resolve to an internal address and can resolve
+differently on a second lookup. Egress control belongs in the network.
+
+**The URL-fetching branch of the server is not covered by a test.** Everything
+else is, and the three tools are pinned by set equality so a fourth cannot
+appear unnoticed.
+
 ## In the shape of the code
 
 **Adding a reader touches three places.** The reader names are written into
