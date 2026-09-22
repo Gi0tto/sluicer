@@ -52,8 +52,12 @@ listed there did not happen.
 
 ## What it reads
 
-Seven vocabularies, in a stated order of precedence: JSON-LD, microdata,
-microformats, RDFa Lite, Dublin Core, OpenGraph, and the Twitter card. Values
+Eight vocabularies, in a stated order of precedence: JSON-LD, microdata,
+microformats, RDFa Lite, Dublin Core, OpenGraph — including the protocol's own
+`article:`, `book:`, `profile:`, `video:` and `music:` namespaces — the Twitter
+card, and last, the metadata names HTML itself defines (`author`,
+`description`, `keywords`), which arrive marked `"source": "html"` rather than
+borrowed from a vocabulary that never claimed them. Values
 fold across vocabularies and never within one, so the same product described
 twice becomes one record while two products on a listing page stay two.
 

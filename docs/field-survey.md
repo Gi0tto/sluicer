@@ -150,6 +150,73 @@ vocabulary per package, with the only package that ever covered the whole set
 683 days without a release. That is the measurement this project was built
 against.
 
+## What a page declares, and what we read of it
+
+The survey above counts projects. This counts pages, which is the harder and
+more useful question, and it is what set this project's priorities on
+2026-09-22.
+
+The corpus is **WCXB** (`Murrough-Foley/web-content-extraction-benchmark`,
+CC-BY-4.0, Murrough Foley), restricted to the 359 test pages of the four types
+this project targets: article, listing, collection, product.
+
+**One thing must be said before any number from it.** WCXB has every `<script>`
+tag removed — checked across all 359 pages: zero `<script>`, zero `<style>`,
+zero `<noscript>`, zero `<iframe>`, and no occurrence of `ld+json` anywhere. So
+**JSON-LD cannot be measured on this corpus**, and JSON-LD is the modern web's
+commonest way to declare anything. Every figure below is for a reader with its
+main vocabulary taken away.
+
+### What the pages declare
+
+| declaration | pages | share |
+| --- | --- | --- |
+| `<meta name="description">` | 313 | 87% |
+| `article:modified_time` | 127 | 35% |
+| `article:published_time` | 119 | 33% |
+| `<meta name="author">` | 107 | 29% |
+| `<meta name="keywords">` | 52 | 14% |
+| `itemprop="author"` | 39 | 10% |
+| `article:section` / `article:tag` | 35 | 9% |
+| `article:author` | 29 | 8% |
+
+The labels are sparse on purpose, and that is what makes the corpus useful:
+`title` is missing on 2 pages of 511 and `main_content` on 6, but **`author` is
+missing on 323 (63%) and `publish_date` on 246 (48%)**. A page with no author
+is the corpus saying so, which is the only way to measure whether a tool
+invents one.
+
+### What changed when we read them
+
+Recall over the pages that carry a label, before and after the readers added on
+2026-09-22:
+
+| field | before | after |
+| --- | --- | --- |
+| `title` | 0.48 | 0.51 |
+| `author` | **0.01** | **0.38** |
+| `publish_date` | **0.06** | **0.50** |
+
+Sixty-nine of the seventy-two authors now recovered come from `<meta
+name="author">` — a tag no vocabulary owns, that HTML itself defines, and that
+nothing in this field reads as what it is. The date comes almost entirely from
+`article:published_time`, which is part of the OpenGraph protocol and was being
+missed because the reader matched only the `og:` prefix.
+
+For contrast, the three vocabularies added the same day — Dublin Core, RDFa Lite
+and microformats — unlock **zero** pages that JSON-LD, microdata or OpenGraph do
+not already cover. They buy compatibility with an incumbent, not reach, and this
+document exists so that difference is never blurred.
+
+### The honest caveat on "invention"
+
+The measurement counts 33 pages where a value was returned and the label is
+empty. Read one by one, most are not inventions: `<meta name="author"
+content="Yo Gorilla Mats">` is really in the page, and the labeller declined to
+record a company as an author. So on this corpus the invention count measures
+labelling policy as much as tool behaviour, and it is reported here rather than
+folded into a score.
+
 ## Reproduce it
 
 ```bash
