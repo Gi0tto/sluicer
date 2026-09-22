@@ -67,6 +67,34 @@ def test_a_page_that_declares_data_is_not_second_guessed():
     assert result.sources == ["jsonld"], "declared data stands on its own"
 
 
+def test_a_declaration_beats_a_list_on_the_same_page():
+    """The page above has no list at all, so it could not test the guard.
+
+    This one declares a product *and* repeats five rows underneath it. The
+    declaration is what the page says about itself, and it is what comes back;
+    the rows are what we would have noticed, and they are not induced.
+    """
+    html = (FIXTURES / "product_jsonld_and_a_listing.html").read_text()
+
+    result = sluicer.extract(html, induce=True)
+
+    assert result.sources == ["jsonld"]
+    assert [record.type for record in result.records] == ["Product"]
+    values = {
+        field.value for record in result.records for field in record.fields.values()
+    }
+    assert values == {"Brake pad set", "BP-1187", "Bosch"}
+    assert "Oil filter" not in values, "the list was induced behind a declaration"
+
+
+def test_induction_says_so_when_it_is_what_answered():
+    """A caller has to be able to tell which kind of claim they are holding."""
+    html = (FIXTURES / "listing_no_declared_data.html").read_text()
+
+    assert sluicer.extract(html, induce=True).sources == ["induced"]
+    assert sluicer.extract(html).sources == []
+
+
 def test_a_crowded_head_does_not_silence_the_page():
     """The reviewer's first constructed page: 14 metas must not be the answer."""
     doc = load((FIXTURES / "listing_under_a_crowded_head.html").read_text())
