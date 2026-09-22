@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Callable, Sequence
 
 from sluicer.api import extract
+from sluicer.document import load
 from sluicer.fetch.identity import robots_allows
 from sluicer.fetch.result import Climb, Fetched, Rung
 from sluicer.fetch.rules import why_climb
@@ -45,13 +46,26 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
     the connection times out, the rung raises -- is not a refusal, so any
     failure here is swallowed into "nothing to read", exactly as a missing
     robots file is: a site with no reachable robots file has not told us no.
+
+    A rung returns ``Fetched.html``, not plain text, and a rung that fetches
+    a plain-text robots.txt does not mean the body arrives as plain text:
+    measured against ``httpbin.org/robots.txt``, scrapling wraps it as
+    ``<html><body>User-agent: *\\nDisallow: /deny\\n</body></html>``. Handed
+    that directly, protego reads its first line as
+    ``<html><body>User-agent: *``, recognises no directive in it, and parses
+    no rules at all -- silently allowing everything a site meant to refuse.
+    Running the body through ``sluicer.document.load(...).tree.text_content()``
+    strips the wrapping back to the bare directives; a robots.txt that was
+    already plain text passes through unchanged, since there is no markup in
+    it to strip.
     """
 
     def read(url: str) -> str | None:
         try:
-            return cheapest_rung(url).html
+            html = cheapest_rung(url).html
         except Exception:
             return None
+        return load(html).tree.text_content()
 
     return read
 

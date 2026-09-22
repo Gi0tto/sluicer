@@ -139,3 +139,55 @@ def test_robots_can_be_turned_off_deliberately():
     )
 
     assert result.rung == "http"
+
+
+def test_the_default_reader_takes_the_text_out_of_the_markup():
+    """The real rung wraps a plain-text robots.txt body in HTML.
+
+    Measured against httpbin.org/robots.txt by the person reviewing this
+    round: scrapling's ``Fetched.html`` for a plain-text response is not the
+    bare directives, it is
+    ``<html><body>User-agent: *\\nDisallow: /deny\\n</body></html>``. A
+    reader that hands that straight to protego gets a first "line" of
+    ``<html><body>User-agent: *``, which protego does not recognise as a
+    directive, so it parses no rules at all and allows everything -- the
+    exact defect this test is written to catch.
+    """
+    from sluicer.fetch.ladder import _default_robots_reader
+
+    wrapped_rung = rung(
+        "http", "<html><body>User-agent: *\nDisallow: /deny\n</body></html>"
+    )
+    read = _default_robots_reader(wrapped_rung)
+
+    text = read("https://example.com/robots.txt")
+
+    assert text == "User-agent: *\nDisallow: /deny\n"
+
+
+def test_a_site_that_refuses_us_is_obeyed_through_the_real_reader_shape():
+    """Drive ``fetch`` end to end with a robots response shaped like the real rung's.
+
+    This is the test that would have caught the HTML-wrapping defect: every
+    other robots test in this file hands ``robots_reader`` plain text
+    directly, which is what a sensible fake returns but not what the real
+    "http" rung actually produces. Here the fake rung returns HTML for both
+    the robots file and the page, exactly as scrapling does, and only the
+    default reader -- the one production actually uses -- stands between
+    them.
+    """
+    calls: list[str] = []
+
+    def http(url: str) -> Fetched:
+        calls.append(url)
+        if url.endswith("/robots.txt"):
+            return Fetched(
+                url=url,
+                html="<html><body>User-agent: *\nDisallow: /deny\n</body></html>",
+                status=200,
+                rung="http",
+            )
+        return Fetched(url=url, html=RICH, status=200, rung="http")
+
+    with pytest.raises(RobotsRefused):
+        fetch("https://example.com/deny", rungs=[("http", http)])
