@@ -59,3 +59,47 @@ def test_the_last_rung_is_returned_even_when_it_is_still_poor():
 def test_an_empty_ladder_is_a_programming_error():
     with pytest.raises(ValueError):
         fetch("https://example.com", rungs=[])
+
+
+def test_a_rung_that_raises_climbs_to_the_next():
+    def http_raises(url):
+        raise ConnectionError("connection refused")
+
+    http_raises.calls = []
+    browser = rung("browser", RICH)
+
+    result = fetch("https://example.com", rungs=[("http", http_raises), ("browser", browser)])
+
+    assert result.rung == "browser"
+    assert len(result.climbs) == 1
+    assert result.climbs[0].from_rung == "http"
+    assert result.climbs[0].to_rung == "browser"
+    assert "connection refused" in result.climbs[0].reason
+
+
+def test_a_raising_last_rung_propagates():
+    def last_rung_raises(url):
+        raise TimeoutError("timed out")
+
+    last_rung_raises.calls = []
+
+    with pytest.raises(TimeoutError):
+        fetch("https://example.com", rungs=[("single", last_rung_raises)])
+
+
+def test_two_climbs_are_recorded_in_order():
+    http = rung("http", REFUSED, status=403)
+    browser = rung("browser", REFUSED, status=403)
+    headless = rung("headless", RICH)
+
+    result = fetch(
+        "https://example.com",
+        rungs=[("http", http), ("browser", browser), ("headless", headless)],
+    )
+
+    assert result.rung == "headless"
+    assert len(result.climbs) == 2
+    assert result.climbs[0].from_rung == "http"
+    assert result.climbs[0].to_rung == "browser"
+    assert result.climbs[1].from_rung == "browser"
+    assert result.climbs[1].to_rung == "headless"
