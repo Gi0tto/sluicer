@@ -47,3 +47,32 @@ def test_an_empty_itemprop_is_not_a_value():
     )
 
     assert read_microdata(doc) == [{"@type": "Product"}]
+
+
+def test_a_nested_offer_does_not_leak_into_the_product():
+    doc = load(
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<h1 itemprop="name">Brake pad set</h1>'
+        '<div itemprop="offers" itemscope itemtype="https://schema.org/Offer">'
+        '<span itemprop="price">41.99</span>'
+        '<span itemprop="priceCurrency">EUR</span>'
+        "</div>"
+        "</div>"
+    )
+
+    found = read_microdata(doc)
+
+    assert found == [
+        {"@type": "Product", "name": "Brake pad set"},
+        {"@type": "Offer", "price": "41.99", "priceCurrency": "EUR"},
+    ]
+
+
+def test_a_property_wrapped_in_plain_markup_still_belongs_to_its_scope():
+    doc = load(
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<div class="row"><span itemprop="sku">ATD-2290</span></div>'
+        "</div>"
+    )
+
+    assert read_microdata(doc) == [{"@type": "Product", "sku": "ATD-2290"}]
