@@ -275,3 +275,51 @@ def test_a_site_whose_robots_is_unavailable_is_not_fetched():
         fetch("https://example.com/p", rungs=[("http", http)])
 
     assert calls == ["https://example.com/robots.txt"]
+
+
+def test_stealth_appends_the_stealth_rung_when_a_caller_asks(monkeypatch):
+    """One of the branch's three promises, exercised at the seam that keeps it.
+
+    ``stealth=True`` was implemented in ``fetch`` and tested nowhere: the rung
+    itself has tests in ``test_scrapling_rungs.py``, but nothing asserted that
+    asking for it actually puts it on the end of the ladder. The rungs are
+    injected, and ``stealth_rung`` is patched where ``fetch`` imports it from,
+    so nothing here needs scrapling.
+    """
+    http = rung("http", REFUSED, status=403)
+    stealth = rung("stealth", RICH)
+    monkeypatch.setattr(
+        "sluicer.fetch.scrapling_rungs.stealth_rung", lambda: ("stealth", stealth)
+    )
+
+    result = fetch(
+        "https://example.com/p",
+        rungs=[("http", http)],
+        stealth=True,
+        robots_reader=lambda url: None,
+    )
+
+    assert result.rung == "stealth"
+    assert stealth.calls == ["https://example.com/p"]
+    assert [climb.to_rung for climb in result.climbs] == ["stealth"]
+
+
+def test_without_the_flag_the_stealth_rung_is_never_even_built(monkeypatch):
+    """Climbing from announcing ourselves to hiding is a decision, not a fallback.
+
+    Asserted by making ``stealth_rung()`` raise: a ladder that ends at the
+    last declared rung must never reach for it, not even to build it.
+    """
+
+    def must_not_be_built():
+        raise AssertionError("stealth_rung() was built for a caller who never asked")
+
+    monkeypatch.setattr("sluicer.fetch.scrapling_rungs.stealth_rung", must_not_be_built)
+    http = rung("http", REFUSED, status=403)
+
+    result = fetch(
+        "https://example.com/p", rungs=[("http", http)], robots_reader=lambda url: None
+    )
+
+    assert result.rung == "http"
+    assert result.climbs == []
