@@ -16,11 +16,23 @@ _MISSING = (
 )
 
 
+class FetchExtraMissing(ImportError):
+    """The optional ``fetch`` extra (scrapling) is not installed.
+
+    This is its own type rather than a bare ``ImportError`` on purpose: a
+    caller that wants to say "install the extra" needs to catch exactly
+    this and nothing wider. A real import failure from somewhere inside a
+    working scrapling install is still an ``ImportError``, since this
+    subclasses it, but it is not a ``FetchExtraMissing`` and must surface
+    as the bug it is instead of being mistaken for the extra being absent.
+    """
+
+
 def _fetchers():
     try:
         from scrapling.fetchers import DynamicFetcher, Fetcher, StealthyFetcher
     except ImportError as missing:
-        raise ImportError(_MISSING) from missing
+        raise FetchExtraMissing(_MISSING) from missing
     return Fetcher, DynamicFetcher, StealthyFetcher
 
 

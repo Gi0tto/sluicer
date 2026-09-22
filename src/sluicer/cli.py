@@ -10,6 +10,7 @@ import click
 
 from sluicer.api import extract as extract_html
 from sluicer.fetch.ladder import fetch as fetch_url
+from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
 
 @click.group()
@@ -23,18 +24,30 @@ def main() -> None:
 def extract(source: str) -> None:
     """Read the declared structured data of a URL or a saved HTML file."""
     if source.startswith("http://") or source.startswith("https://"):
-        # ImportError here means the optional fetch stack (scrapling) is not
-        # installed. The message it carries already names the fix, so it is
-        # printed as-is; a wider except would risk swallowing a real fetch
-        # failure, which the ladder already decides what to do with.
+        # FetchExtraMissing means the optional fetch stack (scrapling) is
+        # not installed. Its message already names the fix, so it is
+        # printed as-is. Catching only this type -- not ImportError itself
+        # -- matters: a real import failure from inside a working scrapling
+        # install must surface as the bug it is, not be mistaken for the
+        # extra simply being absent, and a wider except would also risk
+        # swallowing a real fetch failure, which the ladder already decides
+        # what to do with.
         try:
             fetched = fetch_url(source)
-        except ImportError as missing:
+        except FetchExtraMissing as missing:
             click.echo(str(missing), err=True)
             raise SystemExit(1) from missing
         result = extract_html(fetched.html, url=fetched.url)
         if not result.records:
             click.echo("This page declares no structured data.", err=True)
+            # A file that declares nothing and a page that took three
+            # climbs to reach a rung that also declares nothing are not the
+            # same event: the whole point of the ladder is to say what a
+            # page cost, so that cost is reported here even when the
+            # answer is "nothing found".
+            click.echo(f"Fetch reached the '{fetched.rung}' rung.", err=True)
+            for climb in fetched.climbs:
+                click.echo(f"  {climb.from_rung} -> {climb.to_rung}: {climb.reason}", err=True)
             raise SystemExit(1)
         payload = asdict(result)
         payload["fetch"] = {

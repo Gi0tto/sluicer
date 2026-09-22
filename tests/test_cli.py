@@ -89,8 +89,10 @@ def test_a_missing_file_is_reported_not_crashed(tmp_path):
 
 
 def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
+    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+
     def fake_fetch(url, rungs=None):
-        raise ImportError(
+        raise FetchExtraMissing(
             "Fetching a URL needs scrapling, which is not installed. "
             "Install it with: uv pip install 'sluicer[fetch]'"
         )
@@ -102,3 +104,56 @@ def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
     assert result.exit_code == 1
     assert "uv pip install 'sluicer[fetch]'" in result.stderr
     assert isinstance(result.exception, SystemExit)
+
+
+def test_an_empty_url_result_still_reports_what_the_fetch_cost(monkeypatch):
+    from sluicer.fetch.result import Climb, Fetched
+
+    def fake_fetch(url, rungs=None):
+        return Fetched(
+            url=url,
+            html="<html><body>Nothing declared here.</body></html>",
+            status=200,
+            rung="stealth",
+            climbs=[
+                Climb(from_rung="http", to_rung="browser", reason="the server refused: status 403"),
+                Climb(from_rung="browser", to_rung="stealth", reason="the page looks like a challenge"),
+            ],
+        )
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+
+    assert result.exit_code == 1
+    assert "declares no structured data" in result.stderr
+    assert "stealth" in result.stderr
+    assert "the server refused: status 403" in result.stderr
+    assert "the page looks like a challenge" in result.stderr
+
+
+def test_a_real_import_failure_is_not_reported_as_a_missing_extra(monkeypatch):
+    def fake_fetch(url, rungs=None):
+        raise ImportError("cannot import name 'Foo' from 'scrapling.engines'")
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+
+    # This is a real bug inside a working scrapling install, not a missing
+    # extra: it must not be dressed up in the extra's install hint, and it
+    # must not be quietly turned into our own tidy exit-1 message. "Not
+    # swallowed" means concretely: the exception that reaches the test
+    # runner is still the plain ImportError itself, not our SystemExit.
+    assert "sluicer[fetch]" not in result.stderr
+    assert "sluicer[fetch]" not in result.stdout
+    assert type(result.exception) is ImportError
+    assert not isinstance(result.exception, SystemExit)
+
+
+def test_a_directory_is_not_a_file(tmp_path):
+    result = CliRunner().invoke(main, ["extract", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "is not a file" in result.stderr
+    assert (result.exception is None or isinstance(result.exception, SystemExit))
