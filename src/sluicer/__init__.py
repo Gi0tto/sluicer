@@ -2,6 +2,7 @@
 
 from sluicer.api import Extraction, extract
 from sluicer.declared.merge import Field, Record
+from sluicer.induce import induce
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
 
 __all__ = [
@@ -11,6 +12,7 @@ __all__ = [
     "Record",
     "__version__",
     "extract",
+    "induce",
     "to_markdown",
 ]
 __version__ = "0.0.1"

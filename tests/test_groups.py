@@ -46,3 +46,16 @@ def test_the_order_is_stable_across_runs():
     second = [len(g) for g in repeating_groups(lxml.html.fromstring(html))]
 
     assert first == second
+
+
+def test_a_comment_is_not_an_element_and_does_not_break_a_group():
+    """A comment has no tag name, and a group of three is still a group."""
+    tree = lxml.html.fromstring(
+        "<div><!-- a note -->"
+        + "<p class='x'><b>a</b><!-- inline --></p>" * 3
+        + "</div>"
+    )
+
+    groups = repeating_groups(tree)
+
+    assert len(groups[0]) == 3
