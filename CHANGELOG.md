@@ -5,6 +5,25 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Added
+- `extract()` returns a `summary`: title, description, url, image, author,
+  published, modified, language, site_name, publisher, type, price, currency,
+  availability, brand and sku, one value each, chosen by fixed rules in a fixed
+  order and each naming its reader and its key. `<title>`, `<html lang>` and
+  `<link rel=canonical>` are read for it.
+- Nested values reach the record whole: `Field.value` is the JSON the page
+  declared -- an object keeps its `@type`, a list keeps its order, every leaf is
+  text -- and a JSON-LD reference to another node on the page is replaced by
+  that node, one hop deep and safe from cycles.
+- `sluicer extract --induce`, `--microformats`, and on both commands
+  `--stealth`, `--no-robots`, `--url`, and `-` for standard input.
+- `fetch(..., allow_private=False)` refuses addresses off the public internet
+  before any request and after any redirect, raising `AddressRefused`; the MCP
+  server sets it unless `SLUICER_ALLOW_PRIVATE=1`. `FetchFailed` is raised when
+  every rung failed, naming what each one said.
+- The MCP server reports its version, `extract_declared` can induce, and
+  `fetch_page` cuts a page at 200,000 characters and says so.
+- Python 3.14 in the test matrix, issue forms, a Docker build in CI.
+
 - A fetch ladder that starts at plain HTTP and climbs to a browser only when a
   measurement says the cheap rung brought back a refusal, a challenge or a
   skeleton. Every climb is recorded with the reason that forced it, and the
@@ -57,12 +76,44 @@ Dates are the day the work landed. Anything not listed here did not happen.
   robots file that answers 5xx is treated as a full disallow, per RFC 9309.
 
 ### Fixed
-- Bytes are decoded the way a browser decodes them, not the way libxml2 guesses.
-  libxml2 commits to Latin-1 at the first non-ASCII byte it meets, so every UTF-8
-  page whose `<title>` came before its `<meta charset>` -- the Guardian's article
-  template among them -- and every UTF-8 page declaring no charset at all came
-  back as mojibake in every field, from `sluicer extract page.html` and from
-  `extract(bytes)`. A fetched page was unaffected, because it arrives as text.
+- Bytes are decoded the way a browser decodes them. libxml2 commits to Latin-1
+  at the first non-ASCII byte, so any UTF-8 page whose `<title>` came before its
+  `<meta charset>` -- the Guardian's article template -- or that declared no
+  charset at all came back as mojibake in every field.
+- Three microdata or RDFa products on one page folded into one record, and a
+  related product's SKU and price landed on the main product. A vocabulary now
+  folds only into earlier vocabularies' records, one item per record.
+- Microdata follows the WHATWG rules: `itemref`, several names in one
+  `itemprop`, repeated properties as a list, every `itemtype` token, and the
+  standard's full list of value attributes (`data`, `meter`, `video` and the
+  rest). Properties are no longer lost on large pages, where lxml reuses the
+  `id()` of freed elements.
+- RDFa resolves terms through `vocab`, `prefix` and the initial context.
+  Wikipedia's `typeof="mw:Transclusion"` produced eleven empty records, and
+  OpenGraph tags under an `<html typeof>` became RDFa fields that switched
+  induction off.
+- JSON-LD with a raw newline inside a string, wrapped in a comment or CDATA,
+  with a byte order mark or a trailing comma is read instead of dropped. A block
+  nested past the parser's limit no longer raises out of `extract()`. Numbers
+  keep the spelling the page wrote, and `NaN` is not a value.
+- Microdata and RDFa addresses resolve against the page and its `<base>`.
+  Content deeper than 256 elements is no longer dropped by libxml2. `OG:Title`
+  and a tag whose `property` holds something else are read.
+- The fetch no longer sends scrapling's `Referer: https://www.google.com/` or a
+  Chrome TLS fingerprint. One try per rung and bounded timeouts replace three
+  tries of thirty seconds.
+- The ladder no longer climbs a small complete page or a 404, and a theme-color
+  in an empty React shell no longer counts as delivered data. A failed climb
+  returns what the cheaper rung had instead of a traceback.
+- A redirect to another host is checked against that host's robots.txt, and an
+  unreachable robots.txt is a refusal, per RFC 9309, that says it could not be
+  read.
+- The CLI passed a file's path to the readers as the page's URL, so relative
+  links resolved against the file name. A browser timeout was a traceback.
+- The MCP tools answered a failed fetch with the SDK's bare "Error executing
+  tool". They now return an error the agent can read.
+- The Claude Code plugin loaded neither its server nor its skill.
+- Records carrying no field are no longer reported.
 - Induction reads the whole listing. Members were compared by the classes of
   everything inside them, so a rating written as `p.star-rating.Three` or a
   quote with five tags instead of two made a new kind of row: books.toscrape.com
@@ -77,6 +128,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   its own.
 
 ### Changed
+- Exit codes follow grep: 0 found, 1 read but nothing declared, 2 could not be
+  read. Errors used to exit 1, the same as a page that declares nothing.
+- `Field.value` is `str | list | dict`, not always `str`, and microdata items
+  nested in another are values of their parent rather than records of their own.
+- `RobotsRefused` carries a `reason`. `robots_refusal()` says why;
+  `robots_allows()` still says only whether.
 - The Twitter card is a reader of its own, and its fields say
   `source="twitter"`. `read_opengraph` used to return `og:` and `twitter:` alike
   and label everything `opengraph`, so a value a card had won named a reader
@@ -84,7 +141,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `image:alt` -- went to whichever tag the page's author happened to type first.
   OpenGraph now runs first, the card fills what OpenGraph left empty, and the
   rule is stated rather than emergent.
-- `merge()` takes seven findings rather than three, so a caller invoking it
+- `merge()` takes eight findings rather than three, so a caller invoking it
   directly has to widen the call. `extract()` is unaffected. The seventh,
   `microformats`, is an empty list on every call that did not ask for the
   reader: a reader that is off is a reader that found nothing.
@@ -92,8 +149,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   it back for a caller who wants it.
 - An element whose whole text is its children's no longer carries a text fact of
   its own, so a wrapper around a single value stops reporting that value twice.
-- A bad argument to `sluicer extract` now exits 1 with our own message rather
-  than exiting 2 with click's. A missing file and a directory are both covered.
+- A bad argument to `sluicer extract` now exits with our own message rather
+  than with click's. A missing file and a directory are both covered.
 
 ## 0.0.1 - 2026-09-22
 

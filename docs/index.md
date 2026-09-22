@@ -14,14 +14,23 @@ sluicer extract https://example.com/product
 
 ```json
 {
+  "url": "https://example.com/product",
+  "summary": {
+    "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
+    "price":    { "value": "41.90",         "source": "jsonld", "key": "Product.offers" },
+    "currency": { "value": "EUR",           "source": "jsonld", "key": "Product.offers" }
+  },
   "records": [
     {
       "type": "Product",
       "fields": {
-        "name": { "value": "Brake pad set",             "source": "jsonld" },
-        "sku":  { "value": "BP-1187",                  "source": "jsonld" },
-        "mpn":  { "value": "GDB1330",                   "source": "microdata" },
-        "title":{ "value": "Brake pad set, front axle", "source": "opengraph" }
+        "name":   { "value": "Brake pad set", "source": "jsonld" },
+        "sku":    { "value": "BP-1187",       "source": "jsonld" },
+        "offers": {
+          "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" },
+          "source": "jsonld"
+        },
+        "mpn":    { "value": "BP-2210",       "source": "microdata" }
       }
     }
   ],
@@ -31,7 +40,8 @@ sluicer extract https://example.com/product
 ```
 
 That page described the same product three times, in three vocabularies. You get
-one record, and every field still says which vocabulary it came from.
+one record, a summary that answers the questions you came with, and every value
+still says where it came from.
 
 ## Start here
 

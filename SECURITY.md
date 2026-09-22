@@ -28,20 +28,22 @@ treat opening it in your own browser.
 ## The MCP server fetches what it is told to fetch
 
 When the `mcp` extra is installed and the server is running, an agent can hand
-`fetch_page` any `http://` or `https://` URL and Sluicer will request it, from
-wherever the server runs. There is no allowlist and no blocklist.
+it any `http://` or `https://` URL and Sluicer will request it, from wherever the
+server runs. An agent may be relaying a URL it read somewhere else, and a page it
+read can ask it to. The classic shape of the problem is a request aimed inward:
+a cloud metadata endpoint, a service bound to localhost, a machine reachable
+only from inside your network.
 
-That matters more than it would for a command a person types, because an agent
-may be relaying a URL it read somewhere else, and a page it read can ask it to.
-The classic shape of the problem is a request aimed inward: a cloud metadata
-endpoint, a service bound to localhost, a machine reachable only from inside
-your network.
-
-We do not ship a partial defence. A blocklist of private ranges looks like
-protection and is not one: a name can resolve to an internal address, and it can
-resolve differently on the second lookup than on the first, which the ladder
-does not control. Saying so plainly is more useful than a filter that would be
-trusted more than it deserves.
+The server refuses those by default, and the refusal is a filter, not a wall.
+Before any request it resolves the host and refuses `localhost`, `.local` and
+`.internal` names, and any address that is not on the public internet --
+loopback, private ranges, link-local, `169.254.169.254` among them. After the
+fetch it refuses a page whose redirects ended on such an address. What it does
+not stop, and cannot from inside a library: a name that resolves differently
+at connect time than it did a moment earlier (DNS rebinding), and a browser
+following a redirect into your network, where only the answer is withheld and
+the request has already been made. Set `SLUICER_ALLOW_PRIVATE=1` to turn the
+filter off.
 
 So: run the MCP server where you would be willing to run `curl` with a URL
 somebody else chose. If that is not acceptable in your environment, put the
@@ -53,5 +55,7 @@ It can lie. Structured data is written by the site, so a record Sluicer returns
 says what the page claimed, not what is true. Every field carries the reader
 that produced it precisely so you can weigh it.
 
-It can be large. There is no size limit on input in this slice; a deliberately
-enormous document will use memory in proportion.
+It can be large. There is no size limit on a fetch or on input; a deliberately
+enormous document will use memory in proportion (measured on 2026-09-22: a
+200 MB response held 1.14 GB). The MCP server cuts what it hands an agent at
+200,000 characters, which bounds the agent's context, not the server's memory.

@@ -7,11 +7,17 @@ surprises.
 
 ## In the extraction path
 
-**Nested values never reach a record.** `merge` carries scalars only, so a
-JSON-LD `offers` object or an `image` array is read by the reader and then
-dropped. On a product page that means the price, which lives inside `offers`, is
-visible to `read_jsonld` and absent from the record. Belongs to the structure
-induction plan, which has to decide how a nested object becomes fields.
+**A reference is followed one hop.** A JSON-LD node that names another by
+`@id` gets that node in its place, so an article's author and publisher arrive
+whole; a reference inside the node that replaced it stays a reference. Measured
+on a Yoast blog post, following every reference tripled the output, because
+every record re-expanded the same graph.
+
+**The summary answers by rule, not by judgement.** Its subject is the first
+declared record about a thing, ahead of pages, sites and furniture, and each
+question takes the first candidate in a stated list. A page that misuses a term
+is answered by that misuse: Wikipedia's `headline` is its short description, so
+its summary title is "hydraulic structure" rather than "Sluice".
 
 **Gap-filling targets the first record of a type.** When a page declares several
 records sharing a type, a lower-precedence reader fills the first one in document
@@ -70,7 +76,10 @@ each. The suite cannot re-check it, because it must never open a socket, and a
 faked library accepts whatever keyword you hand it. That gap is real and it has
 already cost once: the browser rung was passing the name in `extra_headers`,
 which the browser context silently overrides, so the tests passed while every
-site saw Chrome. It now passes `useragent`, which reaches the wire. If you change
+site saw Chrome. It now passes `useragent`, which reaches the wire. The same
+check on 2026-09-22 found scrapling's defaults adding `Referer:
+https://www.google.com/` and a Chrome TLS fingerprint under our name; both are
+now turned off, and a local server confirmed neither reaches it. If you change
 how a rung is built, ask a real server what it saw.
 
 **The robots answer is believed for a day.** A site that adds a rule is noticed
@@ -78,9 +87,13 @@ within twenty-four hours, not immediately, and the cache is unbounded in the
 number of hosts it remembers. On a long-running server that is a slow leak and a
 slow update; both are acceptable today and neither is measured.
 
-**A redirect to another host is not re-checked.** Permission is asked of the URL
-you gave us. If that URL redirects somewhere else, the second host's rules are
-never consulted.
+**A redirect is checked where it landed, after it landed.** A page whose
+redirects ended on another host is refused if that host's robots.txt says no,
+and with `allow_private=False` one that ended on a private address is refused
+too -- but the request has already been made by then. Plain HTTP refuses to
+follow a redirect into a private address on its own; the browser rung does not,
+so behind `allow_private=False` a browser can still be steered into one by a
+redirect, and only the answer is withheld.
 
 **`Crawl-delay` is read by nobody.** Sluicer fetches one page when you ask for
 one page, so there is nothing yet to pace, and that stops being true the day it
@@ -105,10 +118,12 @@ marker it matched, so the mistake is visible rather than silent.
 ladder already knows how to climb past a failure, so this was the cheap side of
 the trade.
 
-**The last rung's exception reaches the caller.** When the most expensive rung
-raises, there is nothing left to try, and swallowing it would hand back an empty
-page pretending to be real. The command line turns the operational cases into a
-message; a bug still arrives as a traceback, deliberately.
+**A failed climb returns the cheaper page.** When a rung fails after a cheaper
+one brought something back -- a fresh install has no browser -- that page is
+returned and the failure is recorded as a climb back down to it, so the caller
+can see it is the HTTP rung's answer to a page that wanted a browser. When every
+rung failed, `FetchFailed` says what each one said; nothing is returned that
+could pass for a page.
 
 **The redirect-to-login measurement named in the design is not implemented.**
 The other two, a refusal and a skeletal body, are.
@@ -124,19 +139,15 @@ time rather than correctness.
 
 ## In the MCP server
 
-**There is no allowlist on what it will fetch.** `fetch_page` requests any URL
-an agent gives it, from wherever the server runs. This is deliberate and
-documented in SECURITY.md: a *blocklist* of private ranges would be trusted more
-than it deserves, because a name can resolve to an internal address and can
-resolve differently on a second lookup. An opt-in allowlist is a different
-thing, because it fails closed, and that door stays open: it is not built
-because nobody has asked for it yet, not because no filter could be honest.
+**The address filter is a filter.** The server refuses addresses off the public
+internet before a request and after its redirects, which stops an agent being
+told to read `http://localhost:8080` or a cloud metadata endpoint. It does not
+stop DNS rebinding, and a redirect the browser rung follows into a private
+address has been requested by the time it is refused. SECURITY.md says so too.
 
-**The server returns a whole page into an agent's context, with no cap.**
-`fetch_page` hands back the full body. SECURITY.md notes that nothing bounds the
-input; nothing bounds this output either. A limit is the most likely next
-breaking change to this surface, and guessing a number now would be worse than
-saying it is unbounded.
+**What reaches an agent is cut, what the server holds is not.** `fetch_page`
+returns at most 200,000 characters and says when it cut; the fetch underneath
+has no size limit, and a 200 MB response was measured holding 1.14 GB.
 
 **A missing extra answers with `is_error` false.** It is a result, not a
 protocol failure, so an agent that branches only on that flag will not notice.
@@ -169,11 +180,13 @@ record never folds with anything. Nothing validates that the two agree. A
 
 ## In the tests
 
-**The no-model test is a floor, not a ceiling.** It scans the source for
-`requests`, `httpx`, `urllib.request`, `socket`, `aiohttp`, `openai`, `anthropic`
-and `google.generativeai`. It does not catch `http.client`, `ftplib`, the current
-`google.genai`, or anything reached through `importlib.import_module`. It fails
-loudly on the obvious ways to break the promise, which is what it is for.
+**The no-model test is a floor, not a ceiling.** It scans the source for the
+network clients and the hosted and local model clients by name -- `openai`,
+`anthropic`, `google.genai`, `litellm`, `ollama`, `transformers`, the
+`langchain` and `llama_index` families and more -- in `import` statements and in
+module names handed to `import_extra`, `import_module` and `__import__` as
+strings. It does not catch `http.client`, `ftplib`, or a name built at runtime.
+`socket` is allowed in one file, `fetch/address.py`, for name resolution.
 
 **Determinism is tested within one process.** Two calls, one fixture, same
 answer. Stability across processes and across two pages built from the same

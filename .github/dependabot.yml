@@ -1,6 +1,7 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  # "uv" reads uv.lock; "pip" does not, and would leave the lock behind.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "monthly"
