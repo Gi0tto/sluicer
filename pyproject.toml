@@ -75,7 +75,7 @@ build-backend = "hatchling.build"
 packages = ["src/sluicer"]
 
 [dependency-groups]
-dev = ["pytest>=8.0", "ruff>=0.16", "mypy>=1.11"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.16", "mypy>=1.11"]
 
 # Four human review passes were the only thing between a defect and this
 # repository, and a wrong type annotation still got through one of them. The
@@ -106,6 +106,21 @@ select = [
     "PIE",  # flake8-pie: `startswith(a) or startswith(b)` is one call
     "RUF",  # ruff's own: unsorted __all__, unused unpacked variables
 ]
+
+[tool.coverage.run]
+source = ["sluicer"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+precision = 2
+# Measured, not chosen: the suite covers 97.42% of statements and branches
+# today, so the floor is set just under it. It protects what exists rather
+# than announcing a target nobody agreed to, and it is meant to be raised as
+# the number rises. The uncovered lines are real and are left visible rather
+# than excluded -- among them the ladder's unreachable `raise`, which is
+# uncovered precisely because it cannot happen.
+fail_under = 97
 
 [tool.mypy]
 files = ["src"]

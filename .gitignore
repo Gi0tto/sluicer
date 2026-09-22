@@ -5,6 +5,10 @@ dist/
 build/
 *.egg-info/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 bench/cache/
 .DS_Store
 .superpowers/
