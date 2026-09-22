@@ -20,3 +20,14 @@ def test_reads_og_and_twitter_tags():
 
 def test_a_page_declaring_nothing_returns_an_empty_mapping():
     assert read_opengraph(load("<html><body>hi</body></html>")) == {}
+
+
+def test_an_empty_content_is_not_a_value():
+    doc = load(
+        "<html><head>"
+        '<meta property="og:title" content="  ">'
+        '<meta property="og:description" content="">'
+        "</head><body></body></html>"
+    )
+
+    assert read_opengraph(doc) == {}
