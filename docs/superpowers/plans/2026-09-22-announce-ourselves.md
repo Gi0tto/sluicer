@@ -6,7 +6,7 @@
 
 **Architecture:** One small module owns the identity and the robots decision. The ladder consults it before the first rung. The stealth rung leaves the default ladder and is added only on request, so the automatic path never turns an announced fetcher into a disguised one.
 
-**Tech Stack:** Python 3.10+, `protego` for parsing `robots.txt`, which already arrives with `scrapling[fetchers]` so the `fetch` extra gains no new dependency.
+**Tech Stack:** Python 3.10+, `protego` for parsing `robots.txt`. It arrives transitively with `scrapling[fetchers]`, and the `fetch` extra declares it anyway: a transitive dependency is not a declared one, and this project has already shipped that mistake twice.
 
 **Spec:** `docs/superpowers/specs/2026-09-22-sluicer-design.md`. The demand is recorded in `ROADMAP.md`: the most requested unaddressed issue on the largest project in this field asks for an identifiable user agent so a site owner can refuse it.
 

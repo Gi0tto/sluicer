@@ -25,7 +25,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - An MCP server and the `sluicer-mcp` command, exposing three tools to any agent
   that speaks the protocol, under the `mcp` extra.
 
+- An identifiable user agent on every request, `robots.txt` obeyed by default,
+  and `RobotsRefused` when a site says no. The answer is cached for a day, and a
+  robots file that answers 5xx is treated as a full disallow, per RFC 9309.
+
 ### Changed
+- The stealth rung has left the automatic ladder. `fetch(url, stealth=True)` adds
+  it back for a caller who wants it.
 - A bad argument to `sluicer extract` now exits 1 with our own message rather
   than exiting 2 with click's. A missing file and a directory are both covered.
 

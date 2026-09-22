@@ -69,6 +69,14 @@ when a measurement says the cheap rung brought back a refusal, a challenge or a
 skeleton. Every climb is reported with the reason that forced it, so you can see
 what a page cost.
 
+**Arrives under its own name, and takes no for an answer.** Every request says
+`Sluicer/<version>` with a link to this repository, so a site owner can see it
+coming and refuse it with one line of `robots.txt`, which Sluicer reads and obeys
+by default. The stealth rung exists, and it is not part of the automatic ladder:
+climbing on a measurement from plain HTTP to a browser is a change of cost, while
+climbing from announcing yourself to hiding is a change of character, and it does
+not happen to a caller who never asked for it.
+
 **Turns a page into markdown.** The article without the navigation, the cookie
 banner or the footer.
 

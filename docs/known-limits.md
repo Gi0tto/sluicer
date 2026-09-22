@@ -43,6 +43,19 @@ which the browser context silently overrides, so the tests passed while every
 site saw Chrome. It now passes `useragent`, which reaches the wire. If you change
 how a rung is built, ask a real server what it saw.
 
+**The robots answer is believed for a day.** A site that adds a rule is noticed
+within twenty-four hours, not immediately, and the cache is unbounded in the
+number of hosts it remembers. On a long-running server that is a slow leak and a
+slow update; both are acceptable today and neither is measured.
+
+**A redirect to another host is not re-checked.** Permission is asked of the URL
+you gave us. If that URL redirects somewhere else, the second host's rules are
+never consulted.
+
+**`Crawl-delay` is read by nobody.** Sluicer fetches one page when you ask for
+one page, so there is nothing yet to pace, and that stops being true the day it
+crawls.
+
 **The stealth rung does not announce itself, deliberately.** It exists to not be
 recognised, and announcing yourself and then evading is incoherent. It is no
 longer part of the automatic ladder for the same reason: climbing on a
