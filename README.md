@@ -11,7 +11,6 @@
 
 <p align="center">
   <a href="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml"><img src="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-81%20passing-brightgreen" alt="tests">
   <img src="https://img.shields.io/badge/network%20in%20tests-none-blue" alt="no network in tests">
   <img src="https://img.shields.io/badge/LLM%20calls-none-blue" alt="no LLM calls">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-yellow.svg" alt="MIT"></a>
