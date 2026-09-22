@@ -31,6 +31,35 @@ information than either, and nothing currently accepts it.
 **RDFa is named in the design and not implemented.** `declared` covers JSON-LD,
 microdata and OpenGraph today.
 
+## In fetching
+
+**A challenge is detected by matching words against the whole page.** A page
+whose prose legitimately contains "just a moment" climbs a rung it did not need
+to. The cost is one wasted browser fetch and a reason string that names the
+marker it matched, so the mistake is visible rather than silent.
+
+**A legitimately empty body is treated as a failed rung.** A site that answers
+200 with nothing costs a climb. A response with no HTML is not a page, and the
+ladder already knows how to climb past a failure, so this was the cheap side of
+the trade.
+
+**The last rung's exception reaches the caller.** When the most expensive rung
+raises, there is nothing left to try, and swallowing it would hand back an empty
+page pretending to be real. The command line turns the operational cases into a
+message; a bug still arrives as a traceback, deliberately.
+
+**The redirect-to-login measurement named in the design is not implemented.**
+The other two, a refusal and a skeletal body, are.
+
+**The fetch layer holds bytes and passes text.** `load()` learned to take bytes
+so a document's own encoding wins, and the adapter still hands it
+`response.html_content`, which scrapling has already decoded. Deciding which of
+the two is more trustworthy needs a measurement nobody has taken yet.
+
+**The same page is parsed twice on a successful URL fetch**, once by the ladder
+to decide whether to climb and once by the caller. Deterministic, so the cost is
+time rather than correctness.
+
 ## In the shape of the code
 
 **Adding a reader touches three places.** The reader names are written into

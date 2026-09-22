@@ -7,7 +7,22 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ### Added
 - A fetch ladder that starts at plain HTTP and climbs to a browser only when a
   measurement says the cheap rung brought back a refusal, a challenge or a
-  skeleton. Every climb is recorded with the reason that forced it.
+  skeleton. Every climb is recorded with the reason that forced it, and the
+  reasons reach the user.
+- `sluicer extract` now takes a URL as well as a path. Fetching needs the
+  optional extra: `uv pip install 'sluicer[fetch]'`.
+- `load()` and `extract()` accept bytes, so a document's own encoding
+  declaration wins over a guess.
+- Continuous integration: the suite on four Python versions, a build check, a
+  job proving the base install imports without the fetch extra, and one that
+  removes the socket entirely and runs the suite to prove no test touches the
+  network.
+- `docs/field-survey.md`, a reproducible count of 1,926 repositories in this
+  field, and `AI_POLICY.md`.
+
+### Changed
+- A bad argument to `sluicer extract` now exits 1 with our own message rather
+  than exiting 2 with click's. A missing file and a directory are both covered.
 
 ## 0.0.1 - 2026-09-22
 

@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**/*.md", "docs/**"]
+  pull_request:
+    branches: [main]
+    paths-ignore: ["**/*.md", "docs/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests on Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Run the suite
+        run: uv run --python ${{ matrix.python }} pytest -q
+
+  offline:
+    name: The suite opens no socket
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Run the suite with the network taken away
+        run: |
+          cat > /tmp/no_network.py <<'PY'
+          """Fail the build if any test tries to reach the network.
+
+          The project's first promise is that a run costs CPU and nothing else.
+          A promise nothing enforces is a wish, so here the socket is removed
+          before pytest starts and any attempt to open one fails loudly.
+          """
+          import socket
+          import sys
+
+
+          class Blocked(RuntimeError):
+              pass
+
+
+          def refuse(*args, **kwargs):
+              raise Blocked(
+                  "a test tried to open a socket; the suite must never touch the network"
+              )
+
+
+          socket.socket = refuse
+          socket.create_connection = refuse
+          socket.getaddrinfo = refuse
+
+          import pytest
+
+          sys.exit(pytest.main(["-q"]))
+          PY
+          uv run python /tmp/no_network.py
+
+  build:
+    name: The package builds and its metadata parses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build the wheel and the sdist
+        run: uv build
+      - name: Check the metadata
+        run: uvx twine check dist/*
+
+  import-without-extras:
+    name: Importing works without the fetch extra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install the base package only, then import it
+        run: |
+          uv venv
+          uv pip install .
+          uv run python -c "
+          import importlib.util, sluicer
+          assert importlib.util.find_spec('scrapling') is None, 'the extra leaked into the base install'
+          print('base install imports cleanly, version', sluicer.__version__)
+          "
