@@ -9,13 +9,12 @@ from typing import Any
 from sluicer.document import Document
 
 _XPATH = "//script[@type]"
-# How many references one path may follow. One is enough for what a reader of
-# a record asks for -- an article's author, its publisher, its image -- and it is
-# what keeps the output in proportion: measured on 2026-09-22 on a Yoast blog
-# post, one hop gives 22 KB of JSON against 10 KB with none and 38 KB with
-# three, because every record re-expands the same dense graph.
+# How many references one path may follow. One is enough for an article's
+# author, publisher and image, and keeps the output in proportion: measured on
+# 2026-09-22 on a Yoast blog post, one hop gives 22 KB of JSON against 10 KB
+# with none and 38 KB with three, because every record re-expands the graph.
 MAX_REFERENCE_HOPS = 1
-# Deeper than anything downstream reads; see ``_resolve``.
+# Deeper than anything downstream reads; see ``_Walk.resolve``.
 _MAX_DEPTH = 32
 _MEDIA_TYPE = "application/ld+json"
 
@@ -24,28 +23,22 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
     """Return every JSON-LD object in the page, with ``@graph`` flattened.
 
     A reference -- an object carrying nothing but an ``@id`` -- is replaced by
-    the node on the same page that defines that ``@id``, in whichever block it
-    sits, so an article that names its author by reference, as every Yoast
-    page does, arrives with the author. A reference nobody on the page defines
-    stays a reference. A node already being expanded on the way down is not
-    expanded again, so a cycle ends, and neither is anything more than
-    ``MAX_REFERENCE_HOPS`` references deep, so a graph where everything points
-    at everything costs a bounded amount.
+    the node on the page that defines that ``@id``, in whichever block it sits,
+    so an article that names its author by reference (every Yoast page does)
+    arrives with the author. A reference nobody defines stays a reference. A
+    cycle ends, expansion stops at ``MAX_REFERENCE_HOPS``, and the total copied
+    is bounded by a budget, so a hostile graph costs a fixed amount.
 
-    Numbers are kept as the text the page wrote, so ``41.90`` stays ``41.90``
-    rather than becoming the float ``41.9``.
+    Numbers keep the text the page wrote: ``41.90`` stays ``41.90``.
 
-    Blocks are read the way the consumers pages are written for read them: a
-    raw newline inside a string, a block wrapped in an HTML comment or a CDATA
-    section, a leading byte order mark and a trailing comma are all common, and
-    none of them loses the block. What still is not JSON is skipped, and so is a
-    block nested deeper than the parser can follow: a broken block is a fact
-    about the page, not a reason to lose the good ones.
+    Blocks are read as leniently as the consumers pages are written for: a raw
+    newline inside a string, an HTML comment or CDATA wrapper, a byte order
+    mark and a trailing comma are all common and none loses the block. What
+    still is not JSON is skipped, and so is a block nested past the parser's
+    limit; the good blocks on the page are kept.
 
-    Real pages spell the media type in every legal way, so it is matched
-    ignoring case, surrounding whitespace and any parameters after a
-    semicolon: "application/ld+json;charset=UTF-8" is the same media type as
-    "application/LD+JSON".
+    The media type is matched ignoring case, whitespace and parameters:
+    "application/ld+json;charset=UTF-8" is "application/LD+JSON".
     """
     found: list[dict[str, Any]] = []
     for script in doc.tree.xpath(_XPATH):
@@ -58,11 +51,11 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
         if parsed is not None:
             found.extend(_flatten(parsed))
     index = _definitions(found)
-    # Every copy a reference makes is paid for from one budget, a multiple of
-    # what the page itself holds: four thousand references to one node of four
-    # thousand items were four gigabytes of copies from a 119 KB page. Past
-    # the budget a reference stays a reference, in document order, so the
-    # answer is the same every time.
+    # Every copy a reference makes is paid for from one budget, ten times what
+    # the page holds: four thousand references to one node of four thousand
+    # items were four gigabytes of copies from a 119 KB page. Past the budget
+    # a reference stays a reference, in document order, so the answer is
+    # deterministic.
     walk = _Walk(index, [max(10_000, 10 * _size(found))])
     return [walk.resolve(node, _own_id(node), 0) for node in found]
 

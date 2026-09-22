@@ -1,39 +1,22 @@
 """Turning one repeated shape into the records it describes.
 
-A page that declares nothing has not told us what its fields are called, so we
-do not invent names for them. A field is named by where it sits in the shape and
-what class it carries, which is exactly as much as the page said, and every one
-of them is marked as induced so a caller never mistakes it for a declaration.
+A page that declares nothing has not named its fields, so no names are
+invented: a field is named by where it sits and the class it carries, and
+every field is marked induced.
 
-**The names come from the group, not from each member.** A record is a row only
-if the same slot has the same name in every record; a name derived from a
-member's own document order drifts the moment one member holds an element the
-others do not, and members that differ below the depth shapes are compared at --
-an optional ``<em>``, a second badge -- are routine. So a slot is named by the
-path down to it: the tag and first hand-written class of each ancestor inside the
-member, then its own, as ``div.meta>span.sku``. Two members that differ deep
-inside one branch still agree about every other branch, and a slot a member does
-not have is simply absent from that record rather than pushing its neighbours'
-names along.
+The names come from the group, not from each member, so the columns line up.
+A slot is named by the path down to it -- the tag and first hand-written class
+of each ancestor inside the member, then its own: ``div.meta>span.sku``. A
+member missing a slot simply lacks that field. Generated class names (CSS-in-JS
+hashes such as ``dcr-1t2r5md``) are skipped, since they change every deploy.
 
-**Nothing repeated is dropped.** Three ``<span class="tag">`` in one card are
-three facts. Naming them all ``span.tag`` and keeping the first would silently
-lose two, so repeated siblings are numbered -- ``span.tag1``, ``span.tag2``,
-``span.tag3`` -- and the decision to number is taken once for the whole group,
-from the member that holds the most. A card with one tag in a group where some
-card holds three therefore calls its tag ``span.tag1``, and the columns still
-line up. Numbering rather than collecting keeps ``Record.fields`` a flat map of
-one name to one value, which is what a declared record is; a list-valued field
-would be a second kind of record for a caller to handle.
+Nothing repeated is dropped: three ``<span class="tag">`` in a card are
+``span.tag1``, ``span.tag2``, ``span.tag3``, numbered once for the whole group
+from the member that holds the most.
 
-Some parts carry two facts rather than one, and both are kept. An anchor is the
-clearest case: ``<a href="/p0">Product name 0</a>`` is a name *and* a link, and
-returning only the address loses the product's name on the commonest listing
-shape on the web. An image is the same, with its alt text and its src. The
-convention is that the text takes the slot's own name and the address takes that
-name with the attribute appended -- ``a.more`` and ``a.more@href``, ``img.photo``
-and ``img.photo@src`` -- so the two are visibly one slot, and a caller reading a
-record never has to guess which name belongs to which.
+A part can carry two facts: an anchor is a name and a link, an image its alt
+text and its source. The text takes the slot's name and the address takes the
+name with the attribute appended: ``a.more`` and ``a.more@href``.
 """
 
 from __future__ import annotations
@@ -103,17 +86,10 @@ def _says_something(text: str | None) -> bool:
 def _carries_only_its_children(element: HtmlElement) -> bool:
     """True when every word of ``element``'s text already belongs to a child.
 
-    A wrapper is not a fact. Hacker News puts each rank inside a ``<td>`` that
-    holds one ``<span>`` and nothing else, so emitting both gave the same "1."
-    under two names and left the caller to work out they were one thing. An
-    element earns a text fact only by contributing text of its own -- the
-    "Price:" in ``<p>Price: <b>18.40</b></p>`` exists nowhere else, so that
-    paragraph keeps its text while the bare wrapper loses it.
-
-    Its own text is what sits outside its children: its ``text`` and the
-    ``tail`` of each child. Comparing whole strings instead failed on every
-    wrapper of two or more children, because ``text_content`` runs them
-    together with no space between.
+    A wrapper is not a fact: Hacker News wraps each rank's ``<span>`` in a
+    ``<td>``, and both would report "1.". An element keeps a text fact only for
+    text of its own -- its ``text`` and each child's ``tail`` -- as the
+    "Price:" in ``<p>Price: <b>18.40</b></p>`` is.
     """
     children = [child for child in element if isinstance(child.tag, str)]
     if not children:

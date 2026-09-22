@@ -1,29 +1,16 @@
 """Finding the siblings a page repeats.
 
-A listing page is a parent whose children are the same shape over and over. We
-look for exactly that, and rank what we find by how much a reader would get out
-of it. Two of a kind is a coincidence, so the floor is three.
+A listing is a parent whose children are the same shape over and over. Groups
+of at least three are found and ranked by how much a reader would get out of
+them.
 
-Two things a reader does without thinking, and which ranking by shape alone does
-not do, are done here.
-
-The first is to ignore the page's furniture. The ``head`` repeats ``meta`` and
-``link`` more often than any listing repeats a row, a ``nav`` repeats links, an
-``aside`` repeats widgets and a ``footer`` repeats both -- and none of that is
-what the page is about. Candidates sitting anywhere inside those four regions
-are not considered at all, however many members they have: a group of ``meta``
-elements is not a set of records. A ``script`` or a ``style`` is excluded the
-same way, as a member rather than as a region, because that is the form the
-problem actually takes: measured, lxml's HTML parser never gives either of them
-element children, so nothing can sit *inside* one, while three inline scripts
-sitting among the content are ordinary and carry more characters than any row.
-
-The second is to count what the members carry rather than only how many parts
-they have. A row of four empty ``<span>`` is four parts and no data; a headline
-and a paragraph are two parts and a record. So the measure of a member is the
-text it carries plus the addresses it points at, and a member with neither is
-worth nothing -- which leaves its group scored at zero, behind every group that
-holds something.
+Two things a reader does without thinking are done here. The page's furniture
+is ignored: anything inside ``head``, ``nav``, ``aside`` or ``footer`` repeats
+more than any listing and is never the content, and ``script`` and ``style``
+are never members (lxml gives them no element children, but inline scripts sit
+among content and carry more characters than any row). And members are
+measured by what they carry -- their text plus the addresses they point at --
+so a row of empty ``<span>`` is worth nothing, however many parts it has.
 """
 
 from __future__ import annotations

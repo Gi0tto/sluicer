@@ -1,39 +1,29 @@
 """Read RDFa Lite: vocab, typeof, property, resource, prefix.
 
-RDFa Lite is the subset the W3C itself recommends to authors, and it is the
-part real pages carry: a ``typeof`` naming a subject, ``property`` naming its
-fields, ``vocab`` and ``prefix`` saying which vocabulary those names come
-from, ``resource`` giving a value that is an address rather than a text.
-Full RDFa is a graph language, and reading it properly means a triple store:
-that is why ``extruct`` pulls in ``rdflib`` and ``pyrdfa3`` and still calls
-its own RDFa support experimental. This module reads the Lite subset in pure
-``lxml``, adds no dependency to the base install, and stops where the graph
-begins. Anyone who needs the full graph -- chained subjects, typed literals,
-inference -- is better served by a triple store than by this pretending.
-
-Two limits follow from that, and both are deliberate.
+RDFa Lite is the subset the W3C recommends to authors, and the part real pages
+carry: ``typeof`` names a subject, ``property`` its fields, ``vocab`` and
+``prefix`` the vocabulary those names come from, ``resource`` a value that is
+an address. Full RDFa is a graph language that needs a triple store (extruct
+pulls in ``rdflib`` and ``pyrdfa3`` for it and still calls it experimental).
+This reader covers Lite in ``lxml`` alone and stops where the graph begins:
+chained subjects, typed literals and inference are not read.
 
 Every term is resolved through ``vocab`` and ``prefix`` -- the page's own and
-RDFa's initial context -- before it is named. A schema.org term is then named
-the way every other reader names it: under ``vocab="https://schema.org/"`` the
-property ``name``, the CURIE ``schema:name`` and the full IRI all arrive as
-``name``. A term from any other vocabulary keeps its full IRI, so a FOAF
-``name`` never collides with a schema.org one. A CURIE whose prefix nobody
-declared -- MediaWiki's ``typeof="mw:Transclusion"`` on every Wikipedia page --
-is not a term at all and is not read as one. OpenGraph terms are left to the
-OpenGraph reader, which reads the same ``<meta property>`` tags.
+RDFa's initial context -- before it is named. A schema.org term gets the name
+every reader uses: under ``vocab="https://schema.org/"`` the property ``name``,
+the CURIE ``schema:name`` and the full IRI all arrive as ``name``. A term from
+another vocabulary keeps its full IRI, so a FOAF ``name`` never collides with
+a schema.org one. A CURIE whose prefix nobody declared (MediaWiki's
+``typeof="mw:Transclusion"`` on every Wikipedia page) is not a term. OpenGraph
+terms are left to the OpenGraph reader, which reads the same ``<meta
+property>`` tags.
 
 A ``property`` that is itself a ``typeof`` has that subject as its value,
-nested, as a microdata item inside another does. A property declared twice is
-a list in document order.
+nested, as in microdata. A property declared twice is a list in document order.
 
-RDFa is rare on today's web: across twenty well-known pages measured while
-this was written, one carried it. The reader is here for compatibility --
-so a page that does declare its rows this way is not read as declaring
-nothing -- not because the vocabulary is winning. A ``typeof`` subject
-describes a thing on the page rather than the page itself, which is why
-``sluicer.api.ABOUT_A_THING`` counts this vocabulary, under the name
-``rdfa``, among those that answer "what is in this list".
+RDFa is rare: across twenty well-known pages measured on 2026-09-22, one
+carried it. The reader exists for compatibility. It describes things, so it is
+in ``sluicer.declared.merge.ABOUT_A_THING`` as ``rdfa``.
 """
 
 from __future__ import annotations
@@ -204,8 +194,8 @@ def _resolve(token: str, vocab: str | None, prefixes: dict[str, str]) -> str | N
         prefix, _, reference = token.partition(":")
         base = prefixes.get(prefix.lower())
         return base + reference if base is not None and reference else None
-    # A bare term with no vocab in scope is read as written, as it always was
-    # here: pages write typeof="Product" and mean schema.org by it.
+    # A bare term with no vocab in scope is read as written: pages write
+    # typeof="Product" and mean schema.org by it.
     return vocab + token if vocab else token
 
 

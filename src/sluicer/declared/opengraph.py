@@ -1,27 +1,17 @@
 """Read the OpenGraph meta tags.
 
 The protocol's own namespace, ``og:``, and the vertical namespaces it defines
-on top of it. This reader used to return the Twitter card as well and label
-every value ``source="opengraph"``, which made the provenance false for any
-field a card had won and left the choice between the two vocabularies to
-whichever tag the page's author typed first. The card is now
-``sluicer.declared.twitter``, it runs after this reader, and the keys they
-share -- ``title``, ``description``, ``image``, ``image:alt`` -- resolve by a
-stated precedence rather than by document order.
+(``article:``, ``book:``, ``profile:``, ``video:``, ``music:``). The verticals
+are part of the protocol: ``og:type`` names one and the page describes that
+type in its namespace, so reading ``og:`` alone reads the label and drops the
+statement. Measured on 2026-09-22 across the 359 WCXB pages Sluicer targets,
+``article:published_time`` is on 33% of them. ``fb:`` and ``al:`` are
+Facebook's and Apple's, not the protocol's, and stay out.
 
-The verticals are the protocol's, not an extension of it: ``og:type`` names
-one of them and the page then describes that type in its own namespace, as
-``https://ogp.me/ns/article#``. Reading ``og:`` alone therefore read the
-label and dropped the statement -- measured on 2026-09-22 across the 359 WCXB
-pages Sluicer targets, ``article:published_time`` is on 33% of them and
-``article:author`` on 8%, and none of it was read. ``fb:`` and ``al:`` are
-Facebook's and Apple's and stay out: what makes a namespace OpenGraph is the
-specification defining it, not the colon in the attribute.
-
-OpenGraph describes the *document*: ``og:title`` and ``og:site_name`` answer
-"what is this page", never "what is in this list". That is why this reader is
-absent from ``sluicer.api.ABOUT_A_THING``, and why a page whose only
-declaration is OpenGraph is still a page that declared nothing about its rows.
+The Twitter card has its own reader, which runs after this one, so OpenGraph
+wins a key the two share (``title``, ``description``, ``image:alt``).
+OpenGraph describes the document, so it is not in
+``sluicer.declared.merge.ABOUT_A_THING``.
 """
 
 from __future__ import annotations

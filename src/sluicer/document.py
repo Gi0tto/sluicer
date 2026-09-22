@@ -133,9 +133,8 @@ def _codec(label: bytes) -> str | None:
 
 
 # ``huge_tree``, because libxml2 otherwise stops at 256 levels of nesting and
-# drops everything below without a word -- JSON-LD included. Unclosed <div>s
-# add up on real pages, and a parser that silently loses the end of a page is
-# the failure this package exists not to have.
+# silently drops everything below, JSON-LD included; unclosed <div>s add up on
+# real pages.
 _TEXT_PARSER = lxml.html.HTMLParser(huge_tree=True)
 _UTF8_PARSER = lxml.html.HTMLParser(encoding="utf-8", huge_tree=True)
 
@@ -150,39 +149,29 @@ class Document:
 
 
 def load(html: str | bytes, url: str | None = None) -> Document:
-    """Parse ``html`` into a Document. This never raises.
+    """Parse ``html`` into a ``Document``. Never raises.
 
-    Bytes are preferred when the caller has them, such as a response body
-    straight off the wire, because the page's own declaration is still in
-    them. They are decoded here the way a browser decodes them -- see
-    ``sniff_encoding`` -- and never by libxml2, which commits to Latin-1 at the
-    first non-ASCII byte and so misread every UTF-8 page whose ``<title>``
-    came before its ``<meta charset>``.
+    Args:
+        html: the page. Prefer bytes when you have them, such as a response
+            body: the page's own charset declaration is still in them, and
+            they are decoded the way a browser decodes them (see
+            ``sniff_encoding``), never by libxml2, which commits to Latin-1 at
+            the first non-ASCII byte.
+        url: the address the page came from, used to resolve its links.
 
-    Broken markup is tolerated by the parser. A ``str`` document carrying an
-    XML encoding declaration, as an XHTML page ordinarily does, is refused by
-    lxml because a ``str`` is already decoded text and a declaration inside
-    it would be a contradiction; it is read as UTF-8 bytes instead, whatever
-    the document declares, because the ``str`` arrived here already decoded
-    and a declaration that disagrees with it must not be given the chance to
-    corrupt the text.
-
-    When lxml cannot parse the document even then -- it is empty, or it
-    carries nothing but a doctype, a comment, whitespace with a byte order
-    mark, or an XML declaration -- the tree is an empty ``<html>`` element
-    instead. Readers then find nothing and the caller truthfully reports that
-    the page declares nothing, which is the honest answer for a page that
-    declares nothing.
-
-    ``html`` is kept verbatim either way, so what was given is never lost.
+    A ``str`` carrying an XML encoding declaration (ordinary XHTML) is refused
+    by lxml, since a decoded string cannot also declare an encoding; it is
+    parsed as UTF-8 whatever it declares. A document lxml cannot parse at all
+    -- empty, only a doctype, a comment or an XML declaration -- becomes an
+    empty ``<html>`` element, so readers find nothing. ``html`` is kept
+    verbatim on the result.
     """
     if isinstance(html, bytes):
         return Document(html=html, tree=_parse_bytes(html), url=url)
     try:
         tree = lxml.html.fromstring(html, parser=_TEXT_PARSER)
     except lxml.etree.LxmlError:
-        # ParserError ("Document is empty") for a document lxml considers
-        # empty. Not a reason to explode in the caller's face.
+        # ParserError ("Document is empty"): nothing to read, not an error.
         tree = lxml.html.Element("html")
     except ValueError:
         # "Unicode strings with encoding declaration are not supported": the

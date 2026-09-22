@@ -41,7 +41,7 @@ _VALUE_ATTRS = {
 _ADDRESSES = frozenset({"src", "href", "data"})
 
 # Deeper than any real page nests items; a bound so a hostile one costs a
-# fixed amount, and so an itemref that points back up cannot loop.
+# fixed amount. Loops through itemref are stopped by the chain in ``_item``.
 _MAX_DEPTH = 16
 
 
@@ -80,7 +80,7 @@ def read_microdata(doc: Document) -> list[dict[str, Any]]:
 
 # How many items one top-level item may expand, counting every nested one.
 # Items that name each other with itemref form a graph, and walking every path
-# through it is exponential: four such items were measured at half an hour.
+# through it is exponential: four such items were estimated at half an hour.
 _BUDGET = 256
 
 
