@@ -37,6 +37,30 @@ jobs:
       - name: Run the suite
         run: uv run --python ${{ matrix.python }} pytest -q
 
+  quality:
+    # Separate from the matrix above on purpose: a red cross here names which
+    # gate refused the commit, and each step names which of the three it was.
+    # Four human review passes were the only thing standing between a defect
+    # and this repository, and a wrong type annotation still got past one.
+    name: Lint, types and coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Lint
+        run: uv run --python 3.13 ruff check src tests
+      - name: Types
+        # Reads its own settings from pyproject: strict, against src, at the
+        # 3.10 floor this package declares whatever interpreter is running it.
+        run: uv run --python 3.13 mypy
+      - name: Coverage
+        # One interpreter, so the floor is measured against the same thing
+        # every time. The matrix above is what proves the suite passes on all
+        # four versions.
+        run: uv run --python 3.13 pytest -q --cov --cov-report=term-missing
+
   offline:
     name: The suite opens no socket
     runs-on: ubuntu-latest
