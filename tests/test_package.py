@@ -56,3 +56,26 @@ def test_installing_the_mcp_extra_gives_a_server_whose_tools_all_work():
     assert any(
         "trafilatura" in line or "sluicer[markdown]" in line for line in under_mcp
     ), f"the mcp extra does not bring the markdown extra: {under_mcp}"
+
+
+def test_nothing_outside_the_fetch_package_reaches_past_its_surface():
+    """``sluicer.fetch`` says it is the surface; one import has to mean one thing.
+
+    ``cli.py`` imported ``fetch`` from ``sluicer.fetch.ladder`` while
+    ``mcp_server.py`` imported it from ``sluicer.fetch``, so the same function
+    had two spellings and the stated convention had no way to be wrong. The
+    fetch package's own modules may of course name each other.
+    """
+    from pathlib import Path
+
+    import sluicer
+
+    root = Path(sluicer.__file__).parent
+    offenders = [
+        path.relative_to(root).as_posix()
+        for path in sorted(root.rglob("*.py"))
+        if "fetch" not in path.relative_to(root).parts
+        and "sluicer.fetch.ladder" in path.read_text()
+    ]
+
+    assert offenders == [], f"these import past the fetch surface: {offenders}"
