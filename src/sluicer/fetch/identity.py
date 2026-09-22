@@ -69,7 +69,22 @@ def robots_allows(
     text = entry[1]
     if not text:
         return True
-    protego = import_extra("protego", "fetch", doing="Reading a site's robots.txt")
+    # Imported here, not at module scope: ``scrapling_rungs`` imports
+    # ``USER_AGENT`` from this module, so naming it at the top would close a
+    # cycle. ``FetchExtraMissing`` and not the default ``MissingExtra``
+    # because protego ships behind the fetch extra and the entry points catch
+    # the extra's own class by name -- ``cli.py`` catches
+    # ``FetchExtraMissing``, and a bare ``MissingExtra`` sailed past it and
+    # reached the user as a traceback, which is the one thing
+    # ``sluicer.extras`` promises an absent extra never does.
+    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+
+    protego = import_extra(
+        "protego",
+        "fetch",
+        doing="Reading a site's robots.txt",
+        error=FetchExtraMissing,
+    )
     return bool(protego.Protego.parse(text).can_fetch(url, USER_AGENT))
 
 

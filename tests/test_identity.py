@@ -12,6 +12,8 @@ if the cache were not reset between tests -- the autouse fixture in
 ``conftest.py`` is what keeps each one starting fresh.
 """
 
+import pytest
+
 from sluicer.fetch.identity import USER_AGENT, robots_allows, robots_url_for
 
 ALLOW_ALL = "User-agent: *\nAllow: /\n"
@@ -109,3 +111,24 @@ def test_http_and_https_on_one_host_are_two_different_robots_files():
     assert robots_allows("http://example.com/p", read=read, cache=cache) is False
     assert robots_allows("https://example.com/p", read=read, cache=cache) is True
     assert calls == ["http://example.com/robots.txt", "https://example.com/robots.txt"]
+
+
+def test_a_missing_protego_says_the_fetch_extra_is_what_installs_it(absent):
+    """The label has to be the one the entry points catch, not the base class.
+
+    ``sluicer.extras`` states the rule this breaks: an absent extra is a
+    sentence, never a traceback. The call site used the default
+    ``MissingExtra``, and ``cli.py`` catches ``FetchExtraMissing`` by name, so
+    a bare ``MissingExtra`` sailed straight past that handler. protego ships
+    behind the fetch extra, so the fetch extra's own exception is what a
+    missing protego has to raise.
+    """
+    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+
+    absent("protego")
+
+    with pytest.raises(FetchExtraMissing) as raised:
+        robots_allows("https://example.com/private/p", read=lambda url: REFUSE_US)
+
+    assert raised.value.extra == "fetch"
+    assert "uv pip install 'sluicer[fetch]'" in str(raised.value)

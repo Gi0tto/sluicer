@@ -332,3 +332,35 @@ def test_a_windows_1252_files_declared_data_keeps_its_characters(tmp_path):
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["records"][0]["fields"]["name"]["value"] == "Caf\xe9 filter"
+
+
+def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(monkeypatch, absent):
+    """The rule ``sluicer.extras`` states, driven through the front door.
+
+    Nothing here fakes the exception: the real ``fetch`` runs, with fake rungs
+    and a robots.txt that has rules in it, so the real call site is the thing
+    that raises. With protego absent and the call site raising the base
+    ``MissingExtra``, this walked straight past ``cli.py``'s
+    ``except FetchExtraMissing`` and reached the user as a traceback.
+    """
+    from sluicer.fetch import fetch as real_fetch
+    from sluicer.fetch.result import Fetched
+
+    def rung(url):
+        return Fetched(url=url, html="<html><body>hi</body></html>", status=200, rung="http")
+
+    monkeypatch.setattr(
+        "sluicer.cli.fetch_url",
+        lambda url: real_fetch(
+            url,
+            rungs=[("http", rung)],
+            robots_reader=lambda _: "User-agent: *\nAllow: /\n",
+        ),
+    )
+    absent("protego")
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+
+    assert result.exit_code == 1
+    assert "uv pip install 'sluicer[fetch]'" in result.stderr
+    assert isinstance(result.exception, SystemExit), f"reached the user as {result.exception!r}"

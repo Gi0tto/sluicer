@@ -50,3 +50,32 @@ def _reset_the_default_cache():
     _CACHE.clear()
     yield
     _CACHE.clear()
+
+
+@pytest.fixture
+def absent(monkeypatch):
+    """Make named packages genuinely unimportable, submodules and all.
+
+    Measured, an absent package raises ``ModuleNotFoundError`` whose ``name``
+    is the top-level package, and that is the only failure ``import_extra``
+    treats as "the extra is missing". Leaving ``None`` in ``sys.modules`` does
+    not say that, so a finder that refuses the name is what stands in for
+    absence. Removing the modules matters too: the autouse fake ``protego``
+    above is already sitting in ``sys.modules``, and a test about protego
+    being missing has to take it back out.
+    """
+
+    def make_absent(*names: str) -> None:
+        class Finder:
+            def find_spec(self, name, path=None, target=None):
+                for gone in names:
+                    if name == gone or name.startswith(gone + "."):
+                        raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+                return None
+
+        for name in list(sys.modules):
+            if any(name == gone or name.startswith(gone + ".") for gone in names):
+                monkeypatch.delitem(sys.modules, name, raising=False)
+        monkeypatch.setattr(sys, "meta_path", [Finder(), *sys.meta_path])
+
+    return make_absent
