@@ -38,6 +38,7 @@ dependencies = ["lxml>=5.0", "click>=8.1"]
 [project.optional-dependencies]
 fetch = ["scrapling>=0.4"]
 markdown = ["trafilatura>=2.0"]
+mcp = ["mcp>=1.2"]
 
 [project.urls]
 Homepage = "https://github.com/Gi0tto/sluicer"
@@ -47,6 +48,7 @@ Changelog = "https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md"
 
 [project.scripts]
 sluicer = "sluicer.cli:main"
+sluicer-mcp = "sluicer.mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]
