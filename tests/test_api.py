@@ -88,3 +88,13 @@ def test_an_xhtml_page_with_an_encoding_declaration_still_extracts():
     assert result.records[0].type == "Product"
     assert result.records[0].fields["name"].value == "Wiper blade set"
     assert result.records[0].fields["sku"].value == "ATD-3041"
+
+
+def test_a_declaration_that_disagrees_with_the_bytes_does_not_mangle_the_text():
+    html = (FIXTURES / "product_latin1_declared.html").read_text(encoding="utf-8")
+
+    result = sluicer.extract(html)
+
+    assert result.sources == ["jsonld"]
+    assert result.records[0].fields["name"].value == "Bremsöl"
+    assert result.records[0].fields["sku"].value == "ATD-7712"

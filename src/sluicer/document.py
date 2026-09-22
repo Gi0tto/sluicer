@@ -23,7 +23,11 @@ def load(html: str, url: str | None = None) -> Document:
     Broken markup is tolerated by the parser. A document carrying an XML
     encoding declaration, as an XHTML page ordinarily does, is refused by
     lxml while it is a ``str``; it is read as UTF-8 bytes instead, so a page
-    that declares data is never quietly reported as declaring none.
+    that declares data is never quietly reported as declaring none. That
+    retry reads the bytes as UTF-8 whatever the document declares, because
+    UTF-8 is what they are: ``html`` arrived here already decoded, and a
+    declaration that disagrees with the bytes must not be given the chance
+    to corrupt the text.
 
     When lxml cannot parse the document even then -- it is empty, or it
     carries nothing but a doctype, a comment, whitespace with a byte order
@@ -45,7 +49,10 @@ def load(html: str, url: str | None = None) -> Document:
         # refusal is about the str, not about the document, so the document
         # gets a second chance as bytes before it is called empty.
         try:
-            tree = lxml.html.fromstring(html.encode("utf-8"))
+            tree = lxml.html.fromstring(
+                html.encode("utf-8"),
+                parser=lxml.html.HTMLParser(encoding="utf-8"),
+            )
         except (lxml.etree.LxmlError, ValueError):
             tree = lxml.html.Element("html")
     return Document(html=html, tree=tree, url=url)
