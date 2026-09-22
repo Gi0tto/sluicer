@@ -1,3 +1,4 @@
+import importlib.util
 import sys
 import types
 
@@ -81,15 +82,30 @@ def test_a_rung_returns_a_fetched_carrying_the_status(monkeypatch):
     assert seen["http"][1] == {"timeout": 30}
 
 
+class _NoScrapling:
+    """A ``scrapling`` that is not installed at all.
+
+    Measured, an absent package raises ``ModuleNotFoundError`` whose ``name``
+    is the top-level package. Leaving ``None`` in ``sys.modules`` does not say
+    that: it names ``scrapling.fetchers``, which is what a *broken* install
+    looks like, so a finder that refuses the name is what stands in for
+    absence here.
+    """
+
+    def find_spec(self, name, path=None, target=None):
+        if name == "scrapling" or name.startswith("scrapling."):
+            raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+        return None
+
+
 def test_a_missing_scrapling_says_how_to_install_it(monkeypatch):
-    monkeypatch.setitem(sys.modules, "scrapling", None)
-    monkeypatch.setitem(sys.modules, "scrapling.fetchers", None)
-    import importlib
+    monkeypatch.delitem(sys.modules, "scrapling", raising=False)
+    monkeypatch.delitem(sys.modules, "scrapling.fetchers", raising=False)
+    monkeypatch.setattr(sys, "meta_path", [_NoScrapling(), *sys.meta_path])
 
     import sluicer.fetch.scrapling_rungs as rungs_module
 
-    importlib.reload(rungs_module)
-    with pytest.raises(ImportError) as raised:
+    with pytest.raises(rungs_module.FetchExtraMissing) as raised:
         rungs_module.default_rungs()
 
     assert "sluicer[fetch]" in str(raised.value)
@@ -127,3 +143,43 @@ def test_a_response_without_a_url_falls_back_to_the_one_we_asked_for(monkeypatch
     for _, rung in default_rungs():
         result = rung("https://example.com/p")
         assert result.url == "https://example.com/p"
+
+
+class _BrokenFetchers:
+    """An installed scrapling whose ``fetchers`` module raises on import.
+
+    Nothing is missing here: ``scrapling`` imports fine, and the failure comes
+    from inside it, the way a version skew between scrapling and one of its own
+    modules looks. The import machinery reports that as a plain ``ImportError``
+    with no ``name``, which is exactly what a genuinely absent package does not
+    look like.
+    """
+
+    def find_spec(self, name, path=None, target=None):
+        if name == "scrapling.fetchers":
+            return importlib.util.spec_from_loader(name, self)
+        return None
+
+    def create_module(self, spec):
+        return None
+
+    def exec_module(self, module):
+        raise ImportError("cannot import name 'Foo' from 'scrapling.engines'")
+
+
+def test_a_broken_scrapling_install_is_not_a_missing_extra(monkeypatch):
+    """A failure from inside a working install must surface as the bug it is."""
+    package = types.ModuleType("scrapling")
+    package.__path__ = []
+    monkeypatch.setitem(sys.modules, "scrapling", package)
+    monkeypatch.delitem(sys.modules, "scrapling.fetchers", raising=False)
+    monkeypatch.setattr(sys, "meta_path", [_BrokenFetchers(), *sys.meta_path])
+
+    from sluicer.fetch.scrapling_rungs import FetchExtraMissing, _fetchers
+
+    with pytest.raises(ImportError) as raised:
+        _fetchers()
+
+    assert not isinstance(raised.value, FetchExtraMissing)
+    assert str(raised.value) == "cannot import name 'Foo' from 'scrapling.engines'"
+    assert "sluicer[fetch]" not in str(raised.value)

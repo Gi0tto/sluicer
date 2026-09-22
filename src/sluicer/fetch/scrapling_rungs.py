@@ -29,9 +29,21 @@ class FetchExtraMissing(ImportError):
 
 
 def _fetchers():
+    """Return the three scrapling fetchers, or say the extra is not installed.
+
+    Only one failure means "the extra is missing": the ``scrapling`` package
+    itself cannot be found. Measured, that is a ``ModuleNotFoundError`` whose
+    ``name`` is exactly ``"scrapling"``. Anything else -- a plain
+    ``ImportError`` raised from inside a working install, or a
+    ``ModuleNotFoundError`` naming some other module, including
+    ``scrapling.fetchers`` -- is a broken install, and telling that user to
+    install what is already there hides the bug. So it is re-raised untouched.
+    """
     try:
         from scrapling.fetchers import DynamicFetcher, Fetcher, StealthyFetcher
-    except ImportError as missing:
+    except ModuleNotFoundError as missing:
+        if missing.name != "scrapling":
+            raise
         raise FetchExtraMissing(_MISSING) from missing
     return Fetcher, DynamicFetcher, StealthyFetcher
 
