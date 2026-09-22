@@ -9,6 +9,15 @@
   Turn a web page into structured data with no model in the loop.
 </p>
 
+<p align="center">
+  <a href="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml"><img src="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/tests-81%20passing-brightgreen" alt="tests">
+  <img src="https://img.shields.io/badge/network%20in%20tests-none-blue" alt="no network in tests">
+  <img src="https://img.shields.io/badge/LLM%20calls-none-blue" alt="no LLM calls">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-yellow.svg" alt="MIT"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
+</p>
+
 ---
 
 A sluice box separates gold from gravel using water and gravity. No mercury, no
@@ -16,11 +25,11 @@ cyanide, nothing you have to buy. Sluicer treats a web page the same way: it
 recovers your data from the structure that's already in the page, so there's no
 API key, no token bill, and the same page always gives you the same answer.
 
-> **Status: first slice, working.** Sluicer reads the structured data a page
-> already declares and tells you where every value came from. The fetch ladder,
-> structure induction, trust scoring and the public scoreboard are designed and
-> not built. Until the scoreboard runs, this README makes no claim about being
-> better than anything.
+> **Status: two slices, working.** Sluicer reads the structured data a page
+> already declares, and fetches a page itself, starting cheap and climbing only
+> when a measurement says it must. Structure induction, trust scoring and the
+> public scoreboard are designed and not built. Until the scoreboard runs, this
+> README makes no claim about being better than anything.
 
 ## Why another one of these
 
@@ -141,21 +150,31 @@ for record in result.records:
   costs you CPU and nothing else. A test walks the source and fails the build if
   a model client or a network library ever gets imported.
 - **No paid API.** If a feature needs somebody's key to work, it doesn't ship.
-- **No stealth arms race.** Fetching will go to `scrapling`, which does that job
+- **No stealth arms race.** Fetching goes to `scrapling`, which does that job
   full time and does it well. Rewriting a browser is how side projects die.
 
 ## Not built yet
 
-The fetch ladder that climbs from plain HTTP to a browser only when a
-measurement says it must. Structure induction for pages that declare nothing.
-Trust scoring, which compares pages built from the same template and says how
-much to believe the result. Schema healing, which names what broke when a site
-changes. And the scoreboard: the free datasets plus a multilingual e-commerce
-split, scored on every run, with the competition measured right next to us and
-the losses published too.
+Structure induction for pages that declare nothing. Trust scoring, which
+compares pages built from the same template and says how much to believe the
+result. Schema healing, which names what broke when a site changes. An MCP
+server, which the field survey showed nine percent of live projects now ship. And
+the scoreboard: the free datasets plus a multilingual e-commerce split, scored on
+every run, with the competition measured right next to us and the losses
+published too.
 
 ## Licence
 
-MIT. Everything underneath is permissive as well: `lxml` (BSD-3) and `click`
-(BSD-3), with `trafilatura` (Apache-2.0) and `scrapling` (BSD-3) to come. We
-vendor no AGPL code, so you can drop Sluicer inside whatever you're building.
+MIT.
+
+We vendor no code, so nothing here is infected by what it depends on, and you
+can drop Sluicer inside whatever you are building. The base install needs `lxml`
+and `click`, both BSD-3-Clause.
+
+The optional `fetch` extra pulls a wider tree, and it is not all permissive. Read
+before you ship: `scrapling`, `cssselect` and `w3lib` are BSD-3-Clause,
+`typing-extensions` is PSF-2.0, `orjson` is MPL-2.0 alongside Apache-2.0 or MIT,
+and `tld` is tri-licensed MPL-1.1, GPL-2.0-only or LGPL-2.1-or-later. They are
+dependencies rather than vendored source, so none of that reaches your code, but
+this file said "everything underneath is permissive as well" until somebody
+checked, and it was not true.
