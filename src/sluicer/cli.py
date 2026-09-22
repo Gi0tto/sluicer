@@ -10,7 +10,9 @@ import click
 
 from sluicer.api import extract as extract_html
 from sluicer.fetch.ladder import fetch as fetch_url
+from sluicer.fetch.result import Fetched
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+from sluicer.markdown import MarkdownExtraMissing, to_markdown
 
 
 @click.group()
@@ -19,10 +21,20 @@ def main() -> None:
     """Turn a web page into structured data with no model in the loop."""
 
 
-@main.command()
-@click.argument("source")
-def extract(source: str) -> None:
-    """Read the declared structured data of a URL or a saved HTML file."""
+def _read_source(source: str) -> tuple[str, str | None, Fetched | None]:
+    """Return the HTML of ``source``, the URL to attribute it to, and the fetch record.
+
+    ``source`` is either a URL or a path to a saved HTML file, exactly as
+    ``extract`` and ``markdown`` both accept it. A URL is fetched through the
+    same ``fetch_url`` seam; a path is read from disk. Every operational
+    failure along the way -- a missing fetch extra, an operational fetch
+    failure, a missing file, a directory, an empty file -- is reported here
+    with the message and exit code both commands share, so lifting this out
+    keeps that behaviour in one place instead of two.
+
+    The third element is the ``Fetched`` record when ``source`` was a URL, or
+    ``None`` for a file, since only the URL case has a ladder to report on.
+    """
     if source.startswith("http://") or source.startswith("https://"):
         # FetchExtraMissing means the optional fetch stack (scrapling) is
         # not installed. Its message already names the fix, so it is
@@ -50,26 +62,7 @@ def extract(source: str) -> None:
                 err=True,
             )
             raise SystemExit(1) from failure
-        result = extract_html(fetched.html, url=fetched.url)
-        if not result.records:
-            click.echo("This page declares no structured data.", err=True)
-            # A file that declares nothing and a page that took three
-            # climbs to reach a rung that also declares nothing are not the
-            # same event: the whole point of the ladder is to say what a
-            # page cost, so that cost is reported here even when the
-            # answer is "nothing found".
-            click.echo(f"Fetch reached the '{fetched.rung}' rung.", err=True)
-            for climb in fetched.climbs:
-                click.echo(f"  {climb.from_rung} -> {climb.to_rung}: {climb.reason}", err=True)
-            raise SystemExit(1)
-        payload = asdict(result)
-        payload["fetch"] = {
-            "rung": fetched.rung,
-            "status": fetched.status,
-            "climbs": [asdict(climb) for climb in fetched.climbs],
-        }
-        click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
-        return
+        return fetched.html, fetched.url, fetched
 
     path = Path(source)
 
@@ -94,8 +87,51 @@ def extract(source: str) -> None:
         click.echo("This file contains no HTML.", err=True)
         raise SystemExit(1)
 
-    result = extract_html(text, url=str(path))
+    return text, str(path), None
+
+
+@main.command()
+@click.argument("source")
+def extract(source: str) -> None:
+    """Read the declared structured data of a URL or a saved HTML file."""
+    html, url, fetched = _read_source(source)
+    result = extract_html(html, url=url)
     if not result.records:
         click.echo("This page declares no structured data.", err=True)
+        if fetched is not None:
+            # A file that declares nothing and a page that took three
+            # climbs to reach a rung that also declares nothing are not the
+            # same event: the whole point of the ladder is to say what a
+            # page cost, so that cost is reported here even when the
+            # answer is "nothing found".
+            click.echo(f"Fetch reached the '{fetched.rung}' rung.", err=True)
+            for climb in fetched.climbs:
+                click.echo(f"  {climb.from_rung} -> {climb.to_rung}: {climb.reason}", err=True)
         raise SystemExit(1)
-    click.echo(json.dumps(asdict(result), indent=2, ensure_ascii=False))
+    payload = asdict(result)
+    if fetched is not None:
+        payload["fetch"] = {
+            "rung": fetched.rung,
+            "status": fetched.status,
+            "climbs": [asdict(climb) for climb in fetched.climbs],
+        }
+    click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+@main.command()
+@click.argument("source")
+def markdown(source: str) -> None:
+    """Print a URL or a saved HTML file's main content as markdown."""
+    html, url, _fetched = _read_source(source)
+    # MarkdownExtraMissing means trafilatura is not installed. Its message
+    # already names the fix, so it is printed as-is, the same way
+    # FetchExtraMissing is handled in _read_source above.
+    try:
+        content = to_markdown(html, url=url)
+    except MarkdownExtraMissing as missing:
+        click.echo(str(missing), err=True)
+        raise SystemExit(1) from missing
+    if not content:
+        click.echo("This page has no main content.", err=True)
+        raise SystemExit(1)
+    click.echo(content)
