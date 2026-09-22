@@ -1,15 +1,26 @@
-# Sluicer
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.png">
+    <img src="docs/assets/logo.png" alt="Sluicer" width="440">
+  </picture>
+</p>
 
-Turn a web page into structured data with no model in the loop.
+<p align="center">
+  Turn a web page into structured data with no model in the loop.
+</p>
+
+---
 
 A sluice box separates gold from gravel using water and gravity. No mercury, no
 cyanide, nothing you have to buy. Sluicer treats a web page the same way: it
 recovers your data from the structure that's already in the page, so there's no
 API key, no token bill, and the same page always gives you the same answer.
 
-> **Status: scaffolding.** None of what follows works yet. This file is the plan
-> and the standard we've agreed to be judged against. We're building the
-> scoreboard before the claims, not after.
+> **Status: first slice, working.** Sluicer reads the structured data a page
+> already declares and tells you where every value came from. The fetch ladder,
+> structure induction, trust scoring and the public scoreboard are designed and
+> not built. Until the scoreboard runs, this README makes no claim about being
+> better than anything.
 
 ## Why another one of these
 
@@ -41,50 +52,89 @@ listings, forums and documentation. That's most of the commercial web.
 So the hole isn't another fetcher. It's the step right after the fetch, and the
 fact that nobody is keeping score.
 
-## What Sluicer does
+## Install
 
-One cascade, deterministic at every step.
+Not on PyPI yet. From a clone:
 
-1. **Read what the page already tells you.** JSON-LD, microdata, RDFa,
-   OpenGraph. On a big slice of the commercial web the structured data is
-   sitting right there in the source and nobody reads it.
-2. **Induce the structure when nothing is declared.** Find the repeating
-   subtrees, align the fields across them, hand back records.
-3. **Fall back to the text.** Article body and boilerplate removal, delegated to
-   `trafilatura`.
+```bash
+uv tool install .      # the sluicer command
+uv pip install -e .    # or the library, editable
+```
 
-Then it tells you how much to trust what came out. Two pages built from the same
-template have to produce the same fields. When they don't, the extraction is
-suspect and Sluicer says so, with a number. Nothing gets asked for an opinion.
+## Use it
 
-And it repairs itself. When a site changes its markup, you get a schema diff
-naming what broke, instead of a quietly empty list.
+```bash
+sluicer extract page.html
+```
+
+```json
+{
+  "url": "page.html",
+  "records": [
+    {
+      "type": "Product",
+      "types": ["Product"],
+      "fields": {
+        "name":        { "value": "Brake pad set",             "source": "jsonld" },
+        "sku":         { "value": "ATD-1187",                  "source": "jsonld" },
+        "mpn":         { "value": "GDB1330",                   "source": "microdata" },
+        "title":       { "value": "Brake pad set, front axle", "source": "opengraph" }
+      }
+    }
+  ],
+  "sources": ["jsonld", "microdata", "opengraph"]
+}
+```
+
+That page declared the same product three times, in three vocabularies. You get
+one record, and every field still says which vocabulary it came from.
+
+From Python:
+
+```python
+import sluicer
+
+result = sluicer.extract(html, url="https://example.com/p")
+for record in result.records:
+    for name, field in record.fields.items():
+        print(name, field.value, "via", field.source)
+```
+
+## How it reads a page
+
+**One cascade, deterministic at every step.**
+
+1. **Read what the page already tells you.** JSON-LD, microdata, OpenGraph. On a
+   big slice of the commercial web the structured data is sitting right there in
+   the source and nobody reads it.
+2. **Merge across vocabularies, not within one.** When microdata describes the
+   same type a JSON-LD record already carries, it fills that record's gaps. Two
+   products in one `@graph` stay two products: folding them would splice one
+   product's name onto another's sku.
+3. **Keep the provenance.** Precedence is JSON-LD, then microdata, then
+   OpenGraph, and every field remembers which reader won it.
 
 ## What Sluicer won't do
 
 - **No LLM. Anywhere, ever.** Not as a fallback, not for the hard pages. A run
-  costs you CPU and nothing else.
+  costs you CPU and nothing else. A test walks the source and fails the build if
+  a model client or a network library ever gets imported.
 - **No paid API.** If a feature needs somebody's key to work, it doesn't ship.
-- **No stealth arms race.** Fetching goes to `scrapling`, which does that job
+- **No stealth arms race.** Fetching will go to `scrapling`, which does that job
   full time and does it well. Rewriting a browser is how side projects die.
 
-## Keeping score
+## Not built yet
 
-Every claim about being the best is marketing until somebody publishes the
-ruler. So Sluicer ships a public scoreboard: the free datasets (WCXB,
-WebMainBench, the combined ChatNoir set) plus a multilingual e-commerce split,
-scored on every run, with the competition measured right next to us.
-
-We publish the losses too. If Sluicer loses a category, you'll see it lose.
-
-## Install
-
-Not yet. When the first release lands you'll be able to install it as a CLI, as
-a Python library, and as an MCP server, so Claude Code, Codex or anything else
-that speaks the protocol can use it directly.
+The fetch ladder that climbs from plain HTTP to a browser only when a
+measurement says it must. Structure induction for pages that declare nothing.
+Trust scoring, which compares pages built from the same template and says how
+much to believe the result. Schema healing, which names what broke when a site
+changes. And the scoreboard: the free datasets plus a multilingual e-commerce
+split, scored on every run, with the competition measured right next to us and
+the losses published too.
 
 ## Licence
 
-MIT. Everything underneath is permissive as well: `scrapling` (BSD-3),
-`trafilatura` (Apache-2.0), `lxml` (BSD-3). We vendor no AGPL code, so you can
-drop Sluicer inside whatever you're building.
+MIT. Everything underneath is permissive as well: `lxml` (BSD-3) and `click`
+(BSD-3), with `trafilatura` (Apache-2.0) and `scrapling` (BSD-3) to come. We
+vendor no AGPL code, so you can drop Sluicer inside whatever you're building.
