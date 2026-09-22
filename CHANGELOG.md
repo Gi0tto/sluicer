@@ -56,6 +56,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   and `RobotsRefused` when a site says no. The answer is cached for a day, and a
   robots file that answers 5xx is treated as a full disallow, per RFC 9309.
 
+### Fixed
+- Bytes are decoded the way a browser decodes them, not the way libxml2 guesses.
+  libxml2 commits to Latin-1 at the first non-ASCII byte it meets, so every UTF-8
+  page whose `<title>` came before its `<meta charset>` -- the Guardian's article
+  template among them -- and every UTF-8 page declaring no charset at all came
+  back as mojibake in every field, from `sluicer extract page.html` and from
+  `extract(bytes)`. A fetched page was unaffected, because it arrives as text.
+
 ### Changed
 - The Twitter card is a reader of its own, and its fields say
   `source="twitter"`. `read_opengraph` used to return `og:` and `twitter:` alike

@@ -20,13 +20,14 @@ lands on the breadcrumb rather than the product. Document order is the only
 deterministic signal available in this slice; trust scoring is where a better one
 can come from.
 
-**A declared encoding can still disagree with the bytes.** `load()` takes
-`str` or `bytes`, and bytes are the better answer when a caller has them: lxml
-then honours the document's own declaration. When only text is available and
-lxml cannot parse it, the retry reads it as UTF-8 whatever the document claims,
-because a declaration that disagrees with the bytes must not be allowed to
-corrupt the text. A caller holding the transport's charset header has better
-information than either, and nothing currently accepts it.
+**A declared encoding can still disagree with the bytes.** Bytes are decoded
+the way a browser decodes them: a byte order mark, then an XML declaration or a
+`<meta charset>` anywhere in the head, then UTF-8 if the bytes are valid UTF-8,
+then windows-1252. A page whose declaration lies about its bytes is read as it
+declares, as a browser reads it. A caller holding the transport's charset header
+has better information than the page, and nothing currently accepts it. When
+only text is available and lxml cannot parse it, the retry reads it as UTF-8
+whatever the document claims, because the text has already been decoded.
 
 **RDFa is read as Lite, not as a graph.** `declared` covers JSON-LD, microdata,
 microformats, RDFa, Dublin Core, OpenGraph and the Twitter card today. The RDFa
