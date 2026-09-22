@@ -206,3 +206,56 @@ def test_an_unexpected_failure_is_not_dressed_up_as_a_fetch_failure(monkeypatch)
     assert "Could not fetch" not in result.stderr
     assert "Could not fetch" not in result.stdout
     assert type(result.exception) is RuntimeError
+
+
+def test_markdown_prints_the_main_content(monkeypatch, tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    monkeypatch.setattr("sluicer.cli.to_markdown", lambda html, url=None: "# Title\n\nBody.")
+    page = tmp_path / "page.html"
+    page.write_text("<html><body><h1>Title</h1></body></html>")
+
+    result = CliRunner().invoke(main, ["markdown", str(page)])
+
+    assert result.exit_code == 0
+    assert result.stdout.strip() == "# Title\n\nBody."
+
+
+def test_markdown_without_the_extra_explains_itself(monkeypatch, tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+    from sluicer.markdown import MarkdownExtraMissing
+
+    def refuse(html, url=None):
+        raise MarkdownExtraMissing(
+            "Turning a page into markdown needs trafilatura, which is not installed. "
+            "Install it with: uv pip install 'sluicer[markdown]'"
+        )
+
+    monkeypatch.setattr("sluicer.cli.to_markdown", refuse)
+    page = tmp_path / "page.html"
+    page.write_text("<html><body>hi</body></html>")
+
+    result = CliRunner().invoke(main, ["markdown", str(page)])
+
+    assert result.exit_code == 1
+    assert "sluicer[markdown]" in result.stderr
+    assert isinstance(result.exception, SystemExit)
+
+
+def test_markdown_of_a_page_with_nothing_to_say_exits_one(monkeypatch, tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    monkeypatch.setattr("sluicer.cli.to_markdown", lambda html, url=None: "")
+    page = tmp_path / "page.html"
+    page.write_text("<html><body></body></html>")
+
+    result = CliRunner().invoke(main, ["markdown", str(page)])
+
+    assert result.exit_code == 1
+    assert "no main content" in result.stderr
