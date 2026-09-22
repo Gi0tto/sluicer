@@ -1,17 +1,16 @@
 """Climb only when the page makes us, and only where we are allowed to.
 
-The ladder starts at the cheapest rung and stops the moment a rung brings back
+The ladder starts at the cheapest rung and stops as soon as a rung brings back
 something worth keeping. Every climb is recorded with the measurement that
-forced it, so a caller can always see what a page cost and why.
+forced it, so a caller can see what a page cost and why.
 
-A rung that raises is treated as a rung that failed: if not the last rung,
-the climb is recorded and the next rung is tried. The last rung's exception
-is the caller's to handle.
+A rung that raises is a rung that failed: the climb is recorded and the next
+rung tried. If a later rung fails after a cheaper one brought a page back, that
+page is returned; if every rung failed, ``FetchFailed`` is raised.
 
-Before any rung is tried, the site's own robots.txt is asked. A refusal
-raises ``RobotsRefused`` rather than returning some empty ``Fetched``: "the
-site said no" and "the site had nothing" are different events, and giving
-them the same shape is the failure this project spends its history removing.
+The site's robots.txt is asked before any rung runs. A refusal raises
+``RobotsRefused`` rather than returning an empty ``Fetched``: "the site said
+no" and "the site had nothing" must never look alike.
 """
 
 from __future__ import annotations
@@ -36,7 +35,11 @@ __all__ = ["AddressRefused", "FetchFailed", "RobotsRefused", "fetch"]
 
 
 class RobotsRefused(Exception):
-    """The site's own robots.txt refuses this URL to us, or could not be read."""
+    """The site's own robots.txt refuses this URL to us.
+
+    ``reason`` says which rule. A robots.txt that could not be read at all is
+    a ``FetchFailed`` instead, since it is worth trying again later.
+    """
 
     def __init__(self, url: str, reason: str = "its robots.txt disallows it") -> None:
         super().__init__(f"{url} is refused: {reason}")
@@ -47,10 +50,10 @@ class RobotsRefused(Exception):
 class FetchFailed(Exception):
     """Every rung of the ladder failed, and nothing came back to return.
 
-    The message names what each rung said, and the last rung's own exception
-    is the ``__cause__``. One type for the caller to catch, whatever library
-    a rung is built on: a browser's timeout is not an ``OSError``, and a
-    command line that only caught those printed a traceback for a slow site.
+    Also raised when the address is not a valid URL, or its robots.txt could
+    not be read. The message names what each rung said, and the last rung's
+    own exception is the ``__cause__``. One type to catch whatever library a
+    rung is built on: a browser's timeout, for one, is not an ``OSError``.
     """
 
     def __init__(self, url: str, climbs: list[Climb], last: str) -> None:
@@ -64,46 +67,28 @@ class FetchFailed(Exception):
 def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
     """Build a robots reader from the ladder's own cheapest rung.
 
-    A caller who wires nothing up still needs a way to read a robots.txt
-    file, and the cheapest rung of whatever ladder is already in play --
-    the real "http" rung in production, a fake in a test -- already knows
-    how to fetch a URL. Reusing it means production needs no extra wiring
-    and a test supplying its own rungs needs no extra network stack either.
+    The cheapest rung -- the real HTTP rung in production, a fake in a test --
+    already knows how to fetch a URL, so reading robots.txt needs no wiring.
+    Statuses mean what RFC 9309 says they mean:
 
-    What the status means is RFC 9309's answer, not ours, because a site
-    owner's expectations are set by the RFC:
+    * 2xx -- the body is the rules.
+    * 4xx -- the site published no rules, so nothing is refused.
+    * 5xx, or the rung raised -- unreachable (section 2.3.1.4), a full
+      disallow. The reader returns a stand-in full disallow whose first line is
+      a comment naming the reason; ``robots_refusal`` reads it, raises
+      ``RobotsUnreachable`` and does not cache it.
 
-    * 2xx -- the body is the rules, and they are read.
-    * 4xx -- the site published no rules, so nothing is refused. A 404 is the
-      ordinary case, and the RFC treats the whole family the same way.
-    * 5xx, or the rung raised -- RFC 9309 section 2.3.1.4 calls both
-      unreachable and says to treat them as a full disallow. Nothing is
-      fetched, the caller gets ``FetchFailed`` saying the robots.txt could not
-      be read, not that the site said no, and the answer is not cached.
-
-    The stand-in is the text of a full disallow with its reason in a comment
-    line, which robots parsers skip and ``robots_refusal`` reads.
-
-        A rung returns ``Fetched.html``, not plain text, and a rung that fetches
-    a plain-text robots.txt does not mean the body arrives as plain text:
-    measured against ``httpbin.org/robots.txt``, scrapling wraps it as
-    ``<html><body>User-agent: *\\nDisallow: /deny\\n</body></html>``. Handed
-    that directly, protego reads its first line as
-    ``<html><body>User-agent: *``, recognises no directive in it, and parses
-    no rules at all -- silently allowing everything a site meant to refuse.
-    Running the body through ``sluicer.document.load(...).tree.text_content()``
-    strips the wrapping back to the bare directives; a robots.txt that was
-    already plain text passes through unchanged, since there is no markup in
-    it to strip.
+    The body goes through ``load(...).tree.text_content()`` because scrapling
+    wraps a plain-text robots.txt as ``<html><body>User-agent: ...``, and
+    protego, handed that, parses no rules and allows everything.
     """
 
     def read(url: str) -> str | None:
         try:
             response = cheapest_rung(url)
-        # Deliberately blind: every way a rung can fail to reach robots.txt --
-        # refused connection, DNS, a timeout, a rung raising something of its
-        # own -- is the same event, "unreachable", and a list of exception
-        # types would be a list of the failures we happened to think of.
+        # Deliberately blind: every way a rung can fail to reach robots.txt is
+        # the same event, "unreachable", and a list of exception types would
+        # be a list of the failures someone happened to think of.
         except Exception as failure:  # noqa: BLE001
             return _stay_out(UNREACHABLE, f"{type(failure).__name__}: {failure}")
         if response.status >= 500:
@@ -130,27 +115,31 @@ def fetch(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
 ) -> Fetched:
-    """Fetch ``url``, climbing only when a measurement says the rung failed.
+    """Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 
-    When ``obey_robots`` is true (the default), the site's own robots.txt is
-    consulted before the first rung is tried; a refusal raises
-    ``RobotsRefused`` and no rung ever runs. ``robots_reader`` is injected
-    exactly as ``rungs`` is, and defaults to a reader built from the cheapest
-    rung so production needs no wiring.
+    Args:
+        url: an http(s) address.
+        rungs: ``(name, rung)`` pairs, cheapest first; plain HTTP then a
+            browser by default. Injected so tests stay off the network.
+        obey_robots: ask the site's robots.txt first (the default), and again
+            for the host a redirect ended on.
+        stealth: append the stealth rung, which does not announce itself.
+            Never automatic.
+        robots_reader: how robots.txt is read; built from the cheapest rung
+            by default.
+        allow_private: when false, refuse addresses off the public internet
+            before any request and after redirects. The MCP server sets it.
+        resolve: the name lookup ``allow_private`` decides with.
 
-    When ``stealth`` is true, ``stealth_rung()`` is appended to the ladder:
-    climbing to it is something a caller asks for, not something that
-    happens on its own.
+    Returns:
+        The ``Fetched`` page, with every climb and the final URL.
 
-    A page that redirected to another host is checked against that host's
-    robots.txt before it is returned. With ``allow_private`` false, an
-    address off the public internet raises ``AddressRefused`` before any
-    request, and so does a page whose redirects ended at one; ``resolve`` is
-    the name lookup that decides, injected so tests stay off the network.
-
-    When a rung fails after a cheaper one brought a page back, that page is
-    returned and the failure is recorded as a climb back down to it. When
-    every rung failed, ``FetchFailed`` says what each one said.
+    Raises:
+        RobotsRefused: the site's robots.txt disallows the URL.
+        AddressRefused: ``allow_private`` is false and the address is private.
+        FetchFailed: every rung failed, the URL is invalid, or its robots.txt
+            could not be read.
+        FetchExtraMissing: the ``fetch`` extra is not installed.
     """
     if rungs is None:
         from sluicer.fetch.scrapling_rungs import default_rungs

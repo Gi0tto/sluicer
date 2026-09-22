@@ -1,9 +1,7 @@
 """Who Sluicer says it is, and whether a site has asked it not to come.
 
-A fetcher that hides behind a browser's user agent cannot be refused, because
-nobody can tell it apart from a person. The most requested unaddressed issue on
-the largest project in this field asks for exactly the opposite of that, so
-Sluicer arrives under its own name and obeys what it is told.
+A fetcher behind a browser's user agent cannot be refused, since nobody can tell
+it from a person. Sluicer arrives under its own name and obeys robots.txt.
 """
 
 from __future__ import annotations
@@ -21,13 +19,8 @@ USER_AGENT = f"Sluicer/{__version__} (+https://github.com/Gi0tto/sluicer)"
 ROBOTS_TTL_SECONDS = 24 * 60 * 60
 """How long a robots.txt answer is believed before the site is asked again.
 
-A day is the conventional figure, and the right one here. The promise this
-module makes is that one line in a site's robots.txt is enough to turn us
-away; an answer cached for the life of the process breaks that promise for
-exactly the callers who keep a process alive -- a long-running MCP server
-would obey a copy read at boot and never learn that a Disallow was added.
-Re-reading is one cheap request a day per host, against a rule the site
-owner is entitled to change at any moment.
+A day, the conventional figure. Cached for the life of the process, a
+long-running MCP server would never learn that a Disallow was added.
 """
 
 
@@ -66,23 +59,19 @@ def robots_allows(
 ) -> bool:
     """Say whether ``url`` may be fetched, according to the site's own rules.
 
-    ``read`` is given the robots address and returns its text, or None when
-    there is nothing to read. Injecting it keeps this module out of the
-    fetching business and every test off the network.
+    Args:
+        url: the page to be fetched.
+        read: given the robots.txt address, returns its text, or None when the
+            site publishes none (which means yes). Injected so this module
+            does no fetching and tests stay off the network. The ladder's
+            default reader follows RFC 9309 for statuses.
+        cache: where answers are kept; the process-wide cache by default.
+        now: the clock, monotonic so a clock resync does not change how long
+            an answer is believed; injected so a test can move time.
 
-    A site that publishes no rules has not refused, so nothing to read means
-    yes. A site that publishes a refusal is obeyed: a rule we were told about
-    is not an obstacle to route around. What counts as "nothing to read" is
-    ``read``'s decision, not this function's, and the default reader in
-    ``ladder.py`` makes it by RFC 9309: a 5xx robots.txt is unavailable, not
-    absent, and comes back as a full disallow rather than as nothing.
-
-    An answer is remembered for ``ROBOTS_TTL_SECONDS`` and then asked for
-    again. ``now`` is the clock that decides, injected for the same reason
-    ``read`` is: a test proving an entry expires should move time, not spend
-    it. ``time.monotonic`` and not the wall clock, because this measures an
-    elapsed interval and a machine that resyncs its clock must not change how
-    long an answer is believed for.
+    An answer is remembered for ``ROBOTS_TTL_SECONDS``. A robots.txt that
+    could not be read counts as a refusal here; ``robots_refusal`` tells the
+    two apart.
     """
     try:
         return robots_refusal(url, read, cache, now) is None
@@ -119,14 +108,10 @@ def robots_refusal(
     text = entry[1]
     if not text:
         return None
-    # Imported here, not at module scope: ``scrapling_rungs`` imports
-    # ``USER_AGENT`` from this module, so naming it at the top would close a
-    # cycle. ``FetchExtraMissing`` and not the default ``MissingExtra``
-    # because protego ships behind the fetch extra and the entry points catch
-    # the extra's own class by name -- ``cli.py`` catches
-    # ``FetchExtraMissing``, and a bare ``MissingExtra`` sailed past it and
-    # reached the user as a traceback, which is the one thing
-    # ``sluicer.extras`` promises an absent extra never does.
+    # Imported here: ``scrapling_rungs`` imports ``USER_AGENT`` from this
+    # module, so a top-level import would be a cycle. ``FetchExtraMissing``
+    # rather than a bare ``MissingExtra``, because protego ships with the fetch
+    # extra and the entry points catch that extra's class by name.
     from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
     protego = import_extra(
@@ -143,10 +128,8 @@ def robots_refusal(
 def _cache_key(url: str) -> str:
     """The robots resource ``url`` is governed by, as one string.
 
-    Scheme and host, not host alone: ``http://example.com/robots.txt`` and
-    ``https://example.com/robots.txt`` are two resources, and a site is free
-    to publish different rules at each. Keyed on the host alone, whichever
-    scheme was asked for first answered for both.
+    Scheme and host: ``http://`` and ``https://`` robots.txt are two
+    resources, and a site may publish different rules at each.
     """
     parts = urlsplit(url)
     return f"{parts.scheme}://{parts.netloc}"
@@ -155,7 +138,5 @@ def _cache_key(url: str) -> str:
 _CACHE: dict[str, tuple[float, str | None]] = {}
 """Every answer this process has been given, with the moment it was given.
 
-Process-global on purpose -- one site, one answer, however many callers --
-and every entry carries its own timestamp so a stale one is re-read rather
-than believed forever.
+Process-global on purpose: one site, one answer, however many callers.
 """

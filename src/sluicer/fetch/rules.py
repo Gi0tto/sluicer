@@ -39,9 +39,8 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
     lowered = html.lower()
     for marker in _CHALLENGE_MARKERS:
         if marker in lowered:
-            # Check challenge markers before status: the more specific diagnosis
-            # (a page standing in front of the content) is more useful than the
-            # general status code. A reader learns a browser will likely succeed.
+            # Before the status: "a page standing in front of the content" is the
+            # more useful diagnosis, and says a browser will likely get through.
             return f"the response is a challenge page, not the content: {marker!r}"
 
     if status in _REFUSING_STATUSES:
@@ -53,10 +52,9 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
 
     text = _TAGS.sub(" ", html).strip()
     # Both remaining rules are about a page that gave us nothing, so both are
-    # off once records were found: a page that declared its data has delivered,
-    # whatever its visible text looks like, and _TAGS strips <script> bodies,
-    # so a complete JSON-LD block counts as zero characters of text. Climbing
-    # there would buy a browser for a page we have already extracted.
+    # off once something was declared about a thing: _TAGS strips <script>
+    # bodies, so a complete JSON-LD block counts as zero characters of text,
+    # and climbing would buy a browser for a page already extracted.
     if found_records or len(text) >= TEXT_FLOOR:
         return None
     if len(html) > MARKUP_CEILING:

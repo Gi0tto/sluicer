@@ -4,8 +4,12 @@ An agent reading untrusted pages can be talked into fetching anything, and the
 machine it runs on can usually reach things the web cannot: its own services on
 ``localhost``, a home router, a cloud's metadata endpoint at ``169.254.169.254``.
 A caller who asks for it -- the MCP server does, by default -- gets those
-refused before any request is made, and gets a redirect into them refused
-before the page is handed back.
+refused before any request is made, and a redirect into them refused before
+the page is handed back.
+
+It is a filter, not a wall: a name that resolves differently at connect time
+(DNS rebinding) and a redirect the browser rung follows are requested before
+anything here can refuse them. Egress control belongs in the network.
 """
 
 from __future__ import annotations
@@ -18,7 +22,11 @@ from urllib.parse import urlsplit
 
 
 class AddressRefused(Exception):
-    """The address is not on the public web, and the caller asked for that."""
+    """The address is not on the public web, and the caller asked for that.
+
+    ``url`` is the address refused -- the one asked for, or the one a redirect
+    ended on -- and ``reason`` says why.
+    """
 
     def __init__(self, url: str, reason: str) -> None:
         super().__init__(f"{url} is not fetched: {reason}")
@@ -34,6 +42,9 @@ def why_not_public(
     url: str, resolve: Callable[[str], Iterable[str]] = _resolve
 ) -> str | None:
     """The reason ``url`` is not a public web address, or None when it is.
+
+    ``resolve`` maps a host name to the addresses it resolves to; the system
+    resolver by default, injected so tests stay off the network.
 
     The host is read the way the client will read it, not the way it looks:
     ``%31%32%37.0.0.1`` and a backslash before an ``@`` are refused outright,
