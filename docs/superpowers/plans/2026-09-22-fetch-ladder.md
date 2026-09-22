@@ -370,16 +370,33 @@ def fetch(url: str, rungs: Sequence[tuple[str, Rung]] | None = None) -> Fetched:
         raise ValueError("A ladder needs at least one rung.")
 
     climbs: list[Climb] = []
-    result = None
     for index, (name, rung) in enumerate(rungs):
-        result = rung(url)
+        last = index == len(rungs) - 1
+        try:
+            result = rung(url)
+        except Exception as failure:
+            # A rung that raises is a rung that failed, and failing is what the
+            # ladder exists to answer: a refused connection on plain HTTP says
+            # nothing about whether a browser would get through. The last rung
+            # is different, because swallowing it would hand the caller an empty
+            # page pretending to be a real one.
+            if last:
+                raise
+            climbs.append(
+                Climb(
+                    from_rung=name,
+                    to_rung=rungs[index + 1][0],
+                    reason=f"the rung failed: {type(failure).__name__}: {failure}",
+                )
+            )
+            continue
         result.climbs = list(climbs)
         found = bool(extract(result.html, url=url).records)
         reason = why_climb(result.status, result.html, found_records=found)
-        if reason is None or index == len(rungs) - 1:
+        if reason is None or last:
             return result
         climbs.append(Climb(from_rung=name, to_rung=rungs[index + 1][0], reason=reason))
-    return result
+    raise AssertionError("unreachable: the loop returns or raises on the last rung")
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
