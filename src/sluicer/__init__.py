@@ -2,6 +2,15 @@
 
 from sluicer.api import Extraction, extract
 from sluicer.declared.merge import Field, Record
+from sluicer.markdown import MarkdownExtraMissing, to_markdown
 
-__all__ = ["Extraction", "Field", "Record", "extract", "__version__"]
+__all__ = [
+    "Extraction",
+    "Field",
+    "MarkdownExtraMissing",
+    "Record",
+    "extract",
+    "to_markdown",
+    "__version__",
+]
 __version__ = "0.0.1"

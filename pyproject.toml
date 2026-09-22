@@ -37,6 +37,7 @@ dependencies = ["lxml>=5.0", "click>=8.1"]
 
 [project.optional-dependencies]
 fetch = ["scrapling>=0.4"]
+markdown = ["trafilatura>=2.0"]
 
 [project.urls]
 Homepage = "https://github.com/Gi0tto/sluicer"
