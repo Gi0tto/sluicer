@@ -12,6 +12,7 @@ An empty or whitespace-only value is not a value, in any reader: it is
 dropped, so it cannot shadow a real value a later reader has. A JSON-LD
 null is an absence for the same reason, and is never recorded as the text
 "None".
+
 A real boolean is a value, and is recorded the way the page declared it,
 lowercase "true" or "false", rather than as Python's repr of it."""
 
