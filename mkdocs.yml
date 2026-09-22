@@ -7,6 +7,8 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  logo: assets/mark-512.png
+  favicon: assets/mark-512.png
   features:
     - content.code.copy
     - navigation.sections
@@ -18,12 +20,6 @@ theme:
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       toggle: { icon: material/weather-sunny, name: Switch to light }
-
-# The plans and the design spec under superpowers/ are how this project was
-# built. They stay in the repository and out of the published site, where they
-# would otherwise be rendered and indexed for search though no page links them.
-exclude_docs: |
-  superpowers/
 
 nav:
   - Sluicer: index.md

@@ -45,6 +45,10 @@ still says where it came from.
 
 ## Start here
 
+**[Scoreboard](scoreboard.md)** — the summary measured beside trafilatura,
+metascraper and newspaper4k on a public corpus, losses included, and the one
+command that regenerates it.
+
 **[Known limits](known-limits.md)** — where this stops, stated before you find
 out the hard way.
 

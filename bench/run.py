@@ -221,12 +221,15 @@ def _wins(runs, per_page, pages) -> list[str]:
             for tool in ranked
         )
         least = min(counts[tool][field]["invention"] for tool in counts)
-        fewest = " and ".join(
-            tool for tool in counts if counts[tool][field]["invention"] == least
+        tied = [tool for tool in counts if counts[tool][field]["invention"] == least]
+        fewest = (
+            f"every tool ties at {least}"
+            if len(tied) == len(counts)
+            else f"{', '.join(tied)} ({least})"
         )
         lines.append(
             f"- **{field.capitalize()}**, right when answering: {cells}. Fewest "
-            f"inventions: {fewest} ({least})."
+            f"inventions: {fewest}."
         )
     lines += [
         "",
