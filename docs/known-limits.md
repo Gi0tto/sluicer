@@ -149,6 +149,14 @@ template is what the design actually promises, and neither is covered yet.
 
 ## In the repository
 
-**No linter, no type checker, no CI.** Nothing here can enforce the constraints
-the design calls binding: a wrong type annotation slipped through review once
-already and no gate caught it.
+**The gates cover `src`, and only what they can see.** ruff, mypy `--strict`
+and a 97% coverage floor run on every push and pull request. What they do not
+reach is worth naming. mypy checks `src` and not `tests`, so a test can still
+say something untrue about a type. lxml ships no type information, so every
+element this package touches is `Any` to the checker and the annotations
+around it are documentation rather than proof. The optional extras are
+imported by name at call time, which is the whole point, and means no checker
+ever sees them -- the `with-extras` job is the only thing that does. And a
+gate answers "is this well formed", never "is this right": four review passes
+found things no rule set encodes, and the gates were added so those passes
+can spend their attention elsewhere, not so they can stop.
