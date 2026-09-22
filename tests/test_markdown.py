@@ -1,0 +1,68 @@
+import sys
+import types
+
+import pytest
+
+
+def fake_trafilatura(monkeypatch, output="# Brake pad set\n\nReal content."):
+    """Stand in for trafilatura so no test needs it installed."""
+    seen = {}
+
+    def extract(html, **kwargs):
+        seen["called_with"] = (html, kwargs)
+        return output
+
+    module = types.ModuleType("trafilatura")
+    module.extract = extract
+    monkeypatch.setitem(sys.modules, "trafilatura", module)
+    return seen
+
+
+def test_a_page_becomes_markdown(monkeypatch):
+    seen = fake_trafilatura(monkeypatch)
+    from sluicer.markdown import to_markdown
+
+    result = to_markdown("<html><body><h1>Brake pad set</h1></body></html>")
+
+    assert result == "# Brake pad set\n\nReal content."
+    assert seen["called_with"][1]["output_format"] == "markdown"
+
+
+def test_a_page_with_no_main_content_gives_an_empty_string(monkeypatch):
+    fake_trafilatura(monkeypatch, output=None)
+    from sluicer.markdown import to_markdown
+
+    assert to_markdown("<html><body></body></html>") == ""
+
+
+def test_bytes_are_accepted(monkeypatch):
+    seen = fake_trafilatura(monkeypatch)
+    from sluicer.markdown import to_markdown
+
+    to_markdown("<html><body>hi</body></html>".encode())
+
+    assert isinstance(seen["called_with"][0], str)
+
+
+def test_a_missing_extra_says_how_to_install_it(monkeypatch):
+    import importlib
+
+    class _NoTrafilatura:
+        def find_module(self, name, path=None):
+            return None
+
+        def find_spec(self, name, path=None, target=None):
+            if name == "trafilatura" or name.startswith("trafilatura."):
+                raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+            return None
+
+    monkeypatch.delitem(sys.modules, "trafilatura", raising=False)
+    monkeypatch.setattr(sys, "meta_path", [_NoTrafilatura(), *sys.meta_path])
+
+    import sluicer.markdown as markdown_module
+
+    importlib.reload(markdown_module)
+    with pytest.raises(markdown_module.MarkdownExtraMissing) as raised:
+        markdown_module.to_markdown("<html><body>hi</body></html>")
+
+    assert "sluicer[markdown]" in str(raised.value)
