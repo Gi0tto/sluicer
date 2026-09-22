@@ -12,6 +12,13 @@ specification says ``name``; the web writes each of them for both, and a
 reader that insisted on the right one would drop tags every other consumer
 reads.
 
+Two questions are asked of that one scan, because a prefix is not always the
+same kind of thing. A prefix that is the vocabulary's own name is stripped
+(``read_prefixed_meta``), since it says only which vocabulary this is; a
+prefix that names a type within the vocabulary is kept (``read_namespaced_meta``),
+since the type is part of the fact. What changes between them is the question,
+not the way a tag is found, so the xpath is written once.
+
 Dublin Core is the same shape again and keeps its own scan: it matches two
 prefixes case-insensitively and lowercases the key, which is a different
 question to ask of a tag, not a different way of finding one.
@@ -19,7 +26,25 @@ question to ask of a tag, not a different way of finding one.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 from sluicer.document import Document
+
+
+def _meta_tags(doc: Document) -> Iterator[tuple[str, str, str]]:
+    """Yield ``(property, name, content)`` for every ``<meta>`` carrying a value.
+
+    The one place this package looks for a ``<meta>`` tag. An empty or
+    whitespace-only ``content`` is not a value and never leaves here, so no
+    caller has to remember to drop it and none of them can disagree about
+    which tags the page has. A missing attribute is an empty string rather
+    than ``None``, so a caller can ask ``startswith`` of it without checking.
+    """
+    for meta in doc.tree.xpath("//meta[@property or @name]"):
+        content = (meta.get("content") or "").strip()
+        if not content:
+            continue
+        yield meta.get("property") or "", meta.get("name") or "", content
 
 
 def read_prefixed_meta(doc: Document, prefix: str) -> dict[str, str]:
@@ -32,12 +57,34 @@ def read_prefixed_meta(doc: Document, prefix: str) -> dict[str, str]:
     carries.
     """
     found: dict[str, str] = {}
-    for meta in doc.tree.xpath("//meta[@property or @name]"):
-        key = meta.get("property") or meta.get("name") or ""
+    for prop, name, content in _meta_tags(doc):
+        key = prop or name
         if not key.startswith(prefix):
             continue
-        content = (meta.get("content") or "").strip()
-        if not content:
-            continue
         found.setdefault(key[len(prefix):], content)
+    return found
+
+
+def read_namespaced_meta(
+    doc: Document, prefixes: tuple[str, ...]
+) -> dict[str, str]:
+    """Return the meta tags under one of ``prefixes``, the prefix kept in the key.
+
+    The counterpart of ``read_prefixed_meta``, for the case where the prefix
+    is not the vocabulary's own name but a type inside it: OpenGraph's
+    vertical namespaces. ``article:published_time`` stripped to
+    ``published_time`` would be a different, weaker statement -- and the same
+    key as a hypothetical ``book:published_time`` -- so the namespace stays.
+
+    First-wins and the empty-content rule are ``read_prefixed_meta``'s, for
+    the same reasons; ``prefixes`` is tried in the order given, and a tag
+    stops at the first one that matches it.
+    """
+    found: dict[str, str] = {}
+    for prop, name, content in _meta_tags(doc):
+        key = prop or name
+        for prefix in prefixes:
+            if key.startswith(prefix):
+                found.setdefault(key, content)
+                break
     return found
