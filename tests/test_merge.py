@@ -451,3 +451,67 @@ def test_a_bare_meta_name_alone_still_produces_one_record():
         value="Only the bare tag", source="html"
     )
     assert records[0].type is None
+
+
+def _merge(**found):
+    readers = dict(
+        jsonld=[],
+        microdata=[],
+        microformats=[],
+        rdfa=[],
+        dublincore={},
+        opengraph={},
+        twitter={},
+        htmlmeta={},
+    )
+    readers.update(found)
+    return merge(**readers)
+
+
+def test_three_microdata_products_stay_three_products():
+    records = _merge(
+        microdata=[
+            {"@type": "Product", "name": "Related 1"},
+            {"@type": "Product", "name": "Related 2"},
+            {"@type": "Product", "name": "Related 3"},
+        ]
+    )
+
+    assert [record.fields["name"].value for record in records] == [
+        "Related 1",
+        "Related 2",
+        "Related 3",
+    ]
+
+
+def test_a_related_product_never_lends_its_sku_to_the_main_one():
+    """One JSON-LD product folds with at most one microdata product.
+
+    The main product is described twice, once in each vocabulary; the three
+    related products below it are three other things. Folding every one of
+    them onto the first record put another product's SKU and price on it.
+    """
+    records = _merge(
+        jsonld=[{"@type": "Product", "name": "Main brake disc", "sku": "MAIN-1"}],
+        microdata=[
+            {"@type": "Product", "name": "Main brake disc", "price": "49.00"},
+            {"@type": "Product", "name": "Related 1", "sku": "REL-1", "price": "19"},
+            {"@type": "Product", "name": "Related 2", "sku": "REL-2"},
+        ],
+    )
+
+    main = records[0].fields
+    assert main["sku"].value == "MAIN-1"
+    assert main["price"].value == "49.00"
+    assert [record.fields["name"].value for record in records[1:]] == [
+        "Related 1",
+        "Related 2",
+    ]
+
+
+def test_rdfa_items_of_one_type_stay_apart_as_well():
+    records = _merge(
+        rdfa=[{"@type": "Product", "name": "One"}, {"@type": "Product", "name": "Two"}]
+    )
+
+    assert len(records) == 2

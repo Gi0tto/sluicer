@@ -11,13 +11,16 @@ OpenGraph, the Twitter card, HTML's own metadata names. It is one rule in one
 place, so no pair of vocabularies is left to settle a shared key by whichever
 tag the page's author typed first.
 
-This slice extracts scalar values only; complex-typed fields (objects and
-lists, such as JSON-LD's offers or image) are not carried into records.
+A nested value -- JSON-LD's ``offers``, ``author`` or ``recipeIngredient``,
+a microdata item inside another -- is carried whole, as JSON: an object is a
+``dict`` keeping its ``@type``, a list is a ``list`` in the order declared, and
+every leaf is text. It is one field with one source, because one reader
+declared it.
 
-An empty or whitespace-only value is not a value, in any reader: it is
-dropped, so it cannot shadow a real value a later reader has. A JSON-LD
-null is an absence for the same reason, and is never recorded as the text
-"None".
+An empty or whitespace-only value is not a value, in any reader and at any
+depth: it is dropped, so it cannot shadow a real value a later reader has, and
+an object or list left with nothing in it is dropped too. A JSON-LD null is an
+absence for the same reason, and is never recorded as the text "None".
 
 A real boolean is a value, and is recorded the way the page declared it,
 lowercase "true" or "false", rather than as Python's repr of it."""
@@ -25,14 +28,26 @@ lowercase "true" or "false", rather than as Python's repr of it."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeAlias
+
+from sluicer.declared.types import type_name
+
+# What a field holds: text, or the objects and lists a page nests, down to text.
+JsonValue: TypeAlias = "str | list[JsonValue] | dict[str, JsonValue]"
+
+# Deeper than any real page nests; a bound so a hostile one costs a fixed amount.
+MAX_DEPTH = 16
 
 
 @dataclass(frozen=True)
 class Field:
-    """One extracted value and the reader that produced it."""
+    """One extracted value and the reader that produced it.
 
-    value: str
+    ``value`` is text for a scalar, and for a nested value the JSON the page
+    declared, with every leaf as text.
+    """
+
+    value: JsonValue
     source: str
 
 
@@ -101,17 +116,25 @@ def merge(
     # Microdata, microformats and RDFa each name a subject and its fields, so
     # all three fold the same way. The order they are written in here is their
     # precedence.
+    #
+    # A reader folds only into what earlier readers found, and each of those
+    # records takes at most one item from it: the same product described in
+    # two vocabularies is one product, but three products in one vocabulary
+    # are three, and folding them all onto the first spliced a related
+    # product's SKU and price onto the main one.
     for source, items in (
         ("microdata", microdata),
         ("microformats", microformats),
         ("rdfa", rdfa),
     ):
+        candidates = list(records)
         for item in items:
             record = _record_from(item, source)
-            target = _fold_target(records, record)
+            target = _fold_target(candidates, record)
             if target is None:
                 records.append(record)
                 continue
+            candidates = [record for record in candidates if record is not target]
             for key, value in record.fields.items():
                 target.fields.setdefault(key, value)
 
@@ -162,13 +185,48 @@ def _record_from(item: dict[str, Any], source: str) -> Record:
     for key, value in item.items():
         if key.startswith("@"):
             continue
-        if isinstance(value, (dict, list)):
+        normalised = _json(value, 0)
+        if normalised is None:
             continue
-        text = _scalar(value)
-        if text is None:
-            continue
-        record.fields[key] = Field(value=text, source=source)
+        record.fields[key] = Field(value=normalised, source=source)
     return record
+
+
+def _json(value: object, depth: int) -> JsonValue | None:
+    """``value`` as a field holds it, or None when it carries nothing.
+
+    A JSON-LD value object is its ``@value``. An object keeps its ``@type`` and
+    loses the other keywords, which say how to read it rather than what it
+    says, unless it is nothing but an ``@id``: an unresolved reference is all a
+    page said, so it is kept as one.
+    """
+    if depth > MAX_DEPTH:
+        return None
+    if isinstance(value, list):
+        items = [
+            normalised
+            for item in value
+            if (normalised := _json(item, depth + 1)) is not None
+        ]
+        return items or None
+    if not isinstance(value, dict):
+        return _scalar(value)
+    if "@value" in value:
+        return _json(value["@value"], depth + 1)
+    out: dict[str, JsonValue] = {}
+    for key, item in value.items():
+        if key.startswith("@"):
+            continue
+        normalised = _json(item, depth + 1)
+        if normalised is not None:
+            out[key] = normalised
+    if not out:
+        identifier = _scalar(value.get("@id"))
+        return {"@id": identifier} if identifier is not None else None
+    types = _types(value.get("@type"))
+    if types:
+        return {"@type": types[0] if len(types) == 1 else list(types), **out}
+    return out
 
 
 def _scalar(value: object) -> str | None:
@@ -192,7 +250,7 @@ def _types(declared: object) -> tuple[str, ...]:
     if not isinstance(declared, list):
         return ()
     return tuple(
-        name.strip()
+        found
         for name in declared
-        if isinstance(name, str) and name.strip()
+        if isinstance(name, str) and (found := type_name(name)) is not None
     )

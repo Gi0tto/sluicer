@@ -84,10 +84,10 @@ def extract(
     appears in ``sources`` when it parsed, because that is true; what changes
     is only what the gate decides on.
 
-    When induction does run and finds something, its records are added to the
-    declared ones rather than replacing them -- nothing parsed is thrown away --
-    except that a declared record carrying no field at all is dropped, since it
-    is exactly what the gate has just judged to be nothing.
+    A declared record carrying no field at all is never reported: it is a type
+    and nothing else, and the gate has already judged it to be nothing. When
+    induction does run and finds something, its records are added to the
+    declared ones rather than replacing them.
     """
     doc = load(html, url=url)
     jsonld = read_jsonld(doc)
@@ -127,10 +127,14 @@ def extract(
         twitter=twitter,
         htmlmeta=htmlmeta,
     )
+    # A record carrying no field is a type and nothing else -- a ``WebPage``
+    # with only an ``@id``, a microformats root that was a CSS class -- and an
+    # empty value is not a value, whole records included.
+    records = [record for record in records if record.fields]
     if induce and not _declared_about_its_things(records):
         induced = induce_records(doc)
         if induced:
-            records = [record for record in records if record.fields] + induced
+            records = [*records, *induced]
             sources = [*sources, "induced"]
     return Extraction(url=url, records=records, sources=sources)
 

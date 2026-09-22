@@ -62,9 +62,14 @@ def test_a_nested_offer_does_not_leak_into_the_product():
 
     found = read_microdata(doc)
 
+    # The offer's price is the offer's, inside the product's ``offers``, and
+    # never a ``price`` of the product itself.
     assert found == [
-        {"@type": "Product", "name": "Brake pad set"},
-        {"@type": "Offer", "price": "41.99", "priceCurrency": "EUR"},
+        {
+            "@type": "Product",
+            "name": "Brake pad set",
+            "offers": {"@type": "Offer", "price": "41.99", "priceCurrency": "EUR"},
+        },
     ]
 
 
