@@ -1,0 +1,35 @@
+site_name: Sluicer
+site_description: Turn a web page into structured data. No model, no API key, no bill.
+site_url: https://gi0tto.github.io/sluicer/
+repo_url: https://github.com/Gi0tto/sluicer
+repo_name: Gi0tto/sluicer
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/weather-night, name: Switch to dark }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/weather-sunny, name: Switch to light }
+
+nav:
+  - Sluicer: index.md
+  - Known limits: known-limits.md
+  - The field, measured: field-survey.md
+  - Roadmap: roadmap.md
+  - Contributing: contributing.md
+  - Security: security.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - toc: { permalink: true }

@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build and check the distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: The tag and the version must agree
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          uv run python -c "
+          import os, tomllib, pathlib
+          declared = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version']
+          tagged = os.environ['GITHUB_REF_NAME'].removeprefix('v')
+          assert declared == tagged, f'pyproject says {declared}, the tag says {tagged}'
+          print('version agrees:', declared)
+          "
+      - name: The suite must pass before anything is published
+        run: uv run --python 3.13 pytest -q
+      - run: uv build
+      - name: Check the metadata the way PyPI will
+        run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: pypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+      # Trusted publishing: PyPI verifies this workflow's identity, so no API
+      # token is stored anywhere. Configure it once at
+      # https://pypi.org/manage/project/sluicer/settings/publishing/
+      - uses: pypa/gh-action-pypi-publish@release/v1

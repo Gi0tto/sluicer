@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: "Sluicer: deterministic extraction of the data a web page declares"
+message: "If you use Sluicer in work you publish, please cite it."
+type: software
+authors:
+  - family-names: Briculschi
+    given-names: Nichita
+repository-code: "https://github.com/Gi0tto/sluicer"
+license: MIT
+version: 0.0.1
+date-released: "2026-09-22"
+abstract: >-
+  Sluicer reads the structured data a web page already declares, in JSON-LD,
+  microdata and OpenGraph, and returns records in which every field carries the
+  vocabulary that produced it. It calls no language model and requires no paid
+  API, so the same page always yields the same answer. It fetches at the lowest
+  cost that works, climbing to a browser only on an explicit measurement, and it
+  announces itself by name and obeys robots.txt.
+keywords:
+  - web scraping
+  - structured data
+  - schema.org
+  - information extraction
+  - reproducibility

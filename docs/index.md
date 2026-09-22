@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.png">
-    <img src="docs/assets/logo.png" alt="Sluicer" width="440">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+    <img src="assets/logo.png" alt="Sluicer" width="440">
   </picture>
 </p>
 
@@ -9,13 +9,7 @@
   <strong>Turn a web page into structured data. No model, no API key, no bill.</strong>
 </p>
 
-<p align="center">
-  <a href="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml"><img src="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/network%20in%20tests-none-blue" alt="no network in tests">
-  <img src="https://img.shields.io/badge/LLM%20calls-none-blue" alt="no LLM calls">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-yellow.svg" alt="MIT"></a>
-  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
-</p>
+
 
 ---
 
@@ -147,14 +141,12 @@ returns a plausible answer where the truth was unavailable.
 
 ## Documentation
 
-Also published as a site at <https://gi0tto.github.io/sluicer/>.
-
-- [Examples](examples/): three runnable scripts, each verified against a live page
-- [Roadmap](ROADMAP.md): what is coming, and in what order
-- [Known limits](docs/known-limits.md): where Sluicer stops, stated plainly
-- [The field, measured](docs/field-survey.md): 1,926 repositories counted, and
+- [Examples](https://github.com/Gi0tto/sluicer/tree/main/examples): three runnable scripts, each verified against a live page
+- [Roadmap](roadmap.md): what is coming, and in what order
+- [Known limits](known-limits.md): where Sluicer stops, stated plainly
+- [The field, measured](field-survey.md): 1,926 repositories counted, and
   why this project builds what it builds
-- [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
+- [Contributing](contributing.md) · [Security](security.md) · [Changelog](changelog.md)
 
 ## Licence
 
@@ -163,5 +155,5 @@ The base install needs `lxml` and `click`, both BSD-3-Clause. The optional
 extras pull a wider tree that is not all permissive: `tld` is tri-licensed
 MPL-1.1, GPL-2.0-only or LGPL-2.1-or-later, and `orjson` is MPL-2.0 alongside
 Apache-2.0 or MIT. They are dependencies rather than vendored source, so none of
-that reaches your code. See [the licence notes](docs/known-limits.md) before you
+that reaches your code. See [the licence notes](known-limits.md) before you
 ship.
