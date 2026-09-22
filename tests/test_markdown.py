@@ -28,6 +28,36 @@ def test_a_page_becomes_markdown(monkeypatch):
     assert seen["called_with"][1]["output_format"] == "markdown"
 
 
+def test_every_option_trafilatura_is_given_is_the_one_asked_for(monkeypatch):
+    """Assert all four kwargs, not just the format.
+
+    ``output_format`` alone was asserted, so the three that carry the rest of
+    the meaning went unwatched -- and ``url`` going in as ``None`` from a
+    caller that had one was invisible for exactly that reason. Links and
+    tables are what distinguish this from a plain text dump, and ``url`` is
+    what lets trafilatura turn a relative link into one that can be followed.
+    """
+    seen = fake_trafilatura(monkeypatch)
+    from sluicer.markdown import to_markdown
+
+    to_markdown("<html><body>hi</body></html>", url="https://example.com/p")
+
+    passed = seen["called_with"][1]
+    assert passed["output_format"] == "markdown"
+    assert passed["include_links"] is True
+    assert passed["include_tables"] is True
+    assert passed["url"] == "https://example.com/p"
+
+
+def test_a_page_with_no_url_gives_trafilatura_none(monkeypatch):
+    seen = fake_trafilatura(monkeypatch)
+    from sluicer.markdown import to_markdown
+
+    to_markdown("<html><body>hi</body></html>")
+
+    assert seen["called_with"][1]["url"] is None
+
+
 def test_a_page_with_no_main_content_gives_an_empty_string(monkeypatch):
     fake_trafilatura(monkeypatch, output=None)
     from sluicer.markdown import to_markdown
