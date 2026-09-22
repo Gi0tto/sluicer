@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from sluicer.api import extract
 from sluicer.extras import MissingExtra, import_extra
+from sluicer.fetch import RobotsRefused
 from sluicer.markdown import to_markdown
 
 
@@ -49,34 +50,42 @@ def _server_class():
     ).MCPServer
 
 
-def _explains_a_missing_extra(tool: Callable) -> Callable:
-    """Turn a missing extra into the tool's own result, hint intact.
+def _answers_instead_of_raising(tool: Callable) -> Callable:
+    """Turn the two answerable events into the tool's own result, hint intact.
 
     Every tool here can meet an absent extra: two fetch, two read markdown or
-    structured data. Without this the ``MissingExtra`` leaves the tool body as
-    an exception, and what the agent on the other end sees is whatever the SDK
-    decides to do with one -- which is not this project's to promise, is not
-    tested here, and is not written down anywhere. "Explain a missing extra" is
-    a duty this package discharges at every entry point; the CLI does it in
-    ``cli.py``, and this is the server's one place to do it.
+    structured data. Every tool here can also be aimed at a URL whose site
+    refuses us, since ``fetch`` asks robots.txt before any rung runs and raises
+    ``RobotsRefused`` when the answer is no. Without this, either one leaves
+    the tool body as an exception, and what the agent on the other end sees is
+    whatever the SDK decides to do with one -- which is not this project's to
+    promise, is not tested here, and is not written down anywhere. "Explain
+    what happened" is a duty this package discharges at every entry point; the
+    CLI does it in ``cli.py``, and this is the server's one place to do it.
 
-    One shape for all three, and deliberately not the shape of any tool's
-    content. This first followed each tool's declared return type, so
-    ``page_markdown`` -- which returns a page's markdown as a ``str`` -- got
-    the explanation as a ``str`` too. Measured, an agent then received
-    "Turning a page into markdown needs trafilatura..." in the exact place a
-    page's own words go, with nothing to tell it apart: it would summarise it,
-    quote it, or act on it. A failure wearing the shape of a success is the
-    defect this project keeps finding, and it is worse here than at the
-    command line, because a person reading a terminal notices and an agent
-    does not. A return type that differs between success and failure is mildly
-    awkward; this is the trade, and ``page_markdown`` is annotated
-    ``str | dict`` because that is what it returns. Measured against mcp 2.2.0,
-    a tool returning text gets no generated output schema, so the annotation
-    costs nothing there either.
+    Both answers share one shape -- a mapping with ``error`` -- and carry a
+    different second key, because they call for opposite responses: a missing
+    extra is fixed by the one install command in its own message, and a
+    refusal is not to be worked around at all. ``missing_extra`` names the
+    extra; ``refused_by_robots`` names the URL the site refused. A reader that
+    saw only ``error`` would have to parse English to tell them apart.
 
-    Only ``MissingExtra`` is caught. A real bug inside a tool is still a bug
-    and still raises.
+    That shape is deliberately not the shape of any tool's content. This first
+    followed each tool's declared return type, so ``page_markdown`` -- which
+    returns a page's markdown as a ``str`` -- got the explanation as a ``str``
+    too. Measured, an agent then received "Turning a page into markdown needs
+    trafilatura..." in the exact place a page's own words go, with nothing to
+    tell it apart: it would summarise it, quote it, or act on it. A failure
+    wearing the shape of a success is the defect this project keeps finding,
+    and it is worse here than at the command line, because a person reading a
+    terminal notices and an agent does not. A return type that differs between
+    success and failure is mildly awkward; this is the trade, and
+    ``page_markdown`` is annotated ``str | dict`` because that is what it
+    returns. Measured against mcp 2.2.0, a tool returning text gets no
+    generated output schema, so the annotation costs nothing there either.
+
+    Only those two are caught. A connection that never opened is not an answer
+    from anyone, and a real bug inside a tool is still a bug: both still raise.
     """
 
     @functools.wraps(tool)
@@ -85,6 +94,8 @@ def _explains_a_missing_extra(tool: Callable) -> Callable:
             return tool(*args, **kwargs)
         except MissingExtra as missing:
             return {"error": str(missing), "missing_extra": missing.extra}
+        except RobotsRefused as refused:
+            return {"error": str(refused), "refused_by_robots": refused.url}
 
     return guarded
 
@@ -127,7 +138,7 @@ def build_server() -> Any:
     server = _server_class()("sluicer")
 
     @server.tool()
-    @_explains_a_missing_extra
+    @_answers_instead_of_raising
     def extract_declared(html_or_url: str) -> dict:
         """Read the structured data a page declares, with per-field provenance."""
         html, url, fetched = _html_of(html_or_url)
@@ -137,20 +148,21 @@ def build_server() -> Any:
         return result
 
     @server.tool()
-    @_explains_a_missing_extra
+    @_answers_instead_of_raising
     def page_markdown(html_or_url: str) -> str | dict:
         """Return the page's main content as markdown, with boilerplate removed.
 
         A ``str`` is the page's markdown. A ``dict`` is never content: it is
-        the ``{"error", "missing_extra"}`` report the three tools share when an
-        optional extra is absent. The two cannot be confused, which is the
-        whole reason the failure is not a ``str``.
+        the ``error`` report the three tools share when an optional extra is
+        absent (``missing_extra``) or the site's own robots.txt refuses the
+        URL (``refused_by_robots``). The two cannot be confused with a page,
+        which is the whole reason neither failure is a ``str``.
         """
         html, url, _fetched = _html_of(html_or_url)
         return to_markdown(html, url=url)
 
     @server.tool()
-    @_explains_a_missing_extra
+    @_answers_instead_of_raising
     def fetch_page(url: str) -> dict:
         """Fetch a page and report which rung it took and every climb.
 

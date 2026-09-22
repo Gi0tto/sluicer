@@ -100,13 +100,9 @@ def test_fetch_page_refuses_something_that_is_not_a_url(monkeypatch):
 
 def test_fetch_page_still_accepts_a_url(monkeypatch):
     registered = fake_mcp(monkeypatch)
-    from sluicer.fetch.result import Fetched
     from sluicer.mcp_server import build_server
 
-    def fake_fetch(url):
-        return Fetched(url=url, html="<html>fetched</html>", status=200, rung="http")
-
-    monkeypatch.setattr("sluicer.fetch.fetch", fake_fetch)
+    fake_fetch(monkeypatch, html="<html>fetched</html>")
 
     build_server()
     result = registered["fetch_page"]("https://example.com/p")
@@ -142,19 +138,43 @@ def test_running_without_the_extra_is_a_message_not_a_traceback(monkeypatch, cap
     assert "Traceback" not in captured.out
 
 
-def fake_fetch(monkeypatch, landed_on="https://example.com/final", html="<html></html>"):
-    """Stand in for the ladder, landing on a URL that is not the one asked for.
+def fake_fetch(
+    monkeypatch,
+    landed_on="https://example.com/final",
+    html="<html></html>",
+    raises=None,
+):
+    """Stand in for the ladder, with the real ``fetch``'s signature and failures.
 
-    A redirect is the ordinary case, so the fake models it: the tool must
-    report where the fetch landed, which is what ``Fetched.url`` carries,
-    not the string the caller happened to type.
+    Two things this fake has to be, both learned the hard way on this branch.
+
+    It has the signature the real function has. Every fake here used to be
+    ``def fetch(url)``, which is narrower than
+    ``fetch(url, rungs=None, obey_robots=True, stealth=False,
+    robots_reader=None)``: a caller that passed any of those would have blown
+    up in production while the suite stayed green, and a parameter added to
+    the real function would never be noticed here.
+    ``test_the_fetch_fake_matches_the_real_fetch_signature`` pins that down.
+
+    It can fail. A fake that can only succeed encodes the belief that fetching
+    always succeeds, and that belief is what let ``RobotsRefused`` escape all
+    three tools: the ladder raises it, and nothing here could even express the
+    event. ``raises`` is the exception this fetch raises instead of returning,
+    so a test can say what the tool does when the site says no.
+
+    A redirect stays the default success, since it is the ordinary case: the
+    tool must report where the fetch landed, which is what ``Fetched.url``
+    carries, not the string the caller happened to type.
     """
     from sluicer.fetch.result import Fetched
 
-    def fetch(url):
+    def fetch(url, rungs=None, obey_robots=True, stealth=False, robots_reader=None):
+        if raises is not None:
+            raise raises
         return Fetched(url=landed_on, html=html, status=200, rung="http")
 
     monkeypatch.setattr("sluicer.fetch.fetch", fetch)
+    return fetch
 
 
 def test_extract_declared_reports_the_url_it_landed_on(monkeypatch):
@@ -387,3 +407,119 @@ def test_a_missing_extra_is_never_mistakable_for_content(monkeypatch):
         assert isinstance(result, Mapping), f"{name} returned {type(result).__name__}"
         assert "error" in result, f"{name} carries no error key: {result!r}"
         assert "uv pip install 'sluicer[" in result["error"], name
+
+
+def test_the_fetch_fake_matches_the_real_fetch_signature(monkeypatch):
+    """The fake crosses the seam, so the seam is where it has to be honest.
+
+    Three times on this project a hand-written fake with a narrower signature
+    than the real function kept a defect invisible. This is the cheap guard:
+    if ``fetch`` grows, loses or renames a parameter, the fake stops matching
+    and says so here rather than in production.
+    """
+    import inspect
+
+    from sluicer.fetch import fetch as real_fetch
+
+    fake = fake_fetch(monkeypatch)
+
+    assert list(inspect.signature(fake).parameters) == list(
+        inspect.signature(real_fetch).parameters
+    )
+
+
+def test_a_refusal_reaches_every_tool_as_an_answer_it_can_read(monkeypatch):
+    """A site saying no must arrive as a result, not as an escaped exception.
+
+    ``fetch`` raises ``RobotsRefused``, and an exception that leaves a tool
+    body becomes whatever the SDK decides to do with it -- which is not this
+    project's to promise, is not tested anywhere, and is not written down. The
+    MCP server is the front door most likely to be aimed at an arbitrary URL,
+    so this is where a refusal fires most often. The CLI already turns it into
+    a message; this is the server's version of the same duty.
+    """
+    from collections.abc import Mapping
+
+    from sluicer.fetch import RobotsRefused
+
+    registered = fake_mcp(monkeypatch)
+    url = "https://example.com/private/p"
+    fake_fetch(monkeypatch, raises=RobotsRefused(url))
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    results = {
+        "extract_declared": registered["extract_declared"](url),
+        "page_markdown": registered["page_markdown"](url),
+        "fetch_page": registered["fetch_page"](url),
+    }
+
+    for name, result in results.items():
+        assert isinstance(result, Mapping), f"{name} returned {type(result).__name__}"
+        assert "robots.txt" in result["error"], f"{name}: {result!r}"
+        assert result["refused_by_robots"] == url, f"{name}: {result!r}"
+
+
+def test_a_refusal_and_a_missing_extra_can_be_told_apart(monkeypatch):
+    """Same shape, different discriminator: the reader must not have to guess.
+
+    "The site refused us" and "you did not install an extra" call for opposite
+    responses -- stop, versus run one install command -- so a reader that can
+    only see ``error`` cannot act on either. The key beside it is what says
+    which happened.
+    """
+    from sluicer.fetch import RobotsRefused
+
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    # The missing-extra case first: it needs the real ``fetch`` to run far
+    # enough to look for scrapling. Patching the fake in afterwards is what
+    # makes the second call a refusal instead.
+    absent(monkeypatch, "scrapling")
+    missing = registered["fetch_page"]("https://example.com/p")
+
+    fake_fetch(monkeypatch, raises=RobotsRefused("https://example.com/private/p"))
+    refused = registered["fetch_page"]("https://example.com/private/p")
+
+    assert "refused_by_robots" in refused and "missing_extra" not in refused
+    assert "missing_extra" in missing and "refused_by_robots" not in missing
+
+
+def test_a_refusal_is_never_mistakable_for_a_page_s_own_words(monkeypatch):
+    """``page_markdown`` returns a ``str`` when it works, so a refusal must not.
+
+    The same reasoning as for a missing extra, and the same trap: a sentence
+    handed back where a page's markdown goes is a sentence an agent will
+    summarise, quote or act on.
+    """
+    from sluicer.fetch import RobotsRefused
+
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, raises=RobotsRefused("https://example.com/private/p"))
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    result = registered["page_markdown"]("https://example.com/private/p")
+
+    assert not isinstance(result, str), f"a refusal came back as content: {result!r}"
+
+
+def test_a_real_fetch_failure_is_still_not_swallowed(monkeypatch):
+    """Only the two answers are turned into results; an operational failure raises.
+
+    A connection that never opened is not an answer from the site, and giving
+    it the shape of one would be the same defect this file keeps removing in
+    the other direction.
+    """
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, raises=ConnectionError("connection refused"))
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    with pytest.raises(ConnectionError):
+        registered["fetch_page"]("https://example.com/p")
