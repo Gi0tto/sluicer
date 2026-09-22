@@ -22,6 +22,12 @@ FORBIDDEN = (
 )
 
 
+# The one exception, and why: telling whether an address is on the public
+# internet means asking what a name resolves to. ``getaddrinfo`` opens no
+# connection and sends nothing of the page's; the fetch itself stays scrapling's.
+ALLOWED = {("sluicer/fetch/address.py", "socket")}
+
+
 def _imported_modules(path: Path) -> set[str]:
     """Every module name one source file imports."""
     found: set[str] = set()
@@ -48,6 +54,7 @@ def test_no_source_file_imports_a_network_or_model_client():
         for path in sources
         for module in _imported_modules(path)
         if _is_forbidden(module)
+        and (path.relative_to(SRC).as_posix(), module) not in ALLOWED
     )
 
     assert offenders == []

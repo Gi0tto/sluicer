@@ -64,8 +64,9 @@ def test_the_default_rungs_come_back_in_cost_order(monkeypatch):
     for _, rung in rungs:
         rung("https://example.com/p")
 
-    assert seen["http"][1] == {"timeout": 30, "headers": {"User-Agent": USER_AGENT}}
-    assert seen["browser"][1] == {"network_idle": True, "useragent": USER_AGENT}
+    assert seen["http"][1]["headers"] == {"User-Agent": USER_AGENT}
+    assert seen["browser"][1]["useragent"] == USER_AGENT
+    assert seen["browser"][1]["network_idle"] is True
 
 
 def test_the_stealth_rung_comes_after_the_default_ladder_in_cost(monkeypatch):
@@ -97,7 +98,7 @@ def test_a_rung_returns_a_fetched_carrying_the_status(monkeypatch):
     assert result.status == 403
     assert result.rung == "http"
     assert seen["http"][0] == "https://example.com/p"
-    assert seen["http"][1] == {"timeout": 30, "headers": {"User-Agent": USER_AGENT}}
+    assert seen["http"][1]["headers"] == {"User-Agent": USER_AGENT}
 
 
 def test_the_default_ladder_does_not_include_stealth(monkeypatch):
@@ -267,3 +268,44 @@ def test_a_broken_scrapling_install_is_not_a_missing_extra(monkeypatch):
     assert not isinstance(raised.value, FetchExtraMissing)
     assert str(raised.value) == "cannot import name 'Foo' from 'scrapling.engines'"
     assert "sluicer[fetch]" not in str(raised.value)
+
+
+def test_the_http_rung_does_not_dress_up_as_a_browser(monkeypatch):
+    """Measured on 2026-09-22 against a local server: scrapling's defaults sent
+    ``Referer: https://www.google.com/`` and a Chrome TLS fingerprint under our
+    own user agent. A fake Google referral is not arriving under our own name.
+    """
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    dict(default_rungs())["http"]("https://example.com/p")
+
+    kwargs = seen["http"][1]
+    assert kwargs.get("stealthy_headers") is False
+    assert kwargs.get("impersonate") is None
+    assert "referer" not in {key.lower() for key in kwargs.get("headers") or {}}
+
+
+def test_the_browser_rung_does_not_claim_to_come_from_google(monkeypatch):
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    dict(default_rungs())["browser"]("https://example.com/p")
+
+    assert seen["browser"][1].get("google_search") is False
+
+
+def test_a_rung_tries_once_and_gives_up_in_bounded_time(monkeypatch):
+    """Three retries of thirty seconds on each rung was three minutes for one slow
+    page, longer than an agent's tool call waits."""
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    rungs = dict(default_rungs())
+    rungs["http"]("https://example.com/p")
+    rungs["browser"]("https://example.com/p")
+
+    assert seen["http"][1].get("retries") == 1
+    assert seen["http"][1].get("timeout") <= 20
+    assert seen["browser"][1].get("retries") == 1
+    assert seen["browser"][1].get("timeout") <= 30_000

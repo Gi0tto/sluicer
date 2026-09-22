@@ -9,15 +9,34 @@ library already does and gets out of the way.
 from __future__ import annotations
 
 import functools
+import logging
+import os
 import sys
 from collections.abc import Callable
 from dataclasses import asdict
 from typing import Any
 
+from sluicer import __version__
 from sluicer.api import extract
 from sluicer.extras import MissingExtra, import_extra
-from sluicer.fetch import RobotsRefused
+from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused
 from sluicer.markdown import to_markdown
+
+MAX_HTML_CHARS = 200_000
+"""How much of a page ``fetch_page`` hands an agent.
+
+Measured on 2026-09-22, one product page was 3.95 MB of JSON, which is not a
+tool result but the end of the agent's context. The page is cut here, and the
+result says it was cut and how long it really was.
+"""
+
+ALLOW_PRIVATE_ENV = "SLUICER_ALLOW_PRIVATE"
+"""Set to 1 to let the server fetch addresses off the public internet.
+
+Off by default: an agent reading untrusted pages can be told to fetch
+``http://localhost:8080/admin`` or a cloud metadata endpoint, and this server
+runs on a machine that can reach both.
+"""
 
 
 class McpExtraMissing(MissingExtra):
@@ -88,8 +107,12 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
     returns. Measured against mcp 2.2.0, a tool returning text gets no
     generated output schema, so the annotation costs nothing there either.
 
-    Only those two are caught. A connection that never opened is not an answer
-    from anyone, and a real bug inside a tool is still a bug: both still raise.
+    Three operational failures get the same shape with a key of their own: a
+    fetch where every rung failed (``fetch_failed``), an address off the public
+    internet (``refused_address``) and an input the tool cannot take
+    (``bad_input``). Raised instead, each reached the agent as the SDK's bare
+    "Error executing tool", with the one sentence that said what went wrong
+    thrown away. A real bug inside a tool is still a bug, and still raises.
     """
 
     @functools.wraps(tool)
@@ -100,8 +123,22 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
             return {"error": str(missing), "missing_extra": missing.extra}
         except RobotsRefused as refused:
             return {"error": str(refused), "refused_by_robots": refused.url}
+        except AddressRefused as refused:
+            return {"error": str(refused), "refused_address": refused.url}
+        except FetchFailed as failed:
+            return {"error": str(failed), "fetch_failed": failed.url}
+        except _BadInput as bad:
+            return {"error": str(bad), "bad_input": True}
 
     return guarded
+
+
+class _BadInput(ValueError):
+    """A tool was handed something it cannot take."""
+
+
+def _allow_private() -> bool:
+    return os.environ.get(ALLOW_PRIVATE_ENV, "").strip().lower() in {"1", "true", "yes"}
 
 
 def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
@@ -116,7 +153,7 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
     if html_or_url.startswith(("http://", "https://")):
         from sluicer.fetch import fetch
 
-        fetched = fetch(html_or_url)
+        fetched = fetch(html_or_url, allow_private=_allow_private())
         return (
             fetched.html,
             fetched.url,
@@ -139,7 +176,15 @@ def build_server() -> Any:
     honestly rather than writing a forward reference to a name nothing in
     this file ever defines.
     """
-    server = _server_class()("sluicer")
+    server = _server_class()(
+        "sluicer",
+        version=__version__,
+        instructions=(
+            "Deterministic extraction of the structured data a web page already "
+            "declares, with no model in the loop. Every field names the vocabulary "
+            "it came from. Fetching obeys robots.txt and refuses private addresses."
+        ),
+    )
 
     # ``server`` is the SDK instance this module deliberately cannot name, so
     # its ``tool()`` decorator is untyped and every tool it wraps is untyped
@@ -148,10 +193,20 @@ def build_server() -> Any:
     # the SDK ships type information, which a module-wide relaxation would not.
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def extract_declared(html_or_url: str) -> dict[str, Any]:
-        """Read the structured data a page declares, with per-field provenance."""
+    def extract_declared(html_or_url: str, induce: bool = False) -> dict[str, Any]:
+        """Read the structured data a page declares, with where each value came from.
+
+        html_or_url: an http(s) URL to fetch, or the HTML itself.
+        induce: also read repeated rows (a listing, a feed) from a page that
+        declares nothing about them; those fields say source "induced".
+
+        Returns records of typed fields, each {"value", "source"}, where source
+        is the vocabulary that declared it (jsonld, microdata, opengraph, html,
+        ...). A nested value such as a price inside "offers" arrives whole.
+        On failure returns {"error": ...} and never a record.
+        """
         html, url, fetched = _html_of(html_or_url)
-        result = asdict(extract(html, url=url))
+        result = asdict(extract(html, url=url, induce=induce))
         if fetched is not None:
             result["fetch"] = fetched
         return result
@@ -159,13 +214,12 @@ def build_server() -> Any:
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
     def page_markdown(html_or_url: str) -> str | dict[str, Any]:
-        """Return the page's main content as markdown, with boilerplate removed.
+        """Return a page's main content as markdown, without navigation or footer.
 
-        A ``str`` is the page's markdown. A ``dict`` is never content: it is
-        the ``error`` report the three tools share when an optional extra is
-        absent (``missing_extra``) or the site's own robots.txt refuses the
-        URL (``refused_by_robots``). The two cannot be confused with a page,
-        which is the whole reason neither failure is a ``str``.
+        html_or_url: an http(s) URL to fetch, or the HTML itself.
+
+        Text is always the page's own content. A failure is never text: it
+        comes back as {"error": ...}, so it cannot be mistaken for the page.
         """
         html, url, _fetched = _html_of(html_or_url)
         return to_markdown(html, url=url)
@@ -173,19 +227,27 @@ def build_server() -> Any:
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
     def fetch_page(url: str) -> dict[str, Any]:
-        """Fetch a page and report which rung it took and every climb.
+        """Fetch a page's HTML, and say what it cost: plain HTTP or a browser.
 
-        Unlike ``extract_declared`` and ``page_markdown``, literal HTML is
-        not a legitimate input here: this tool's whole job is to fetch, so a
-        caller handed back the string it sent -- with no way to tell that
-        nothing was fetched -- is worse than an error.
+        url: an http(s) URL. Literal HTML is refused, since nothing would be
+        fetched.
+
+        Returns {"html", "url", "fetch", "truncated", "length"}. The HTML is
+        cut at 200,000 characters; prefer extract_declared or page_markdown,
+        which return what is in the page rather than all of it.
         """
         if not url.startswith(("http://", "https://")):
-            raise ValueError(
-                f"fetch_page needs an http:// or https:// URL, got {url!r}"
-            )
-        html, _url, fetched = _html_of(url)
-        return {"html": html, "fetch": fetched}
+            # Refused rather than echoed back: a caller handed the string it
+            # sent, with no way to tell nothing was fetched, is worse off.
+            raise _BadInput(f"fetch_page needs an http:// or https:// URL, got {url!r}")
+        html, landed, fetched = _html_of(url)
+        return {
+            "html": html[:MAX_HTML_CHARS],
+            "url": landed,
+            "fetch": fetched,
+            "truncated": len(html) > MAX_HTML_CHARS,
+            "length": len(html),
+        }
 
     return server
 
@@ -203,4 +265,6 @@ def main() -> None:
     except McpExtraMissing as missing:
         print(str(missing), file=sys.stderr)
         raise SystemExit(1) from missing
+    # scrapling logs every request at INFO into the server's stderr.
+    logging.getLogger("scrapling").setLevel(logging.WARNING)
     server.run()

@@ -31,6 +31,10 @@ owner is entitled to change at any moment.
 """
 
 
+UNREACHABLE = "sluicer: robots.txt unreachable"
+"""The comment a stand-in refusal carries, so the refusal can say why."""
+
+
 def robots_url_for(url: str) -> str:
     """Return the address of the robots file governing ``url``."""
     parts = urlsplit(url)
@@ -63,6 +67,22 @@ def robots_allows(
     elapsed interval and a machine that resyncs its clock must not change how
     long an answer is believed for.
     """
+    return robots_refusal(url, read, cache, now) is None
+
+
+def robots_refusal(
+    url: str,
+    read: Callable[[str], str | None],
+    cache: dict[str, tuple[float, str | None]] | None = None,
+    now: Callable[[], float] = time.monotonic,
+) -> str | None:
+    """Why ``url`` may not be fetched, or None when it may.
+
+    ``robots_allows``, with the reason kept: "its robots.txt disallows it" for
+    a rule the site wrote, and "its robots.txt could not be read" for the
+    stand-in refusal a reader returns when the file was unreachable, since
+    those are different things to tell a caller.
+    """
     store = cache if cache is not None else _CACHE
     key = _cache_key(url)
     entry = store.get(key)
@@ -71,7 +91,7 @@ def robots_allows(
         store[key] = entry
     text = entry[1]
     if not text:
-        return True
+        return None
     # Imported here, not at module scope: ``scrapling_rungs`` imports
     # ``USER_AGENT`` from this module, so naming it at the top would close a
     # cycle. ``FetchExtraMissing`` and not the default ``MissingExtra``
@@ -88,7 +108,16 @@ def robots_allows(
         doing="Reading a site's robots.txt",
         error=FetchExtraMissing,
     )
-    return bool(protego.Protego.parse(text).can_fetch(url, USER_AGENT))
+    if protego.Protego.parse(text).can_fetch(url, USER_AGENT):
+        return None
+    first = text.lstrip().splitlines()[0]
+    marker = f"# {UNREACHABLE}: "
+    if first.startswith(marker):
+        return (
+            f"its robots.txt could not be read ({first[len(marker) :]}), and "
+            "RFC 9309 says to treat that as a refusal"
+        )
+    return "its robots.txt disallows it"
 
 
 def _cache_key(url: str) -> str:

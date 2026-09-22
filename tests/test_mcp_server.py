@@ -17,8 +17,9 @@ def fake_mcp(monkeypatch):
     registered = {}
 
     class MCPServer:
-        def __init__(self, name):
+        def __init__(self, name, **kwargs):
             self.name = name
+            registered["__options__"] = kwargs
 
         def tool(self, *args, **kwargs):
             def decorate(function):
@@ -46,7 +47,8 @@ def test_the_server_registers_the_three_tools(monkeypatch):
 
     build_server()
 
-    assert set(registered) == {"extract_declared", "page_markdown", "fetch_page"}
+    tools = {name for name in registered if not name.startswith("__")}
+    assert tools == {"extract_declared", "page_markdown", "fetch_page"}
 
 
 def test_extract_declared_reads_html_given_directly(monkeypatch):
@@ -91,10 +93,10 @@ def test_fetch_page_refuses_something_that_is_not_a_url(monkeypatch):
     build_server()
 
     literal_html = "<html><body>hi</body></html>"
-    with pytest.raises(ValueError) as raised:
-        registered["fetch_page"](literal_html)
+    result = registered["fetch_page"](literal_html)
 
-    assert literal_html in str(raised.value)
+    assert result["bad_input"] is True
+    assert literal_html in result["error"]
 
 
 def test_fetch_page_still_accepts_a_url(monkeypatch):
@@ -166,10 +168,21 @@ def fake_fetch(
     """
     from sluicer.fetch.result import Fetched
 
-    def fetch(url, rungs=None, obey_robots=True, stealth=False, robots_reader=None):
+    def fetch(
+        url,
+        rungs=None,
+        obey_robots=True,
+        stealth=False,
+        robots_reader=None,
+        allow_private=True,
+        resolve=None,
+    ):
+        fetch.calls.append({"url": url, "allow_private": allow_private})
         if raises is not None:
             raise raises
         return Fetched(url=landed_on, html=html, status=200, rung="http")
+
+    fetch.calls = []
 
     monkeypatch.setattr("sluicer.fetch.fetch", fetch)
     return fetch
@@ -342,14 +355,17 @@ def test_a_tool_that_works_is_left_alone_by_the_guard(monkeypatch):
 
 
 def test_a_real_bug_inside_a_tool_is_not_swallowed(monkeypatch):
-    """Only a missing extra is turned into a result; everything else raises."""
+    """Only the named answers become results; anything else raises."""
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
+    monkeypatch.setattr(
+        "sluicer.mcp_server.extract", lambda *a, **k: (_ for _ in ()).throw(ValueError)
+    )
     build_server()
 
     with pytest.raises(ValueError):
-        registered["fetch_page"]("not a url at all")
+        registered["extract_declared"]("<html></html>")
 
 
 def test_page_markdown_returns_the_markdown_of_a_page_it_fetched(monkeypatch):
@@ -509,18 +525,70 @@ def test_a_refusal_is_never_mistakable_for_a_page_s_own_words(monkeypatch):
     assert not isinstance(result, str), f"a refusal came back as content: {result!r}"
 
 
-def test_a_real_fetch_failure_is_still_not_swallowed(monkeypatch):
-    """Only the two answers are turned into results; an operational failure raises.
+def test_a_fetch_that_failed_says_what_failed_rather_than_raising(monkeypatch):
+    """Raised, it reached the agent as a bare "Error executing tool fetch_page"."""
+    from sluicer.fetch import FetchFailed
 
-    A connection that never opened is not an answer from the site, and giving
-    it the shape of one would be the same defect this file keeps removing in
-    the other direction.
-    """
     registered = fake_mcp(monkeypatch)
-    fake_fetch(monkeypatch, raises=ConnectionError("connection refused"))
+    fake_fetch(
+        monkeypatch,
+        raises=FetchFailed("https://example.com/p", [], "connection refused"),
+    )
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    result = registered["fetch_page"]("https://example.com/p")
+
+    assert result["fetch_failed"] == "https://example.com/p"
+    assert "connection refused" in result["error"]
+
+
+def test_a_real_bug_below_the_fetch_is_still_not_swallowed(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, raises=KeyError("a bug"))
     from sluicer.mcp_server import build_server
 
     build_server()
 
-    with pytest.raises(ConnectionError):
+    with pytest.raises(KeyError):
         registered["fetch_page"]("https://example.com/p")
+
+
+def test_the_server_refuses_private_addresses_unless_told_otherwise(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    fetch = fake_fetch(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    monkeypatch.delenv("SLUICER_ALLOW_PRIVATE", raising=False)
+    registered["fetch_page"]("https://example.com/p")
+    monkeypatch.setenv("SLUICER_ALLOW_PRIVATE", "1")
+    registered["fetch_page"]("https://example.com/p")
+
+    assert [call["allow_private"] for call in fetch.calls] == [False, True]
+
+
+def test_a_large_page_is_cut_and_says_so(monkeypatch):
+    from sluicer.mcp_server import MAX_HTML_CHARS
+
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, html="x" * (MAX_HTML_CHARS + 10))
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    result = registered["fetch_page"]("https://example.com/p")
+
+    assert len(result["html"]) == MAX_HTML_CHARS
+    assert result["truncated"] is True
+    assert result["length"] == MAX_HTML_CHARS + 10
+
+
+def test_the_server_reports_its_own_version(monkeypatch):
+    import sluicer
+
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    assert registered["__options__"]["version"] == sluicer.__version__

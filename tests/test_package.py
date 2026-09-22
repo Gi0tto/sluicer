@@ -23,7 +23,14 @@ def test_the_fetch_package_has_a_surface_of_its_own():
     assert fetch_package.Fetched is Fetched
     assert fetch_package.Climb is Climb
     assert fetch_package.RobotsRefused is RobotsRefused
-    assert set(fetch_package.__all__) == {"Climb", "Fetched", "RobotsRefused", "fetch"}
+    assert set(fetch_package.__all__) == {
+        "AddressRefused",
+        "Climb",
+        "FetchFailed",
+        "Fetched",
+        "RobotsRefused",
+        "fetch",
+    }
 
 
 def test_the_rung_type_lives_beside_the_result_it_returns():

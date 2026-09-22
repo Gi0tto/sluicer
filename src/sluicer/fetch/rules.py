@@ -27,6 +27,11 @@ _CHALLENGE_MARKERS = (
 )
 
 _TAGS = re.compile(r"(?s)<(script|style).*?</\1>|<[^>]+>")
+# A script that runs: one with a source, or an inline one that is not data.
+_SCRIPT = re.compile(
+    r"<script\b(?![^>]*\btype\s*=\s*[\"']?application/(?:ld\+)?json)[^>]*>",
+    re.IGNORECASE,
+)
 
 
 def why_climb(status: int, html: str, found_records: bool) -> str | None:
@@ -41,7 +46,9 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
 
     if status in _REFUSING_STATUSES:
         return f"the server refused: status {status}"
-    if status >= 500:
+    if status >= 400:
+        # A 404 or a 5xx is the site's answer about this address, and a browser
+        # asking the same question gets the same answer.
         return None
 
     text = _TAGS.sub(" ", html).strip()
@@ -50,11 +57,19 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
     # whatever its visible text looks like, and _TAGS strips <script> bodies,
     # so a complete JSON-LD block counts as zero characters of text. Climbing
     # there would buy a browser for a page we have already extracted.
-    if not found_records and len(text) < TEXT_FLOOR and len(html) > MARKUP_CEILING:
+    if found_records or len(text) >= TEXT_FLOOR:
+        return None
+    if len(html) > MARKUP_CEILING:
         return (
             f"the body is skeletal: {len(text)} characters of text "
             f"inside {len(html)} of markup"
         )
-    if not found_records and len(text) < TEXT_FLOOR:
-        return f"nothing was declared and there are only {len(text)} characters of text"
+    # A small page is often simply small -- example.com is 152 characters and
+    # complete. It is only a shell waiting for a browser when it runs a script
+    # that could fill it.
+    if _SCRIPT.search(html):
+        return (
+            f"nothing was declared, there are only {len(text)} characters of "
+            "text, and the page runs a script that may render the rest"
+        )
     return None

@@ -50,13 +50,31 @@ def test_a_thin_page_that_declared_records_stays_put():
     assert why_climb(200, thin, found_records=True) is None
 
 
-def test_a_page_that_declared_nothing_and_says_little_climbs():
-    thin = "<html><body><p>Short.</p></body></html>"
+def test_a_small_page_without_scripts_is_a_small_page_and_stays_put():
+    """example.com is 152 characters of text and no script, and it is complete.
 
-    reason = why_climb(200, thin, found_records=False)
+    Climbing it bought a browser for nothing, and on an install without one it
+    turned a good page into a traceback.
+    """
+    thin = "<html><body><h1>Example Domain</h1><p>Short.</p></body></html>"
+
+    assert why_climb(200, thin, found_records=False) is None
+
+
+def test_a_small_page_that_runs_scripts_and_declared_nothing_climbs():
+    shell = (
+        '<html><body><div id="root"></div><script src="/app.js"></script></body></html>'
+    )
+
+    reason = why_climb(200, shell, found_records=False)
 
     assert reason is not None
-    assert "characters" in reason.lower()
+    assert "script" in reason.lower()
+
+
+def test_a_page_that_is_not_there_is_an_answer_not_a_reason_to_climb():
+    for status in (404, 410, 400):
+        assert why_climb(status, "<html><body>Not found</body></html>", False) is None
 
 
 def test_a_refusal_that_is_also_a_challenge_names_the_challenge():

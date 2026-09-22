@@ -13,6 +13,17 @@ from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch.identity import USER_AGENT
 from sluicer.fetch.result import Fetched, Rung
 
+HTTP_TIMEOUT_SECONDS = 20
+"""How long the plain HTTP rung waits for one response."""
+
+BROWSER_TIMEOUT_MS = 30_000
+"""How long the browser rung waits for one page, in scrapling's milliseconds.
+
+One try each, and these two bounds, keep a slow site to under a minute for the
+whole ladder; scrapling's defaults of three tries of thirty seconds a rung made
+it three minutes, longer than an agent's tool call waits for an answer.
+"""
+
 
 class FetchExtraMissing(MissingExtra):
     """The optional ``fetch`` extra (scrapling) is not installed.
@@ -80,14 +91,32 @@ def default_rungs() -> list[tuple[str, Rung]]:
 
     def http(url: str) -> Fetched:
         return _as_fetched(
-            fetcher.get(url, timeout=30, headers={"User-Agent": USER_AGENT}),
+            fetcher.get(
+                url,
+                timeout=HTTP_TIMEOUT_SECONDS,
+                retries=1,
+                headers={"User-Agent": USER_AGENT},
+                # scrapling's defaults add ``Referer: https://www.google.com/``
+                # and a Chrome TLS fingerprint, which is dressing up as a
+                # browser that came from a search. Measured on the wire.
+                stealthy_headers=False,
+                impersonate=None,
+            ),
             "http",
             url,
         )
 
     def browser(url: str) -> Fetched:
         return _as_fetched(
-            dynamic.fetch(url, network_idle=True, useragent=USER_AGENT),
+            dynamic.fetch(
+                url,
+                network_idle=True,
+                useragent=USER_AGENT,
+                timeout=BROWSER_TIMEOUT_MS,
+                retries=1,
+                # The browser's own Google referer, off for the same reason.
+                google_search=False,
+            ),
             "browser",
             url,
         )
