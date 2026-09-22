@@ -1,4 +1,12 @@
-"""Fold the readers' findings into records that remember their source."""
+"""Fold the readers' findings into records that remember their source.
+
+Folding happens only across readers: when the same entity is described in
+both JSON-LD and microdata, fields from the lower-precedence reader fill
+gaps in the higher-precedence one. Within a single reader, two entries with
+the same @type are two distinct things and remain separate records.
+
+This slice extracts scalar values only; complex-typed fields (objects and
+lists, such as JSON-LD's offers or image) are not carried into records."""
 
 from __future__ import annotations
 
@@ -26,7 +34,13 @@ def merge(
     microdata: list[dict],
     opengraph: dict,
 ) -> list[Record]:
-    """Merge reader output. Earlier sources win; every field keeps its source."""
+    """Merge reader output. Earlier sources win; every field keeps its source.
+
+    When several records share a @type, gap-filling from lower-precedence
+    readers targets the first record of that type. This is a deliberate choice
+    for the common page shape where one primary entity may be described in
+    multiple ways, and secondary mentions (such as breadcrumb schemas) should
+    not receive fields intended for the primary one."""
     records: list[Record] = []
     by_type: dict[str | None, Record] = {}
 
