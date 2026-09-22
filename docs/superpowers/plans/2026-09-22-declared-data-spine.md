@@ -210,7 +210,7 @@ git commit -m "feat: parse a page once into a Document"
 
 **Interfaces:**
 - Consumes: `Document` from Task 2.
-- Produces: `read_jsonld(doc: Document) -> list[dict]` — every JSON-LD object found, `@graph` flattened, malformed blocks skipped.
+- Produces: `read_jsonld(doc: Document) -> list[dict]` - every JSON-LD object found, `@graph` flattened, malformed blocks skipped.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -337,7 +337,7 @@ git commit -m "feat: read JSON-LD blocks, skipping malformed ones"
 
 **Interfaces:**
 - Consumes: `Document` from Task 2.
-- Produces: `read_microdata(doc: Document) -> list[dict]` — one dict per `itemscope`, `@type` carrying the `itemtype` leaf name.
+- Produces: `read_microdata(doc: Document) -> list[dict]` - one dict per `itemscope`, `@type` carrying the `itemtype` leaf name.
 
 **Known limitation, deferred on purpose:** a nested `itemscope` has its properties absorbed by the outer scope. Real nesting arrives with the structure induction plan, which needs the same tree walk; building it twice would be waste.
 
@@ -457,7 +457,7 @@ git commit -m "feat: read schema.org microdata"
 
 **Interfaces:**
 - Consumes: `Document` from Task 2.
-- Produces: `read_opengraph(doc: Document) -> dict` — flat mapping, `og:` and `twitter:` prefixes stripped, empty dict when the page declares none.
+- Produces: `read_opengraph(doc: Document) -> dict` - flat mapping, `og:` and `twitter:` prefixes stripped, empty dict when the page declares none.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -888,9 +888,9 @@ git commit -m "feat: sluicer extract command"
 
 Each is its own plan, each ships working software on its own:
 
-1. **Fetch ladder** — `ladder`, plus `sluicer extract <url>` over the network.
-2. **Structure induction** — `induce`, repeating-subtree detection.
-3. **Trust scoring** — `trust`, cross-page template comparison.
-4. **Schema healing** — `heal`, diff between runs.
-5. **The scoreboard** — `bench` over WCXB, WebMainBench, ChatNoir.
-6. **MCP server and Claude Code plugin** — the remaining two front doors.
+1. **Fetch ladder** - `ladder`, plus `sluicer extract <url>` over the network.
+2. **Structure induction** - `induce`, repeating-subtree detection.
+3. **Trust scoring** - `trust`, cross-page template comparison.
+4. **Schema healing** - `heal`, diff between runs.
+5. **The scoreboard** - `bench` over WCXB, WebMainBench, ChatNoir.
+6. **MCP server and Claude Code plugin** - the remaining two front doors.
