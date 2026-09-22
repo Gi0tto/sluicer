@@ -1,6 +1,12 @@
 name: CI
 
 on:
+  workflow_dispatch:
+  schedule:
+    # Once a week against whatever the extras resolve to today. A >=2 pin does not
+    # stop a 3.0 landing with another rename, and that would otherwise be found by
+    # a user rather than by us.
+    - cron: "0 6 * * 1"
   push:
     branches: [main]
     paths-ignore: ["**/*.md", "docs/**"]
@@ -82,7 +88,7 @@ jobs:
         run: uvx twine check dist/*
 
   import-without-extras:
-    name: Importing works without the fetch extra
+    name: Importing works without any extra
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -130,5 +136,38 @@ jobs:
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
           assert tools == ['extract_declared', 'fetch_page', 'page_markdown'], tools
-          print('mcp: server built and three tools listed through the real SDK')
+
+          # Registration is not use. The SDK's dispatch is where a future release
+          # can break us while every import still resolves, so call a tool for real.
+          page = '<html><head><script type=\"application/ld+json\">{\"@type\":\"Product\",\"name\":\"Brake pad set\"}</script></head><body></body></html>'
+          answer = asyncio.run(server.call_tool('extract_declared', {'html_or_url': page}))
+          text = str(answer)
+          assert 'Brake pad set' in text, 'the SDK dispatch lost the record: ' + text[:200]
+          assert 'jsonld' in text, 'the provenance did not survive dispatch: ' + text[:200]
+
+          markdown_answer = asyncio.run(server.call_tool('page_markdown', {'html_or_url': '<html><body><article><h1>Title</h1><p>' + ('Real sentences. ' * 30) + '</p></article></body></html>'}))
+          assert 'Title' in str(markdown_answer), str(markdown_answer)[:200]
+          print('mcp: three tools listed, and two of them answered through the SDK dispatch')
+          "
+
+  latest-extras:
+    name: The extras still work at their newest versions
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install the extras unpinned and use them
+        run: |
+          uv venv
+          uv pip install '.[fetch,markdown,mcp]' --upgrade
+          uv run python -c "
+          import asyncio, importlib.metadata as md
+          for name in ('scrapling', 'trafilatura', 'mcp'):
+              print(name, md.version(name))
+          from sluicer.mcp_server import build_server
+          server = build_server()
+          tools = sorted(t.name for t in asyncio.run(server.list_tools()))
+          assert tools == ['extract_declared', 'fetch_page', 'page_markdown'], tools
+          print('still building against the newest published extras')
           "
