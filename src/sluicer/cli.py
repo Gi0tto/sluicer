@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 
 from sluicer.api import extract as extract_html
-from sluicer.fetch.ladder import fetch as fetch_url
+from sluicer.fetch import fetch as fetch_url
 from sluicer.fetch.result import Fetched
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
