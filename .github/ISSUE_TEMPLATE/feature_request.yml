@@ -1,0 +1,38 @@
+name: Something missing
+description: A capability Sluicer should have
+labels: [enhancement]
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: What you were trying to do
+      description: The task, not the feature. The feature is your solution, and there may be a cheaper one.
+    validations:
+      required: true
+  - type: textarea
+    id: instead
+    attributes:
+      label: What you did instead
+  - type: dropdown
+    id: model
+    attributes:
+      label: Does it need an LLM or a paid API?
+      description: If it does, this project will say no, and it is better to know now. The constraint is deliberate and documented in CONTRIBUTING.md.
+      options:
+        - "No"
+        - "Yes"
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: limits
+    attributes:
+      label: Known limits
+      description: docs/known-limits.md lists what we know we do not do yet. If your case is there, say below why it matters to you; that is how things get prioritised.
+      options:
+        - label: I checked docs/known-limits.md
+          required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters to you

@@ -1,0 +1,44 @@
+name: Something read wrong
+description: A page that Sluicer got wrong, or would not read at all
+labels: [bug]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: The page
+      description: A URL. If it is not public, attach the HTML below instead. Without the page this is a guess.
+      placeholder: https://example.com/product
+  - type: textarea
+    id: returned
+    attributes:
+      label: What Sluicer returned
+      description: The output of `sluicer extract <page>`.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: declared
+    attributes:
+      label: What the page actually declares
+      description: The field, the value, and where in the source it lives.
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which is it?
+      description: A missing value is a known cost we accept in places; a wrong one is the kind of bug this project takes most seriously.
+      options:
+        - A value came back wrong
+        - A value did not come back at all
+        - The call failed or crashed
+    validations:
+      required: true
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: "`sluicer --version`, your Python version, and which extras are installed."
+      render: text
+    validations:
+      required: true

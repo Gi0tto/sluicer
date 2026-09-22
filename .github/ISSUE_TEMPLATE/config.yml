@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A security vulnerability
+    url: https://github.com/Gi0tto/sluicer/security/advisories/new
+    about: Report it privately, never in a public issue. SECURITY.md says what happens next.
