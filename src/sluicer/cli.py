@@ -21,7 +21,7 @@ def main() -> None:
     """Turn a web page into structured data with no model in the loop."""
 
 
-def _read_source(source: str) -> tuple[str, str | None, Fetched | None]:
+def _read_source(source: str) -> tuple[str | bytes, str | None, Fetched | None]:
     """Return the HTML of ``source``, the URL to attribute it to, and the fetch record.
 
     ``source`` is either a URL or a path to a saved HTML file, exactly as
@@ -77,17 +77,27 @@ def _read_source(source: str) -> tuple[str, str | None, Fetched | None]:
             click.echo(f"{source} does not exist.", err=True)
         raise SystemExit(1)
 
-    text = path.read_text(errors="replace")
+    # Read as bytes, not text: a file's own declared encoding (a <meta
+    # charset>, an XML declaration) is only visible to lxml and trafilatura
+    # when they get to make that decision themselves. Decoding here first --
+    # even tolerantly, with errors="replace" -- picks the process default
+    # (UTF-8) before either reader is ever called, and permanently destroys
+    # any byte that was not already UTF-8. extract() and to_markdown() both
+    # accept str | bytes and both do better with bytes for exactly this
+    # reason; document.load() already relies on this happening.
+    data = path.read_bytes()
 
     # This guard is not a duplicate of the one in load(). It answers a
     # different question: a file with nothing in it is a user mistake and
     # deserves a message about the file. load() answers for the library,
     # promising it never raises on anything else lxml refuses to parse.
-    if not text.strip():
+    # b"   ".strip() is falsy exactly as the text version was, so this still
+    # catches an all-whitespace file.
+    if not data.strip():
         click.echo("This file contains no HTML.", err=True)
         raise SystemExit(1)
 
-    return text, str(path), None
+    return data, str(path), None
 
 
 @main.command()
