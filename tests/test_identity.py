@@ -52,3 +52,38 @@ def test_the_answer_is_cached_per_host():
     robots_allows("https://other.com/a", read=read, cache=cache)
 
     assert calls == ["https://example.com/robots.txt", "https://other.com/robots.txt"]
+
+
+def test_an_answer_older_than_a_day_is_asked_again():
+    """A site that adds a Disallow must be noticed, not pinned for the process.
+
+    The cache had no TTL, no bound and no invalidation, so a long-running MCP
+    server that read a site's robots.txt once obeyed that copy for its whole
+    lifetime. That defeats the stated purpose: a site owner should be able to
+    turn us away with one line, and one line they add tomorrow counts.
+
+    The clock is injected rather than slept through: the point is a day
+    passing, and the test has a day to spare only if it never waits one.
+    """
+    answers = ["User-agent: *\nAllow: /\n", "User-agent: *\nDisallow: /\n"]
+    calls: list[str] = []
+
+    def read(url):
+        calls.append(url)
+        return answers[min(len(calls) - 1, len(answers) - 1)]
+
+    clock = [0.0]
+    cache: dict = {}
+
+    def now():
+        return clock[0]
+
+    assert robots_allows("https://example.com/p", read=read, cache=cache, now=now) is True
+
+    clock[0] = 23 * 60 * 60
+    assert robots_allows("https://example.com/p", read=read, cache=cache, now=now) is True
+    assert calls == ["https://example.com/robots.txt"], "re-read before the day was out"
+
+    clock[0] = 24 * 60 * 60 + 1
+    assert robots_allows("https://example.com/p", read=read, cache=cache, now=now) is False
+    assert len(calls) == 2, "the expired entry was not read again"
