@@ -76,3 +76,15 @@ def test_all_three_readers_fold_into_one_record_and_each_keeps_its_source():
     assert record.fields["image"] == sluicer.Field(
         value="https://example.com/brake-pad-set.jpg", source="opengraph"
     )
+
+
+def test_an_xhtml_page_with_an_encoding_declaration_still_extracts():
+    html = (FIXTURES / "product_xhtml.html").read_text()
+
+    result = sluicer.extract(html)
+
+    assert result.sources == ["jsonld"]
+    assert len(result.records) == 1
+    assert result.records[0].type == "Product"
+    assert result.records[0].fields["name"].value == "Wiper blade set"
+    assert result.records[0].fields["sku"].value == "BP-3041"
