@@ -5,6 +5,7 @@ def test_jsonld_wins_and_provenance_is_kept():
     records = merge(
         jsonld=[{"@type": "Product", "name": "From JSON-LD"}],
         microdata=[{"@type": "Product", "name": "From microdata", "sku": "X1"}],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={"title": "From OpenGraph"},
@@ -22,6 +23,7 @@ def test_opengraph_alone_still_produces_one_record():
     records = merge(
         jsonld=[],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={"title": "Only OG"},
@@ -37,7 +39,8 @@ def test_nothing_declared_gives_no_records():
         merge(
             jsonld=[],
             microdata=[],
-            rdfa=[],
+            microformats=[],
+        rdfa=[],
             dublincore={},
             opengraph={},
             twitter={},
@@ -53,6 +56,7 @@ def test_two_jsonld_objects_of_one_type_stay_two_records():
             {"@type": "Product", "sku": "X9"},
         ],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -75,6 +79,7 @@ def test_microdata_folds_into_the_first_record_of_its_type():
             {"@type": "Product", "sku": "X9"},
         ],
         microdata=[{"@type": "Product", "colour": "red"}],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -93,6 +98,7 @@ def test_opengraph_fills_only_the_first_record():
             {"@type": "Product", "sku": "X9"},
         ],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={"title": "Page title"},
@@ -108,6 +114,7 @@ def test_a_list_valued_type_keeps_every_type_and_names_the_first():
     records = merge(
         jsonld=[{"@type": ["Person", "Organization"], "name": "Yoast style"}],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -123,6 +130,7 @@ def test_records_fold_when_they_share_any_type():
     records = merge(
         jsonld=[{"@type": ["Product", "Thing"], "name": "From JSON-LD"}],
         microdata=[{"@type": "Thing", "sku": "X1"}],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -138,6 +146,7 @@ def test_records_sharing_no_type_stay_apart():
     records = merge(
         jsonld=[{"@type": ["Product", "Thing"], "name": "From JSON-LD"}],
         microdata=[{"@type": "Offer", "price": "41.99"}],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -152,6 +161,7 @@ def test_untyped_records_never_fold_into_each_other():
     records = merge(
         jsonld=[{"name": "An untyped JSON-LD entry"}],
         microdata=[{"sku": "An unrelated untyped scope"}],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -168,6 +178,7 @@ def test_a_json_null_is_an_absence_not_the_text_none():
     records = merge(
         jsonld=[{"@type": "Product", "name": "Brake pad set", "gtin": None}],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -181,6 +192,7 @@ def test_a_null_does_not_shadow_a_real_value_from_a_later_reader():
     records = merge(
         jsonld=[{"@type": "Product", "gtin": None}],
         microdata=[{"@type": "Product", "gtin": "4001234567890"}],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -201,6 +213,7 @@ def test_a_boolean_is_recorded_the_way_the_page_declared_it():
             }
         ],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -215,6 +228,7 @@ def test_an_empty_value_does_not_shadow_a_real_one_from_a_later_reader():
     records = merge(
         jsonld=[{"@type": "Product", "name": "", "sku": "   "}],
         microdata=[{"@type": "Product", "name": "Brake pad set", "sku": "BP-1187"}],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -237,6 +251,7 @@ def test_six_readers_disagreeing_resolve_in_the_stated_order():
     records = merge(
         jsonld=[{"@type": "Product", "name": "From JSON-LD"}],
         microdata=[{"@type": "Product", "name": "From microdata", "mpn": "GDB1330"}],
+        microformats=[],
         rdfa=[{"@type": "Product", "mpn": "From RDFa", "gtin": "4001234567890"}],
         dublincore={"title": "From Dublin Core", "creator": "A cataloguer"},
         opengraph={"title": "From OpenGraph", "image": "https://example.com/i.jpg"},
@@ -260,6 +275,7 @@ def test_rdfa_folds_into_a_record_of_its_type_and_keeps_its_source():
     records = merge(
         jsonld=[{"@type": "Product", "name": "From JSON-LD"}],
         microdata=[],
+        microformats=[],
         rdfa=[{"@type": "Product", "gtin": "4001234567890"}],
         dublincore={},
         opengraph={},
@@ -274,6 +290,7 @@ def test_an_rdfa_subject_of_another_type_stays_its_own_record():
     records = merge(
         jsonld=[{"@type": "Product", "name": "From JSON-LD"}],
         microdata=[],
+        microformats=[],
         rdfa=[{"@type": "Offer", "price": "41.99"}],
         dublincore={},
         opengraph={},
@@ -289,6 +306,7 @@ def test_opengraph_wins_a_key_the_twitter_card_also_declares():
     records = merge(
         jsonld=[],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={"title": "From OpenGraph"},
@@ -304,6 +322,7 @@ def test_the_twitter_card_fills_what_opengraph_left_empty():
     records = merge(
         jsonld=[],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={"title": "From OpenGraph"},
@@ -319,6 +338,7 @@ def test_a_twitter_card_alone_still_produces_one_record():
     records = merge(
         jsonld=[],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={},
         opengraph={},
@@ -339,6 +359,7 @@ def test_an_empty_document_level_value_does_not_shadow_a_later_reader():
     records = merge(
         jsonld=[],
         microdata=[],
+        microformats=[],
         rdfa=[],
         dublincore={"title": "   "},
         opengraph={"title": "From OpenGraph"},
@@ -348,3 +369,26 @@ def test_an_empty_document_level_value_does_not_shadow_a_later_reader():
     assert records[0].fields["title"] == Field(
         value="From OpenGraph", source="opengraph"
     )
+
+
+def test_microformats_sits_between_microdata_and_rdfa():
+    """The fourth vocabulary that describes a thing, and it folds like the others.
+
+    Microdata keeps the key the two share, microformats fills the one microdata
+    left, and RDFa only gets what neither of them claimed."""
+    records = merge(
+        jsonld=[],
+        microdata=[{"@type": "Product", "name": "From microdata"}],
+        microformats=[{"@type": "Product", "name": "From microformats", "sku": "MF-1"}],
+        rdfa=[{"@type": "Product", "sku": "RD-1", "colour": "From RDFa"}],
+        dublincore={},
+        opengraph={},
+        twitter={},
+    )
+
+    assert len(records) == 1
+    assert records[0].fields["name"] == Field(
+        value="From microdata", source="microdata"
+    )
+    assert records[0].fields["sku"] == Field(value="MF-1", source="microformats")
+    assert records[0].fields["colour"] == Field(value="From RDFa", source="rdfa")

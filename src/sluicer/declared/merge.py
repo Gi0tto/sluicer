@@ -5,10 +5,11 @@ both JSON-LD and microdata, fields from the lower-precedence reader fill
 gaps in the higher-precedence one. Within a single reader, two entries with
 the same @type are two distinct things and remain separate records.
 
-Six readers reach here, and ``merge`` is where their order of precedence is
-written down: JSON-LD, microdata, RDFa, Dublin Core, OpenGraph, the Twitter
-card. It is one rule in one place, so no pair of vocabularies is left to
-settle a shared key by whichever tag the page's author typed first.
+Seven readers reach here, and ``merge`` is where their order of precedence
+is written down: JSON-LD, microdata, microformats, RDFa, Dublin Core,
+OpenGraph, the Twitter card. It is one rule in one place, so no pair of
+vocabularies is left to settle a shared key by whichever tag the page's
+author typed first.
 
 This slice extracts scalar values only; complex-typed fields (objects and
 lists, such as JSON-LD's offers or image) are not carried into records.
@@ -53,6 +54,7 @@ class Record:
 def merge(
     jsonld: list[dict[str, Any]],
     microdata: list[dict[str, str]],
+    microformats: list[dict[str, str]],
     rdfa: list[dict[str, str]],
     dublincore: dict[str, str],
     opengraph: dict[str, str],
@@ -60,13 +62,18 @@ def merge(
 ) -> list[Record]:
     """Merge reader output. Earlier sources win; every field keeps its source.
 
-    The order of precedence is JSON-LD, microdata, RDFa, Dublin Core,
-    OpenGraph, the Twitter card, and this signature is where it is stated: the
-    first field written under a name is the one that survives, so a reader
-    named later can only ever fill a gap. The first three describe the thing
-    the page is about and name it with a type, so they fold by type. The last
-    three describe the document, declare no type at all, and fill the first
-    record on the page.
+    The order of precedence is JSON-LD, microdata, microformats, RDFa, Dublin
+    Core, OpenGraph, the Twitter card, and this signature is where it is
+    stated: the first field written under a name is the one that survives, so a
+    reader named later can only ever fill a gap. The first four describe the
+    thing the page is about and name it with a type, so they fold by type. The
+    last three describe the document, declare no type at all, and fill the
+    first record on the page.
+
+    ``microformats`` is an empty list unless the caller asked for it, since its
+    reader needs an optional extra. It is a parameter like any other all the
+    same: what is not declared is an empty finding, and a reader that is off is
+    a reader that found nothing.
 
     Two records fold together when they declare at least one type in common:
     a page saying ``["Product", "Thing"]`` in JSON-LD and ``Thing`` in
@@ -85,9 +92,14 @@ def merge(
     for item in jsonld:
         records.append(_record_from(item, "jsonld"))
 
-    # Microdata and RDFa both name a subject and its fields, so both fold the
-    # same way. The order they are written in here is their precedence.
-    for source, items in (("microdata", microdata), ("rdfa", rdfa)):
+    # Microdata, microformats and RDFa each name a subject and its fields, so
+    # all three fold the same way. The order they are written in here is their
+    # precedence.
+    for source, items in (
+        ("microdata", microdata),
+        ("microformats", microformats),
+        ("rdfa", rdfa),
+    ):
         for item in items:
             record = _record_from(item, source)
             target = _fold_target(records, record)
