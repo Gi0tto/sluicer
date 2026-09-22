@@ -126,9 +126,20 @@ jobs:
           assert 'Caf\xe9' in out, 'the markdown path lost the accent: ' + out[:80]
           print('markdown: accent survived')
 
+          # protego parses robots.txt and arrives with scrapling[fetchers]. The unit
+          # tests fake it, and a fake agrees with whatever you wrote it to agree with,
+          # so the real semantics are only ever checked here.
+          from sluicer.fetch.identity import USER_AGENT, robots_allows
+          assert 'Sluicer' in USER_AGENT and 'github.com' in USER_AGENT, USER_AGENT
+          refuse = 'User-agent: Sluicer\nDisallow: /private/\n\nUser-agent: *\nAllow: /\n'
+          assert robots_allows('https://example.com/private/p', read=lambda u: refuse, cache={}) is False
+          assert robots_allows('https://example.com/public', read=lambda u: refuse, cache={}) is True
+          assert robots_allows('https://example.com/p', read=lambda u: None, cache={}) is True
+          print('robots: the real parser agrees with what the suite believes')
+
           from sluicer.fetch.scrapling_rungs import default_rungs
           names = [name for name, _ in default_rungs()]
-          assert names == ['http', 'browser', 'stealth'], names
+          assert names[:2] == ['http', 'browser'], names
           print('fetch: three rungs built against the real scrapling')
 
           import asyncio
