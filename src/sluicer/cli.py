@@ -23,7 +23,15 @@ def main() -> None:
 def extract(source: str) -> None:
     """Read the declared structured data of a URL or a saved HTML file."""
     if source.startswith("http://") or source.startswith("https://"):
-        fetched = fetch_url(source)
+        # ImportError here means the optional fetch stack (scrapling) is not
+        # installed. The message it carries already names the fix, so it is
+        # printed as-is; a wider except would risk swallowing a real fetch
+        # failure, which the ladder already decides what to do with.
+        try:
+            fetched = fetch_url(source)
+        except ImportError as missing:
+            click.echo(str(missing), err=True)
+            raise SystemExit(1) from missing
         result = extract_html(fetched.html, url=fetched.url)
         if not result.records:
             click.echo("This page declares no structured data.", err=True)
