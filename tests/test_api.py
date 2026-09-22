@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import sluicer
+from sluicer.api import _declared_about_its_things
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -101,3 +102,38 @@ def test_a_declaration_that_disagrees_with_the_bytes_does_not_mangle_the_text():
     assert result.sources == ["jsonld"]
     assert result.records[0].fields["name"].value == "Bremsöl"
     assert result.records[0].fields["sku"].value == "BP-7712"
+
+
+def test_a_document_level_declaration_does_not_switch_induction_off():
+    """DC.title says what the page is, not what is in its list."""
+    rows = "".join(
+        f'<li class="row"><span class="sku">A{n}</span></li>' for n in range(5)
+    )
+    html = (
+        '<html><head><meta name="DC.title" content="Catalogue"></head>'
+        f"<body><ul>{rows}</ul></body></html>"
+    )
+
+    result = sluicer.extract(html, induce=True)
+
+    assert "induced" in result.sources
+    assert len([r for r in result.records if r.fields.get("span.sku")]) == 5
+
+
+def test_the_gate_asks_which_sources_describe_a_thing():
+    """The test above cannot fail yet: nothing calls the Dublin Core reader
+    from ``extract`` so far, so no page can reach the gate carrying a
+    ``dublincore`` field. The rule that test protects is therefore pinned
+    here too, where it can be put to the question today -- and where the
+    answer for the next document-level vocabulary is the same without anyone
+    having to remember to add it to a list.
+    """
+    page_level = sluicer.Record(
+        fields={"title": sluicer.Field(value="Catalogue", source="dublincore")}
+    )
+    thing_level = sluicer.Record(
+        fields={"sku": sluicer.Field(value="A1", source="jsonld")}
+    )
+
+    assert _declared_about_its_things([page_level]) is False
+    assert _declared_about_its_things([thing_level]) is True
