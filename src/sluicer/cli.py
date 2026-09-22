@@ -23,6 +23,10 @@ def extract(source: Path) -> None:
     """Read the declared structured data of a saved HTML file."""
     text = source.read_text(errors="replace")
 
+    # This guard is not a duplicate of the one in load(). It answers a
+    # different question: a file with nothing in it is a user mistake and
+    # deserves a message about the file. load() answers for the library,
+    # promising it never raises on anything else lxml refuses to parse.
     if not text.strip():
         click.echo("This file contains no HTML.", err=True)
         raise SystemExit(1)
