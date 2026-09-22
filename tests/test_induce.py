@@ -173,3 +173,70 @@ def test_a_group_of_empty_shells_yields_no_records():
     doc = load("<div>" + "<li><span></span></li>" * 3 + "</div>")
 
     assert induce(doc) == []
+
+
+ROWS = "<li class='row'><h3 class='name'>Row</h3><span class='price'>1.00</span></li>"
+SIX_ROWS = f"<body><main><ul>{ROWS * 6}</ul></main></body>"
+
+
+def test_a_declaration_with_no_fields_declares_nothing():
+    """An empty script parses. It still says nothing, and the rule is the repo's
+    own: an empty value is not a value."""
+    html = (
+        "<html><head><script type='application/ld+json'>{}</script></head>"
+        f"{SIX_ROWS}</html>"
+    )
+
+    result = sluicer.extract(html, induce=True)
+
+    assert result.sources == ["jsonld", "induced"], "the parse is true, the gate is not"
+    assert len(result.records) == 6
+
+
+def test_a_type_with_no_properties_declares_nothing_either():
+    """`{"@type": "Product"}` names a kind of thing and says nothing about one."""
+    html = (
+        '<html><head><script type="application/ld+json">{"@type":"Product"}</script>'
+        f"</head>{SIX_ROWS}</html>"
+    )
+
+    result = sluicer.extract(html, induce=True)
+
+    assert result.sources == ["jsonld", "induced"]
+    assert len(result.records) == 6
+
+
+def test_an_itemscope_with_no_properties_declares_nothing_either():
+    """The same page, said in microdata: a scope, a type, and no property."""
+    html = (
+        "<html><body><div itemscope itemtype='https://schema.org/Product'></div>"
+        f"{SIX_ROWS}</body></html>"
+    )
+
+    result = sluicer.extract(html, induce=True)
+
+    assert result.sources == ["microdata", "induced"]
+    assert len(result.records) == 6
+
+
+def test_site_level_opengraph_says_nothing_about_the_rows():
+    """The lobste.rs shape: four og tags describing the site, and twenty stories.
+
+    The og tags parsed, and ``sources`` says so, because that is true. What they
+    describe is the site, not the rows, so they do not stand in for a page that
+    declared its list -- and the record they made is kept beside the induced
+    ones rather than replaced by them.
+    """
+    html = (FIXTURES / "site_opengraph_and_a_story_list.html").read_text()
+
+    result = sluicer.extract(html, induce=True)
+
+    assert result.sources == ["opengraph", "induced"]
+    assert len(result.records) == 21
+    assert result.records[0].fields["site_name"].value == "Example community"
+    induced = {
+        field.value
+        for record in result.records[1:]
+        for field in record.fields.values()
+    }
+    assert "The shell is a programming language" in induced
