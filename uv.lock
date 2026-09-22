@@ -1577,6 +1577,8 @@ markdown = [
 ]
 mcp = [
     { name = "mcp" },
+    { name = "scrapling" },
+    { name = "trafilatura" },
 ]
 
 [package.dev-dependencies]
@@ -1590,6 +1592,8 @@ requires-dist = [
     { name = "lxml", specifier = ">=5.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2" },
     { name = "scrapling", marker = "extra == 'fetch'", specifier = ">=0.4" },
+    { name = "sluicer", extras = ["fetch"], marker = "extra == 'mcp'" },
+    { name = "sluicer", extras = ["markdown"], marker = "extra == 'mcp'" },
     { name = "trafilatura", marker = "extra == 'markdown'", specifier = ">=2.0" },
 ]
 provides-extras = ["fetch", "markdown", "mcp"]
