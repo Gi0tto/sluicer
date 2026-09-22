@@ -65,6 +65,71 @@ Generic readers of declared data, still maintained, above 1,000 stars:
 In Python there is nobody. `extruct` held that ground and has not taken a commit
 in twelve months.
 
+## Stars are the wrong unit
+
+Everything above counts repositories by stars, because that is what a GitHub
+search returns. Stars turn out to measure something else than use.
+
+For the 140 largest repositories in this field, we resolved the package name
+each project *declares* in its own `pyproject.toml`, `setup.py` or
+`package.json` — not the name guessed from the repository — and asked PyPI and
+npm how often it was installed in the last month. Seventy of the 140 publish a
+package we could measure; ten publish nothing; the rest are lists, monorepos
+without a root manifest, or projects in languages with no central registry.
+
+Across those seventy, the rank correlation between stars and installs is
+**+0.47**. Stars account for about a fifth of the variation in how much a
+project is actually used. Watchers predict it even less: **+0.36**.
+
+The distance is not a rounding error. It is the whole ranking:
+
+| project | stars | rank by stars | installs / month | rank by installs |
+| --- | --- | --- | --- | --- |
+| `trafilatura` | 6,847 | 48 | 11,451,983 | 7 |
+| `curl_cffi` | 6,543 | 50 | 33,025,458 | 4 |
+| `maxun` | 17,537 | 21 | 1,057 | 58 |
+| `ego-lite` | 16,375 | 22 | 581 | 59 |
+
+A star is someone saying *this looks interesting*. An install is someone's
+build failing without you. The projects the field admires and the projects the
+field depends on are largely two different sets, and only one of them is a
+market.
+
+## The lane, measured in installs
+
+Asking the lane question again in installs rather than stars changes the
+answer's size. These are last-month installs for every maintained reader of
+declared metadata we could find on either registry:
+
+| package | registry | installs / month | last release | reads |
+| --- | --- | --- | --- | --- |
+| `open-graph-scraper` | npm | 1,187,550 | current | OpenGraph |
+| `metascraper` | npm | 594,788 | current | its own concepts |
+| `extruct` | PyPI | 540,765 | **2024-11-08** | 6 formats |
+| `mf2py` | PyPI | 531,588 | current | microformats |
+| `pyrdfa3` | PyPI | 524,105 | current | RDFa |
+| `newspaper3k` | PyPI | 473,466 | **2018-09-28** | article text |
+| `microdata-node` | npm | 194,139 | current | microdata |
+| `web-auto-extractor` | npm | 87,285 | current | 3 formats |
+| `metadata-parser` | PyPI | 11,107 | current | mixed |
+
+Three things fall out of that table.
+
+**The demand is one to two million installs a month**, and it is split across
+packages that each read one format. A page carries several at once, so reading
+one format means the caller stacks two or three libraries and reconciles their
+disagreements by hand. `open-graph-scraper` alone moves 1.19M installs a month
+reading a single vocabulary.
+
+**The one package that read six formats stopped shipping.** `extruct` still
+takes 540,765 installs a month with its last release 683 days behind it. That
+number is not a legacy tail — it is a demand with nothing current to answer it.
+
+**Abandonment does not reduce use.** `newspaper3k` last shipped in September
+2018 and is still installed 473,466 times a month. In this field, users do not
+leave when a library stops; they stay and work around it, because the
+alternative is writing the parser themselves.
+
 ## What this changes
 
 **An MCP server is table stakes, not a differentiator.** Twenty-seven live
@@ -78,6 +143,12 @@ written in Zig and a patched Firefox. We delegate that and say so.
 **The extraction and measurement lane is as empty as it looked**, on a sample
 four times larger than the first survey. One self-healer, one benchmark, and no
 Python reader of declared data left standing.
+
+**And it is not a small empty lane.** Counted in installs rather than stars, the
+readers of declared metadata move over a million a month between them, one
+vocabulary per package, with the only package that ever covered the whole set
+683 days without a release. That is the measurement this project was built
+against.
 
 ## Reproduce it
 

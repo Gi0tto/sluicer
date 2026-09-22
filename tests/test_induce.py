@@ -251,3 +251,26 @@ def test_site_level_opengraph_says_nothing_about_the_rows():
         for field in record.fields.values()
     }
     assert "The shell is a programming language" in induced
+
+
+def test_a_wrapper_does_not_repeat_its_child_s_text() -> None:
+    """A slot whose whole text is its children's carries no fact of its own.
+
+    Hacker News wraps each rank in a ``<td>`` that holds nothing but a
+    ``<span>``, so the same "1." arrived twice under two names. A caller
+    reading that record has to work out that the two are one fact.
+    """
+    html = "".join(
+        f'<li class="row"><td class="t"><span class="rank">{n}.</span></td>'
+        f'<p class="p">Price: <b class="b">{n}0.00</b></p></li>'
+        for n in range(1, 6)
+    )
+    records = sluicer.extract(f"<ul>{html}</ul>", induce=True).records
+
+    assert len(records) == 5
+    names = records[0].fields
+    assert "td.t" not in names, "the wrapper repeated its child's text"
+    assert names["td.t>span.rank"].value == "1."
+    # The paragraph keeps its own text, because "Price:" is nowhere else.
+    assert names["p.p"].value == "Price: 10.00"
+    assert names["p.p>b.b"].value == "10.00"

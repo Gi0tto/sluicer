@@ -125,11 +125,17 @@ def test_the_field_names_say_where_the_value_sat():
 
 
 def test_a_nested_slot_is_named_by_the_path_down_to_it():
-    """A name that does not say which branch it came from is not a slot name."""
+    """A name that does not say which branch it came from is not a slot name.
+
+    The wrapper here holds a label of its own, so both slots are facts and the
+    deeper one has to say which branch it came from. A wrapper that held only
+    the span would carry no fact at all -- see
+    ``test_a_wrapper_does_not_repeat_its_child_s_text``.
+    """
     group = rows(
         "<ul>"
         + (
-            "<li class='row'><div class='meta'>"
+            "<li class='row'><div class='meta'>Part: "
             "<span class='sku'>ABC</span></div></li>"
         )
         * 3
@@ -139,6 +145,8 @@ def test_a_nested_slot_is_named_by_the_path_down_to_it():
     record = records_from(group)[0]
 
     assert set(record.fields) == {"div.meta", "div.meta>span.sku"}
+    assert record.fields["div.meta"].value == "Part: ABC"
+    assert record.fields["div.meta>span.sku"].value == "ABC"
 
 
 def test_a_comment_inside_a_row_is_not_a_slot():

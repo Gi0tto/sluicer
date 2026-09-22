@@ -77,11 +77,28 @@ def _text(element: HtmlElement) -> str:
     return " ".join((element.text_content() or "").split())
 
 
+def _carries_only_its_children(element: HtmlElement) -> bool:
+    """True when every word of ``element``'s text already belongs to a child.
+
+    A wrapper is not a fact. Hacker News puts each rank inside a ``<td>`` that
+    holds one ``<span>`` and nothing else, so emitting both gave the same "1."
+    under two names and left the caller to work out they were one thing. An
+    element earns a text fact only by contributing text of its own -- the
+    "Price:" in ``<p>Price: <b>18.40</b></p>`` exists nowhere else, so that
+    paragraph keeps its text while the bare wrapper loses it.
+    """
+    children = [child for child in element if isinstance(child.tag, str)]
+    if not children:
+        return False
+    inside = (" ".join((child.text_content() or "").split()) for child in children)
+    return _text(element) == " ".join(text for text in inside if text)
+
+
 def _facts(element: HtmlElement) -> list[tuple[str, str]]:
     """The facts one part carries, each with the suffix its name takes."""
     facts = []
     text = _text(element)
-    if text:
+    if text and not _carries_only_its_children(element):
         facts.append(("", text))
     address = address_of(element)
     if address:
