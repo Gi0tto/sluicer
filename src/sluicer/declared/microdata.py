@@ -25,12 +25,13 @@ def read_microdata(doc: Document) -> list[dict]:
             name = prop.get("itemprop")
             if name and name not in item:
                 item[name] = _value(prop)
-        if len(item) > 1 or (item and "@type" not in item):
+        # Keep any non-empty item; filter out scopes that yielded nothing at all.
+        if item:
             found.append(item)
     return found
 
 
-def _value(element) -> str:
+def _value(element: object) -> str:
     attr = _VALUE_ATTRS.get(element.tag)
     if attr and element.get(attr):
         return element.get(attr).strip()
