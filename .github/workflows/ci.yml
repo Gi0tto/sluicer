@@ -208,18 +208,23 @@ jobs:
       # version has no wheel for it, and the job would pass without ever
       # installing what it exists to test.
       #
-      # The base is resolved on its own. Installing the extras in the same
-      # environment lifts lxml and click above their floors, because the extras
-      # depend on them too -- which is why the assertion below exists rather
-      # than a printed list somebody skims.
+      # The base is resolved on its own. Installing the extras alongside it
+      # lifts lxml and click above their floors, because the extras depend on
+      # them too.
+      #
+      # `.venv/bin/python` throughout, never `uv run`: `uv run` re-syncs the
+      # environment from pyproject.toml and reinstalls lxml at its newest,
+      # which silently undoes the pin. The assertion below caught exactly that
+      # on this job's first run, which is why it is an assertion and not a
+      # printed list somebody skims.
       - name: Install the base at its declared floors
         run: |
           uv venv --python 3.10
           uv pip install --resolution lowest-direct .
-          uv pip install pytest pytest-cov
+          uv pip install pytest
       - name: Check those really are the floors, not something above them
         run: |
-          uv run python -c "
+          .venv/bin/python -c "
           import importlib.metadata as md
           for name, floor in {'lxml': '5.3', 'click': '8.2'}.items():
               got = md.version(name)
@@ -230,12 +235,12 @@ jobs:
               print(name, got, '-- the declared floor')
           "
       - name: Run the suite against them
-        run: uv run pytest -q
+        run: .venv/bin/python -m pytest -q
       - name: And again with every extra at its own lowest version
         run: |
           uv pip install --resolution lowest-direct '.[fetch,markdown,mcp,microformats]'
           uv pip list
-          uv run pytest -q
+          .venv/bin/python -m pytest -q
 
   latest-extras:
     name: The extras still work at their newest versions
