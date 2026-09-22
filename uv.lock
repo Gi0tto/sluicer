@@ -1590,7 +1590,7 @@ dev = [
 requires-dist = [
     { name = "click", specifier = ">=8.1" },
     { name = "lxml", specifier = ">=5.0" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2" },
     { name = "scrapling", marker = "extra == 'fetch'", specifier = ">=0.4" },
     { name = "sluicer", extras = ["fetch"], marker = "extra == 'mcp'" },
     { name = "sluicer", extras = ["markdown"], marker = "extra == 'mcp'" },
