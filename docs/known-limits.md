@@ -31,6 +31,25 @@ information than either, and nothing currently accepts it.
 **RDFa is named in the design and not implemented.** `declared` covers JSON-LD,
 microdata and OpenGraph today.
 
+## In announcing ourselves
+
+**The user agent on the wire is verified by hand, not by the suite.** Both the
+HTTP and the browser rung were confirmed on 2026-09-22 against a live request,
+and the server saw `Sluicer/0.0.1 (+https://github.com/Gi0tto/sluicer)` from
+each. The suite cannot re-check it, because it must never open a socket, and a
+faked library accepts whatever keyword you hand it. That gap is real and it has
+already cost once: the browser rung was passing the name in `extra_headers`,
+which the browser context silently overrides, so the tests passed while every
+site saw Chrome. It now passes `useragent`, which reaches the wire. If you change
+how a rung is built, ask a real server what it saw.
+
+**The stealth rung does not announce itself, deliberately.** It exists to not be
+recognised, and announcing yourself and then evading is incoherent. It is no
+longer part of the automatic ladder for the same reason: climbing on a
+measurement from plain HTTP to a browser is a change of cost, while climbing
+from announcing yourself to hiding is a change of character, and it should not
+happen to a caller who never asked for it.
+
 ## In fetching
 
 **A challenge is detected by matching words against the whole page.** A page
