@@ -12,22 +12,33 @@ import lxml.html
 class Document:
     """A page that has been parsed once and is read many times."""
 
-    html: str
+    html: str | bytes
     tree: lxml.html.HtmlElement
     url: str | None = None
 
 
-def load(html: str, url: str | None = None) -> Document:
+def load(html: str | bytes, url: str | None = None) -> Document:
     """Parse ``html`` into a Document. This never raises.
 
-    Broken markup is tolerated by the parser. A document carrying an XML
-    encoding declaration, as an XHTML page ordinarily does, is refused by
-    lxml while it is a ``str``; it is read as UTF-8 bytes instead, so a page
+    Bytes are preferred when the caller has them, such as a response body
+    straight off the wire: handed to lxml as bytes, they let the parser
+    honour the document's own encoding declaration (a ``<meta charset>`` or
+    an XML declaration) instead of guessing, because lxml only reads that
+    declaration when it is not told to assume the input is already decoded
+    text. Bytes are passed straight through, unmodified, since they need no
+    encoding decision made for them.
+
+    Broken markup is tolerated by the parser. A ``str`` document carrying an
+    XML encoding declaration, as an XHTML page ordinarily does, is refused by
+    lxml because a ``str`` is already decoded text and a declaration inside
+    it would be a contradiction; it is read as UTF-8 bytes instead, so a page
     that declares data is never quietly reported as declaring none. That
     retry reads the bytes as UTF-8 whatever the document declares, because
-    UTF-8 is what they are: ``html`` arrived here already decoded, and a
-    declaration that disagrees with the bytes must not be given the chance
-    to corrupt the text.
+    UTF-8 is what they are: the ``str`` arrived here already decoded, and a
+    declaration that disagrees with those bytes must not be given the chance
+    to corrupt the text. This retry applies only to the ``str`` path; bytes
+    given directly need no such rescue, since they carry no prior decoding
+    to contradict.
 
     When lxml cannot parse the document even then -- it is empty, or it
     carries nothing but a doctype, a comment, whitespace with a byte order
