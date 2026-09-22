@@ -119,14 +119,19 @@ def _properties(
         if ref in by_id and by_id[ref] is not scope
     ]
     found: list[HtmlElement] = []
-    seen: set[int] = set()
+    # The elements themselves, never their ``id()``: lxml makes a Python object
+    # per element on demand and frees it after, so an ``id()`` is reused by the
+    # next element and a set of them forgets properties on any large page.
+    # Holding the element keeps its object alive, and lxml hands back that same
+    # object for that element for as long as it lives.
+    seen: set[HtmlElement] = set()
     for root in roots:
         pending = [root] if root is not scope else list(reversed(root))
         while pending:
             element = pending.pop()
-            if not isinstance(element.tag, str) or id(element) in seen:
+            if not isinstance(element.tag, str) or element in seen:
                 continue
-            seen.add(id(element))
+            seen.add(element)
             if element.get("itemprop") is not None:
                 found.append(element)
             if element.get("itemscope") is None:

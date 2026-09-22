@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from sluicer.document import Document
 
 _XPATH = "//script[@type]"
-# How many references one path may follow. Enough for an article's publisher's
-# logo, which is three hops on a Yoast page; bounded so a graph where every node
-# points at every other still costs a fixed amount per record.
-MAX_REFERENCE_HOPS = 3
+# How many references one path may follow. One is enough for what a reader of
+# a record asks for -- an article's author, its publisher, its image -- and it is
+# what keeps the output in proportion: measured on 2026-09-22 on a Yoast blog
+# post, one hop gives 22 KB of JSON against 10 KB with none and 38 KB with
+# three, because every record re-expands the same dense graph.
+MAX_REFERENCE_HOPS = 1
+# Deeper than anything downstream reads; see ``_resolve``.
+_MAX_DEPTH = 32
 _MEDIA_TYPE = "application/ld+json"
 
 
@@ -30,8 +35,12 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
     Numbers are kept as the text the page wrote, so ``41.90`` stays ``41.90``
     rather than becoming the float ``41.9``.
 
-    Blocks that are not valid JSON are skipped: a broken block is a fact about
-    the page, not a reason to lose the good ones.
+    Blocks are read the way the consumers pages are written for read them: a
+    raw newline inside a string, a block wrapped in an HTML comment or a CDATA
+    section, a leading byte order mark and a trailing comma are all common, and
+    none of them loses the block. What still is not JSON is skipped, and so is a
+    block nested deeper than the parser can follow: a broken block is a fact
+    about the page, not a reason to lose the good ones.
 
     Real pages spell the media type in every legal way, so it is matched
     ignoring case, surrounding whitespace and any parameters after a
@@ -45,13 +54,40 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
         raw = (script.text_content() or "").strip()
         if not raw:
             continue
-        try:
-            parsed = json.loads(raw, parse_float=str, parse_int=str)
-        except ValueError:
-            continue
-        found.extend(_flatten(parsed))
+        parsed = _parse(raw)
+        if parsed is not None:
+            found.extend(_flatten(parsed))
     index = _definitions(found)
     return [_resolve(node, index, _own_id(node), 0) for node in found]
+
+
+_OPENING = re.compile(r"^\s*(?:(?://|/\*)\s*)?(?:<!\[CDATA\[|<!--)\s*(?:\*/)?")
+_CLOSING = re.compile(r"(?:(?://|/\*)\s*)?(?:\]\]>|-->)\s*(?:\*/)?\s*$")
+_TRAILING_COMMA = re.compile(r",\s*([}\]])")
+
+
+def _parse(raw: str) -> object | None:
+    """The JSON in one block, or None when there is none to be had."""
+    unwrapped = raw.lstrip("\ufeff")
+    for _ in range(2):
+        unwrapped = _CLOSING.sub("", _OPENING.sub("", unwrapped))
+    # The cleaned spellings are tried only after the text as written fails, so
+    # a block that is valid JSON is never rewritten.
+    for candidate in dict.fromkeys(
+        (raw, unwrapped, _TRAILING_COMMA.sub(r"\1", unwrapped))
+    ):
+        try:
+            parsed: object = json.loads(
+                candidate,
+                strict=False,
+                parse_float=str,
+                parse_int=str,
+                parse_constant=lambda _name: None,
+            )
+        except (ValueError, RecursionError):
+            continue
+        return parsed
+    return None
 
 
 def _is_ld_json(declared: str) -> bool:
@@ -60,13 +96,19 @@ def _is_ld_json(declared: str) -> bool:
 
 
 def _flatten(parsed: object) -> list[dict[str, Any]]:
-    if isinstance(parsed, list):
-        return [item for entry in parsed for item in _flatten(entry)]
-    if isinstance(parsed, dict):
-        if "@graph" in parsed:
-            return _flatten(parsed["@graph"])
-        return [parsed]
-    return []
+    """Every top-level node in one block, ``@graph`` and arrays unwrapped."""
+    found: list[dict[str, Any]] = []
+    pending = [parsed]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, list):
+            pending.extend(reversed(value))
+        elif isinstance(value, dict):
+            if "@graph" in value:
+                pending.append(value["@graph"])
+            else:
+                found.append(value)
+    return found
 
 
 def _own_id(node: dict[str, Any]) -> frozenset[str]:
@@ -103,11 +145,22 @@ def _is_reference(value: dict[str, Any]) -> bool:
 
 
 def _resolve(
-    value: Any, index: dict[str, dict[str, Any]], path: frozenset[str], hops: int
+    value: Any,
+    index: dict[str, dict[str, Any]],
+    path: frozenset[str],
+    hops: int,
+    depth: int = 0,
 ) -> Any:
-    """``value`` with every reference it holds replaced by what it names."""
+    """``value`` with every reference it holds replaced by what it names.
+
+    Below ``_MAX_DEPTH`` a value is returned as it is: nothing reads that deep,
+    and a block nested nearly as far as the JSON parser allows would otherwise
+    take this walk past Python's own recursion limit.
+    """
+    if depth > _MAX_DEPTH:
+        return value
     if isinstance(value, list):
-        return [_resolve(item, index, path, hops) for item in value]
+        return [_resolve(item, index, path, hops, depth + 1) for item in value]
     if not isinstance(value, dict):
         return value
     if _is_reference(value):
@@ -115,8 +168,8 @@ def _resolve(
         target = index.get(identifier)
         if target is None or identifier in path or hops >= MAX_REFERENCE_HOPS:
             return value
-        return _resolve(target, index, path | {identifier}, hops + 1)
+        return _resolve(target, index, path | {identifier}, hops + 1, depth + 1)
     return {
-        key: _resolve(item, index, path | _own_id(value), hops)
+        key: _resolve(item, index, path | _own_id(value), hops, depth + 1)
         for key, item in value.items()
     }

@@ -256,3 +256,29 @@ def test_the_json_output_carries_the_nested_value(tmp_path):
         "value": {"@type": "Offer", "price": "41.99"},
         "source": "jsonld",
     }
+
+
+def test_a_reference_inside_a_resolved_reference_stays_a_reference():
+    """One hop, so a dense graph is not re-expanded under every record."""
+    html = _page(
+        {
+            "@graph": [
+                {"@type": "Article", "headline": "H", "publisher": {"@id": "#org"}},
+                {
+                    "@type": "Organization",
+                    "@id": "#org",
+                    "name": "Yoast",
+                    "logo": {"@id": "#logo"},
+                },
+                {"@type": "ImageObject", "@id": "#logo", "url": "https://x/l.png"},
+            ]
+        }
+    )
+
+    publisher = extract(html).records[0].fields["publisher"].value
+
+    assert publisher == {
+        "@type": "Organization",
+        "name": "Yoast",
+        "logo": {"@id": "#logo"},
+    }

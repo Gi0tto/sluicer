@@ -78,8 +78,12 @@ def test_a_page_with_no_rdfa_returns_nothing():
     assert read_rdfa(load("<html><body><p>hi</p></body></html>")) == []
 
 
-def test_a_type_is_a_leaf_name_however_the_page_spelt_it():
-    """Product, schema:Product and the full IRI are one term, not three."""
+def test_a_schema_org_type_is_one_name_however_the_page_spelt_it():
+    """Product, schema:Product and the full IRI are one term, not three.
+
+    A type from another vocabulary keeps its IRI, so it is never mistaken for
+    the schema.org type that happens to share its last word.
+    """
     doc = load(
         '<div typeof="https://schema.org/Product"></div>'
         '<div typeof="schema:Product"></div>'
@@ -89,11 +93,34 @@ def test_a_type_is_a_leaf_name_however_the_page_spelt_it():
     assert [item["@type"] for item in read_rdfa(doc)] == [
         "Product",
         "Product",
-        "Offering",
+        "http://purl.org/goodrelations/v1#Offering",
     ]
 
 
-def test_a_property_name_is_a_leaf_name_too():
+def test_a_curie_whose_prefix_nobody_declared_is_not_a_term():
+    """Every Wikipedia page carries typeof="mw:Transclusion" and friends."""
+    doc = load(
+        '<div vocab="https://schema.org/" typeof="Product">'
+        '<span property="name">Pad</span>'
+        '<span typeof="mw:Transclusion" property="mw:Thing">not a field</span>'
+        "</div>"
+    )
+
+    assert read_rdfa(doc) == [{"@type": "Product", "name": "Pad"}]
+
+
+def test_opengraph_tags_are_left_to_the_opengraph_reader():
+    doc = load(
+        '<html typeof="WebPage" vocab="https://schema.org/"><head>'
+        '<meta property="og:title" content="A title">'
+        '<meta property="article:published_time" content="2026-09-22">'
+        '</head><body><span property="name">Page</span></body></html>'
+    )
+
+    assert read_rdfa(doc) == [{"@type": "WebPage", "name": "Page"}]
+
+
+def test_a_property_is_named_through_its_prefix():
     doc = load(
         '<div prefix="gr: http://purl.org/goodrelations/v1#" typeof="Product">'
         '<span property="gr:name">Brake pad set</span>'
@@ -103,15 +130,15 @@ def test_a_property_name_is_a_leaf_name_too():
 
     assert read_rdfa(doc)[0] == {
         "@type": "Product",
-        "name": "Brake pad set",
+        "http://purl.org/goodrelations/v1#name": "Brake pad set",
         "sku": "BP-1187",
     }
 
 
-def test_only_the_first_of_several_types_reaches_the_record():
+def test_several_types_are_all_kept():
     doc = load('<div typeof="Product Offer"><span property="sku">A</span></div>')
 
-    assert read_rdfa(doc) == [{"@type": "Product", "sku": "A"}]
+    assert read_rdfa(doc) == [{"@type": ["Product", "Offer"], "sku": "A"}]
 
 
 def test_a_property_naming_two_fields_fills_both():
@@ -120,7 +147,7 @@ def test_a_property_naming_two_fields_fills_both():
     assert read_rdfa(doc) == [{"@type": "Product", "name": "One", "title": "One"}]
 
 
-def test_the_first_of_a_repeated_property_wins_as_everywhere_else():
+def test_a_repeated_property_is_a_list_as_in_microdata():
     doc = load(
         '<div typeof="Product">'
         '<span property="name">First</span>'
@@ -128,7 +155,7 @@ def test_the_first_of_a_repeated_property_wins_as_everywhere_else():
         "</div>"
     )
 
-    assert read_rdfa(doc) == [{"@type": "Product", "name": "First"}]
+    assert read_rdfa(doc) == [{"@type": "Product", "name": ["First", "Second"]}]
 
 
 def test_a_resource_is_a_value_when_the_element_carries_no_address():
@@ -174,8 +201,7 @@ def test_a_property_with_no_name_declares_nothing():
     assert read_rdfa(doc) == [{"@type": "Product", "sku": "BP-1187"}]
 
 
-def test_a_nested_subject_is_a_record_and_not_a_field_of_its_parent():
-    """The link to an object is dropped; the object itself is not."""
+def test_a_nested_subject_is_the_value_of_its_property():
     doc = load(
         '<div vocab="https://schema.org/" typeof="Product">'
         '<span property="name">Brake pad set</span>'
@@ -185,8 +211,11 @@ def test_a_nested_subject_is_a_record_and_not_a_field_of_its_parent():
     )
 
     assert read_rdfa(doc) == [
-        {"@type": "Product", "name": "Brake pad set"},
-        {"@type": "Offer", "price": "41.99"},
+        {
+            "@type": "Product",
+            "name": "Brake pad set",
+            "offers": {"@type": "Offer", "price": "41.99"},
+        },
     ]
 
 

@@ -81,3 +81,25 @@ def test_a_property_wrapped_in_plain_markup_still_belongs_to_its_scope():
     )
 
     assert read_microdata(doc) == [{"@type": "Product", "sku": "BP-2290"}]
+
+
+def test_a_property_after_thousands_of_plain_elements_is_still_found():
+    """GitHub's repository page: the properties sit deep in a large scope.
+
+    lxml builds a Python object per element on demand and frees it after, so
+    ``id()`` of one element is reused by the next; remembering elements by
+    ``id()`` forgot properties on exactly the pages big enough to matter.
+    """
+    filler = "<div><span>x</span><span>y</span></div>" * 3000
+    doc = load(
+        '<div itemscope itemtype="http://schema.org/SoftwareSourceCode">'
+        f"{filler}"
+        '<span itemprop="author"><strong itemprop="name">adbar</strong></span>'
+        '<article itemprop="text">README</article>'
+        "</div>"
+    )
+
+    item = read_microdata(doc)[0]
+
+    assert item["name"] == "adbar"
+    assert item["text"] == "README"
