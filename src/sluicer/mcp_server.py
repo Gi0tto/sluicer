@@ -35,18 +35,29 @@ def _fastmcp():
     return FastMCP
 
 
-def _html_of(html_or_url: str) -> tuple[str, dict[str, Any] | None]:
-    """Return the page's HTML, fetching it when given a URL."""
+def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
+    """Return the page's HTML, the URL to attribute it to, and the fetch record.
+
+    The URL is the *response's* own ``fetched.url``, not the string the caller
+    passed: a fetch that followed a redirect landed somewhere else, and every
+    relative link on the page resolves against where it landed. For literal
+    HTML there is no URL at all -- ``None`` says "this came from nowhere I can
+    name", which is the truth, and is what the library already means by it.
+    """
     if html_or_url.startswith(("http://", "https://")):
         from sluicer.fetch import fetch
 
         fetched = fetch(html_or_url)
-        return fetched.html, {
-            "rung": fetched.rung,
-            "status": fetched.status,
-            "climbs": [asdict(climb) for climb in fetched.climbs],
-        }
-    return html_or_url, None
+        return (
+            fetched.html,
+            fetched.url,
+            {
+                "rung": fetched.rung,
+                "status": fetched.status,
+                "climbs": [asdict(climb) for climb in fetched.climbs],
+            },
+        )
+    return html_or_url, None, None
 
 
 def build_server() -> Any:
@@ -64,8 +75,8 @@ def build_server() -> Any:
     @server.tool()
     def extract_declared(html_or_url: str) -> dict:
         """Read the structured data a page declares, with per-field provenance."""
-        html, fetched = _html_of(html_or_url)
-        result = asdict(extract(html))
+        html, url, fetched = _html_of(html_or_url)
+        result = asdict(extract(html, url=url))
         if fetched is not None:
             result["fetch"] = fetched
         return result
@@ -73,8 +84,8 @@ def build_server() -> Any:
     @server.tool()
     def page_markdown(html_or_url: str) -> str:
         """Return the page's main content as markdown, with boilerplate removed."""
-        html, _ = _html_of(html_or_url)
-        return to_markdown(html)
+        html, url, _fetched = _html_of(html_or_url)
+        return to_markdown(html, url=url)
 
     @server.tool()
     def fetch_page(url: str) -> dict:
@@ -87,7 +98,7 @@ def build_server() -> Any:
         """
         if not url.startswith(("http://", "https://")):
             raise ValueError(f"fetch_page needs an http:// or https:// URL, got {url!r}")
-        html, fetched = _html_of(url)
+        html, _url, fetched = _html_of(url)
         return {"html": html, "fetch": fetched}
 
     return server
