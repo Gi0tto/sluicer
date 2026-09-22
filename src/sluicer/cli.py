@@ -1,27 +1,81 @@
-"""Command line front door."""
+"""Command line front door.
+
+Exit codes follow grep: 0 when something was found, 1 when the page was read
+and holds nothing to report, 2 when it could not be read at all. A script can
+tell "this page declares nothing" from "the fetch failed" without parsing
+English.
+"""
 
 from __future__ import annotations
 
 import json
+import logging
+import sys
 from dataclasses import asdict
 from pathlib import Path
 
 import click
 
 from sluicer.api import extract as extract_html
-from sluicer.fetch import RobotsRefused, fetch as fetch_url
+from sluicer.declared.microformats import MicroformatsExtraMissing
+from sluicer.fetch import FetchFailed, RobotsRefused, fetch as fetch_url
 from sluicer.fetch.result import Fetched
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
+
+NOTHING_FOUND = 1
+COULD_NOT_READ = 2
 
 
 @click.group()
 @click.version_option(package_name="sluicer")
 def main() -> None:
-    """Turn a web page into structured data with no model in the loop."""
+    """Turn a web page into structured data with no model in the loop.
+
+    SOURCE is a URL, a saved HTML file, or - for standard input.
+    """
+    # scrapling logs every request at INFO into stderr, which is where this
+    # command's own messages go.
+    logging.getLogger("scrapling").setLevel(logging.WARNING)
 
 
-def _read_source(source: str) -> tuple[str | bytes, str | None, Fetched | None]:
+def _fail(message: str, cause: BaseException | None = None) -> None:
+    click.echo(message, err=True)
+    raise SystemExit(COULD_NOT_READ) from cause
+
+
+_fetch_options = [
+    click.option(
+        "--stealth",
+        is_flag=True,
+        help="Allow the stealth rung, which does not announce itself.",
+    ),
+    click.option(
+        "--no-robots",
+        is_flag=True,
+        help="Fetch even where the site's robots.txt says no.",
+    ),
+    click.option(
+        "--url",
+        "base_url",
+        metavar="URL",
+        help="The address a file or stdin came from, to resolve its links.",
+    ),
+]
+
+
+def _with_fetch_options(command: click.decorators.FC) -> click.decorators.FC:
+    for option in reversed(_fetch_options):
+        command = option(command)
+    return command
+
+
+def _read_source(
+    source: str,
+    stealth: bool = False,
+    no_robots: bool = False,
+    base_url: str | None = None,
+) -> tuple[str | bytes, str | None, Fetched | None]:
     """Return the HTML of ``source``, the URL to attribute it to, and the fetch record.
 
     ``source`` is either a URL or a path to a saved HTML file, exactly as
@@ -46,16 +100,18 @@ def _read_source(source: str) -> tuple[str | bytes, str | None, Fetched | None]:
         # swallowing a real fetch failure, which the ladder already decides
         # what to do with.
         try:
-            fetched = fetch_url(source)
+            fetched = fetch_url(source, stealth=stealth, obey_robots=not no_robots)
         except FetchExtraMissing as missing:
-            click.echo(str(missing), err=True)
-            raise SystemExit(1) from missing
+            _fail(str(missing), missing)
         except RobotsRefused as refused:
             # The site was reachable and told us no. That is an answer, not
             # a malfunction, so it gets the same message-and-exit treatment
             # as the operational failures below rather than a traceback.
-            click.echo(str(refused), err=True)
-            raise SystemExit(1) from refused
+            _fail(str(refused), refused)
+        except FetchFailed as failed:
+            # Every rung failed, whatever library it was built on: a browser's
+            # timeout is not an OSError, and was a traceback until this.
+            _fail(str(failed), failed)
         except (OSError, ValueError) as failure:
             # At the command line an operational failure is a message and a
             # bug is a traceback. OSError is the operational family: the site
@@ -64,12 +120,17 @@ def _read_source(source: str) -> tuple[str | bytes, str | None, Fetched | None]:
             # is what a rung raises when it comes back with no HTML. Anything
             # else -- a broken install, a wrong type -- is a bug and keeps its
             # full diagnostics, so it is deliberately not caught here.
-            click.echo(
+            _fail(
                 f"Could not fetch {source}: {type(failure).__name__}: {failure}",
-                err=True,
+                failure,
             )
-            raise SystemExit(1) from failure
         return fetched.html, fetched.url, fetched
+
+    if source == "-":
+        data = sys.stdin.buffer.read()
+        if not data.strip():
+            _fail("Standard input contains no HTML.")
+        return data, base_url, None
 
     path = Path(source)
 
@@ -78,11 +139,9 @@ def _read_source(source: str) -> tuple[str | bytes, str | None, Fetched | None]:
     # accept a URL, so the existence check is made by hand here -- and it
     # must fail with a clear message, not a traceback from read_text().
     if not path.is_file():
-        if path.exists():
-            click.echo(f"{source} is not a file.", err=True)
-        else:
-            click.echo(f"{source} does not exist.", err=True)
-        raise SystemExit(1)
+        _fail(
+            f"{source} is not a file." if path.exists() else f"{source} does not exist."
+        )
 
     # Read as bytes, not text: a file's own declared encoding (a <meta
     # charset>, an XML declaration) is only visible to lxml and trafilatura
@@ -101,18 +160,40 @@ def _read_source(source: str) -> tuple[str | bytes, str | None, Fetched | None]:
     # b"   ".strip() is falsy exactly as the text version was, so this still
     # catches an all-whitespace file.
     if not data.strip():
-        click.echo("This file contains no HTML.", err=True)
-        raise SystemExit(1)
+        _fail("This file contains no HTML.")
 
-    return data, str(path), None
+    # A path is not an address: handed to the readers as the page's URL it
+    # would resolve every relative link against the file name.
+    return data, base_url, None
 
 
 @main.command()
 @click.argument("source")
-def extract(source: str) -> None:
-    """Read the declared structured data of a URL or a saved HTML file."""
-    html, url, fetched = _read_source(source)
-    result = extract_html(html, url=url)
+@click.option(
+    "--induce",
+    is_flag=True,
+    help="Also read the rows a page repeats when it declares nothing about them.",
+)
+@click.option(
+    "--microformats",
+    is_flag=True,
+    help="Also read microformats2 (needs sluicer[microformats]).",
+)
+@_with_fetch_options
+def extract(
+    source: str,
+    induce: bool,
+    microformats: bool,
+    stealth: bool,
+    no_robots: bool,
+    base_url: str | None,
+) -> None:
+    """Read the structured data a URL, a file or stdin declares."""
+    html, url, fetched = _read_source(source, stealth, no_robots, base_url)
+    try:
+        result = extract_html(html, url=url, induce=induce, microformats=microformats)
+    except MicroformatsExtraMissing as missing:
+        _fail(str(missing), missing)
     if not result.records:
         click.echo("This page declares no structured data.", err=True)
         if fetched is not None:
@@ -127,7 +208,7 @@ def extract(source: str) -> None:
                     f"  {climb.from_rung} -> {climb.to_rung}: {climb.reason}",
                     err=True,
                 )
-        raise SystemExit(1)
+        raise SystemExit(NOTHING_FOUND)
     payload = asdict(result)
     if fetched is not None:
         payload["fetch"] = {
@@ -140,18 +221,18 @@ def extract(source: str) -> None:
 
 @main.command()
 @click.argument("source")
-def markdown(source: str) -> None:
-    """Print a URL or a saved HTML file's main content as markdown."""
-    html, url, _fetched = _read_source(source)
+@_with_fetch_options
+def markdown(source: str, stealth: bool, no_robots: bool, base_url: str | None) -> None:
+    """Print the main content of a URL, a file or stdin as markdown."""
+    html, url, _fetched = _read_source(source, stealth, no_robots, base_url)
     # MarkdownExtraMissing means trafilatura is not installed. Its message
     # already names the fix, so it is printed as-is, the same way
     # FetchExtraMissing is handled in _read_source above.
     try:
         content = to_markdown(html, url=url)
     except MarkdownExtraMissing as missing:
-        click.echo(str(missing), err=True)
-        raise SystemExit(1) from missing
+        _fail(str(missing), missing)
     if not content:
         click.echo("This page has no main content.", err=True)
-        raise SystemExit(1)
+        raise SystemExit(NOTHING_FOUND)
     click.echo(content)

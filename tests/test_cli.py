@@ -33,7 +33,7 @@ def test_an_empty_file_is_reported_not_crashed(tmp_path):
 
     result = CliRunner().invoke(main, ["extract", str(empty_file)])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "contains no HTML" in result.stderr
     assert (result.exception is None or isinstance(result.exception, SystemExit))
 
@@ -46,7 +46,7 @@ def test_a_url_is_fetched_and_the_ladder_is_reported(monkeypatch):
     from sluicer.cli import main
     from sluicer.fetch.result import Climb, Fetched
 
-    def fake_fetch(url, rungs=None):
+    def fake_fetch(url, rungs=None, **kwargs):
         return Fetched(
             url=url,
             html='<html><head><script type="application/ld+json">'
@@ -94,7 +94,7 @@ def test_a_missing_file_is_reported_not_crashed(tmp_path):
 
     result = CliRunner().invoke(main, ["extract", str(missing)])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "does not exist" in result.stderr
     assert (result.exception is None or isinstance(result.exception, SystemExit))
 
@@ -102,7 +102,7 @@ def test_a_missing_file_is_reported_not_crashed(tmp_path):
 def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
     from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
-    def fake_fetch(url, rungs=None):
+    def fake_fetch(url, rungs=None, **kwargs):
         raise FetchExtraMissing(
             "Fetching a URL needs scrapling, which is not installed. "
             "Install it with: uv pip install 'sluicer[fetch]'"
@@ -112,7 +112,7 @@ def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "uv pip install 'sluicer[fetch]'" in result.stderr
     assert isinstance(result.exception, SystemExit)
 
@@ -120,14 +120,14 @@ def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
 def test_a_url_the_site_refuses_explains_itself_and_does_not_crash(monkeypatch):
     from sluicer.fetch import RobotsRefused
 
-    def fake_fetch(url, rungs=None):
+    def fake_fetch(url, rungs=None, **kwargs):
         raise RobotsRefused(url)
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/private/p"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "https://example.com/private/p" in result.stderr
     assert "robots.txt" in result.stderr
     assert isinstance(result.exception, SystemExit)
@@ -136,7 +136,7 @@ def test_a_url_the_site_refuses_explains_itself_and_does_not_crash(monkeypatch):
 def test_an_empty_url_result_still_reports_what_the_fetch_cost(monkeypatch):
     from sluicer.fetch.result import Climb, Fetched
 
-    def fake_fetch(url, rungs=None):
+    def fake_fetch(url, rungs=None, **kwargs):
         return Fetched(
             url=url,
             html="<html><body>Nothing declared here.</body></html>",
@@ -168,7 +168,7 @@ def test_an_empty_url_result_still_reports_what_the_fetch_cost(monkeypatch):
 
 
 def test_a_real_import_failure_is_not_reported_as_a_missing_extra(monkeypatch):
-    def fake_fetch(url, rungs=None):
+    def fake_fetch(url, rungs=None, **kwargs):
         raise ImportError("cannot import name 'Foo' from 'scrapling.engines'")
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
@@ -189,7 +189,7 @@ def test_a_real_import_failure_is_not_reported_as_a_missing_extra(monkeypatch):
 def test_a_directory_is_not_a_file(tmp_path):
     result = CliRunner().invoke(main, ["extract", str(tmp_path)])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "is not a file" in result.stderr
     assert (result.exception is None or isinstance(result.exception, SystemExit))
 
@@ -197,14 +197,14 @@ def test_a_directory_is_not_a_file(tmp_path):
 def test_a_network_failure_is_a_message_not_a_traceback(monkeypatch):
     """The common failure: the site was down, or the name did not resolve."""
 
-    def fake_fetch(url, rungs=None):
+    def fake_fetch(url, rungs=None, **kwargs):
         raise ConnectionError("Connection refused")
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert (
         "Could not fetch https://example.com/p: ConnectionError: Connection refused"
         in result.stderr
@@ -215,14 +215,14 @@ def test_a_network_failure_is_a_message_not_a_traceback(monkeypatch):
 def test_a_rung_that_came_back_without_html_is_a_message_too(monkeypatch):
     """ValueError is what a rung raises when it brings back no HTML."""
 
-    def fake_fetch(url, rungs=None):
+    def fake_fetch(url, rungs=None, **kwargs):
         raise ValueError("the stealth rung returned no HTML for 'https://example.com/p'")
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "Could not fetch https://example.com/p: ValueError: " in result.stderr
     assert "the stealth rung returned no HTML" in result.stderr
     assert isinstance(result.exception, SystemExit)
@@ -231,7 +231,7 @@ def test_a_rung_that_came_back_without_html_is_a_message_too(monkeypatch):
 def test_an_unexpected_failure_is_not_dressed_up_as_a_fetch_failure(monkeypatch):
     """A bug keeps its traceback: only operational failures become messages."""
 
-    def fake_fetch(url, rungs=None):
+    def fake_fetch(url, rungs=None, **kwargs):
         raise RuntimeError("the ladder lost count of its rungs")
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
@@ -278,7 +278,7 @@ def test_markdown_without_the_extra_explains_itself(monkeypatch, tmp_path):
 
     result = CliRunner().invoke(main, ["markdown", str(page)])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "sluicer[markdown]" in result.stderr
     assert isinstance(result.exception, SystemExit)
 
@@ -383,7 +383,7 @@ def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(
 
     monkeypatch.setattr(
         "sluicer.cli.fetch_url",
-        lambda url: real_fetch(
+        lambda url, **kwargs: real_fetch(
             url,
             rungs=[("http", rung)],
             robots_reader=lambda _: "User-agent: *\nAllow: /\n",
@@ -393,8 +393,109 @@ def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "uv pip install 'sluicer[fetch]'" in result.stderr
     assert isinstance(
         result.exception, SystemExit
     ), f"reached the user as {result.exception!r}"
+
+
+def test_standard_input_is_a_source():
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    page = (
+        '<script type="application/ld+json">{"@type":"Product","name":"Pad"}'
+        "</script>"
+    )
+
+    result = CliRunner().invoke(main, ["extract", "-"], input=page)
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["records"][0]["fields"]["name"]["value"] == "Pad"
+
+
+def test_a_file_is_not_its_own_address_unless_one_is_given(tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    page = tmp_path / "page.html"
+    page.write_text(
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<a itemprop="url" href="/p/1">x</a></div>'
+    )
+
+    bare = CliRunner().invoke(main, ["extract", str(page)])
+    based = CliRunner().invoke(
+        main, ["extract", str(page), "--url", "https://shop.example/c/"]
+    )
+
+    assert json.loads(bare.stdout)["url"] is None
+    assert json.loads(bare.stdout)["records"][0]["fields"]["url"]["value"] == "/p/1"
+    fields = json.loads(based.stdout)["records"][0]["fields"]
+    assert fields["url"]["value"] == "https://shop.example/p/1"
+
+
+def test_induction_is_reachable_from_the_command_line(tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    page = tmp_path / "listing.html"
+    page.write_text(
+        "<ul>"
+        + "".join(
+            f"<li class='row'><a href='/p{n}'>Product {n}</a>"
+            f"<span class='price'>{n}.99</span></li>"
+            for n in range(5)
+        )
+        + "</ul>"
+    )
+
+    plain = CliRunner().invoke(main, ["extract", str(page)])
+    induced = CliRunner().invoke(main, ["extract", str(page), "--induce"])
+
+    assert plain.exit_code == 1
+    assert induced.exit_code == 0
+    assert "induced" in json.loads(induced.stdout)["sources"]
+
+
+def test_a_fetch_that_failed_on_every_rung_exits_two_with_what_each_said(monkeypatch):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+    from sluicer.fetch import FetchFailed
+
+    def fake_fetch(url, **kwargs):
+        raise FetchFailed(url, [], "the rung raised TimeoutError: Timeout 30000ms")
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    result = CliRunner().invoke(main, ["extract", "https://slow.example/p"])
+
+    assert result.exit_code == 2
+    assert "Timeout 30000ms" in result.stderr
+    assert isinstance(result.exception, SystemExit)
+
+
+def test_the_fetch_flags_reach_the_ladder(monkeypatch):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+    from sluicer.fetch.result import Fetched
+
+    seen = {}
+
+    def fake_fetch(url, **kwargs):
+        seen.update(kwargs)
+        return Fetched(url=url, html="<html></html>", status=200, rung="http")
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    CliRunner().invoke(
+        main, ["extract", "https://example.com/p", "--stealth", "--no-robots"]
+    )
+
+    assert seen == {"stealth": True, "obey_robots": False}
