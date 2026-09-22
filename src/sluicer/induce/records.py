@@ -4,6 +4,15 @@ A page that declares nothing has not told us what its fields are called, so we
 do not invent names for them. A field is named by where it sits in the shape and
 what class it carries, which is exactly as much as the page said, and every one
 of them is marked as induced so a caller never mistakes it for a declaration.
+
+Some parts carry two facts rather than one, and both are kept. An anchor is the
+clearest case: ``<a href="/p0">Product name 0</a>`` is a name *and* a link, and
+returning only the address loses the product's name on the commonest listing
+shape on the web. An image is the same, with its alt text and its src. The
+convention is that the text takes the slot's own name and the address takes that
+name with the attribute appended -- ``a.more`` and ``a.more@href``, ``img.photo``
+and ``img.photo@src`` -- so the two are visibly one slot, and a caller reading a
+record never has to guess which name belongs to which.
 """
 
 from __future__ import annotations
@@ -36,11 +45,28 @@ def _name(element: HtmlElement, position: int) -> str:
     return f"{tag}.{classes[0]}" if classes else f"{tag}{position}"
 
 
-def _value(element: HtmlElement) -> str:
+# The text of an image is the text its author wrote for the people who cannot
+# see it. Every other element's text is the text inside it.
+_TEXT_ATTRIBUTE = {"img": "alt"}
+
+
+def _text(element: HtmlElement) -> str:
+    attribute = _TEXT_ATTRIBUTE.get(str(element.tag))
+    if attribute:
+        return " ".join((element.get(attribute) or "").split())
+    return " ".join((element.text_content() or "").split())
+
+
+def _facts(element: HtmlElement) -> list[tuple[str, str]]:
+    """The facts one part carries, each with the suffix its name takes."""
+    facts = []
+    text = _text(element)
+    if text:
+        facts.append(("", text))
     address = address_of(element)
     if address:
-        return address
-    return " ".join((element.text_content() or "").split())
+        facts.append(("@" + str(ADDRESS[str(element.tag)]), address))
+    return facts
 
 
 def records_from(group: list[HtmlElement]) -> list[Record]:
@@ -51,11 +77,11 @@ def records_from(group: list[HtmlElement]) -> list[Record]:
         for position, part in enumerate(member.iter()):
             if part is member or not isinstance(part.tag, str):
                 continue
-            value = _value(part)
-            if not value:
-                continue
             name = _name(part, position)
-            record.fields.setdefault(name, Field(value=value, source="induced"))
+            for suffix, value in _facts(part):
+                record.fields.setdefault(
+                    name + suffix, Field(value=value, source="induced")
+                )
         if record.fields:
             records.append(record)
     return records
