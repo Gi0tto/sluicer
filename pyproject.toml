@@ -38,7 +38,12 @@ dependencies = ["lxml>=5.0", "click>=8.1"]
 [project.optional-dependencies]
 fetch = ["scrapling>=0.4"]
 markdown = ["trafilatura>=2.0"]
-mcp = ["mcp>=1.2"]
+# The server has three tools and two of them need the other extras:
+# extract_declared and page_markdown both fetch when handed a URL, and
+# page_markdown needs trafilatura for any input at all. Installing
+# sluicer[mcp] alone once gave a server where two of three tools could not
+# run, which is not a server anyone asked for.
+mcp = ["mcp>=1.2", "sluicer[fetch]", "sluicer[markdown]"]
 
 [project.urls]
 Homepage = "https://github.com/Gi0tto/sluicer"

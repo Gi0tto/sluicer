@@ -82,7 +82,7 @@ jobs:
         run: uvx twine check dist/*
 
   import-without-extras:
-    name: Importing works without the fetch extra
+    name: Importing works without any extra
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,6 +93,7 @@ jobs:
           uv pip install .
           uv run python -c "
           import importlib.util, sluicer
-          assert importlib.util.find_spec('scrapling') is None, 'the extra leaked into the base install'
+          leaked = [n for n in ('scrapling', 'trafilatura', 'mcp') if importlib.util.find_spec(n) is not None]
+          assert not leaked, 'these extras leaked into the base install: ' + ', '.join(leaked)
           print('base install imports cleanly, version', sluicer.__version__)
           "

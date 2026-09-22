@@ -31,3 +31,28 @@ def test_the_rung_type_lives_beside_the_result_it_returns():
     import sluicer.fetch.scrapling_rungs as adapter
 
     assert adapter.Rung is result.Rung
+
+
+def test_installing_the_mcp_extra_gives_a_server_whose_tools_all_work():
+    """Two of the three tools need the other extras, so the extra must pull them.
+
+    Read back out of the built metadata rather than out of pyproject.toml: a
+    self-referential extra is a thing the packaging machinery has to resolve,
+    and the only proof that it did is what the installer will read.
+    """
+    import importlib.metadata as metadata
+
+    required = metadata.requires("sluicer")
+    under_mcp = [line for line in required if "extra == 'mcp'" in line]
+
+    # Asserted by effect, not by spelling. pyproject.toml declares the
+    # self-references sluicer[fetch] and sluicer[markdown], and the build
+    # backend is free to resolve them: hatchling flattens them to the
+    # underlying requirements. Both spellings install the same three
+    # packages, and that is the thing worth pinning.
+    assert any(
+        "scrapling" in line or "sluicer[fetch]" in line for line in under_mcp
+    ), f"the mcp extra does not bring the fetch extra: {under_mcp}"
+    assert any(
+        "trafilatura" in line or "sluicer[markdown]" in line for line in under_mcp
+    ), f"the mcp extra does not bring the markdown extra: {under_mcp}"
