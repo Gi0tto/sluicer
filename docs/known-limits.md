@@ -64,13 +64,20 @@ time rather than correctness.
 
 **There is no allowlist on what it will fetch.** `fetch_page` requests any URL
 an agent gives it, from wherever the server runs. This is deliberate and
-documented in SECURITY.md: a partial defence would be trusted more than it
-deserves, because a name can resolve to an internal address and can resolve
-differently on a second lookup. Egress control belongs in the network.
+documented in SECURITY.md: a *blocklist* of private ranges would be trusted more
+than it deserves, because a name can resolve to an internal address and can
+resolve differently on a second lookup. An opt-in allowlist is a different
+thing, because it fails closed, and that door stays open: it is not built
+because nobody has asked for it yet, not because no filter could be honest.
 
-**The URL-fetching branch of the server is not covered by a test.** Everything
-else is, and the three tools are pinned by set equality so a fourth cannot
-appear unnoticed.
+**The server returns a whole page into an agent's context, with no cap.**
+`fetch_page` hands back the full body. SECURITY.md notes that nothing bounds the
+input; nothing bounds this output either. A limit is the most likely next
+breaking change to this surface, and guessing a number now would be worse than
+saying it is unbounded.
+
+**The three tools are pinned by set equality**, so a fourth cannot appear
+unnoticed.
 
 ## In the shape of the code
 
