@@ -87,6 +87,17 @@ def test_a_declaration_beats_a_list_on_the_same_page():
     assert "Oil filter" not in values, "the list was induced behind a declaration"
 
 
+def test_a_page_with_nothing_to_induce_claims_nothing():
+    """Asked to induce, and there is no repetition: the answer stays empty."""
+    result = sluicer.extract(
+        "<html><body><h1>One thing</h1><p>and one line about it</p></body></html>",
+        induce=True,
+    )
+
+    assert result.records == []
+    assert result.sources == []
+
+
 def test_induction_says_so_when_it_is_what_answered():
     """A caller has to be able to tell which kind of claim they are holding."""
     html = (FIXTURES / "listing_no_declared_data.html").read_text()
