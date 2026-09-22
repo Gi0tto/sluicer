@@ -259,3 +259,60 @@ def test_markdown_of_a_page_with_nothing_to_say_exits_one(monkeypatch, tmp_path)
 
     assert result.exit_code == 1
     assert "no main content" in result.stderr
+
+
+def test_a_windows_1252_file_keeps_its_characters(monkeypatch, tmp_path):
+    """A file's own declared encoding must survive to the reader that needs it.
+
+    Forcing UTF-8 (or replacing what does not fit) before ``to_markdown`` ever
+    sees the page destroys a byte the page never lost: trafilatura and lxml
+    each do their own encoding detection from a declared ``<meta charset>``,
+    but only when they are handed the original bytes.
+    """
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    page = tmp_path / "cafe.html"
+    html = '<html><head><meta charset="windows-1252"></head><body>Caf\xe9 au lait</body></html>'
+    page.write_bytes(html.encode("windows-1252"))
+
+    received: dict[str, object] = {}
+
+    def fake_to_markdown(html_or_bytes, url=None):
+        received["value"] = html_or_bytes
+        # Decode it ourselves so the test can also see what the command
+        # would have printed, had the byte survived.
+        return html_or_bytes.decode("windows-1252") if isinstance(html_or_bytes, bytes) else html_or_bytes
+
+    monkeypatch.setattr("sluicer.cli.to_markdown", fake_to_markdown)
+
+    result = CliRunner().invoke(main, ["markdown", str(page)])
+
+    assert result.exit_code == 0
+    assert isinstance(received["value"], bytes)
+    assert "\xe9".encode("windows-1252") in received["value"]
+    assert "�".encode() not in received["value"]
+    assert "Caf\xe9 au lait" in result.stdout
+
+
+def test_a_windows_1252_files_declared_data_keeps_its_characters(tmp_path):
+    """The same defect, one layer down: extract() must see the real bytes too."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    page = tmp_path / "product.html"
+    html = (
+        '<html><head><meta charset="windows-1252">'
+        '<script type="application/ld+json">'
+        '{"@type":"Product","name":"Caf\xe9 filter"}'
+        "</script></head><body></body></html>"
+    )
+    page.write_bytes(html.encode("windows-1252"))
+
+    result = CliRunner().invoke(main, ["extract", str(page)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["records"][0]["fields"]["name"]["value"] == "Caf\xe9 filter"
