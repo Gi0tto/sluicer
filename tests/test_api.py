@@ -36,3 +36,18 @@ def test_a_page_lxml_cannot_parse_extracts_nothing_instead_of_raising():
 
     assert result.records == []
     assert result.sources == []
+
+
+def test_a_page_whose_type_is_a_list_extracts_instead_of_crashing():
+    html = (
+        "<html><head>"
+        '<script type="application/ld+json">'
+        '{"@type": ["Person", "Organization"], "name": "Acme"}'
+        "</script></head><body></body></html>"
+    )
+
+    result = sluicer.extract(html)
+
+    assert result.sources == ["jsonld"]
+    assert result.records[0].type == "Person"
+    assert result.records[0].fields["name"].value == "Acme"
