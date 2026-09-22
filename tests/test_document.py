@@ -42,3 +42,23 @@ def test_load_never_raises_on_a_document_lxml_cannot_parse(text):
     assert len(doc.tree) == 0
     assert doc.tree.text_content() == ""
     assert doc.html == text
+
+
+def test_load_accepts_bytes_and_honours_the_declared_encoding():
+    from sluicer.document import load
+
+    page = (
+        '<html><head><meta charset="iso-8859-1">'
+        "<title>Bremsöl</title></head><body></body></html>"
+    )
+    latin1 = page.encode("latin-1")
+
+    doc = load(latin1)
+
+    assert doc.tree.findtext(".//title") == "Bremsöl"
+
+
+def test_load_still_takes_text():
+    from sluicer.document import load
+
+    assert load("<html><body><p>hi</p></body></html>").tree.findtext(".//p") == "hi"

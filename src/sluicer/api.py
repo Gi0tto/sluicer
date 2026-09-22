@@ -20,7 +20,7 @@ class Extraction:
     sources: list[str] = field(default_factory=list)
 
 
-def extract(html: str, url: str | None = None) -> Extraction:
+def extract(html: str | bytes, url: str | None = None) -> Extraction:
     """Read every kind of declared data in ``html`` and merge it."""
     doc = load(html, url=url)
     jsonld = read_jsonld(doc)
