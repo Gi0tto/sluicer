@@ -8,6 +8,7 @@ library already does and gets out of the way.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import asdict
 from typing import Any
 
@@ -48,8 +49,16 @@ def _html_of(html_or_url: str) -> tuple[str, dict[str, Any] | None]:
     return html_or_url, None
 
 
-def build_server():
-    """Build the server with its three tools registered."""
+def build_server() -> Any:
+    """Build the server with its three tools registered.
+
+    Returns the mcp SDK's ``FastMCP`` instance. That type cannot be named in
+    this signature: ``mcp`` is an optional extra, and this module's whole
+    point is to not import it at module level, so there is no ``FastMCP``
+    name here for even a string annotation to resolve to. ``Any`` says that
+    honestly rather than writing a forward reference to a name nothing in
+    this file ever defines.
+    """
     server = _fastmcp()("sluicer")
 
     @server.tool()
@@ -69,7 +78,15 @@ def build_server():
 
     @server.tool()
     def fetch_page(url: str) -> dict:
-        """Fetch a page and report which rung it took and every climb."""
+        """Fetch a page and report which rung it took and every climb.
+
+        Unlike ``extract_declared`` and ``page_markdown``, literal HTML is
+        not a legitimate input here: this tool's whole job is to fetch, so a
+        caller handed back the string it sent -- with no way to tell that
+        nothing was fetched -- is worse than an error.
+        """
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(f"fetch_page needs an http:// or https:// URL, got {url!r}")
         html, fetched = _html_of(url)
         return {"html": html, "fetch": fetched}
 
@@ -77,5 +94,16 @@ def build_server():
 
 
 def main() -> None:
-    """Run the server over stdio."""
-    build_server().run()
+    """Run the server over stdio, or explain a missing extra in one line.
+
+    Only ``McpExtraMissing`` is caught here, the same as ``FetchExtraMissing``
+    and ``MarkdownExtraMissing`` are caught at their own entry points: a
+    genuinely absent extra becomes a one-line message, while a real import
+    failure from inside a broken install keeps its traceback.
+    """
+    try:
+        server = build_server()
+    except McpExtraMissing as missing:
+        print(str(missing), file=sys.stderr)
+        raise SystemExit(1) from missing
+    server.run()
