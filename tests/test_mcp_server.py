@@ -70,7 +70,6 @@ def test_a_missing_extra_says_how_to_install_it(monkeypatch):
         def find_spec(self, name, path=None, target=None):
             if name == "mcp" or name.startswith("mcp."):
                 raise ModuleNotFoundError(f"No module named {name!r}", name=name)
-            return None
 
     for name in [n for n in list(sys.modules) if n == "mcp" or n.startswith("mcp.")]:
         monkeypatch.delitem(sys.modules, name, raising=False)
@@ -118,7 +117,6 @@ def test_running_without_the_extra_is_a_message_not_a_traceback(monkeypatch, cap
         def find_spec(self, name, path=None, target=None):
             if name == "mcp" or name.startswith("mcp."):
                 raise ModuleNotFoundError(f"No module named {name!r}", name=name)
-            return None
 
     for name in [n for n in list(sys.modules) if n == "mcp" or n.startswith("mcp.")]:
         monkeypatch.delitem(sys.modules, name, raising=False)
@@ -182,7 +180,8 @@ def test_extract_declared_reports_the_url_it_landed_on(monkeypatch):
     fake_fetch(
         monkeypatch,
         html='<html><head><script type="application/ld+json">'
-        '{"@type":"Product","name":"Brake pad set"}</script></head><body></body></html>',
+        '{"@type":"Product","name":"Brake pad set"}</script>'
+        "</head><body></body></html>",
     )
     from sluicer.mcp_server import build_server
 
@@ -248,7 +247,6 @@ def test_an_mcp_that_is_installed_but_wrong_keeps_its_traceback(monkeypatch):
         def find_spec(self, name, path=None, target=None):
             if name == "mcp.server.mcpserver":
                 raise ModuleNotFoundError(f"No module named {name!r}", name=name)
-            return None
 
     for name in [n for n in list(sys.modules) if n == "mcp" or n.startswith("mcp.")]:
         monkeypatch.delitem(sys.modules, name, raising=False)
@@ -272,9 +270,12 @@ def absent(monkeypatch, *names):
             for gone in names:
                 if name == gone or name.startswith(gone + "."):
                     raise ModuleNotFoundError(f"No module named {name!r}", name=name)
-            return None
 
-    for name in [n for n in list(sys.modules) if any(n == g or n.startswith(g + ".") for g in names)]:
+    for name in [
+        n
+        for n in list(sys.modules)
+        if any(n == g or n.startswith(g + ".") for g in names)
+    ]:
         monkeypatch.delitem(sys.modules, name, raising=False)
     monkeypatch.setattr(sys, "meta_path", [Finder(), *sys.meta_path])
 

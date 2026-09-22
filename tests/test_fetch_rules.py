@@ -2,7 +2,9 @@ import json
 
 from sluicer.fetch.rules import MARKUP_CEILING, why_climb
 
-FULL_PAGE = "<html><body>" + ("Real sentences of real content. " * 40) + "</body></html>"
+FULL_PAGE = (
+    "<html><body>" + ("Real sentences of real content. " * 40) + "</body></html>"
+)
 
 
 def test_a_good_page_does_not_climb():
@@ -21,7 +23,10 @@ def test_a_server_error_does_not_climb():
 
 
 def test_a_challenge_page_climbs_even_with_status_200():
-    challenge = '<html><body><div id="cf-challenge-running"></div>Just a moment...</body></html>'
+    challenge = (
+        '<html><body><div id="cf-challenge-running"></div>'
+        "Just a moment...</body></html>"
+    )
 
     reason = why_climb(200, challenge, found_records=False)
 
@@ -30,7 +35,11 @@ def test_a_challenge_page_climbs_even_with_status_200():
 
 
 def test_a_skeletal_body_climbs():
-    skeleton = '<html><body><div id="app"></div>' + ('<script src="a.js"></script>' * 80) + "</body></html>"
+    skeleton = (
+        '<html><body><div id="app"></div>'
+        + ('<script src="a.js"></script>' * 80)
+        + "</body></html>"
+    )
 
     assert why_climb(200, skeleton, found_records=False) is not None
 
@@ -51,7 +60,9 @@ def test_a_page_that_declared_nothing_and_says_little_climbs():
 
 
 def test_a_refusal_that_is_also_a_challenge_names_the_challenge():
-    challenge_refusal = '<html><body><div id="cf-challenge-running"></div>Forbidden</body></html>'
+    challenge_refusal = (
+        '<html><body><div id="cf-challenge-running"></div>Forbidden</body></html>'
+    )
 
     reason = why_climb(403, challenge_refusal, found_records=False)
 

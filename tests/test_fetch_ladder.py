@@ -68,7 +68,9 @@ def test_a_rung_that_raises_climbs_to_the_next():
     http_raises.calls = []
     browser = rung("browser", RICH)
 
-    result = fetch("https://example.com", rungs=[("http", http_raises), ("browser", browser)])
+    result = fetch(
+        "https://example.com", rungs=[("http", http_raises), ("browser", browser)]
+    )
 
     assert result.rung == "browser"
     assert len(result.climbs) == 1
@@ -216,7 +218,9 @@ def test_a_robots_file_that_404s_means_no_rules_were_published():
     """
     from sluicer.fetch.ladder import _default_robots_reader
 
-    read = _default_robots_reader(rung("http", "<html><body>Not found</body></html>", status=404))
+    read = _default_robots_reader(
+        rung("http", "<html><body>Not found</body></html>", status=404)
+    )
 
     assert read("https://example.com/robots.txt") is None
 

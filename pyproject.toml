@@ -75,4 +75,40 @@ build-backend = "hatchling.build"
 packages = ["src/sluicer"]
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "ruff>=0.16", "mypy>=1.11"]
+
+# Four human review passes were the only thing between a defect and this
+# repository, and a wrong type annotation still got through one of them. The
+# three sections below are the gates that make the design's "binding"
+# constraints something a machine can refuse, rather than something a reader
+# has to notice.
+
+[tool.ruff]
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Chosen for what this project actually is -- a small, typed, dependency-light
+# library whose whole promise is determinism -- not for the largest number of
+# rules available.
+select = [
+    "E",    # pycodestyle errors: the shape of the line
+    "W",    # pycodestyle warnings: trailing whitespace, missing final newline
+    "F",    # pyflakes: unused imports and names, the defects that are never style
+    "I",    # isort: one import order, so a diff never argues about it
+    "UP",   # pyupgrade: this package is >=3.10 and should be written like it
+    "B",    # flake8-bugbear: mutable defaults, loop-variable capture, real traps
+    "SIM",  # flake8-simplify: the shorter spelling of a control flow already here
+    "RET",  # flake8-return: an explicit `return None` that says nothing
+    "PLR1711",  # pylint: a `return` on the last line of a None function
+    "PLR0402",  # pylint: `import x.y as y` where `from x import y` is meant
+    "BLE",  # flake8-blind-except: every bare `except Exception` must be argued for
+    "PIE",  # flake8-pie: `startswith(a) or startswith(b)` is one call
+    "RUF",  # ruff's own: unsorted __all__, unused unpacked variables
+]
+
+[tool.ruff.lint.isort]
+# `from sluicer.fetch import RobotsRefused, fetch as fetch_url` is one import
+# of one module and reads as one line. Splitting the aliased name onto a line
+# of its own, which is isort's default, says there are two.
+combine-as-imports = true

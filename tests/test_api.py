@@ -12,7 +12,10 @@ def test_extract_reports_records_and_which_readers_fired():
 
     assert result.url == "https://example.com/p"
     assert result.sources == ["jsonld"]
-    assert any(r.fields.get("sku") and r.fields["sku"].value == "BP-1187" for r in result.records)
+    assert any(
+        r.fields.get("sku") and r.fields["sku"].value == "BP-1187"
+        for r in result.records
+    )
 
 
 def test_a_page_declaring_nothing_extracts_nothing_and_says_so():

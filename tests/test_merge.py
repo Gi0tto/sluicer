@@ -28,7 +28,10 @@ def test_nothing_declared_gives_no_records():
 
 def test_two_jsonld_objects_of_one_type_stay_two_records():
     records = merge(
-        jsonld=[{"@type": "Product", "name": "First"}, {"@type": "Product", "sku": "X9"}],
+        jsonld=[
+            {"@type": "Product", "name": "First"},
+            {"@type": "Product", "sku": "X9"},
+        ],
         microdata=[],
         opengraph={},
     )
@@ -44,7 +47,10 @@ def test_two_jsonld_objects_of_one_type_stay_two_records():
 
 def test_microdata_folds_into_the_first_record_of_its_type():
     records = merge(
-        jsonld=[{"@type": "Product", "name": "First"}, {"@type": "Product", "sku": "X9"}],
+        jsonld=[
+            {"@type": "Product", "name": "First"},
+            {"@type": "Product", "sku": "X9"},
+        ],
         microdata=[{"@type": "Product", "colour": "red"}],
         opengraph={},
     )
@@ -56,7 +62,10 @@ def test_microdata_folds_into_the_first_record_of_its_type():
 
 def test_opengraph_fills_only_the_first_record():
     records = merge(
-        jsonld=[{"@type": "Product", "name": "First"}, {"@type": "Product", "sku": "X9"}],
+        jsonld=[
+            {"@type": "Product", "name": "First"},
+            {"@type": "Product", "sku": "X9"},
+        ],
         microdata=[],
         opengraph={"title": "Page title"},
     )
@@ -137,7 +146,13 @@ def test_a_null_does_not_shadow_a_real_value_from_a_later_reader():
 
 def test_a_boolean_is_recorded_the_way_the_page_declared_it():
     records = merge(
-        jsonld=[{"@type": "Product", "isAccessibleForFree": True, "isFamilyFriendly": False}],
+        jsonld=[
+            {
+                "@type": "Product",
+                "isAccessibleForFree": True,
+                "isFamilyFriendly": False,
+            }
+        ],
         microdata=[],
         opengraph={},
     )

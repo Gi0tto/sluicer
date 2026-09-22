@@ -9,8 +9,8 @@ __all__ = [
     "Field",
     "MarkdownExtraMissing",
     "Record",
+    "__version__",
     "extract",
     "to_markdown",
-    "__version__",
 ]
 __version__ = "0.0.1"

@@ -90,7 +90,7 @@ def test_a_rung_returns_a_fetched_carrying_the_status(monkeypatch):
     from sluicer.fetch.identity import USER_AGENT
     from sluicer.fetch.scrapling_rungs import default_rungs
 
-    name, rung = default_rungs()[0]
+    _name, rung = default_rungs()[0]
     result = rung("https://example.com/p")
 
     assert isinstance(result, Fetched)
@@ -180,7 +180,6 @@ class _NoScrapling:
     def find_spec(self, name, path=None, target=None):
         if name == "scrapling" or name.startswith("scrapling."):
             raise ModuleNotFoundError(f"No module named {name!r}", name=name)
-        return None
 
 
 def test_a_missing_scrapling_says_how_to_install_it(monkeypatch):
@@ -201,7 +200,7 @@ def test_a_response_without_html_is_a_failed_rung(monkeypatch):
     fake_scrapling(monkeypatch, html=None)
     from sluicer.fetch.scrapling_rungs import default_rungs
 
-    name, rung = default_rungs()[0]
+    _name, rung = default_rungs()[0]
     with pytest.raises(ValueError) as raised:
         rung("https://example.com/p")
 

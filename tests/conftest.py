@@ -70,8 +70,9 @@ def absent(monkeypatch):
             def find_spec(self, name, path=None, target=None):
                 for gone in names:
                     if name == gone or name.startswith(gone + "."):
-                        raise ModuleNotFoundError(f"No module named {name!r}", name=name)
-                return None
+                        raise ModuleNotFoundError(
+                            f"No module named {name!r}", name=name
+                        )
 
         for name in list(sys.modules):
             if any(name == gone or name.startswith(gone + ".") for gone in names):

@@ -136,4 +136,8 @@ def _types(declared: object) -> tuple[str, ...]:
         declared = [declared]
     if not isinstance(declared, list):
         return ()
-    return tuple(name.strip() for name in declared if isinstance(name, str) and name.strip())
+    return tuple(
+        name.strip()
+        for name in declared
+        if isinstance(name, str) and name.strip()
+    )

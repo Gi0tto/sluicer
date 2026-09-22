@@ -9,7 +9,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_extract_prints_json_records():
-    result = CliRunner().invoke(main, ["extract", str(FIXTURES / "product_jsonld.html")])
+    result = CliRunner().invoke(
+        main, ["extract", str(FIXTURES / "product_jsonld.html")]
+    )
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
@@ -48,10 +50,17 @@ def test_a_url_is_fetched_and_the_ladder_is_reported(monkeypatch):
         return Fetched(
             url=url,
             html='<html><head><script type="application/ld+json">'
-            '{"@type":"Product","name":"Brake pad set"}</script></head><body></body></html>',
+            '{"@type":"Product","name":"Brake pad set"}</script>'
+            "</head><body></body></html>",
             status=200,
             rung="browser",
-            climbs=[Climb(from_rung="http", to_rung="browser", reason="the server refused: status 403")],
+            climbs=[
+                Climb(
+                    from_rung="http",
+                    to_rung="browser",
+                    reason="the server refused: status 403",
+                )
+            ],
         )
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
@@ -73,7 +82,9 @@ def test_a_path_is_still_read_from_disk():
     from sluicer.cli import main
 
     fixtures = Path(__file__).parent / "fixtures"
-    result = CliRunner().invoke(main, ["extract", str(fixtures / "product_jsonld.html")])
+    result = CliRunner().invoke(
+        main, ["extract", str(fixtures / "product_jsonld.html")]
+    )
 
     assert result.exit_code == 0
 
@@ -132,8 +143,16 @@ def test_an_empty_url_result_still_reports_what_the_fetch_cost(monkeypatch):
             status=200,
             rung="stealth",
             climbs=[
-                Climb(from_rung="http", to_rung="browser", reason="the server refused: status 403"),
-                Climb(from_rung="browser", to_rung="stealth", reason="the page looks like a challenge"),
+                Climb(
+                    from_rung="http",
+                    to_rung="browser",
+                    reason="the server refused: status 403",
+                ),
+                Climb(
+                    from_rung="browser",
+                    to_rung="stealth",
+                    reason="the page looks like a challenge",
+                ),
             ],
         )
 
@@ -229,7 +248,9 @@ def test_markdown_prints_the_main_content(monkeypatch, tmp_path):
 
     from sluicer.cli import main
 
-    monkeypatch.setattr("sluicer.cli.to_markdown", lambda html, url=None: "# Title\n\nBody.")
+    monkeypatch.setattr(
+        "sluicer.cli.to_markdown", lambda html, url=None: "# Title\n\nBody."
+    )
     page = tmp_path / "page.html"
     page.write_text("<html><body><h1>Title</h1></body></html>")
 
@@ -290,7 +311,10 @@ def test_a_windows_1252_file_keeps_its_characters(monkeypatch, tmp_path):
     from sluicer.cli import main
 
     page = tmp_path / "cafe.html"
-    html = '<html><head><meta charset="windows-1252"></head><body>Caf\xe9 au lait</body></html>'
+    html = (
+        '<html><head><meta charset="windows-1252"></head>'
+        "<body>Caf\xe9 au lait</body></html>"
+    )
     page.write_bytes(html.encode("windows-1252"))
 
     received: dict[str, object] = {}
@@ -299,7 +323,11 @@ def test_a_windows_1252_file_keeps_its_characters(monkeypatch, tmp_path):
         received["value"] = html_or_bytes
         # Decode it ourselves so the test can also see what the command
         # would have printed, had the byte survived.
-        return html_or_bytes.decode("windows-1252") if isinstance(html_or_bytes, bytes) else html_or_bytes
+        return (
+            html_or_bytes.decode("windows-1252")
+            if isinstance(html_or_bytes, bytes)
+            else html_or_bytes
+        )
 
     monkeypatch.setattr("sluicer.cli.to_markdown", fake_to_markdown)
 
@@ -334,7 +362,9 @@ def test_a_windows_1252_files_declared_data_keeps_its_characters(tmp_path):
     assert payload["records"][0]["fields"]["name"]["value"] == "Caf\xe9 filter"
 
 
-def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(monkeypatch, absent):
+def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(
+    monkeypatch, absent
+):
     """The rule ``sluicer.extras`` states, driven through the front door.
 
     Nothing here fakes the exception: the real ``fetch`` runs, with fake rungs
@@ -347,7 +377,9 @@ def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(monk
     from sluicer.fetch.result import Fetched
 
     def rung(url):
-        return Fetched(url=url, html="<html><body>hi</body></html>", status=200, rung="http")
+        return Fetched(
+            url=url, html="<html><body>hi</body></html>", status=200, rung="http"
+        )
 
     monkeypatch.setattr(
         "sluicer.cli.fetch_url",
@@ -363,4 +395,6 @@ def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(monk
 
     assert result.exit_code == 1
     assert "uv pip install 'sluicer[fetch]'" in result.stderr
-    assert isinstance(result.exception, SystemExit), f"reached the user as {result.exception!r}"
+    assert isinstance(
+        result.exception, SystemExit
+    ), f"reached the user as {result.exception!r}"

@@ -69,7 +69,7 @@ def test_bytes_reach_trafilatura_undecoded(monkeypatch):
     seen = fake_trafilatura(monkeypatch)
     from sluicer.markdown import to_markdown
 
-    to_markdown("<html><body>hi</body></html>".encode())
+    to_markdown(b"<html><body>hi</body></html>")
 
     assert isinstance(seen["called_with"][0], bytes)
 
@@ -84,7 +84,6 @@ def test_a_missing_extra_says_how_to_install_it(monkeypatch):
         def find_spec(self, name, path=None, target=None):
             if name == "trafilatura" or name.startswith("trafilatura."):
                 raise ModuleNotFoundError(f"No module named {name!r}", name=name)
-            return None
 
     monkeypatch.delitem(sys.modules, "trafilatura", raising=False)
     monkeypatch.setattr(sys, "meta_path", [_NoTrafilatura(), *sys.meta_path])

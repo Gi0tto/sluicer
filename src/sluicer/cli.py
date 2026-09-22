@@ -36,7 +36,7 @@ def _read_source(source: str) -> tuple[str | bytes, str | None, Fetched | None]:
     The third element is the ``Fetched`` record when ``source`` was a URL, or
     ``None`` for a file, since only the URL case has a ladder to report on.
     """
-    if source.startswith("http://") or source.startswith("https://"):
+    if source.startswith(("http://", "https://")):
         # FetchExtraMissing means the optional fetch stack (scrapling) is
         # not installed. Its message already names the fix, so it is
         # printed as-is. Catching only this type -- not ImportError itself
@@ -123,7 +123,10 @@ def extract(source: str) -> None:
             # answer is "nothing found".
             click.echo(f"Fetch reached the '{fetched.rung}' rung.", err=True)
             for climb in fetched.climbs:
-                click.echo(f"  {climb.from_rung} -> {climb.to_rung}: {climb.reason}", err=True)
+                click.echo(
+                    f"  {climb.from_rung} -> {climb.to_rung}: {climb.reason}",
+                    err=True,
+                )
         raise SystemExit(1)
     payload = asdict(result)
     if fetched is not None:

@@ -19,7 +19,6 @@ def _absent(*names):
             for absent in names:
                 if name == absent or name.startswith(absent + "."):
                     raise ModuleNotFoundError(f"No module named {name!r}", name=name)
-            return None
 
     return Finder()
 
@@ -51,8 +50,12 @@ def test_a_missing_submodule_of_a_present_package_keeps_its_traceback(monkeypatc
     """A broken install must not be told to install what is already there."""
     from sluicer.extras import MissingExtra, import_extra
 
-    monkeypatch.setitem(sys.modules, "pretend_package", types.ModuleType("pretend_package"))
-    monkeypatch.setattr(sys, "meta_path", [_absent("pretend_package.inner"), *sys.meta_path])
+    monkeypatch.setitem(
+        sys.modules, "pretend_package", types.ModuleType("pretend_package")
+    )
+    monkeypatch.setattr(
+        sys, "meta_path", [_absent("pretend_package.inner"), *sys.meta_path]
+    )
 
     with pytest.raises(ModuleNotFoundError) as raised:
         import_extra("pretend_package.inner", "fetch", doing="Doing the thing")
@@ -67,7 +70,6 @@ def test_a_plain_import_error_from_inside_a_working_install_is_re_raised(monkeyp
         def find_spec(self, name, path=None, target=None):
             if name == "pretend_package":
                 raise ImportError("something inside the package is broken")
-            return None
 
     monkeypatch.delitem(sys.modules, "pretend_package", raising=False)
     monkeypatch.setattr(sys, "meta_path", [Broken(), *sys.meta_path])
@@ -127,6 +129,8 @@ def test_the_named_subclass_is_what_gets_raised(monkeypatch):
     monkeypatch.setattr(sys, "meta_path", [_absent("pretend_package"), *sys.meta_path])
 
     with pytest.raises(PretendMissing) as raised:
-        import_extra("pretend_package", "fetch", doing="Doing the thing", error=PretendMissing)
+        import_extra(
+            "pretend_package", "fetch", doing="Doing the thing", error=PretendMissing
+        )
 
     assert raised.value.extra == "fetch"

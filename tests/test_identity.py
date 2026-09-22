@@ -34,11 +34,16 @@ def test_a_site_with_no_robots_allows_us():
 
 
 def test_a_site_that_refuses_us_is_obeyed():
-    assert robots_allows("https://example.com/private/p", read=lambda url: REFUSE_US) is False
+    assert (
+        robots_allows("https://example.com/private/p", read=lambda url: REFUSE_US)
+        is False
+    )
 
 
 def test_a_path_that_same_site_allows_is_allowed():
-    assert robots_allows("https://example.com/public", read=lambda url: REFUSE_US) is True
+    assert (
+        robots_allows("https://example.com/public", read=lambda url: REFUSE_US) is True
+    )
 
 
 def test_the_answer_is_cached_per_host():
@@ -80,14 +85,20 @@ def test_an_answer_older_than_a_day_is_asked_again():
     def now():
         return clock[0]
 
-    assert robots_allows("https://example.com/p", read=read, cache=cache, now=now) is True
+    assert (
+        robots_allows("https://example.com/p", read=read, cache=cache, now=now) is True
+    )
 
     clock[0] = 23 * 60 * 60
-    assert robots_allows("https://example.com/p", read=read, cache=cache, now=now) is True
+    assert (
+        robots_allows("https://example.com/p", read=read, cache=cache, now=now) is True
+    )
     assert calls == ["https://example.com/robots.txt"], "re-read before the day was out"
 
     clock[0] = 24 * 60 * 60 + 1
-    assert robots_allows("https://example.com/p", read=read, cache=cache, now=now) is False
+    assert (
+        robots_allows("https://example.com/p", read=read, cache=cache, now=now) is False
+    )
     assert len(calls) == 2, "the expired entry was not read again"
 
 
@@ -104,7 +115,11 @@ def test_http_and_https_on_one_host_are_two_different_robots_files():
 
     def read(url):
         calls.append(url)
-        return "User-agent: *\nDisallow: /\n" if url.startswith("http://") else ALLOW_ALL
+        return (
+            "User-agent: *\nDisallow: /\n"
+            if url.startswith("http://")
+            else ALLOW_ALL
+        )
 
     cache: dict = {}
 

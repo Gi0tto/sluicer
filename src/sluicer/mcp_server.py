@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import functools
 import sys
+from collections.abc import Callable
 from dataclasses import asdict
-from typing import Any, Callable
+from typing import Any
 
 from sluicer.api import extract
 from sluicer.extras import MissingExtra, import_extra
@@ -172,7 +173,9 @@ def build_server() -> Any:
         nothing was fetched -- is worse than an error.
         """
         if not url.startswith(("http://", "https://")):
-            raise ValueError(f"fetch_page needs an http:// or https:// URL, got {url!r}")
+            raise ValueError(
+                f"fetch_page needs an http:// or https:// URL, got {url!r}"
+            )
         html, _url, fetched = _html_of(url)
         return {"html": html, "fetch": fetched}
 

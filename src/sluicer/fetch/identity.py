@@ -9,7 +9,7 @@ Sluicer arrives under its own name and obeys what it is told.
 from __future__ import annotations
 
 import time
-from typing import Callable
+from collections.abc import Callable
 from urllib.parse import urlsplit, urlunsplit
 
 from sluicer import __version__

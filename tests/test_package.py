@@ -28,8 +28,8 @@ def test_the_fetch_package_has_a_surface_of_its_own():
 
 def test_the_rung_type_lives_beside_the_result_it_returns():
     """The adapter must not have to import a type from the orchestrator."""
-    import sluicer.fetch.result as result
     import sluicer.fetch.scrapling_rungs as adapter
+    from sluicer.fetch import result
 
     assert adapter.Rung is result.Rung
 
@@ -41,7 +41,7 @@ def test_installing_the_mcp_extra_gives_a_server_whose_tools_all_work():
     self-referential extra is a thing the packaging machinery has to resolve,
     and the only proof that it did is what the installer will read.
     """
-    import importlib.metadata as metadata
+    from importlib import metadata
 
     required = metadata.requires("sluicer")
     under_mcp = [line for line in required if "extra == 'mcp'" in line]
@@ -96,9 +96,11 @@ def test_the_fetch_extra_declares_the_robots_parser_it_uses():
     reason the mcp test above does: what the installer will read is the only
     proof that matters.
     """
-    import importlib.metadata as metadata
+    from importlib import metadata
 
-    under_fetch = [line for line in metadata.requires("sluicer") if "extra == 'fetch'" in line]
+    under_fetch = [
+        line for line in metadata.requires("sluicer") if "extra == 'fetch'" in line
+    ]
 
     assert any(
         "protego" in line for line in under_fetch

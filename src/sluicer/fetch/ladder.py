@@ -16,7 +16,7 @@ them the same shape is the failure this project spends its history removing.
 
 from __future__ import annotations
 
-from typing import Callable, Sequence
+from collections.abc import Callable, Sequence
 
 from sluicer.api import extract
 from sluicer.document import load
@@ -79,7 +79,14 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
     def read(url: str) -> str | None:
         try:
             response = cheapest_rung(url)
-        except Exception:
+        # Deliberately blind, and the docstring above says why: every way a
+        # rung can fail to reach robots.txt -- refused connection, DNS, a
+        # timeout, a rung raising something of its own -- is the same event,
+        # "nothing answered", and nothing that never answered can have
+        # refused us. Narrowing this to a list of exception types would be a
+        # list of the failures we happened to think of, and the first one
+        # missing from it would escape as a traceback out of a robots check.
+        except Exception:  # noqa: BLE001
             return None
         if response.status >= 500:
             return UNAVAILABLE_MEANS_STAY_OUT
@@ -121,27 +128,45 @@ def fetch(
         raise ValueError("A ladder needs at least one rung.")
 
     if obey_robots:
-        read = robots_reader if robots_reader is not None else _default_robots_reader(rungs[0][1])
+        read = (
+            robots_reader
+            if robots_reader is not None
+            else _default_robots_reader(rungs[0][1])
+        )
         if not robots_allows(url, read=read):
             raise RobotsRefused(url)
 
     climbs: list[Climb] = []
+    last = len(rungs) - 1
     for index, (name, rung) in enumerate(rungs):
         try:
             result = rung(url)
         except Exception as e:
             # A rung that raises is a rung that failed
-            if index == len(rungs) - 1:
+            if index == last:
                 # Last rung's exception propagates to the caller
                 raise
             # Record the climb and try the next rung
             reason = f"the rung raised {type(e).__name__}: {e}"
-            climbs.append(Climb(from_rung=name, to_rung=rungs[index + 1][0], reason=reason))
+            climbs.append(
+                Climb(from_rung=name, to_rung=rungs[index + 1][0], reason=reason)
+            )
             continue
 
         result.climbs = list(climbs)
         found = bool(extract(result.html, url=url).records)
         reason = why_climb(result.status, result.html, found_records=found)
-        if reason is None or index == len(rungs) - 1:
+        if reason is None or index == last:
             return result
-        climbs.append(Climb(from_rung=name, to_rung=rungs[index + 1][0], reason=reason))
+        climbs.append(
+            Climb(from_rung=name, to_rung=rungs[index + 1][0], reason=reason)
+        )
+
+    # Unreachable, and written out rather than left implicit. The ladder is
+    # known non-empty by the guard above, and the last rung either returns a
+    # page or re-raises, so the loop cannot run out. Falling off the end used
+    # to return None from a function declared to return ``Fetched`` -- the
+    # exact shape of "a failure wearing the shape of a success" this module
+    # exists to refuse. If a Sequence ever disagrees with its own ``len``,
+    # this says so instead of handing the caller a None it cannot use.
+    raise AssertionError("the ladder ran out of rungs without returning a page")
