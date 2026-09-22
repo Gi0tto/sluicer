@@ -23,9 +23,16 @@ class Field:
 
 @dataclass
 class Record:
-    """A set of fields describing one thing on the page."""
+    """A set of fields describing one thing on the page.
+
+    ``type`` is the first type the page declared for this thing; ``types``
+    is every type it declared. JSON-LD allows a list -- Yoast routinely
+    emits ``["Person", "Organization"]`` -- and the whole list is what the
+    fold matches on.
+    """
 
     type: str | None = None
+    types: tuple[str, ...] = ()
     fields: dict[str, Field] = field(default_factory=dict)
 
 
@@ -36,25 +43,30 @@ def merge(
 ) -> list[Record]:
     """Merge reader output. Earlier sources win; every field keeps its source.
 
-    When several records share a @type, gap-filling from lower-precedence
-    readers targets the first record of that type. This is a deliberate choice
-    for the common page shape where one primary entity may be described in
-    multiple ways, and secondary mentions (such as breadcrumb schemas) should
-    not receive fields intended for the primary one."""
+    Two records fold together when they declare at least one type in common:
+    a page saying ``["Product", "Thing"]`` in JSON-LD and ``Thing`` in
+    microdata is describing one thing twice. A record that declares no type
+    never folds, with anything: "unknown" is not an identity, and two untyped
+    things are not one thing. Each untyped record stays on its own.
+
+    When more than one record could receive a gap-filling field, the fold
+    targets the first matching record in document order, and OpenGraph, which
+    declares no type at all, fills the first record on the page. Document
+    order is the only deterministic signal available in this slice: nothing
+    here knows which record is the page's primary entity, so on a page whose
+    @graph opens with a BreadcrumbList the og:title lands on the breadcrumb.
+    That is a known limit of this slice, not a claim about picking the right
+    record."""
     records: list[Record] = []
-    by_type: dict[str | None, Record] = {}
 
     for item in jsonld:
-        record = _record_from(item, "jsonld")
-        records.append(record)
-        by_type.setdefault(record.type, record)
+        records.append(_record_from(item, "jsonld"))
 
     for item in microdata:
         record = _record_from(item, "microdata")
-        target = by_type.get(record.type)
+        target = _fold_target(records, record)
         if target is None:
             records.append(record)
-            by_type.setdefault(record.type, record)
             continue
         for key, value in record.fields.items():
             target.fields.setdefault(key, value)
@@ -68,8 +80,19 @@ def merge(
     return records
 
 
+def _fold_target(records: list[Record], incoming: Record) -> Record | None:
+    """The first record sharing a type with ``incoming``, or None if none does."""
+    if not incoming.types:
+        return None
+    for record in records:
+        if set(record.types) & set(incoming.types):
+            return record
+    return None
+
+
 def _record_from(item: dict, source: str) -> Record:
-    record = Record(type=item.get("@type"))
+    types = _types(item.get("@type"))
+    record = Record(type=types[0] if types else None, types=types)
     for key, value in item.items():
         if key.startswith("@"):
             continue
@@ -77,3 +100,12 @@ def _record_from(item: dict, source: str) -> Record:
             continue
         record.fields[key] = Field(value=str(value), source=source)
     return record
+
+
+def _types(declared: object) -> tuple[str, ...]:
+    """Every type declared for one item, in the order the page declared them."""
+    if isinstance(declared, str):
+        declared = [declared]
+    if not isinstance(declared, list):
+        return ()
+    return tuple(name.strip() for name in declared if isinstance(name, str) and name.strip())
