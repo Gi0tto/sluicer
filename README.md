@@ -64,7 +64,8 @@ uv pip install -e .    # or the library, editable
 ## Use it
 
 ```bash
-sluicer extract page.html
+sluicer extract page.html          # a file you already have
+sluicer extract https://example.com/product   # needs the fetch extra
 ```
 
 ```json
@@ -88,6 +89,26 @@ sluicer extract page.html
 
 That page declared the same product three times, in three vocabularies. You get
 one record, and every field still says which vocabulary it came from.
+
+Give it a URL and the answer carries what the page cost:
+
+```json
+"fetch": {
+  "rung": "browser",
+  "status": 200,
+  "climbs": [
+    {
+      "from_rung": "http",
+      "to_rung": "browser",
+      "reason": "the response is a challenge page, not the content: 'just a moment'"
+    }
+  ]
+}
+```
+
+Sluicer starts at plain HTTP and climbs to a browser only when a measurement
+says the cheap rung brought back a refusal, a challenge or a skeleton. Fetching
+needs the extra: `uv pip install 'sluicer[fetch]'`, which brings in `scrapling`.
 
 From Python:
 

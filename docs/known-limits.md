@@ -20,11 +20,13 @@ lands on the breadcrumb rather than the product. Document order is the only
 deterministic signal available in this slice; trust scoring is where a better one
 can come from.
 
-**`load()` takes text, not bytes.** When the first parse fails it retries by
-encoding to UTF-8 and telling the parser so, which keeps a document whose
-declaration disagrees with its bytes from corrupting the text. Honouring a
-declared encoding properly needs the original bytes, and those only exist one
-layer earlier, at the fetch. Settle it in the fetch ladder plan.
+**A declared encoding can still disagree with the bytes.** `load()` takes
+`str` or `bytes`, and bytes are the better answer when a caller has them: lxml
+then honours the document's own declaration. When only text is available and
+lxml cannot parse it, the retry reads it as UTF-8 whatever the document claims,
+because a declaration that disagrees with the bytes must not be allowed to
+corrupt the text. A caller holding the transport's charset header has better
+information than either, and nothing currently accepts it.
 
 **RDFa is named in the design and not implemented.** `declared` covers JSON-LD,
 microdata and OpenGraph today.
