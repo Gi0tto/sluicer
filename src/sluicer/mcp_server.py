@@ -13,26 +13,33 @@ from dataclasses import asdict
 from typing import Any
 
 from sluicer.api import extract
+from sluicer.extras import MissingExtra, import_extra
 from sluicer.markdown import to_markdown
 
-_MISSING = (
-    "Running the MCP server needs the mcp package, which is not installed. "
-    "Install it with: uv pip install 'sluicer[mcp]'"
-)
 
-
-class McpExtraMissing(ImportError):
-    """The optional mcp extra is not installed, as opposed to broken."""
+class McpExtraMissing(MissingExtra):
+    """The optional ``mcp`` extra is not installed, as opposed to broken."""
 
 
 def _fastmcp():
-    try:
-        from mcp.server.fastmcp import FastMCP
-    except ModuleNotFoundError as missing:
-        if missing.name == "mcp" or (missing.name or "").startswith("mcp."):
-            raise McpExtraMissing(_MISSING) from missing
-        raise
-    return FastMCP
+    """Return the SDK's ``FastMCP`` class, or say the extra is not installed.
+
+    This once matched ``"mcp"`` *or* anything under ``mcp.``, unlike the other
+    two extras, which match the top-level name only. The wider match is not
+    needed and is now gone: ``mcp`` is pinned ``>=1.2``, the first release with
+    ``mcp.server.fastmcp``, so installing ``sluicer[mcp]`` cannot leave the
+    submodule absent. If it is absent anyway, ``mcp`` is installed and too old
+    or broken -- and "install it with uv pip install" is the wrong advice for
+    someone who already has it. That keeps its traceback, exactly as a missing
+    ``scrapling.fetchers`` does.
+    """
+    return import_extra(
+        "mcp.server.fastmcp",
+        "mcp",
+        doing="Running the MCP server",
+        package="the mcp package",
+        error=McpExtraMissing,
+    ).FastMCP
 
 
 def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:

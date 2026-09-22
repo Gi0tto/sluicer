@@ -9,40 +9,26 @@ asks for markdown should not carry the tree that produces it.
 
 from __future__ import annotations
 
+from sluicer.extras import MissingExtra, import_extra
 
-class MarkdownExtraMissing(ImportError):
-    """The optional markdown extra is not installed.
 
-    This means the package is absent, not that something inside a working
-    installation failed to import. A broken install is a bug and must surface
-    as one.
+class MarkdownExtraMissing(MissingExtra):
+    """The optional ``markdown`` extra (trafilatura) is not installed.
+
+    A name of its own, so ``sluicer.cli`` can catch exactly this and print the
+    install line instead of a traceback. What "missing" means, and why a broken
+    install keeps its traceback instead, is stated once in ``sluicer.extras``.
     """
-
-
-_MISSING = (
-    "Turning a page into markdown needs trafilatura, which is not installed. "
-    "Install it with: uv pip install 'sluicer[markdown]'"
-)
 
 
 def _trafilatura():
-    """Import trafilatura, or say the extra is not installed.
-
-    Only a genuinely absent package raises ``MarkdownExtraMissing``: a
-    ``ModuleNotFoundError`` whose ``.name`` is exactly ``"trafilatura"``.
-    Anything else -- a plain ``ImportError`` raised from inside a working
-    install, or a ``ModuleNotFoundError`` naming some other module -- is a
-    broken install, and telling that user to install what is already there
-    hides the bug. So it is re-raised untouched. This mirrors ``_fetchers()``
-    in ``sluicer/fetch/scrapling_rungs.py``.
-    """
-    try:
-        import trafilatura
-    except ModuleNotFoundError as missing:
-        if missing.name == "trafilatura":
-            raise MarkdownExtraMissing(_MISSING) from missing
-        raise
-    return trafilatura
+    """Import trafilatura, or say the extra is not installed."""
+    return import_extra(
+        "trafilatura",
+        "markdown",
+        doing="Turning a page into markdown",
+        error=MarkdownExtraMissing,
+    )
 
 
 def to_markdown(html: str | bytes, url: str | None = None) -> str:

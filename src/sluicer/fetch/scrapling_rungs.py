@@ -7,44 +7,29 @@ free, so the dependency is looked up when a rung is built, not at import time.
 
 from __future__ import annotations
 
+from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch.result import Fetched, Rung
 
-_MISSING = (
-    "Fetching a URL needs scrapling, which is not installed. "
-    "Install it with: uv pip install 'sluicer[fetch]'"
-)
 
-
-class FetchExtraMissing(ImportError):
+class FetchExtraMissing(MissingExtra):
     """The optional ``fetch`` extra (scrapling) is not installed.
 
-    This is its own type rather than a bare ``ImportError`` on purpose: a
-    caller that wants to say "install the extra" needs to catch exactly
-    this and nothing wider. A real import failure from somewhere inside a
-    working scrapling install is still an ``ImportError``, since this
-    subclasses it, but it is not a ``FetchExtraMissing`` and must surface
-    as the bug it is instead of being mistaken for the extra being absent.
+    A name of its own, because a caller that wants to say "install the extra"
+    needs to catch exactly this and nothing wider. What "missing" means, and
+    why a broken install must keep its traceback instead, is stated once in
+    ``sluicer.extras`` and applies here unchanged.
     """
 
 
 def _fetchers():
-    """Return the three scrapling fetchers, or say the extra is not installed.
-
-    Only one failure means "the extra is missing": the ``scrapling`` package
-    itself cannot be found. Measured, that is a ``ModuleNotFoundError`` whose
-    ``name`` is exactly ``"scrapling"``. Anything else -- a plain
-    ``ImportError`` raised from inside a working install, or a
-    ``ModuleNotFoundError`` naming some other module, including
-    ``scrapling.fetchers`` -- is a broken install, and telling that user to
-    install what is already there hides the bug. So it is re-raised untouched.
-    """
-    try:
-        from scrapling.fetchers import DynamicFetcher, Fetcher, StealthyFetcher
-    except ModuleNotFoundError as missing:
-        if missing.name != "scrapling":
-            raise
-        raise FetchExtraMissing(_MISSING) from missing
-    return Fetcher, DynamicFetcher, StealthyFetcher
+    """Return the three scrapling fetchers, or say the extra is not installed."""
+    fetchers = import_extra(
+        "scrapling.fetchers",
+        "fetch",
+        doing="Fetching a URL",
+        error=FetchExtraMissing,
+    )
+    return fetchers.Fetcher, fetchers.DynamicFetcher, fetchers.StealthyFetcher
 
 
 def _as_fetched(response, rung: str, requested_url: str) -> Fetched:
