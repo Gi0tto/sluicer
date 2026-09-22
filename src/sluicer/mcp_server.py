@@ -22,25 +22,31 @@ class McpExtraMissing(MissingExtra):
     """The optional ``mcp`` extra is not installed, as opposed to broken."""
 
 
-def _fastmcp():
-    """Return the SDK's ``FastMCP`` class, or say the extra is not installed.
+def _server_class():
+    """Return the SDK's ``MCPServer`` class, or say the extra is not installed.
 
-    This once matched ``"mcp"`` *or* anything under ``mcp.``, unlike the other
-    two extras, which match the top-level name only. The wider match is not
-    needed and is now gone: ``mcp`` is pinned ``>=1.2``, the first release with
-    ``mcp.server.fastmcp``, so installing ``sluicer[mcp]`` cannot leave the
-    submodule absent. If it is absent anyway, ``mcp`` is installed and too old
-    or broken -- and "install it with uv pip install" is the wrong advice for
-    someone who already has it. That keeps its traceback, exactly as a missing
-    ``scrapling.fetchers`` does.
+    Named for what it returns. This built ``mcp.server.fastmcp.FastMCP`` until
+    the class was renamed in mcp 2.x, which the extra's pin now follows: the v1
+    name is gone from the package, and supporting both spellings would double
+    this surface for a project at 0.0.1 with no users to keep working.
+
+    The match here is on the top-level ``mcp`` only, the same rule the other
+    two extras use, and the rename is the proof that it is the right one.
+    mcp 2.x ships ``mcp/server/fastmcp.py`` as a module that exists solely to
+    raise ``ModuleNotFoundError(name="mcp.server.fastmcp")`` carrying its
+    migration guide. Under the wider ``mcp.*`` match this file used to have,
+    that would have been swallowed and reported as "the mcp package is not
+    installed. Install it with: uv pip install 'sluicer[mcp]'" -- sending a
+    reader to install what they already had, and throwing away the one
+    sentence that says what to do. The narrow rule lets it through untouched.
     """
     return import_extra(
-        "mcp.server.fastmcp",
+        "mcp.server.mcpserver",
         "mcp",
         doing="Running the MCP server",
         package="the mcp package",
         error=McpExtraMissing,
-    ).FastMCP
+    ).MCPServer
 
 
 def _explains_a_missing_extra(tool: Callable) -> Callable:
@@ -65,8 +71,9 @@ def _explains_a_missing_extra(tool: Callable) -> Callable:
     command line, because a person reading a terminal notices and an agent
     does not. A return type that differs between success and failure is mildly
     awkward; this is the trade, and ``page_markdown`` is annotated
-    ``str | dict`` so the annotation tells the truth and FastMCP builds an
-    output schema that admits both.
+    ``str | dict`` because that is what it returns. Measured against mcp 2.2.0,
+    a tool returning text gets no generated output schema, so the annotation
+    costs nothing there either.
 
     Only ``MissingExtra`` is caught. A real bug inside a tool is still a bug
     and still raises.
@@ -110,14 +117,14 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
 def build_server() -> Any:
     """Build the server with its three tools registered.
 
-    Returns the mcp SDK's ``FastMCP`` instance. That type cannot be named in
+    Returns the mcp SDK's ``MCPServer`` instance. That type cannot be named in
     this signature: ``mcp`` is an optional extra, and this module's whole
-    point is to not import it at module level, so there is no ``FastMCP``
+    point is to not import it at module level, so there is no ``MCPServer``
     name here for even a string annotation to resolve to. ``Any`` says that
     honestly rather than writing a forward reference to a name nothing in
     this file ever defines.
     """
-    server = _fastmcp()("sluicer")
+    server = _server_class()("sluicer")
 
     @server.tool()
     @_explains_a_missing_extra

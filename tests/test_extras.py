@@ -87,7 +87,7 @@ def test_the_package_shown_in_the_message_can_be_spelled_for_a_human(monkeypatch
 
     with pytest.raises(MissingExtra) as raised:
         import_extra(
-            "mcp.server.fastmcp",
+            "mcp.server.mcpserver",
             "mcp",
             doing="Running the MCP server",
             package="the mcp package",

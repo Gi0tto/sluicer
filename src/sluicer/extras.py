@@ -16,8 +16,8 @@ first dotted component of the module being imported.
 
 Everything else is re-raised untouched, and this is the part worth defending. A
 ``ModuleNotFoundError`` naming a *submodule* -- ``scrapling.fetchers``,
-``mcp.server.fastmcp`` -- means the package is there and something inside it is
-not. So does a plain ``ImportError`` raised while a working package executes.
+``mcp.server.mcpserver`` -- means the package is there and something inside it
+is not. So does a plain ``ImportError`` raised while a working package executes.
 Both are broken installs, and a broken install told to "install it with uv pip
 install ..." is told to install what it already has: the real bug is hidden
 behind an instruction that cannot help. A traceback is the right answer there,

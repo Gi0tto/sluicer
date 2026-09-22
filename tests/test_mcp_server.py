@@ -5,10 +5,18 @@ import pytest
 
 
 def fake_mcp(monkeypatch):
-    """Stand in for the mcp SDK, recording every tool the server registers."""
+    """Stand in for the mcp SDK, recording every tool the server registers.
+
+    The module and class names here are the ones mcp 2.x actually ships:
+    ``mcp.server.mcpserver.MCPServer``. That matters more than it looks. This
+    fake presented ``mcp.server.fastmcp.FastMCP`` for a whole branch, and 128
+    tests passed against a class the installed package no longer has -- a fake
+    can only ever confirm the shape you already believe in. The suite is not
+    what catches that; installing the real package is.
+    """
     registered = {}
 
-    class FastMCP:
+    class MCPServer:
         def __init__(self, name):
             self.name = name
 
@@ -19,16 +27,16 @@ def fake_mcp(monkeypatch):
 
             return decorate
 
-        def run(self):
+        def run(self, transport="stdio", **kwargs):
             registered["__ran__"] = True
 
-    server_module = types.ModuleType("mcp.server.fastmcp")
-    server_module.FastMCP = FastMCP
+    server_module = types.ModuleType("mcp.server.mcpserver")
+    server_module.MCPServer = MCPServer
     package = types.ModuleType("mcp")
     sub = types.ModuleType("mcp.server")
     monkeypatch.setitem(sys.modules, "mcp", package)
     monkeypatch.setitem(sys.modules, "mcp.server", sub)
-    monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", server_module)
+    monkeypatch.setitem(sys.modules, "mcp.server.mcpserver", server_module)
     return registered
 
 
@@ -204,20 +212,21 @@ def test_page_markdown_hands_trafilatura_no_url_for_literal_html(monkeypatch):
     assert result == "# Brake pad set\n\nReal content."
 
 
-def test_an_mcp_that_is_installed_but_too_old_keeps_its_traceback(monkeypatch):
+def test_an_mcp_that_is_installed_but_wrong_keeps_its_traceback(monkeypatch):
     """The wider ``mcp.*`` match is gone, and this is what it used to hide.
 
-    ``mcp`` is pinned ``>=1.2``, the first release carrying
-    ``mcp.server.fastmcp``, so installing ``sluicer[mcp]`` cannot leave the
-    submodule absent. If it is absent anyway the package is there and is too
-    old or broken, and "install it with uv pip install" is advice that cannot
-    help someone who already installed it. Same rule as a missing
-    ``scrapling.fetchers``: it is a bug, so it is a traceback.
+    Not hypothetical: mcp 2.x ships ``mcp/server/fastmcp.py`` as a module whose
+    only job is to raise ``ModuleNotFoundError(name="mcp.server.fastmcp")``
+    with its migration guide in the message. A wide match would report that as
+    "the mcp package is not installed", sending a reader to install what they
+    already have and discarding the only sentence that says what to do. So a
+    missing submodule of a present package keeps its traceback, exactly as a
+    missing ``scrapling.fetchers`` does.
     """
 
-    class _NoFastMcp:
+    class _NoServerModule:
         def find_spec(self, name, path=None, target=None):
-            if name == "mcp.server.fastmcp":
+            if name == "mcp.server.mcpserver":
                 raise ModuleNotFoundError(f"No module named {name!r}", name=name)
             return None
 
@@ -225,12 +234,12 @@ def test_an_mcp_that_is_installed_but_too_old_keeps_its_traceback(monkeypatch):
         monkeypatch.delitem(sys.modules, name, raising=False)
     monkeypatch.setitem(sys.modules, "mcp", types.ModuleType("mcp"))
     monkeypatch.setitem(sys.modules, "mcp.server", types.ModuleType("mcp.server"))
-    monkeypatch.setattr(sys, "meta_path", [_NoFastMcp(), *sys.meta_path])
+    monkeypatch.setattr(sys, "meta_path", [_NoServerModule(), *sys.meta_path])
 
-    from sluicer.mcp_server import McpExtraMissing, _fastmcp
+    from sluicer.mcp_server import McpExtraMissing, _server_class
 
     with pytest.raises(ModuleNotFoundError) as raised:
-        _fastmcp()
+        _server_class()
 
     assert not isinstance(raised.value, McpExtraMissing)
 

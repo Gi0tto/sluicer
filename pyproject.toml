@@ -43,7 +43,9 @@ markdown = ["trafilatura>=2.0"]
 # page_markdown needs trafilatura for any input at all. Installing
 # sluicer[mcp] alone once gave a server where two of three tools could not
 # run, which is not a server anyone asked for.
-mcp = ["mcp>=1.2", "sluicer[fetch]", "sluicer[markdown]"]
+# Pinned >=2: mcp 2.x renamed FastMCP to MCPServer and the v1 name is gone
+# from the package, so a range spanning both would need two import paths.
+mcp = ["mcp>=2", "sluicer[fetch]", "sluicer[markdown]"]
 
 [project.urls]
 Homepage = "https://github.com/Gi0tto/sluicer"
