@@ -30,7 +30,7 @@ jobs:
       matrix:
         python: ["3.10", "3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
@@ -41,7 +41,7 @@ jobs:
     name: The suite opens no socket
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
       - name: Run the suite with the network taken away
         run: |
@@ -80,7 +80,7 @@ jobs:
     name: The package builds and its metadata parses
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
       - name: Build the wheel and the sdist
         run: uv build
@@ -91,7 +91,7 @@ jobs:
     name: Importing works without any extra
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
       - name: Install the base package only, then import it
         run: |
@@ -108,7 +108,7 @@ jobs:
     name: The extras install and the code can actually use them
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
       - name: Install every extra
         run: |
@@ -155,7 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
       - name: Install the extras unpinned and use them
         run: |
