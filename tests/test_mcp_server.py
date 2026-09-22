@@ -202,3 +202,34 @@ def test_page_markdown_hands_trafilatura_no_url_for_literal_html(monkeypatch):
 
     assert seen["called_with"][1]["url"] is None
     assert result == "# Brake pad set\n\nReal content."
+
+
+def test_an_mcp_that_is_installed_but_too_old_keeps_its_traceback(monkeypatch):
+    """The wider ``mcp.*`` match is gone, and this is what it used to hide.
+
+    ``mcp`` is pinned ``>=1.2``, the first release carrying
+    ``mcp.server.fastmcp``, so installing ``sluicer[mcp]`` cannot leave the
+    submodule absent. If it is absent anyway the package is there and is too
+    old or broken, and "install it with uv pip install" is advice that cannot
+    help someone who already installed it. Same rule as a missing
+    ``scrapling.fetchers``: it is a bug, so it is a traceback.
+    """
+
+    class _NoFastMcp:
+        def find_spec(self, name, path=None, target=None):
+            if name == "mcp.server.fastmcp":
+                raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+            return None
+
+    for name in [n for n in list(sys.modules) if n == "mcp" or n.startswith("mcp.")]:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    monkeypatch.setitem(sys.modules, "mcp", types.ModuleType("mcp"))
+    monkeypatch.setitem(sys.modules, "mcp.server", types.ModuleType("mcp.server"))
+    monkeypatch.setattr(sys, "meta_path", [_NoFastMcp(), *sys.meta_path])
+
+    from sluicer.mcp_server import McpExtraMissing, _fastmcp
+
+    with pytest.raises(ModuleNotFoundError) as raised:
+        _fastmcp()
+
+    assert not isinstance(raised.value, McpExtraMissing)
