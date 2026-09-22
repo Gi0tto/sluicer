@@ -191,3 +191,87 @@ def test_a_site_that_refuses_us_is_obeyed_through_the_real_reader_shape():
 
     with pytest.raises(RobotsRefused):
         fetch("https://example.com/deny", rungs=[("http", http)])
+
+
+def test_a_robots_file_that_answers_200_is_read_as_the_rules_it_publishes():
+    """2xx is the only status whose body is a set of rules."""
+    from sluicer.fetch.ladder import _default_robots_reader
+
+    read = _default_robots_reader(rung("http", "User-agent: *\nDisallow: /deny\n"))
+
+    assert read("https://example.com/robots.txt") == "User-agent: *\nDisallow: /deny\n"
+
+
+def test_a_robots_file_that_404s_means_no_rules_were_published():
+    """RFC 9309: 4xx means the site publishes no rules, so nothing is refused.
+
+    The status used to be ignored entirely, which happened to give the right
+    answer here and the wrong one for every other failing status.
+    """
+    from sluicer.fetch.ladder import _default_robots_reader
+
+    read = _default_robots_reader(rung("http", "<html><body>Not found</body></html>", status=404))
+
+    assert read("https://example.com/robots.txt") is None
+
+
+def test_a_robots_file_that_5xxs_is_read_as_a_full_disallow():
+    """RFC 9309: 5xx means the rules are unavailable, and that means stay out.
+
+    This is the case the swallowed status got exactly backwards. A 503 body
+    was read as "nothing to read", which this module treats as "no rules were
+    published, so go ahead" -- and the cache then pinned that answer. A site
+    under load was a site with no rules.
+
+    Asserted by effect rather than by spelling: what matters is that the text
+    the reader returns refuses everything when the real gate parses it.
+    """
+    from sluicer.fetch.identity import robots_allows
+    from sluicer.fetch.ladder import _default_robots_reader
+
+    read = _default_robots_reader(
+        rung("http", "<html><body>Service unavailable</body></html>", status=503)
+    )
+
+    text = read("https://example.com/robots.txt")
+
+    assert text is not None, "a 5xx was read as nothing to read"
+    assert robots_allows("https://example.com/anything", read=lambda url: text) is False
+
+
+def test_a_rung_that_raises_still_means_there_is_nothing_to_read():
+    """A connection that never opened carries no status and refuses nothing.
+
+    The site did not answer at all, so it did not tell us to stay out. That
+    is the one case where swallowing really is right, and it has to survive
+    the statuses being read.
+    """
+    from sluicer.fetch.ladder import _default_robots_reader
+
+    def never_opened(url):
+        raise ConnectionError("connection refused")
+
+    read = _default_robots_reader(never_opened)
+
+    assert read("https://example.com/robots.txt") is None
+
+
+def test_a_site_whose_robots_is_unavailable_is_not_fetched():
+    """End to end: a 503 on robots.txt stops the ladder before the page."""
+    calls: list[str] = []
+
+    def http(url: str) -> Fetched:
+        calls.append(url)
+        if url.endswith("/robots.txt"):
+            return Fetched(
+                url=url,
+                html="<html><body>Service unavailable</body></html>",
+                status=503,
+                rung="http",
+            )
+        return Fetched(url=url, html=RICH, status=200, rung="http")
+
+    with pytest.raises(RobotsRefused):
+        fetch("https://example.com/p", rungs=[("http", http)])
+
+    assert calls == ["https://example.com/robots.txt"]

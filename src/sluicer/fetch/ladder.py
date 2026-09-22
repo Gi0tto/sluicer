@@ -42,10 +42,24 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
     how to fetch a URL. Reusing it means production needs no extra wiring
     and a test supplying its own rungs needs no extra network stack either.
 
-    A robots.txt that cannot be reached -- the site is down, the file 404s,
-    the connection times out, the rung raises -- is not a refusal, so any
-    failure here is swallowed into "nothing to read", exactly as a missing
-    robots file is: a site with no reachable robots file has not told us no.
+    What the status means is RFC 9309's answer, not ours, because a site
+    owner's expectations are set by the RFC:
+
+    * 2xx -- the body is the rules, and they are read.
+    * 4xx -- the site published no rules, so nothing is refused. A 404 is the
+      ordinary case, and the RFC treats the whole family the same way.
+    * 5xx -- the rules exist but are unavailable, and the RFC says to treat
+      that as a full disallow. Returning the text of one -- ``User-agent: *``
+      then ``Disallow: /`` -- encodes "unavailable means stay out" in the one
+      type this reader already returns, rather than inventing a third return
+      value that every caller would then have to learn.
+    * the rung raised -- the connection never opened, the name did not
+      resolve, it timed out. Nothing answered, so nothing told us to stay
+      out, and there is nothing to read.
+
+    The status used to be ignored entirely: every one of those cases returned
+    "nothing to read", which this module treats as permission, and the cache
+    then pinned it. A site answering 503 under load was a site with no rules.
 
     A rung returns ``Fetched.html``, not plain text, and a rung that fetches
     a plain-text robots.txt does not mean the body arrives as plain text:
@@ -60,12 +74,18 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
     it to strip.
     """
 
+    UNAVAILABLE_MEANS_STAY_OUT = "User-agent: *\nDisallow: /"
+
     def read(url: str) -> str | None:
         try:
-            html = cheapest_rung(url).html
+            response = cheapest_rung(url)
         except Exception:
             return None
-        return load(html).tree.text_content()
+        if response.status >= 500:
+            return UNAVAILABLE_MEANS_STAY_OUT
+        if response.status >= 400:
+            return None
+        return load(response.html).tree.text_content()
 
     return read
 
