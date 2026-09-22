@@ -1,4 +1,4 @@
-# Sluicer — design
+# Sluicer design
 
 Date: 2026-09-22. Author: Nichita Briculschi (with Claude).
 Status: architecture approved, detail pending approval.
@@ -60,7 +60,7 @@ Precedent already taken: **`fastcrw/crw`** (Rust, AGPL, 1,061 stars, born
 
 ### 4.2 What we write (the product)
 
-1. **`ladder`** — automatic cost ladder. Tries the cheapest rung (plain HTTP) and
+1. **`ladder`** - automatic cost ladder. Tries the cheapest rung (plain HTTP) and
    climbs to browser or stealth **only on a measurement**, never on a guess. The
    measurement is explicit and checkable: the response is a refusal in disguise
    (challenge page, 403 carrying a challenge body, redirect to login), or the
@@ -68,18 +68,18 @@ Precedent already taken: **`fastcrw/crw`** (Rust, AGPL, 1,061 stars, born
    while the DOM declares empty containers), or declared data is missing **and**
    extracted text is below threshold. Every climb is recorded with its reason,
    and the reason travels in the result.
-2. **`declared`** — reads what the page already states: JSON-LD, microdata, RDFa,
+2. **`declared`** - reads what the page already states: JSON-LD, microdata, RDFa,
    OpenGraph. Picks up the inheritance of `extruct` (0 commits/year).
-3. **`induce`** — structure induction: find repeating subtrees, align fields
+3. **`induce`** - structure induction: find repeating subtrees, align fields
    across records, return rows. Picks up the idea behind `autoscraper` (1
    commit/year) without needing hand-fed examples.
-4. **`trust`** — confidence score **without an LLM**: two pages from the same
+4. **`trust`** - confidence score **without an LLM**: two pages from the same
    template must yield the same fields, and divergence is the signal. With only
    one page available there is no comparison, and `trust` returns an explicit
    `unverified` rather than an invented number.
-5. **`heal`** — schema diff between runs: when a site changes, it names **what**
+5. **`heal`** - schema diff between runs: when a site changes, it names **what**
    broke instead of returning a quietly empty list.
-6. **`bench`** — the scoreboard: runs against the free datasets plus a
+6. **`bench`** - the scoreboard: runs against the free datasets plus a
    multilingual e-commerce split, measures us **and the competition**, and
    publishes the losses too.
 
