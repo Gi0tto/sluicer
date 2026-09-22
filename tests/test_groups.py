@@ -182,3 +182,21 @@ def test_many_empty_children_do_not_beat_fewer_full_ones():
     groups = repeating_groups(tree)
 
     assert [member.tag for member in groups[0]] == ["article"] * 4
+
+
+def test_a_row_that_only_points_somewhere_is_still_worth_something():
+    """A grid of image links carries no text at all, and is still the content."""
+    tree = lxml.html.fromstring(
+        "<main>"
+        "<div class='rules'>" + "<hr>" * 6 + "</div>"
+        "<div class='grid'>"
+        + "".join(
+            f"<a href='/p/{n}'><img src='/i{n}.jpg'></a>" for n in range(4)
+        )
+        + "</div>"
+        "</main>"
+    )
+
+    groups = repeating_groups(tree)
+
+    assert [member.tag for member in groups[0]] == ["a"] * 4
