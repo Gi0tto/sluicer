@@ -404,6 +404,48 @@ git commit -m "feat: five vocabularies, in a stated order of precedence"
 
 ---
 
+### Task 3b (folded into Task 3): the Twitter card stops calling itself OpenGraph
+
+`src/sluicer/declared/opengraph.py` reads two vocabularies — `og:` and
+`twitter:` — and labels every field it returns `source="opengraph"`, choosing
+between them with `setdefault` over document order. Measured on the tree as it
+stands:
+
+```python
+a = ('<meta name="twitter:title" content="FROM THE TWITTER CARD">'
+     '<meta property="og:title" content="FROM OPENGRAPH">')
+b = ('<meta property="og:title" content="FROM OPENGRAPH">'
+     '<meta name="twitter:title" content="FROM THE TWITTER CARD">')
+# a -> title = 'FROM THE TWITTER CARD', source='opengraph'
+# b -> title = 'FROM OPENGRAPH',        source='opengraph'
+```
+
+Two promises break at once. The provenance is false: a value from a Twitter
+card reports that an OpenGraph reader won it, and per-field provenance is this
+project's first selling point. And the precedence between the two is written
+nowhere — the winner is whichever the page's author typed first. The result
+stays deterministic, so no test catches it.
+
+The keys collide in the wild rather than in theory: `og:title` and
+`twitter:title` both strip to `title`, `og:image:alt` and `twitter:image:alt`
+both to `image:alt`. Across ten live pages measured on 2026-09-22, `card`
+appeared on six and `site` on five — both Twitter-only keys, both reported as
+OpenGraph today.
+
+So: `read_opengraph` keeps only `og:`, a new `read_twitter` in
+`src/sluicer/declared/twitter.py` returns `twitter:` with `source="twitter"`,
+and it runs **after** OpenGraph so an `og:` value wins a colliding key. This
+lands inside Task 3 because it rewrites the same precedence chain Task 3
+rewrites; separating them would edit that chain twice and ship a README stating
+a precedence already known to be wrong.
+
+`ABOUT_A_THING` is not touched, and that is the point. A Twitter card describes
+the document, so it stays outside the set and induction still runs on a page
+whose only declaration is chrome. A gate that listed exclusions would have
+needed editing here, and nothing would have failed if it had been forgotten.
+
+---
+
 ### Task 4: Microformats, behind an extra
 
 **Files:**
