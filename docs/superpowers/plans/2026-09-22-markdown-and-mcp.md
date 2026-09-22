@@ -140,9 +140,6 @@ asks for markdown should not carry the tree that produces it.
 
 from __future__ import annotations
 
-from sluicer.document import load
-
-
 class MarkdownExtraMissing(ImportError):
     """The optional markdown extra is not installed.
 
@@ -174,11 +171,8 @@ def to_markdown(html: str | bytes, url: str | None = None) -> str:
     An empty string means the page had no main content to give. That is a fact
     about the page rather than a failure, and the caller decides what it means.
     """
-    document = load(html, url=url)
     produced = _trafilatura().extract(
-        document.html if isinstance(document.html, str) else document.html.decode(
-            "utf-8", errors="replace"
-        ),
+        html,
         output_format="markdown",
         include_links=True,
         include_tables=True,
