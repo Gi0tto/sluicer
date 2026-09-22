@@ -192,6 +192,12 @@ def test_a_site_that_refuses_us_is_obeyed_through_the_real_reader_shape():
     with pytest.raises(RobotsRefused):
         fetch("https://example.com/deny", rungs=[("http", http)])
 
+    # The whole point of the test: the robots file was read once and the page
+    # the site refused was never asked for. ``calls`` was collected here and
+    # never asserted, which left "we obeyed" and "we fetched it anyway and
+    # then raised" indistinguishable.
+    assert calls == ["https://example.com/robots.txt"]
+
 
 def test_a_robots_file_that_answers_200_is_read_as_the_rules_it_publishes():
     """2xx is the only status whose body is a set of rules."""
