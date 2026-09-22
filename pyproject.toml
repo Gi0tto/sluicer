@@ -1,6 +1,6 @@
 [project]
 name = "sluicer"
-version = "0.0.1"
+version = "0.1.0"
 description = "Turn a web page into structured data with no model in the loop."
 readme = "README.md"
 license = "MIT"

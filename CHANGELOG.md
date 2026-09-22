@@ -4,7 +4,20 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+## 0.1.0 - 2026-09-22
+
+The first public release. Nothing was published before it: the entries below
+under Fixed and Changed are against the private work that preceded it, kept
+because each one is a trap somebody else building this would fall into.
+
 ### Added
+- Readers for JSON-LD, microdata and OpenGraph.
+- A merge that folds records across vocabularies while keeping two products on
+  one page apart, with per-field provenance.
+- `sluicer.extract()` and the `sluicer extract` command.
+- `docs/known-limits.md`, stating where the project stops.
+- A test that fails the build if a model client or a network library is ever
+  imported into the package.
 - `extract()` returns a `summary`: title, description, url, image, author,
   published, modified, language, site_name, publisher, type, price, currency,
   availability, brand and sku, one value each, chosen by fixed rules in a fixed
@@ -170,17 +183,3 @@ Dates are the day the work landed. Anything not listed here did not happen.
   its own, so a wrapper around a single value stops reporting that value twice.
 - A bad argument to `sluicer extract` now exits with our own message rather
   than with click's. A missing file and a directory are both covered.
-
-## 0.0.1 - 2026-09-22
-
-The first slice: read what a page already declares, and say where every value
-came from.
-
-### Added
-- Readers for JSON-LD, microdata and OpenGraph.
-- A merge that folds records across vocabularies while keeping two products on
-  one page apart, with per-field provenance.
-- `sluicer.extract()` and the `sluicer extract` command.
-- `docs/known-limits.md`, stating where the project stops.
-- A test that fails the build if a model client or a network library is ever
-  imported into the package.

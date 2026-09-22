@@ -7,7 +7,7 @@ authors:
     given-names: Nichita
 repository-code: "https://github.com/Gi0tto/sluicer"
 license: MIT
-version: 0.0.1
+version: 0.1.0
 date-released: "2026-09-22"
 abstract: >-
   Sluicer reads the structured data a web page already declares, in JSON-LD,

@@ -71,7 +71,7 @@ never folds with a schema.org `Article` that means the same thing.
 
 **The user agent on the wire is verified by hand, not by the suite.** Both the
 HTTP and the browser rung were confirmed on 2026-09-22 against a live request,
-and the server saw `Sluicer/0.0.1 (+https://github.com/Gi0tto/sluicer)` from
+and the server saw `Sluicer/<version> (+https://github.com/Gi0tto/sluicer)` from
 each. The suite cannot re-check it, because it must never open a socket, and a
 faked library accepts whatever keyword you hand it. That gap is real and it has
 already cost once: the browser rung was passing the name in `extra_headers`,
