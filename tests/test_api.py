@@ -121,12 +121,13 @@ def test_a_document_level_declaration_does_not_switch_induction_off():
 
 
 def test_the_gate_asks_which_sources_describe_a_thing():
-    """The test above cannot fail yet: nothing calls the Dublin Core reader
-    from ``extract`` so far, so no page can reach the gate carrying a
-    ``dublincore`` field. The rule that test protects is therefore pinned
-    here too, where it can be put to the question today -- and where the
-    answer for the next document-level vocabulary is the same without anyone
-    having to remember to add it to a list.
+    """The test above now reaches the gate for real: ``extract`` calls the
+    Dublin Core reader, so a page whose only declaration is ``DC.title``
+    arrives here carrying a ``dublincore`` field. The rule stays pinned here
+    as well, at the gate itself, where the answer for the next document-level
+    vocabulary can be put to the question without anyone having to add it to
+    a list first -- which is how the Twitter card arrived needing no change
+    to ``ABOUT_A_THING`` at all.
     """
     page_level = sluicer.Record(
         fields={"title": sluicer.Field(value="Catalogue", source="dublincore")}
@@ -137,3 +138,110 @@ def test_the_gate_asks_which_sources_describe_a_thing():
 
     assert _declared_about_its_things([page_level]) is False
     assert _declared_about_its_things([thing_level]) is True
+
+
+def test_every_reader_that_fired_is_reported_in_the_order_of_precedence():
+    """Six vocabularies on one page, and ``sources`` names them in order."""
+    html = (
+        "<html><head>"
+        '<script type="application/ld+json">'
+        '{"@type":"Product","name":"From JSON-LD"}</script>'
+        '<meta name="DC.title" content="From Dublin Core">'
+        '<meta property="og:site_name" content="From OpenGraph">'
+        '<meta name="twitter:card" content="summary">'
+        "</head><body>"
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<span itemprop="mpn">From microdata</span></div>'
+        '<div vocab="https://schema.org/" typeof="Product">'
+        '<span property="gtin">From RDFa</span></div>'
+        "</body></html>"
+    )
+
+    result = sluicer.extract(html)
+
+    assert result.sources == [
+        "jsonld",
+        "microdata",
+        "rdfa",
+        "dublincore",
+        "opengraph",
+        "twitter",
+    ]
+
+
+def test_the_earlier_vocabulary_wins_the_field():
+    html = (
+        "<html><head>"
+        '<script type="application/ld+json">'
+        '{"@type":"Product","name":"From JSON-LD"}</script>'
+        "</head><body>"
+        '<div vocab="https://schema.org/" typeof="Product">'
+        '<span property="name">From RDFa</span></div>'
+        "</body></html>"
+    )
+
+    record = sluicer.extract(html).records[0]
+
+    assert record.fields["name"].value == "From JSON-LD"
+    assert record.fields["name"].source == "jsonld"
+
+
+def test_opengraph_wins_a_colliding_key_whichever_tag_the_page_wrote_first():
+    """The rule is the precedence, not the order the author typed.
+
+    Before the Twitter card was split out, one reader returned both
+    vocabularies and picked between them with document order, so these two
+    pages gave different answers and both of them said ``opengraph``.
+    """
+    og_first = (
+        "<html><head>"
+        '<meta property="og:title" content="From OpenGraph">'
+        '<meta name="twitter:title" content="From the Twitter card">'
+        "</head><body></body></html>"
+    )
+    card_first = (
+        "<html><head>"
+        '<meta name="twitter:title" content="From the Twitter card">'
+        '<meta property="og:title" content="From OpenGraph">'
+        "</head><body></body></html>"
+    )
+
+    for html in (og_first, card_first):
+        title = sluicer.extract(html).records[0].fields["title"]
+        assert title == sluicer.Field(value="From OpenGraph", source="opengraph")
+
+
+def test_a_key_only_the_twitter_card_declares_says_so():
+    html = (
+        "<html><head>"
+        '<meta property="og:title" content="From OpenGraph">'
+        '<meta name="twitter:card" content="summary_large_image">'
+        "</head><body></body></html>"
+    )
+
+    result = sluicer.extract(html)
+
+    assert result.sources == ["opengraph", "twitter"]
+    assert result.records[0].fields["card"] == sluicer.Field(
+        value="summary_large_image", source="twitter"
+    )
+
+
+def test_a_page_whose_only_declaration_is_a_twitter_card_still_induces():
+    """A card describes the document, exactly as OpenGraph does.
+
+    ``ABOUT_A_THING`` names the vocabularies that describe a thing, so a
+    vocabulary added outside it needs no change to the gate at all.
+    """
+    rows = "".join(
+        f'<li class="row"><span class="sku">A{n}</span></li>' for n in range(5)
+    )
+    html = (
+        '<html><head><meta name="twitter:title" content="Catalogue"></head>'
+        f"<body><ul>{rows}</ul></body></html>"
+    )
+
+    result = sluicer.extract(html, induce=True)
+
+    assert result.sources == ["twitter", "induced"]
+    assert len([r for r in result.records if r.fields.get("span.sku")]) == 5
