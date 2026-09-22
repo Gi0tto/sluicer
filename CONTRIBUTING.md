@@ -57,3 +57,18 @@ must be honest: if you know the type, write it, and do not annotate something as
 `object` to silence a checker.
 
 English everywhere: code, comments, tests, commit messages.
+
+## The documentation site
+
+`docs/changelog.md`, `docs/roadmap.md`, `docs/contributing.md` and
+`docs/security.md` are symlinks to the files of the same name in the repository
+root. They were hand-maintained copies until 2026-09-22 and had already drifted:
+the published roadmap listed shipped work as still to come. Edit the root file;
+the site follows.
+
+`docs/index.md` is **not** a copy of the README and should not become one. A
+README sells the project to someone deciding whether to try it; a documentation
+home orients someone who has already decided. The README's relative links also
+resolve from the repository root, so copying it under `docs/` silently breaks
+seven of them — `mkdocs build --strict` catches that, which is why it runs in CI
+on every push.

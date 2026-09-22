@@ -2,31 +2,85 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Publish a ruler. Score Sluicer, and the free tools it is compared to, against a third-party annotated benchmark, on every run, and commit the result so anyone can dispute it.
+**Goal:** Publish a ruler. Score Sluicer and the alternatives on a public annotated corpus, on every run, and publish the losses with the wins.
 
-**Architecture:** A `bench` package outside the installed library. It downloads a benchmark into a git-ignored cache, runs each competitor over the same pages, scores every prediction against the same gold labels with the same metric, and writes one versioned results file. Nothing in it is imported by `sluicer`, and none of it runs inside the unit suite.
+**Architecture:** A `scoreboard/` directory outside the package: a corpus loader that materialises WCXB into a git-ignored cache, per-field metrics, a runner per tool, and one committed results table. Nothing here ships in the wheel.
 
-**Tech Stack:** Python 3.10+, `lxml`, plus the competitors themselves. The benchmark is WCXB, CC-BY-4.0.
+**Tech Stack:** Python 3.10+, the installed `sluicer`, and the competitors in their own virtual environments so their dependencies never touch ours.
 
-**Spec:** `docs/superpowers/specs/2026-09-22-sluicer-design.md`, section 4.2.6.
+**Spec:** `docs/superpowers/specs/2026-09-22-sluicer-design.md`
 
-## Why this exists, measured
+## Why this exists
 
-Of 295 live repositories in this field, exactly one publishes a benchmark, and it measures OCR. So "the best extractor" is currently an unfalsifiable claim across an entire discipline, including in this repository, which is why its README refuses to make one.
+Every project in this field claims to extract well. Across 295 live repositories surveyed on 2026-09-22, **one** published a benchmark, and it measures OCR. "The best extractor" is an unfalsifiable claim across an entire field, including in this repository, which is why `ROADMAP.md` says Sluicer makes no comparative claim until this exists.
 
-WCXB is the ruler that fits: 2,008 hand-reviewed pages, 1,613 domains, seven page types, CC-BY-4.0, and it exists precisely because older benchmarks measured only news articles. Its own README states the gap this project was built around: "On articles, top extraction systems converge within 2-3 F1 points (0.91-0.93). But on forums, products, and collections, the gap widens to 20-30 F1 points."
+## The corpus, opened and counted before planning
 
-Its gold labels carry `title`, `author`, `publish_date` and `main_content`. The first three are exactly what Sluicer produces from declared data, so this scores our real work against somebody else's answers. We are not the referee.
+**WCXB** — `Murrough-Foley/web-content-extraction-benchmark`, **CC-BY-4.0**.
+GitHub's API reports `NOASSERTION` because the LICENSE file is a plain-text
+summary rather than the canonical text; `metadata.json` states
+`"license": "CC-BY-4.0"` and the LICENSE text is the CC-BY-4.0 grant. 153 MB,
+cloned and inspected on 2026-09-22 rather than described from its README.
+
+**What is where, measured:**
+
+- `test/ground-truth/*.json` — **511 files**. Every one carries
+  `ground_truth` as a **dict** (never a string), and every one has all six keys:
+  `title`, `author`, `publish_date`, `main_content`, `with`, `without`.
+- `test/html/*.html` — 511 files. **The corpus runs entirely offline.**
+- `page_type` is **not** in the ground-truth files — 487 of 511 leave it blank.
+  It lives in `metadata.json`, whose `files` map covers all 511 test ids.
+- Test-split page types: article 257, service 59, forum 51, documentation 42,
+  listing 40, collection 34, product 28. **359 of the 511 are the four types
+  this scoreboard scores.**
+
+**The finding that shapes the metric:** the labels are deliberately sparse.
+Across the 511 test pages, `title` is missing on 2 and `main_content` on 6 —
+but **`author` is missing on 323 (63%) and `publish_date` on 246 (48%)**.
+
+That is not a defect in the corpus. It is the corpus saying *this page has no
+author*, and it makes possible the measurement this field never publishes:
+**how often does a tool invent a value that is not there?** A deterministic
+reader should score near-perfectly on absence, because it only reports what the
+page declared. A heuristic guesser should not. Whether that is true of Sluicer
+is exactly what we do not yet know, and printing it is the point.
+
+## The corpus limit that must be printed beside every number
+
+**WCXB has every `<script>` tag removed.** Checked across all 359 pages of the
+four scored types on 2026-09-22: zero `<script>`, zero `<style>`, zero
+`<noscript>`, zero `<iframe>`, and zero occurrences of `ld+json` anywhere.
+
+So **JSON-LD cannot be measured on this corpus at all**, and JSON-LD is
+Sluicer's first reader and the modern web's commonest way to declare anything.
+Every number from WCXB is therefore a score for a reader with its main
+vocabulary removed, and a table that does not say so is lying by omission.
+
+The second corpus exists for exactly this. `scrapinghub/article-extraction-benchmark`
+(MIT, 181 pages) is intact: all 181 keep their scripts, **128 carry JSON-LD**,
+174 OpenGraph, 62 microdata. Its ground truth is only `articleBody`, so it
+cannot score title, author or date — but it can score `main_content`, which is
+its purpose, and it is the only place a JSON-LD claim can be checked.
+
+**Neither corpus alone is sufficient, and the report must name which corpus
+produced each number, on the same line as the number.**
 
 ## Global Constraints
 
-- Python `>=3.10`. Licence MIT. No vendored AGPL, and the benchmark data is never committed.
+- Python `>=3.10`. Licence MIT. No vendored AGPL. The corpus is CC-BY-4.0 and **must be attributed wherever a number from it is published**.
 - No LLM call anywhere. No paid API.
-- **Deterministic**: the same data and the same code give the same table.
-- English only everywhere including commit messages.
-- **The unit suite never runs the benchmark and never touches the network.** `bench/` has its own tests, which use a tiny fixture corpus committed to the repository, not the real download.
-- `ruff` and `mypy --strict` stay green. `bench/` is included in both.
-- Every number published carries the commit it was produced at and the benchmark version.
+- The corpus is **never committed**. It is fetched into `scoreboard/.cache/` (git-ignored) by a loader that verifies what it downloaded.
+- The package's own test suite still touches no network. Scoreboard code lives outside `src/` and outside `tests/`, and its own tests use three hand-written pages.
+- English everywhere including commit messages.
+- `ruff` and `mypy --strict` stay green on `scoreboard/` too.
+
+## The honesty rules, which are requirements and not preferences
+
+1. **`main_content` is not our number.** Sluicer's markdown extra calls `trafilatura`. Scoring `main_content` and printing it beside our name would claim a dependency's work. That row is labelled `sluicer[markdown] (trafilatura)` in every table, or it is not printed.
+2. **`title`, `author`, `publish_date` are our number.** They come from declared data our own readers parse. This is the comparison nobody has published, and it is the one that matters to us.
+3. **Losses are published.** Every table prints every tool's score on every field, including the fields where Sluicer is last.
+4. **The corpus's own metric is used**, not one invented here. WCXB ships `evaluate.py`; its scoring is the scoring.
+5. **A page we return nothing for counts as a miss**, never as an abstention.
 
 ---
 
@@ -34,325 +88,309 @@ Its gold labels carry `title`, `author`, `publish_date` and `main_content`. The 
 
 | file | responsibility |
 | --- | --- |
-| `bench/__init__.py` | nothing but a docstring: this is not part of the library |
-| `bench/corpus.py` | fetching and caching WCXB, and loading its pages and labels |
-| `bench/score.py` | the metrics: word F1 for text, exact-after-normalising for fields |
-| `bench/runners.py` | one adapter per tool under test, each returning the same shape |
-| `bench/run.py` | the command: run everything, write the table |
-| `bench/fixtures/` | four hand-made pages and labels, for the tests |
-| `results/latest.md` | the table, committed, regenerated on every run |
+| `scoreboard/corpus.py` | fetch WCXB into `.cache/`, verify it, iterate `(html, ground_truth, page_type)` |
+| `scoreboard/metrics.py` | per-field scoring, delegating to WCXB's own comparison where it defines one |
+| `scoreboard/runners.py` | one function per tool under test, each returning the same record shape |
+| `scoreboard/report.py` | the markdown table, and the loss column |
+| `scoreboard/run.py` | the entry point: `python -m scoreboard.run --split test` |
+| `results/latest.md` | committed output, regenerated and committed on every run |
+| `scoreboard/tests/` | three hand-written pages that exercise the metrics and the report |
 
 ---
 
-### Task 1: The metrics
+### Task 1: The corpus loader
 
 **Files:**
-- Create: `bench/__init__.py`, `bench/score.py`, `tests/test_bench_score.py`
+- Create: `scoreboard/__init__.py`, `scoreboard/corpus.py`, `scoreboard/tests/test_corpus.py`, `scoreboard/.gitignore`
 
 **Interfaces:**
-- Produces: `word_f1(predicted: str, reference: str) -> float` and `field_match(predicted: str | None, reference: str | None) -> bool`.
+- Produces: `Page(file_id: str, url: str, html: bytes, truth: dict, page_type: str, split: str)` and `load(split: str = "test") -> Iterator[Page]`.
 
-**Why these two:** WCXB scores main content by word-level F1, and we use its metric rather than inventing one, because a ruler nobody else uses is not a ruler. Fields are different: a title is right or wrong, so it is compared after normalising whitespace, case and surrounding punctuation, and a missing prediction against a present label is simply wrong.
+**What to build:** a loader that downloads the WCXB tarball once into `scoreboard/.cache/wcxb/`, refuses to proceed if `metadata.json` does not say `"license": "CC-BY-4.0"`, and yields one `Page` per ground-truth file with its HTML read as **bytes** (the page's own encoding declaration must win — `sluicer.load` already relies on that, and decoding here would corrupt exactly the non-English pages that matter).
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/test_bench_score.py
-from bench.score import field_match, word_f1
+# scoreboard/tests/test_corpus.py
+from scoreboard.corpus import Page, licence_is_open
 
 
-def test_identical_text_scores_one():
-    assert word_f1("the cat sat", "the cat sat") == 1.0
+def test_a_corpus_whose_licence_changed_is_refused():
+    """The licence is a precondition, not a footnote: it is checked in code."""
+    assert licence_is_open({"license": "CC-BY-4.0"}) is True
+    assert licence_is_open({"license": "CC-BY-NC-4.0"}) is False
+    assert licence_is_open({}) is False
 
 
-def test_nothing_in_common_scores_zero():
-    assert word_f1("aaa bbb", "ccc ddd") == 0.0
+def test_a_page_keeps_its_html_as_bytes():
+    """Decoding here would lose the page's own encoding declaration."""
+    page = Page(file_id="1", url="u", html=b"<html>caf\xe9</html>",
+                truth={"title": "t"}, page_type="article", split="test")
 
-
-def test_half_the_words_scores_between():
-    score = word_f1("the cat sat down", "the cat stood up")
-
-    assert 0.0 < score < 1.0
-
-
-def test_an_empty_prediction_scores_zero_rather_than_raising():
-    assert word_f1("", "the cat sat") == 0.0
-    assert word_f1("the cat sat", "") == 0.0
-
-
-def test_repeated_words_are_counted_not_collapsed():
-    assert word_f1("cat cat cat", "cat") < 1.0
-
-
-def test_a_field_matches_despite_whitespace_and_case():
-    assert field_match("  Brake Pad  Set ", "brake pad set") is True
-
-
-def test_a_field_matches_despite_surrounding_punctuation():
-    assert field_match('"Frankenstein"', "Frankenstein") is True
-
-
-def test_a_missing_prediction_does_not_match_a_present_label():
-    assert field_match(None, "Frankenstein") is False
-
-
-def test_two_absences_agree():
-    assert field_match(None, None) is True
+    assert isinstance(page.html, bytes)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run it and watch it fail**
 
-Run: `uv run pytest tests/test_bench_score.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'bench'`
+Run: `uv run pytest scoreboard/tests/test_corpus.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'scoreboard'`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **Step 3: Write the loader**
+
+`licence_is_open(metadata)` returns True only for `"CC-BY-4.0"`. `load(split)`
+reads `.cache/wcxb/metadata.json`, calls `licence_is_open` and raises
+`LicenceChanged` when it is False, then yields a `Page` per entry whose `split`
+matches, reading `<split>/html/<file_id>.html` as **bytes** and
+`<split>/ground-truth/<file_id>.json` as JSON.
+
+Two things checked by opening the files, so do not code around cases that do not
+exist and do not assume the ones that do:
+
+- `ground_truth` is **always a dict**, in all 511 test files. There is no
+  string case to parse.
+- `page_type` must be read from `metadata.json["files"][file_id]["page_type"]`,
+  **not** from the ground-truth file, which leaves it blank on 487 of 511. A
+  `file_id` absent from `metadata.json` raises rather than defaulting to a type,
+  because a page silently typed `article` would be scored against the wrong
+  expectation.
+
+- [ ] **Step 4: Run it and watch it pass**
+
+- [ ] **Step 5: Fetch the corpus for real and print what arrived**
+
+Run: `uv run python -m scoreboard.corpus --fetch` then
+`uv run python -c "from scoreboard.corpus import load; import collections; c=collections.Counter(p.page_type for p in load('test')); print(sum(c.values()), c)"`
+Expected: 511 pages, and the seven page types.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add scoreboard/ && git commit -m "feat(scoreboard): load WCXB, and refuse it if its licence changed"
+```
+
+---
+
+### Task 2: The metrics
+
+**Files:**
+- Create: `scoreboard/metrics.py`, `scoreboard/tests/test_metrics.py`
+
+**Interfaces:**
+- Produces: `score_field(predicted: str | None, truth: str | None) -> float` and `score_page(predicted: dict, truth: dict, fields: list[str]) -> dict[str, float]`.
+
+**What to build:** exact match after normalisation for `title` and `author`;
+date equality after parsing for `publish_date`; word-level F1 for
+`main_content`, taken from WCXB's own `evaluate.py` rather than rewritten.
+
+**The hard part is absence, and it is the part worth building.** 63% of test
+pages have no `author` and 48% have no `publish_date`. So a field has four
+outcomes, not two, and they must not be averaged into one number:
+
+| ground truth | prediction | outcome | why it matters |
+| --- | --- | --- | --- |
+| present | matches | `hit` | the tool found what was there |
+| present | wrong or missing | `miss` | the tool failed to find it |
+| absent | absent | `correct_silence` | the tool did not invent |
+| absent | present | **`invention`** | the tool reported something the page never said |
+
+`score_page` returns these four counts per field, not a float. The mean is
+computed once, at report time, as `hit / (hit + miss)` — **recall on the pages
+that have the field** — and `invention` is printed as its own column, never
+folded in. A tool that invents an author on every unlabelled page would
+otherwise be hidden behind a good recall number.
+
+`invention` is the column this scoreboard exists to print. Sluicer only reports
+what a page declared, so it should be near zero; if it is not, that is a defect
+in Sluicer and the table says so before anyone else finds it.
+
+- [ ] **Step 1: Write the failing test**
 
 ```python
-# bench/__init__.py
-"""The scoreboard. Not part of the library, never imported by it."""
+# scoreboard/tests/test_metrics.py
+from scoreboard.metrics import score_field, score_page
+
+
+def test_silence_where_there_was_something_is_a_miss():
+    """A tool that stays quiet on hard pages must not score better for it."""
+    assert score_field(None, "The Best Cheap Laptops") == "miss"
+
+
+def test_a_title_matches_past_whitespace_and_case():
+    assert score_field("  the BEST cheap laptops ", "The Best Cheap Laptops") == "hit"
+
+
+def test_silence_where_there_was_nothing_is_not_a_miss():
+    """63% of these pages have no author. Reporting none is the right answer."""
+    assert score_field(None, None) == "correct_silence"
+
+
+def test_naming_an_author_the_page_never_had_is_an_invention():
+    """The column this scoreboard exists to print."""
+    assert score_field("A. Nonymous", None) == "invention"
+
+
+def test_a_page_is_scored_field_by_field():
+    truth = {"title": "A", "author": None, "publish_date": "2018-07-10"}
+    got = score_page({"title": "A", "author": "X"}, truth,
+                     ["title", "author", "publish_date"])
+
+    assert got == {"title": "hit", "author": "invention", "publish_date": "miss"}
 ```
 
-```python
-# bench/score.py
-"""How a prediction is compared to an answer somebody else wrote.
-
-Main content is scored with word-level F1, which is the metric the benchmark
-itself publishes. Using somebody else's ruler is the point: a measure invented
-here would be a measure only this project believes.
-
-A field is not a bag of words. A title is right or wrong, so it is compared
-after normalising the things that never carry meaning: surrounding space, case,
-and the quotes and dashes that decorate one rendering of a title and not
-another.
-"""
-
-from __future__ import annotations
-
-from collections import Counter
-
-_TRIM = " \t\r\n\"'“”‘’.,;:!?-–—"
-
-
-def word_f1(predicted: str, reference: str) -> float:
-    """Return the word-level F1 of ``predicted`` against ``reference``."""
-    got = Counter(predicted.split())
-    want = Counter(reference.split())
-    if not got or not want:
-        return 0.0
-    shared = sum((got & want).values())
-    if not shared:
-        return 0.0
-    precision = shared / sum(got.values())
-    recall = shared / sum(want.values())
-    return 2 * precision * recall / (precision + recall)
-
-
-def field_match(predicted: str | None, reference: str | None) -> bool:
-    """Say whether a single-value field is right, ignoring what never means anything."""
-    if predicted is None or reference is None:
-        return predicted is None and reference is None
-    return _normalise(predicted) == _normalise(reference)
-
-
-def _normalise(value: str) -> str:
-    return " ".join(value.split()).strip(_TRIM).casefold()
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `uv run pytest tests/test_bench_score.py -v`
-Expected: PASS, all nine
-
+- [ ] **Step 2: Run it and watch it fail**
+- [ ] **Step 3: Write the metrics**
+- [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Commit**
 
 ```bash
-git add bench tests/test_bench_score.py
-git commit -m "feat: score with the benchmark's own ruler, not one of ours"
+git commit -am "feat(scoreboard): score a field, and count silence as a miss"
 ```
 
 ---
 
-### Task 2: The corpus
+### Task 3: The runners and the table
 
 **Files:**
-- Create: `bench/corpus.py`, `bench/fixtures/` (four pages and four labels), `tests/test_bench_corpus.py`
-- Modify: `.gitignore`
+- Create: `scoreboard/runners.py`, `scoreboard/report.py`, `scoreboard/run.py`, `scoreboard/tests/test_report.py`
 
 **Interfaces:**
-- Produces: `Page(file_id, url, page_type, html, title, author, publish_date, main_content)` and `load(directory: Path) -> list[Page]`, plus `download(cache: Path) -> Path` which fetches WCXB if it is not already there.
+- Produces: `RUNNERS: dict[str, Callable[[bytes, str], dict]]` and `render(rows) -> str`.
 
-**The split of responsibility that keeps the tests offline:** `load` reads a directory and knows nothing about the network. `download` is the only thing that fetches, it is never called by a test, and the tests read `bench/fixtures/` instead.
+**Who is measured, and why each one:**
 
-- [ ] **Step 1: Write the failing test**
+| runner | what it is | which fields |
+| --- | --- | --- |
+| `sluicer` | declared readers only, base install | title, author, publish_date |
+| `sluicer+induce` | the same with `induce=True` | title, author, publish_date |
+| `extruct` | the incumbent: 540,765 installs a month, last release 683 days ago | title, author, publish_date |
+| `trafilatura` | the article extractor | all four |
+| `readability-lxml` | the classic | title, main_content |
+| `sluicer[markdown] (trafilatura)` | our markdown extra, labelled as what it is | main_content |
 
-```python
-# tests/test_bench_corpus.py
-from pathlib import Path
+`extruct` is the row that matters: it is the library doing our job, and no one has published this comparison. `trafilatura` will win `main_content` and should — printing that is the point.
 
-from bench.corpus import load
+Each competitor runs in its own venv under `scoreboard/.venvs/`, created by the runner, so their dependency trees never enter ours.
 
-FIXTURES = Path(__file__).parent.parent / "bench" / "fixtures"
-
-
-def test_the_fixture_corpus_loads():
-    pages = load(FIXTURES)
-
-    assert len(pages) == 4
-
-
-def test_a_page_carries_its_html_and_its_answers():
-    page = next(p for p in load(FIXTURES) if p.file_id == "0001")
-
-    assert "<html" in page.html.lower()
-    assert page.title
-    assert page.main_content
-
-
-def test_pages_come_back_in_a_stable_order():
-    first = [p.file_id for p in load(FIXTURES)]
-    second = [p.file_id for p in load(FIXTURES)]
-
-    assert first == second == sorted(first)
-
-
-def test_a_page_with_no_author_says_none_rather_than_empty_string():
-    page = next(p for p in load(FIXTURES) if p.file_id == "0004")
-
-    assert page.author is None
-
-
-def test_a_directory_with_nothing_in_it_loads_nothing(tmp_path):
-    assert load(tmp_path) == []
-```
-
-Create four fixture pairs under `bench/fixtures/html/000N.html` and `bench/fixtures/ground-truth/000N.json`, matching WCXB's real schema: `url`, `file_id`, `_internal.page_type.primary`, and `ground_truth` with `title`, `author`, `publish_date`, `main_content`. Make `0001` an article with JSON-LD declaring its title and author, `0002` a product page with microdata, `0003` a listing page that declares nothing, and `0004` an article with no author at all. Keep each under thirty lines: they are for testing the harness, not the extractors.
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `uv run pytest tests/test_bench_corpus.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'bench.corpus'`
-
-- [ ] **Step 3: Write minimal implementation**
-
-`Page` is a frozen dataclass. `load` globs `ground-truth/*.json`, sorts by file id, reads the matching HTML, and returns `None` rather than `""` for a field the labels leave empty. `download` clones WCXB's dev split into the cache directory with `git clone --depth 1` if it is absent, prints what it did, and returns the path; it is documented as the only function here that touches the network. Add the cache directory to `.gitignore`.
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `uv run pytest -v`
-Expected: PASS, whole suite
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add bench/corpus.py bench/fixtures tests/test_bench_corpus.py .gitignore
-git commit -m "feat: load a benchmark corpus, and download it only when asked"
-```
-
----
-
-### Task 3: The competitors, and the table
-
-**Files:**
-- Create: `bench/runners.py`, `bench/run.py`, `tests/test_bench_runners.py`
-- Create: `results/latest.md` (generated)
-
-**Interfaces:**
-- Produces: `Prediction(title, author, publish_date, main_content)`, `RUNNERS: dict[str, Callable[[str], Prediction]]`, `score_all(pages, runners) -> dict[str, Scores]`, and `main()` writing the table.
-
-**Who is on the table, and why:** Sluicer's declared extraction; Sluicer's markdown path; `trafilatura`; and `readability-lxml`. All free, all permissive, all installable. A tool that needs a key is not comparable on equal terms and is left off with that reason printed under the table.
-
-**The rule this whole plan exists to honour:** the losses are published. If Sluicer is beaten on a page type, the table says so, with the number.
-
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing test for the report**
 
 ```python
-# tests/test_bench_runners.py
-from pathlib import Path
-
-from bench.corpus import load
-from bench.runners import Prediction, score_all
-
-FIXTURES = Path(__file__).parent.parent / "bench" / "fixtures"
+# scoreboard/tests/test_report.py
+from scoreboard.report import render
 
 
-def perfect(page):
-    """A runner that knows every answer, to prove the scoring works."""
-    return Prediction(
-        title=page.title,
-        author=page.author,
-        publish_date=page.publish_date,
-        main_content=page.main_content,
+def test_the_table_prints_the_field_we_lose():
+    rows = [
+        {"tool": "sluicer", "title": 0.91, "author": 0.62, "main_content": None},
+        {"tool": "trafilatura", "title": 0.88, "author": 0.71, "main_content": 0.94},
+    ]
+
+    table = render(rows)
+
+    assert "0.62" in table and "0.71" in table, "a lost field was dropped"
+    assert "trafilatura" in table
+
+
+def test_a_field_a_tool_does_not_attempt_is_blank_not_zero():
+    """Not attempting is different from attempting and failing."""
+    table = render([{"tool": "sluicer", "title": 0.91, "main_content": None}])
+
+    assert "0.00" not in table
+
+
+def test_inventions_get_their_own_column_and_are_never_folded_in():
+    """A tool inventing an author on every blank page must not hide behind recall."""
+    rows = [{"tool": "guesser", "author": 0.95, "author_invented": 300}]
+
+    table = render(rows)
+
+    assert "300" in table, "the invention count was dropped from the table"
+```
+
+- [ ] **Step 2: Run it and watch it fail**
+- [ ] **Step 3: Write the runners, the report, and the glue**
+
+`runners.py` holds one function per row of the table above, each with the same
+signature and the same return shape:
+
+```python
+# scoreboard/runners.py
+def run_sluicer(html: bytes, url: str) -> dict[str, str | None]:
+    """Declared readers only. Returns the three fields, or None where absent."""
+    from sluicer import extract
+    fields: dict[str, Field] = {}
+    for record in extract(html, url=url).records:
+        for name, field in record.fields.items():
+            fields.setdefault(name, field)
+    return {
+        "title": _first(fields, "headline", "name", "title"),
+        "author": _first(fields, "author", "creator"),
+        "publish_date": _first(fields, "datePublished", "date", "publish_date"),
+    }
+```
+
+`_first(fields, *names)` returns the value of the first name present, or None.
+The alias lists are deliberately short and written here rather than inferred:
+a scoreboard whose mapping is clever is a scoreboard measuring the mapping.
+
+`run.py` is the glue, and it is the whole file:
+
+```python
+# scoreboard/run.py
+import argparse, collections
+from scoreboard.corpus import load
+from scoreboard.metrics import score_page
+from scoreboard.report import render
+from scoreboard.runners import RUNNERS, FIELDS_ATTEMPTED
+
+SCORED_TYPES = {"article", "listing", "collection", "product"}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--split", default="test")
+    parser.add_argument("--out", default="results/latest.md")
+    args = parser.parse_args()
+
+    # (tool, field) -> Counter of hit / miss / correct_silence / invention
+    tally: dict[tuple[str, str], collections.Counter] = collections.defaultdict(
+        collections.Counter
     )
+    pages = [p for p in load(args.split) if p.page_type in SCORED_TYPES]
+    for page in pages:
+        for tool, run in RUNNERS.items():
+            got = run(page.html, page.url)
+            for field, outcome in score_page(got, page.truth, FIELDS_ATTEMPTED[tool]).items():
+                tally[(tool, field)][outcome] += 1
+
+    rows = []
+    for tool in RUNNERS:
+        row: dict[str, object] = {"tool": tool}
+        for field in ("title", "author", "publish_date", "main_content"):
+            counts = tally.get((tool, field))
+            if not counts:
+                row[field] = None          # the tool never attempts this field
+                continue
+            found = counts["hit"] + counts["miss"]
+            row[field] = counts["hit"] / found if found else None
+            row[field + "_invented"] = counts["invention"]
+        rows.append(row)
+
+    with open(args.out, "w") as handle:
+        handle.write(render(rows, pages=len(pages), split=args.split))
 
 
-def useless(page):
-    return Prediction(title=None, author=None, publish_date=None, main_content="")
-
-
-def test_a_runner_that_knows_everything_scores_perfectly():
-    pages = load(FIXTURES)
-
-    scores = score_all(pages, {"oracle": lambda html, page=None: perfect(page)})
-
-    assert scores["oracle"].title_accuracy == 1.0
-    assert scores["oracle"].content_f1 == 1.0
-
-
-def test_a_runner_that_knows_nothing_scores_zero():
-    pages = load(FIXTURES)
-
-    scores = score_all(pages, {"nothing": lambda html, page=None: useless(page)})
-
-    assert scores["nothing"].content_f1 == 0.0
-
-
-def test_every_runner_sees_the_same_pages():
-    pages = load(FIXTURES)
-    seen: dict[str, int] = {}
-
-    def counting(name):
-        def run(html, page=None):
-            seen[name] = seen.get(name, 0) + 1
-            return useless(page)
-
-        return run
-
-    score_all(pages, {"a": counting("a"), "b": counting("b")})
-
-    assert seen == {"a": len(pages), "b": len(pages)}
-
-
-def test_a_runner_that_raises_scores_zero_rather_than_stopping_the_table():
-    pages = load(FIXTURES)
-
-    def broken(html, page=None):
-        raise RuntimeError("this tool fell over")
-
-    scores = score_all(pages, {"broken": broken})
-
-    assert scores["broken"].content_f1 == 0.0
-    assert scores["broken"].failures == len(pages)
+if __name__ == "__main__":
+    main()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `uv run pytest tests/test_bench_runners.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'bench.runners'`
-
-- [ ] **Step 3: Write minimal implementation**
-
-`Scores` is a frozen dataclass carrying `title_accuracy`, `author_accuracy`, `date_accuracy`, `content_f1`, `failures`, and the per-page-type breakdown. `score_all` runs each runner over every page, catches any exception into a failure counted as zero rather than stopping the table, and averages. The real runners import their tool lazily so a missing competitor is skipped with a printed note rather than a crash. `main()` writes `results/latest.md` with the benchmark version, the commit, the date, the overall table and the table by page type, and prints the same to standard output.
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `uv run pytest -v`
-Expected: PASS, whole suite
-
+`FIELDS_ATTEMPTED` is a dict beside `RUNNERS` naming which fields each tool
+tries, so a field a tool never attempts stays `None` in the table instead of
+becoming a zero it did not earn.
+- [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Commit**
 
 ```bash
-git add bench/runners.py bench/run.py tests/test_bench_runners.py
-git commit -m "feat: run every tool over the same pages and publish the table"
+git commit -am "feat(scoreboard): run every tool, print every field, hide no loss"
 ```
 
 ---
@@ -360,35 +398,31 @@ git commit -m "feat: run every tool over the same pages and publish the table"
 ### Task 4: Run it for real, and commit the numbers
 
 **Files:**
-- Create: `results/latest.md` with real numbers
-- Modify: `README.md`, `.github/workflows/ci.yml`
+- Create: `results/latest.md`
+- Modify: `README.md`, `ROADMAP.md`, `.github/workflows/scoreboard.yml`
 
-- [ ] **Step 1: Download the benchmark and run the scoreboard**
+- [ ] **Step 1: Run the whole thing on the test split**
 
-Run: `uv run --with trafilatura --with readability-lxml python -m bench.run`
-Record the real output. This is the first time this project has had a number.
+Run: `uv run python -m scoreboard.run --split test --out results/latest.md`
 
-- [ ] **Step 2: Commit the results file**
+- [ ] **Step 2: Read the output before publishing it**
 
-The numbers go in the repository, whatever they say.
+Look at the rows where Sluicer loses and at any field where it scores suspiciously high. A score of 1.00 on a field is a bug until proven otherwise: check three pages by hand against their ground truth, and write what you checked into the report.
 
-- [ ] **Step 3: Put the headline in the README**
+- [ ] **Step 3: Write the numbers into the README, with the losses**
 
-Replace the line that says this README makes no claim about being better than anything with the number, whichever way it falls, and a link to the table.
+The README may state a comparison **only** now, and only as the table states it. Attribute WCXB (CC-BY-4.0, Murrough Foley) at the point of use.
 
-- [ ] **Step 4: Add a scheduled CI job**
+- [ ] **Step 4: Move the scoreboard from Next to Shipped in `ROADMAP.md`**, and delete the sentence saying this repository makes no comparative claim, because it now makes one and backs it.
 
-Weekly, not on every push: the download is large. It regenerates the table and opens a pull request if the numbers moved.
+- [ ] **Step 5: A weekly workflow that re-runs it**
 
-- [ ] **Step 5: Commit**
+A scoreboard that is run once is a screenshot. `scoreboard.yml` runs weekly and on demand, and fails the run if any score moves by more than 0.05 without `results/latest.md` changing in the same commit.
 
-```bash
-git add results README.md .github/workflows/ci.yml
-git commit -m "The first number this project has ever published"
-```
+- [ ] **Step 6: Commit**
 
 ---
 
 ## Out of scope
 
-Scoring tools that need an API key, a benchmark of our own making, and per-domain drill-downs. The first is not comparable, the second makes us the referee, and the third is worth doing once the table exists.
+Scoring `forum`, `documentation` and `service` pages, which have no declared-data expectation to score against. A leaderboard site. Any claim about speed — that is a different measurement and mixing it in here would let a slow, accurate tool look bad for the wrong reason.
