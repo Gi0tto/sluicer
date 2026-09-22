@@ -191,6 +191,44 @@ jobs:
           print('mcp: three tools listed, and two of them answered through the SDK dispatch')
           "
 
+  floors:
+    name: The declared minimum versions actually work
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      # A dependency floor nobody installs is a wish, not a constraint. This
+      # job resolves every declared lower bound to its lowest allowed version
+      # and runs the whole suite against it. It was added after measuring that
+      # both base floors were wrong: lxml 5.0 ships no wheel for cp313 or for
+      # macOS arm64, and on click 8.1.8 fourteen tests fail outright. Both had
+      # been declared for months and never once executed.
+      # Pinned to the minimum Python this project claims. On a newer
+      # interpreter `lowest-direct` silently resolves ABOVE the declared floor,
+      # because the floor version has no wheel for it -- so the job would pass
+      # without ever installing what it exists to test.
+      - name: Install the lowest versions every declared bound allows
+        run: |
+          uv venv --python 3.10
+          uv pip install --resolution lowest-direct '.[fetch,markdown,mcp,microformats]'
+          uv pip install pytest pytest-cov
+      - name: Say which versions that resolved to, and check they are the floors
+        run: |
+          uv pip list
+          uv run python - <<'PY'
+          import importlib.metadata as md
+          floors = {"lxml": "5.3", "click": "8.2"}
+          for name, floor in floors.items():
+              got = md.version(name)
+              assert got.startswith(floor), (
+                  f"{name} resolved to {got}, not the declared floor {floor}: "
+                  "this job is not testing what it claims to test"
+              )
+              print(f"{name} {got} -- the declared floor")
+          PY
+      - name: Run the suite against them
+        run: uv run pytest -q
+
   latest-extras:
     name: The extras still work at their newest versions
     runs-on: ubuntu-latest

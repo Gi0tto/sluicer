@@ -33,7 +33,15 @@ classifiers = [
     "Topic :: Text Processing :: Markup :: HTML",
     "Typing :: Typed",
 ]
-dependencies = ["lxml>=5.0", "click>=8.1"]
+# Both floors are measured, not guessed, and the `floors` CI job installs
+# exactly these and runs the suite so they cannot drift back into a wish.
+#   lxml 5.3 is the first release with a wheel for every Python this project
+#   supports: 5.0-5.2 ship none for cp313, and 5.0 ships none for macOS arm64
+#   at all, so an install at the old floor built from source or failed.
+#   click 8.2 is the first release whose CliRunner captures stderr separately.
+#   On 8.1.8 fourteen tests fail with "stderr not separately captured", which
+#   means the old floor was a version the suite had never once run against.
+dependencies = ["lxml>=5.3", "click>=8.2"]
 
 [project.optional-dependencies]
 # scrapling's base install is only the parser. The fetchers, and with them
