@@ -49,7 +49,7 @@ was measured rather than assumed -- for a `p-` prefixed item the value is the
 name, not the link. `metaformats` is left off, so OpenGraph and Twitter card
 tags are never reported as microformats; each has a reader of its own here.
 
-**Seven vocabularies fold onto one flat set of keys, and some of them collide.**
+**Eight vocabularies fold onto one flat set of keys, and some of them collide.**
 `og:image:alt` and `twitter:image:alt` both strip to `image:alt`; a Dublin Core
 `title` lands on the same key as an `og:title`; and RDFa folds `vocab` and
 `prefix` away, so two vocabularies sharing a term name share a key. The

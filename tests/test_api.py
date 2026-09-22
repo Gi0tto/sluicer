@@ -141,7 +141,7 @@ def test_the_gate_asks_which_sources_describe_a_thing():
 
 
 def test_every_reader_that_fired_is_reported_in_the_order_of_precedence():
-    """Six vocabularies on one page, and ``sources`` names them in order."""
+    """Seven vocabularies on one page, and ``sources`` names them in order."""
     html = (
         "<html><head>"
         '<script type="application/ld+json">'
@@ -149,6 +149,7 @@ def test_every_reader_that_fired_is_reported_in_the_order_of_precedence():
         '<meta name="DC.title" content="From Dublin Core">'
         '<meta property="og:site_name" content="From OpenGraph">'
         '<meta name="twitter:card" content="summary">'
+        '<meta name="description" content="From the bare meta tag">'
         "</head><body>"
         '<div itemscope itemtype="https://schema.org/Product">'
         '<span itemprop="mpn">From microdata</span></div>'
@@ -166,6 +167,7 @@ def test_every_reader_that_fired_is_reported_in_the_order_of_precedence():
         "dublincore",
         "opengraph",
         "twitter",
+        "html",
     ]
 
 
@@ -245,3 +247,46 @@ def test_a_page_whose_only_declaration_is_a_twitter_card_still_induces():
 
     assert result.sources == ["twitter", "induced"]
     assert len([r for r in result.records if r.fields.get("span.sku")]) == 5
+
+
+def test_a_real_vocabulary_beats_a_bare_meta_name():
+    html = (
+        "<html><head>"
+        '<meta property="og:description" content="FROM OPENGRAPH">'
+        '<meta name="description" content="FROM THE BARE META TAG">'
+        "</head></html>"
+    )
+
+    field = sluicer.extract(html).records[0].fields["description"]
+
+    assert field.value == "FROM OPENGRAPH"
+    assert field.source == "opengraph"
+
+
+def test_a_bare_meta_name_fills_what_no_vocabulary_declared():
+    """Last in precedence is not the same as unread: it is what reaches pages."""
+    html = (
+        "<html><head>"
+        '<meta property="og:title" content="From OpenGraph">'
+        '<meta name="author" content="Nancy Peyer">'
+        "</head></html>"
+    )
+
+    result = sluicer.extract(html)
+
+    assert result.sources == ["opengraph", "html"]
+    assert result.records[0].fields["author"] == sluicer.Field(
+        value="Nancy Peyer", source="html"
+    )
+
+
+def test_a_bare_meta_name_does_not_switch_induction_off():
+    rows = "".join(
+        f'<li class="r"><span class="sku">A{n}</span></li>' for n in range(5)
+    )
+    html = (
+        '<html><head><meta name="description" content="A catalogue."></head>'
+        f"<body><ul>{rows}</ul></body></html>"
+    )
+
+    assert "induced" in sluicer.extract(html, induce=True).sources

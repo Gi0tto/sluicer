@@ -37,7 +37,7 @@ uv tool install 'sluicer[fetch,markdown]'
 Fetching needs the `fetch` extra, markdown needs the `markdown` extra, and the
 base install reads HTML you already have.
 
-Six of the seven vocabularies are read by the base install. The seventh,
+Seven of the eight vocabularies are read by the base install. The other one,
 microformats2, needs `sluicer[microformats]` and is off until asked for:
 `sluicer.extract(html, microformats=True)`. Do not install it expecting to read
 more pages -- measured across twenty live pages, microformats appeared on one,

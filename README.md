@@ -53,17 +53,29 @@ one record, and every field still says which vocabulary it came from.
 ## What it does
 
 **Reads what the page already declares.** JSON-LD, microdata, RDFa, Dublin
-Core, OpenGraph, the Twitter card, and microformats2 when you ask for it. On a
-large part of the commercial web the structured data is sitting in the source
-and nobody reads it. The newer readers buy compatibility rather than reach:
-measured on 2026-09-22 across twenty pages, Dublin Core, RDFa and microformats
-unlock zero pages that JSON-LD, microdata or OpenGraph do not already cover.
-What they buy is parity with `extruct`, which reads six vocabularies, takes
-540,765 installs a month, and has had no release in 683 days.
+Core, OpenGraph, the Twitter card, the metadata names HTML itself defines, and
+microformats2 when you ask for it. On a large part of the commercial web the
+structured data is sitting in the source and nobody reads it.
+
+Two of those matter more than the rest, and the numbers say why. Measured across
+the 359 commercial pages of a public annotated corpus: `article:published_time`
+is on 33% of them and `<meta name="author">` on 29%, and reading those two took
+recall on `publish_date` from 0.06 to **0.50** and on `author` from 0.01 to
+**0.38**. The first is part of the OpenGraph protocol and was missed because
+only the `og:` prefix was matched; the second is a tag no vocabulary owns, which
+other tools either ignore or file under a vocabulary that never claimed it.
+
+Dublin Core, RDFa and microformats buy something different — compatibility, not
+reach. Measured across twenty live pages, they unlock zero pages that JSON-LD,
+microdata or OpenGraph do not already cover. What they buy is parity with
+`extruct`, which reads six vocabularies, takes 540,765 installs a month, and has
+had no release in 683 days.
 
 **Keeps the provenance of every field.** Precedence is JSON-LD, then microdata,
 then microformats, then RDFa, then Dublin Core, then OpenGraph, then the Twitter
-card, and each value carries the reader that won it. You always know where a
+card, then HTML's own metadata names, and each value carries the reader that won
+it. A value from `<meta name="author">` says `"source": "html"`, because that is
+what it is. You always know where a
 number came from before you act on it.
 
 **Reads pages that declare nothing.** Ask for it with `induce=True` and Sluicer
