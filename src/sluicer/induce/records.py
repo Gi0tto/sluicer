@@ -12,7 +12,22 @@ from lxml.html import HtmlElement
 
 from sluicer.declared.merge import Field, Record
 
-_ADDRESS = {"a": "href", "img": "src", "link": "href", "source": "src"}
+# Which attribute carries the address, per tag. Named without an underscore
+# because the ranking in ``groups`` asks the same question -- an element that
+# points somewhere carries something, whether or not it also carries text --
+# and one table is the only way the two can never disagree.
+ADDRESS = {"a": "href", "img": "src", "link": "href", "source": "src"}
+
+
+def address_of(element: HtmlElement) -> str | None:
+    """Return the address ``element`` points at, or None when it points nowhere."""
+    if not isinstance(element.tag, str):
+        return None
+    attribute = ADDRESS.get(element.tag)
+    if not attribute:
+        return None
+    value = element.get(attribute)
+    return value.strip() if value else None
 
 
 def _name(element: HtmlElement, position: int) -> str:
@@ -22,9 +37,9 @@ def _name(element: HtmlElement, position: int) -> str:
 
 
 def _value(element: HtmlElement) -> str:
-    attribute = _ADDRESS.get(element.tag if isinstance(element.tag, str) else "")
-    if attribute and element.get(attribute):
-        return str(element.get(attribute)).strip()
+    address = address_of(element)
+    if address:
+        return address
     return " ".join((element.text_content() or "").split())
 
 
