@@ -32,7 +32,24 @@ owner is entitled to change at any moment.
 
 
 UNREACHABLE = "sluicer: robots.txt unreachable"
-"""The comment a stand-in refusal carries, so the refusal can say why."""
+"""The comment a reader's stand-in carries when nothing answered at all."""
+
+UNAVAILABLE = "sluicer: robots.txt unavailable"
+"""The comment a reader's stand-in refusal carries when the site answered 5xx."""
+
+
+class RobotsUnreachable(Exception):
+    """Nothing answered for the robots.txt, so the page was never asked for.
+
+    RFC 9309 treats this as a full disallow, and nothing is fetched. It is not
+    reported as the site refusing us, though: a host that does not resolve has
+    refused nothing, and "could not reach it" is the true sentence.
+    """
+
+    def __init__(self, url: str, detail: str) -> None:
+        super().__init__(f"could not reach the robots.txt for {url}: {detail}")
+        self.url = url
+        self.detail = detail
 
 
 def robots_url_for(url: str) -> str:
@@ -67,7 +84,10 @@ def robots_allows(
     elapsed interval and a machine that resyncs its clock must not change how
     long an answer is believed for.
     """
-    return robots_refusal(url, read, cache, now) is None
+    try:
+        return robots_refusal(url, read, cache, now) is None
+    except RobotsUnreachable:
+        return False
 
 
 def robots_refusal(
@@ -80,14 +100,21 @@ def robots_refusal(
 
     ``robots_allows``, with the reason kept: "its robots.txt disallows it" for
     a rule the site wrote, and "its robots.txt could not be read" for the
-    stand-in refusal a reader returns when the file was unreachable, since
-    those are different things to tell a caller.
+    stand-in refusal a reader returns for a 5xx, since those are different
+    things to tell a caller. When nothing answered at all it raises
+    ``RobotsUnreachable``, and that answer is not remembered: one timeout must
+    not keep a long-running server away from a site for a day.
     """
     store = cache if cache is not None else _CACHE
     key = _cache_key(url)
     entry = store.get(key)
     if entry is None or now() - entry[0] >= ROBOTS_TTL_SECONDS:
         entry = (now(), read(robots_url_for(url)))
+        unreachable = f"# {UNREACHABLE}: "
+        if entry[1] and entry[1].startswith(unreachable):
+            store.pop(key, None)
+            detail = entry[1].splitlines()[0][len(unreachable) :]
+            raise RobotsUnreachable(url, detail)
         store[key] = entry
     text = entry[1]
     if not text:
@@ -111,11 +138,11 @@ def robots_refusal(
     if protego.Protego.parse(text).can_fetch(url, USER_AGENT):
         return None
     first = text.lstrip().splitlines()[0]
-    marker = f"# {UNREACHABLE}: "
+    marker = f"# {UNAVAILABLE}: "
     if first.startswith(marker):
         return (
-            f"its robots.txt could not be read ({first[len(marker) :]}), and "
-            "RFC 9309 says to treat that as a refusal"
+            f"its robots.txt answered {first[len(marker) :]}, and RFC 9309 says "
+            "to treat an unavailable robots.txt as a refusal"
         )
     return "its robots.txt disallows it"
 

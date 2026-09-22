@@ -358,21 +358,56 @@ def test_a_robots_file_that_5xxs_is_read_as_a_full_disallow():
     assert robots_allows("https://example.com/anything", read=lambda url: text) is False
 
 
-def test_a_robots_file_that_cannot_be_reached_is_a_refusal_that_says_why():
+def test_a_robots_file_that_cannot_be_reached_stops_the_fetch_and_says_so():
     """RFC 9309, 2.3.1.4: unreachable because of a network error is a complete
-    disallow. It used to be read as permission, so a robots.txt that timed out
-    let the page be fetched."""
+    disallow, so the page is never asked for. It used to be read as permission,
+    so a robots.txt that timed out let the page be fetched. It is reported as
+    the fetch failing, not as the site refusing us: a host that does not
+    resolve has refused nothing."""
+    calls = []
 
     def http(url):
+        calls.append(url)
         if url.endswith("/robots.txt"):
             raise TimeoutError("timed out after 20 seconds")
         return Fetched(url=url, html=RICH, status=200, rung="http")
 
-    with pytest.raises(RobotsRefused) as raised:
+    with pytest.raises(FetchFailed) as raised:
         fetch("https://slow.example/p", rungs=[("http", http)])
 
-    assert "could not be read" in str(raised.value)
+    assert "robots.txt" in str(raised.value)
     assert "timed out" in str(raised.value)
+    assert calls == ["https://slow.example/robots.txt"]
+
+
+def test_an_unreachable_robots_file_is_asked_again_next_time():
+    """One timeout must not keep a long-running server away for a day."""
+    answers = iter([TimeoutError("timed out"), None])
+
+    def http(url):
+        if url.endswith("/robots.txt"):
+            answer = next(answers)
+            if isinstance(answer, Exception):
+                raise answer
+            return Fetched(url=url, html="", status=404, rung="http")
+        return Fetched(url=url, html=RICH, status=200, rung="http")
+
+    with pytest.raises(FetchFailed):
+        fetch("https://flaky.example/p", rungs=[("http", http)])
+
+    assert fetch("https://flaky.example/p", rungs=[("http", http)]).status == 200
+
+
+def test_a_robots_file_that_answers_5xx_is_a_refusal_that_says_so():
+    def http(url):
+        if url.endswith("/robots.txt"):
+            return Fetched(url=url, html="busy", status=503, rung="http")
+        return Fetched(url=url, html=RICH, status=200, rung="http")
+
+    with pytest.raises(RobotsRefused) as raised:
+        fetch("https://busy.example/p", rungs=[("http", http)])
+
+    assert "503" in raised.value.reason
 
 
 def test_a_site_whose_robots_is_unavailable_is_not_fetched():

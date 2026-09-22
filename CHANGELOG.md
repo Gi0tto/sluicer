@@ -105,9 +105,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The ladder no longer climbs a small complete page or a 404, and a theme-color
   in an empty React shell no longer counts as delivered data. A failed climb
   returns what the cheaper rung had instead of a traceback.
-- A redirect to another host is checked against that host's robots.txt, and an
-  unreachable robots.txt is a refusal, per RFC 9309, that says it could not be
-  read.
+- A redirect to another host is checked against that host's robots.txt. A
+  robots.txt nothing answered for stops the fetch, per RFC 9309, reported as a
+  failed fetch rather than as the site refusing us, and it is not remembered;
+  one that answers 5xx is a refusal that says so.
 - The CLI passed a file's path to the readers as the page's URL, so relative
   links resolved against the file name. A browser timeout was a traceback.
 - The MCP tools answered a failed fetch with the SDK's bare "Error executing

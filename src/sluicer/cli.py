@@ -34,9 +34,19 @@ def main() -> None:
 
     SOURCE is a URL, a saved HTML file, or - for standard input.
     """
-    # scrapling logs every request at INFO into stderr, which is where this
-    # command's own messages go.
-    logging.getLogger("scrapling").setLevel(logging.WARNING)
+    _quiet_scrapling()
+
+
+def _quiet_scrapling() -> None:
+    """Keep scrapling's per-request INFO lines out of stderr.
+
+    A filter and not a level: scrapling sets its logger to INFO when it is
+    imported, which happens later, at the first fetch, and would undo a level
+    set here. A filter on the logger survives that.
+    """
+    logging.getLogger("scrapling").addFilter(
+        lambda record: record.levelno >= logging.WARNING
+    )
 
 
 def _fail(message: str, cause: BaseException | None = None) -> None:

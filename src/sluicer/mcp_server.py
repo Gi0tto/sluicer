@@ -265,6 +265,9 @@ def main() -> None:
     except McpExtraMissing as missing:
         print(str(missing), file=sys.stderr)
         raise SystemExit(1) from missing
-    # scrapling logs every request at INFO into the server's stderr.
-    logging.getLogger("scrapling").setLevel(logging.WARNING)
+    # scrapling logs every request at INFO into the server's stderr, and sets
+    # its level when first imported; a filter outlives that.
+    logging.getLogger("scrapling").addFilter(
+        lambda record: record.levelno >= logging.WARNING
+    )
     server.run()

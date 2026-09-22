@@ -23,7 +23,12 @@ from sluicer.api import extract
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import load
 from sluicer.fetch.address import AddressRefused, _resolve, why_not_public
-from sluicer.fetch.identity import UNREACHABLE, robots_refusal
+from sluicer.fetch.identity import (
+    UNAVAILABLE,
+    UNREACHABLE,
+    RobotsUnreachable,
+    robots_refusal,
+)
 from sluicer.fetch.result import Climb, Fetched, Rung
 from sluicer.fetch.rules import why_climb
 
@@ -78,11 +83,11 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
       value that every caller would then have to learn.
     * the rung raised -- the connection never opened, it timed out. RFC 9309
       section 2.3.1.4 calls that unreachable and says to treat it as a full
-      disallow, the same as a 5xx.
+      disallow: nothing is fetched, and the caller gets ``FetchFailed``
+      saying the robots.txt could not be reached, not that the site said no.
 
-    Both refusals carry the reason in a comment line, which robots parsers
-    skip and ``robots_refusal`` reads, so the caller is told the file could
-    not be read rather than that the site said no.
+    Both stand-ins carry their reason in a comment line, which robots parsers
+    skip and ``robots_refusal`` reads.
 
         A rung returns ``Fetched.html``, not plain text, and a rung that fetches
     a plain-text robots.txt does not mean the body arrives as plain text:
@@ -105,9 +110,9 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
         # own -- is the same event, "unreachable", and a list of exception
         # types would be a list of the failures we happened to think of.
         except Exception as failure:  # noqa: BLE001
-            return _stay_out(f"{type(failure).__name__}: {failure}")
+            return _stay_out(UNREACHABLE, f"{type(failure).__name__}: {failure}")
         if response.status >= 500:
-            return _stay_out(f"status {response.status}")
+            return _stay_out(UNAVAILABLE, f"status {response.status}")
         if response.status >= 400:
             return None
         # str(...) because lxml ships no types: this asserts at runtime what
@@ -117,8 +122,8 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
     return read
 
 
-def _stay_out(reason: str) -> str:
-    return f"# {UNREACHABLE}: {reason}\nUser-agent: *\nDisallow: /\n"
+def _stay_out(marker: str, reason: str) -> str:
+    return f"# {marker}: {reason}\nUser-agent: *\nDisallow: /\n"
 
 
 def fetch(
@@ -174,7 +179,7 @@ def fetch(
         else _default_robots_reader(rungs[0][1])
     )
     if obey_robots:
-        refusal = robots_refusal(url, read=read)
+        refusal = _robots(url, read)
         if refusal is not None:
             raise RobotsRefused(url, refusal)
 
@@ -232,10 +237,23 @@ def _checked(
         if refused is not None:
             raise AddressRefused(result.url, refused)
     if obey_robots and _origin(result.url) != _origin(asked):
-        refusal = robots_refusal(result.url, read=read)
+        refusal = _robots(result.url, read)
         if refusal is not None:
             raise RobotsRefused(result.url, refusal)
     return result
+
+
+def _robots(url: str, read: Callable[[str], str | None]) -> str | None:
+    """Why the site's robots.txt refuses ``url``, or None when it allows it.
+
+    Nothing answering for the robots.txt stops the fetch as RFC 9309 says, and
+    is reported as the fetch failing: a host that does not resolve has not
+    refused us, and saying it had would send the reader to the wrong fix.
+    """
+    try:
+        return robots_refusal(url, read=read)
+    except RobotsUnreachable as unreachable:
+        raise FetchFailed(url, [], str(unreachable)) from unreachable
 
 
 def _origin(url: str) -> tuple[str, str]:
