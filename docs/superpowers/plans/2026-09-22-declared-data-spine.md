@@ -550,7 +550,7 @@ git commit -m "feat: read OpenGraph and twitter meta tags"
 - Consumes: outputs of Tasks 3, 4, 5.
 - Produces: `Field(value: str, source: str)`, `Record(type: str | None, fields: dict[str, Field])`, and `merge(jsonld: list[dict], microdata: list[dict], opengraph: dict) -> list[Record]`.
 
-**Precedence, fixed and documented:** JSON-LD beats microdata beats OpenGraph. Records of the same `@type` are folded into one: microdata fills the gaps a JSON-LD record left, it does not create a duplicate record beside it. The first reader to declare a field owns it, and `Field.source` always says which one did. OpenGraph alone never creates a record on its own; it only fills gaps in an existing one, or forms a single record when nothing else was declared.
+**Precedence, fixed and documented:** JSON-LD beats microdata beats OpenGraph. Folding happens ACROSS readers only: when microdata describes the same type a JSON-LD record already carries, it fills that record's gaps instead of creating a duplicate beside it. Within a single reader, two entries sharing a type are two different things - a listing page with two `Product` objects in one `@graph` describes two products - and they stay separate. When several records share a type, gap-filling targets the first, which suits the common page shape of one primary entity. The first reader to declare a field owns it, and `Field.source` always says which one did. OpenGraph alone never creates a record on its own; it only fills gaps in an existing one, or forms a single record when nothing else was declared.
 
 - [ ] **Step 1: Write the failing test**
 
