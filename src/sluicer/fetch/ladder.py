@@ -19,7 +19,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 from urllib.parse import urlsplit
 
-from sluicer.api import ABOUT_A_THING, extract
+from sluicer.api import extract
+from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import load
 from sluicer.fetch.address import AddressRefused, _resolve, why_not_public
 from sluicer.fetch.identity import UNREACHABLE, robots_refusal

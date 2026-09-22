@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from sluicer.declared.dublincore import read_dublincore
 from sluicer.declared.htmlmeta import read_htmlmeta
 from sluicer.declared.jsonld import read_jsonld
-from sluicer.declared.merge import Record, merge
+from sluicer.declared.merge import ABOUT_A_THING, Record, merge
 from sluicer.declared.microdata import read_microdata
 from sluicer.declared.microformats import read_microformats
 from sluicer.declared.opengraph import read_opengraph
@@ -15,13 +15,21 @@ from sluicer.declared.rdfa import read_rdfa
 from sluicer.declared.twitter import read_twitter
 from sluicer.document import load
 from sluicer.structure import induce as induce_records
+from sluicer.summary import SummaryField, summarise
 
 
 @dataclass
 class Extraction:
-    """What Sluicer found in one page, and where it came from."""
+    """What Sluicer found in one page, and where it came from.
+
+    ``summary`` answers the questions most callers ask -- title, author, date,
+    price -- one value each, chosen from the records by fixed rules, each
+    saying which reader and which key it came from. ``records`` is everything
+    the page declared, of which the summary is a reading.
+    """
 
     url: str | None = None
+    summary: dict[str, SummaryField] = field(default_factory=dict)
     records: list[Record] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
 
@@ -131,33 +139,15 @@ def extract(
     # with only an ``@id``, a microformats root that was a CSS class -- and an
     # empty value is not a value, whole records included.
     records = [record for record in records if record.fields]
+    summary = summarise(doc, records, dublincore, opengraph, twitter, htmlmeta)
     if induce and not _declared_about_its_things(records):
         induced = induce_records(doc)
         if induced:
             records = [*records, *induced]
             sources = [*sources, "induced"]
-    return Extraction(url=url, records=records, sources=sources)
+    return Extraction(url=url, summary=summary, records=records, sources=sources)
 
 
-# The vocabularies that describe a thing on the page rather than the page
-# itself. Named positively on purpose: the gate used to ask which source was
-# not OpenGraph, and every document-level vocabulary added after it would have
-# switched induction off silently. A reader added here is a reader claiming to
-# describe the page's subject; anything unlisted is taken to describe the
-# document, which is the safe side -- it lets induction run.
-#
-# The Twitter card is what that bought: a sixth reader, document-level like
-# OpenGraph, wired in without a line changing here. So was the eighth,
-# ``html``: ``<meta name="description">`` describes the document, so a page
-# carrying nothing else is still induced over, and this set did not have to
-# learn a name to keep that true.
-#
-# ``microformats`` was named here before its reader existed, and the reader
-# arrived without this line changing either: the set is the statement of the
-# rule, and a rule written down in instalments judges pages by half of itself
-# in between. An ``h-entry`` describes a thing, so a page carrying one has
-# declared something about its own subject and is not induced over.
-ABOUT_A_THING = frozenset({"jsonld", "microdata", "rdfa", "microformats"})
 
 
 def _declared_about_its_things(records: list[Record]) -> bool:

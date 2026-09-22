@@ -5,6 +5,7 @@ from sluicer.declared.merge import Field, Record
 from sluicer.declared.microformats import MicroformatsExtraMissing
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
 from sluicer.structure import induce
+from sluicer.summary import SummaryField
 
 __all__ = [
     "Extraction",
@@ -12,6 +13,7 @@ __all__ = [
     "MarkdownExtraMissing",
     "MicroformatsExtraMissing",
     "Record",
+    "SummaryField",
     "__version__",
     "extract",
     "induce",

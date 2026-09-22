@@ -38,6 +38,26 @@ JsonValue: TypeAlias = "str | list[JsonValue] | dict[str, JsonValue]"
 # Deeper than any real page nests; a bound so a hostile one costs a fixed amount.
 MAX_DEPTH = 16
 
+# The vocabularies that describe a thing on the page rather than the page
+# itself. Named positively on purpose: the gate used to ask which source was
+# not OpenGraph, and every document-level vocabulary added after it would have
+# switched induction off silently. A reader added here is a reader claiming to
+# describe the page's subject; anything unlisted is taken to describe the
+# document, which is the safe side -- it lets induction run.
+#
+# The Twitter card is what that bought: a sixth reader, document-level like
+# OpenGraph, wired in without a line changing here. So was the eighth,
+# ``html``: ``<meta name="description">`` describes the document, so a page
+# carrying nothing else is still induced over, and this set did not have to
+# learn a name to keep that true.
+#
+# ``microformats`` was named here before its reader existed, and the reader
+# arrived without this line changing either: the set is the statement of the
+# rule, and a rule written down in instalments judges pages by half of itself
+# in between. An ``h-entry`` describes a thing, so a page carrying one has
+# declared something about its own subject and is not induced over.
+ABOUT_A_THING = frozenset({"jsonld", "microdata", "rdfa", "microformats"})
+
 
 @dataclass(frozen=True)
 class Field:

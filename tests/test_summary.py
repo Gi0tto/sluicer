@@ -1,0 +1,257 @@
+"""The summary: one answer per question, each saying where it came from."""
+
+import json
+
+from sluicer import extract
+from sluicer.summary import FIELDS
+
+
+def _page(*blocks: object, head: str = "", attrs: str = "") -> str:
+    scripts = "".join(
+        f'<script type="application/ld+json">{json.dumps(block)}</script>'
+        for block in blocks
+    )
+    return f"<html{attrs}><head>{head}{scripts}</head><body></body></html>"
+
+
+def _summary(html: str, url: str | None = None) -> dict[str, tuple[str, str, str]]:
+    found = extract(html, url=url).summary
+    return {name: (f.value, f.source, f.key) for name, f in found.items()}
+
+
+def test_an_article_answers_from_the_article():
+    html = _page(
+        {"@type": "BreadcrumbList", "name": "Home > News"},
+        {
+            "@type": "NewsArticle",
+            "headline": "Tom Daley on knitting",
+            "author": [{"@type": "Person", "name": "Lily Smith"}],
+            "datePublished": "2026-09-22T14:00:02Z",
+            "publisher": {"@type": "Organization", "name": "The Guardian"},
+            "image": {"@type": "ImageObject", "url": "https://i.example/a.jpg"},
+        },
+        head='<meta property="og:title" content="Tom Daley | The Guardian">',
+    )
+
+    summary = _summary(html)
+
+    assert summary["title"] == (
+        "Tom Daley on knitting",
+        "jsonld",
+        "NewsArticle.headline",
+    )
+    assert summary["author"] == ("Lily Smith", "jsonld", "NewsArticle.author")
+    assert summary["published"][0] == "2026-09-22T14:00:02Z"
+    assert summary["publisher"][0] == "The Guardian"
+    assert summary["image"][0] == "https://i.example/a.jpg"
+    assert summary["type"][0] == "NewsArticle"
+
+
+def test_a_recipe_is_the_subject_of_a_page_that_also_carries_its_video():
+    html = _page(
+        {"@type": "VideoObject", "name": "Watch the cake", "uploadDate": "2020-01-01"},
+        {
+            "@type": "Recipe",
+            "name": "Easy chocolate cake",
+            "datePublished": "2017-10-08",
+        },
+    )
+
+    summary = _summary(html)
+
+    assert summary["title"][0] == "Easy chocolate cake"
+    assert summary["published"][0] == "2017-10-08"
+
+
+def test_a_page_about_its_own_site_is_titled_by_the_page():
+    html = _page(
+        {"@type": "WebSite", "name": "Yoast"},
+        {"@type": ["Organization", "Brand"], "name": "Yoast"},
+        head='<meta property="og:title" content="SEO for everyone"><title>x</title>',
+    )
+
+    summary = _summary(html)
+
+    assert summary["title"] == ("SEO for everyone", "opengraph", "og:title")
+    assert summary["publisher"] == ("Yoast", "jsonld", "Organization.name")
+    assert summary["site_name"] == ("Yoast", "jsonld", "WebSite.name")
+
+
+def test_a_page_that_declares_only_its_title_still_has_one():
+    summary = _summary("<html lang='de'><head><title> Bremsöl  </title></head></html>")
+
+    assert summary == {
+        "title": ("Bremsöl", "html", "<title>"),
+        "language": ("de", "html", "<html lang>"),
+    }
+
+
+def test_a_page_with_nothing_at_all_has_an_empty_summary():
+    assert extract("<p>hi</p>").summary == {}
+
+
+def test_an_author_meta_fills_what_json_ld_did_not_say():
+    html = _page(
+        {"@type": "Article", "headline": "H"},
+        head='<meta name="author" content="Nancy Peyer">'
+        '<meta property="article:author" content="https://x.example/profile/np">',
+    )
+
+    assert _summary(html)["author"] == ("Nancy Peyer", "html", "meta name=author")
+
+
+def test_a_profile_address_is_not_an_author():
+    html = _page(
+        {"@type": "Article", "headline": "H"},
+        head='<meta property="article:author" content="https://x.example/profile/np">',
+    )
+
+    assert "author" not in _summary(html)
+
+
+def test_several_authors_are_named_once_each_in_order():
+    html = _page(
+        {
+            "@type": "Article",
+            "headline": "H",
+            "author": [
+                {"@type": "Person", "name": "A. One"},
+                {"@type": "Person", "givenName": "Bea", "familyName": "Two"},
+                {"@type": "Person", "name": "A. One"},
+            ],
+        }
+    )
+
+    assert _summary(html)["author"][0] == "A. One, Bea Two"
+
+
+def test_a_product_answers_its_price_from_inside_its_offers():
+    html = _page(
+        {
+            "@type": "Product",
+            "name": "Brake pad set",
+            "sku": "BP-1",
+            "brand": {"@type": "Brand", "name": "Textar"},
+            "offers": [
+                {
+                    "@type": "Offer",
+                    "price": "41.90",
+                    "priceCurrency": "EUR",
+                    "availability": "https://schema.org/InStock",
+                }
+            ],
+        }
+    )
+
+    summary = _summary(html)
+
+    assert summary["price"][0] == "41.90"
+    assert summary["currency"][0] == "EUR"
+    assert summary["availability"][0] == "InStock"
+    assert summary["brand"][0] == "Textar"
+    assert summary["sku"][0] == "BP-1"
+
+
+def test_an_aggregate_offer_answers_with_its_lowest_price():
+    html = _page(
+        {
+            "@type": "Product",
+            "name": "Pads",
+            "offers": {
+                "@type": "AggregateOffer",
+                "lowPrice": "19",
+                "priceCurrency": "EUR",
+            },
+        }
+    )
+
+    assert _summary(html)["price"][0] == "19"
+
+
+def test_a_price_in_a_price_specification_is_found():
+    html = _page(
+        {
+            "@type": "Product",
+            "name": "Pads",
+            "offers": {
+                "@type": "Offer",
+                "priceSpecification": {"price": "7.50", "priceCurrency": "GBP"},
+            },
+        }
+    )
+
+    summary = _summary(html)
+
+    assert summary["price"][0] == "7.50"
+    assert summary["currency"][0] == "GBP"
+
+
+def test_addresses_resolve_against_the_page():
+    html = _page(
+        {"@type": "Product", "name": "Pad", "image": "/i/pad.jpg"},
+        head='<link rel="canonical" href="/p/pad">',
+    )
+
+    summary = _summary(html, url="https://shop.example/c/pads?page=2")
+
+    assert summary["url"] == (
+        "https://shop.example/p/pad",
+        "html",
+        "<link rel=canonical>",
+    )
+    assert summary["image"][0] == "https://shop.example/i/pad.jpg"
+
+
+def test_html_entities_written_into_json_ld_are_read_as_characters():
+    html = _page({"@type": "Article", "headline": "Guide &#8226; Yoast &amp; you"})
+
+    assert _summary(html)["title"][0] == "Guide • Yoast & you"
+
+
+def test_a_locale_becomes_a_language_tag_when_the_page_has_no_lang():
+    html = _page(head='<meta property="og:locale" content="en_US">')
+
+    assert _summary(html)["language"] == ("en-US", "opengraph", "og:locale")
+
+
+def test_an_opengraph_value_folded_onto_a_record_keeps_its_own_key():
+    html = _page(
+        {"@type": "CollectionPage", "name": "Men's Shoes"},
+        head='<meta property="og:image" content="https://x.example/og.jpg">',
+    )
+
+    assert _summary(html)["image"] == (
+        "https://x.example/og.jpg",
+        "opengraph",
+        "og:image",
+    )
+
+
+def test_induced_rows_are_never_the_subject():
+    rows = "".join(
+        f"<li class='r'><a href='/p{n}'>Product {n}</a>"
+        f"<span class='p'>{n}.99</span></li>"
+        for n in range(5)
+    )
+    html = (
+        f"<html><head><title>Brakes</title></head><body><ul>{rows}</ul></body></html>"
+    )
+
+    assert extract(html, induce=True).summary["title"].value == "Brakes"
+
+
+def test_answers_come_in_the_stated_order():
+    html = _page(
+        {
+            "@type": "Product",
+            "sku": "S",
+            "name": "N",
+            "offers": {"@type": "Offer", "price": "1", "priceCurrency": "EUR"},
+        },
+        head="<title>T</title>",
+        attrs=" lang='en'",
+    )
+
+    names = list(extract(html).summary)
+
+    assert names == [name for name in FIELDS if name in names]
