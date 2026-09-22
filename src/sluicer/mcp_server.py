@@ -8,9 +8,10 @@ library already does and gets out of the way.
 
 from __future__ import annotations
 
+import functools
 import sys
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Callable
 
 from sluicer.api import extract
 from sluicer.extras import MissingExtra, import_extra
@@ -40,6 +41,37 @@ def _fastmcp():
         package="the mcp package",
         error=McpExtraMissing,
     ).FastMCP
+
+
+def _explains_a_missing_extra(tool: Callable) -> Callable:
+    """Turn a missing extra into the tool's own result, hint intact.
+
+    Every tool here can meet an absent extra: two fetch, two read markdown or
+    structured data. Without this the ``MissingExtra`` leaves the tool body as
+    an exception, and what the agent on the other end sees is whatever the SDK
+    decides to do with one -- which is not this project's to promise, is not
+    tested here, and is not written down anywhere. "Explain a missing extra" is
+    a duty this package discharges at every entry point; the CLI does it in
+    ``cli.py``, and this is the server's one place to do it.
+
+    The shape follows the tool's declared return type, because FastMCP builds
+    an output schema from that annotation: a ``dict`` tool gets the sentence
+    under ``error`` alongside the extra's name, and a ``str`` tool gets the
+    sentence itself. Only ``MissingExtra`` is caught. A real bug inside a tool
+    is still a bug and still raises.
+    """
+    returns_text = tool.__annotations__.get("return") in ("str", str)
+
+    @functools.wraps(tool)
+    def guarded(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return tool(*args, **kwargs)
+        except MissingExtra as missing:
+            if returns_text:
+                return str(missing)
+            return {"error": str(missing), "missing_extra": missing.extra}
+
+    return guarded
 
 
 def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
@@ -80,6 +112,7 @@ def build_server() -> Any:
     server = _fastmcp()("sluicer")
 
     @server.tool()
+    @_explains_a_missing_extra
     def extract_declared(html_or_url: str) -> dict:
         """Read the structured data a page declares, with per-field provenance."""
         html, url, fetched = _html_of(html_or_url)
@@ -89,12 +122,14 @@ def build_server() -> Any:
         return result
 
     @server.tool()
+    @_explains_a_missing_extra
     def page_markdown(html_or_url: str) -> str:
         """Return the page's main content as markdown, with boilerplate removed."""
         html, url, _fetched = _html_of(html_or_url)
         return to_markdown(html, url=url)
 
     @server.tool()
+    @_explains_a_missing_extra
     def fetch_page(url: str) -> dict:
         """Fetch a page and report which rung it took and every climb.
 
