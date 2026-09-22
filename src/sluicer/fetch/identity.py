@@ -49,9 +49,12 @@ def robots_allows(
     there is nothing to read. Injecting it keeps this module out of the
     fetching business and every test off the network.
 
-    A site that publishes no rules has not refused, so a missing or unreadable
-    robots file means yes. A site that publishes a refusal is obeyed: a rule we
-    were told about is not an obstacle to route around.
+    A site that publishes no rules has not refused, so nothing to read means
+    yes. A site that publishes a refusal is obeyed: a rule we were told about
+    is not an obstacle to route around. What counts as "nothing to read" is
+    ``read``'s decision, not this function's, and the default reader in
+    ``ladder.py`` makes it by RFC 9309: a 5xx robots.txt is unavailable, not
+    absent, and comes back as a full disallow rather than as nothing.
 
     An answer is remembered for ``ROBOTS_TTL_SECONDS`` and then asked for
     again. ``now`` is the clock that decides, injected for the same reason
