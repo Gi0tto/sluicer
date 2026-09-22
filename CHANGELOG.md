@@ -20,6 +20,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `docs/field-survey.md`, a reproducible count of 1,926 repositories in this
   field, and `AI_POLICY.md`.
 
+- `to_markdown()` and `sluicer markdown`, which return a page's main content as
+  markdown with the boilerplate gone, under the `markdown` extra.
+- An MCP server and the `sluicer-mcp` command, exposing three tools to any agent
+  that speaks the protocol, under the `mcp` extra.
+
 ### Changed
 - A bad argument to `sluicer extract` now exits 1 with our own message rather
   than exiting 2 with click's. A missing file and a directory are both covered.
