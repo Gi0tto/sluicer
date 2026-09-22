@@ -5,11 +5,11 @@ both JSON-LD and microdata, fields from the lower-precedence reader fill
 gaps in the higher-precedence one. Within a single reader, two entries with
 the same @type are two distinct things and remain separate records.
 
-Seven readers reach here, and ``merge`` is where their order of precedence
+Eight readers reach here, and ``merge`` is where their order of precedence
 is written down: JSON-LD, microdata, microformats, RDFa, Dublin Core,
-OpenGraph, the Twitter card. It is one rule in one place, so no pair of
-vocabularies is left to settle a shared key by whichever tag the page's
-author typed first.
+OpenGraph, the Twitter card, HTML's own metadata names. It is one rule in one
+place, so no pair of vocabularies is left to settle a shared key by whichever
+tag the page's author typed first.
 
 This slice extracts scalar values only; complex-typed fields (objects and
 lists, such as JSON-LD's offers or image) are not carried into records.
@@ -59,16 +59,22 @@ def merge(
     dublincore: dict[str, str],
     opengraph: dict[str, str],
     twitter: dict[str, str],
+    htmlmeta: dict[str, str],
 ) -> list[Record]:
     """Merge reader output. Earlier sources win; every field keeps its source.
 
     The order of precedence is JSON-LD, microdata, microformats, RDFa, Dublin
-    Core, OpenGraph, the Twitter card, and this signature is where it is
-    stated: the first field written under a name is the one that survives, so a
-    reader named later can only ever fill a gap. The first four describe the
-    thing the page is about and name it with a type, so they fold by type. The
-    last three describe the document, declare no type at all, and fill the
-    first record on the page.
+    Core, OpenGraph, the Twitter card, HTML's own metadata names, and this
+    signature is where it is stated: the first field written under a name is
+    the one that survives, so a reader named later can only ever fill a gap.
+    The first four describe the thing the page is about and name it with a
+    type, so they fold by type. The last four describe the document, declare no
+    type at all, and fill the first record on the page.
+
+    Every parameter is positional and none has a default. A default would let
+    a reader be added and then silently left out of a call site that was never
+    updated, which is precisely the failure this signature exists to make
+    impossible: widening it is a compile-time argument with every caller.
 
     ``microformats`` is an empty list unless the caller asked for it, since its
     reader needs an optional extra. It is a parameter like any other all the
@@ -109,15 +115,19 @@ def merge(
             for key, value in record.fields.items():
                 target.fields.setdefault(key, value)
 
-    # Dublin Core, OpenGraph and the Twitter card describe the document. None
-    # of them declares a type, so none of them can fold by type: each fills
-    # the first record on the page, in the order written here. It is what
-    # settles ``og:title`` against ``twitter:title``, which strip to the same
-    # key and used to be decided by whichever tag the author typed first.
+    # Dublin Core, OpenGraph, the Twitter card and HTML's own metadata names
+    # describe the document. None of them declares a type, so none of them can
+    # fold by type: each fills the first record on the page, in the order
+    # written here. It is what settles ``og:title`` against ``twitter:title``,
+    # which strip to the same key and used to be decided by whichever tag the
+    # author typed first, and what puts ``<meta name="description">`` behind
+    # ``og:description``, which on most pages is the same sentence said with
+    # less behind it.
     about_the_document = (
         ("dublincore", dublincore),
         ("opengraph", opengraph),
         ("twitter", twitter),
+        ("html", htmlmeta),
     )
     if any(found for _, found in about_the_document):
         target = records[0] if records else Record()

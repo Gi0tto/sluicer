@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from sluicer.declared.dublincore import read_dublincore
+from sluicer.declared.htmlmeta import read_htmlmeta
 from sluicer.declared.jsonld import read_jsonld
 from sluicer.declared.merge import Record, merge
 from sluicer.declared.microdata import read_microdata
@@ -33,13 +34,21 @@ def extract(
 ) -> Extraction:
     """Read every kind of declared data in ``html`` and merge it.
 
-    Seven readers exist, and they have a stated order of precedence: JSON-LD,
-    microdata, microformats, RDFa, Dublin Core, OpenGraph, the Twitter card.
-    Where two of them declare the same field the earlier one wins, and the
-    field says which one that was. ``sources`` names every reader that found
-    something, in that same order. The first four describe the thing the page
-    is about; the last three describe the document, which is why they come
-    last.
+    Eight readers exist, and they have a stated order of precedence: JSON-LD,
+    microdata, microformats, RDFa, Dublin Core, OpenGraph, the Twitter card,
+    HTML's own metadata names. Where two of them declare the same field the
+    earlier one wins, and the field says which one that was. ``sources`` names
+    every reader that found something, in that same order. The first four
+    describe the thing the page is about; the last four describe the document,
+    which is why they come last.
+
+    ``html`` is last of all, and deliberately. ``<meta name="description">``
+    is on 87% of real pages and is very often the same sentence as
+    ``og:description``, but it is the weakest of the eight statements -- no
+    vocabulary, no schema, no type -- so it fills what the others left empty
+    and never overrides one of them. Reading it is still what reaches most
+    pages: it and ``<meta name="author">`` are declared by pages that carry no
+    other structured data at all.
 
     ``microformats`` is off by default, and it is the only reader that is.
     Every other one is written in ``lxml``, which the base install already
@@ -65,12 +74,13 @@ def extract(
     and all say nothing about anything; treating them as a declaration blocked
     induction on pages whose list was right there, and contradicted this
     repository's own rule that an empty value is not a value. Dublin Core,
-    OpenGraph and the Twitter card are counted out for a different reason:
-    ``DC.title``, ``og:site_name`` and ``twitter:card`` describe the page or
-    the site, and a page whose only declaration is that chrome has declared
-    nothing about its rows. They are not counted out by name, though: the gate
-    names the vocabularies that describe a *thing*, in ``ABOUT_A_THING``, and
-    every other reader is taken to describe the document. Each of them still
+    OpenGraph, the Twitter card and HTML's own metadata names are counted out
+    for a different reason: ``DC.title``, ``og:site_name``, ``twitter:card``
+    and ``<meta name="description">`` describe the page or the site, and a
+    page whose only declaration is that chrome has declared nothing about its
+    rows. They are not counted out by name, though: the gate names the
+    vocabularies that describe a *thing*, in ``ABOUT_A_THING``, and every
+    other reader is taken to describe the document. Each of them still
     appears in ``sources`` when it parsed, because that is true; what changes
     is only what the gate decides on.
 
@@ -91,6 +101,7 @@ def extract(
     dublincore = read_dublincore(doc)
     opengraph = read_opengraph(doc)
     twitter = read_twitter(doc)
+    htmlmeta = read_htmlmeta(doc)
 
     sources = [
         name
@@ -102,6 +113,7 @@ def extract(
             ("dublincore", dublincore),
             ("opengraph", opengraph),
             ("twitter", twitter),
+            ("html", htmlmeta),
         )
         if found
     ]
@@ -113,6 +125,7 @@ def extract(
         dublincore=dublincore,
         opengraph=opengraph,
         twitter=twitter,
+        htmlmeta=htmlmeta,
     )
     if induce and not _declared_about_its_things(records):
         induced = induce_records(doc)
@@ -130,7 +143,10 @@ def extract(
 # document, which is the safe side -- it lets induction run.
 #
 # The Twitter card is what that bought: a sixth reader, document-level like
-# OpenGraph, wired in without a line changing here.
+# OpenGraph, wired in without a line changing here. So was the eighth,
+# ``html``: ``<meta name="description">`` describes the document, so a page
+# carrying nothing else is still induced over, and this set did not have to
+# learn a name to keep that true.
 #
 # ``microformats`` was named here before its reader existed, and the reader
 # arrived without this line changing either: the set is the statement of the

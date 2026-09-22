@@ -12,12 +12,14 @@ specification says ``name``; the web writes each of them for both, and a
 reader that insisted on the right one would drop tags every other consumer
 reads.
 
-Two questions are asked of that one scan, because a prefix is not always the
-same kind of thing. A prefix that is the vocabulary's own name is stripped
-(``read_prefixed_meta``), since it says only which vocabulary this is; a
-prefix that names a type within the vocabulary is kept (``read_namespaced_meta``),
-since the type is part of the fact. What changes between them is the question,
-not the way a tag is found, so the xpath is written once.
+Three questions are asked of that one scan, because a prefix is not always
+the same kind of thing and HTML's own metadata names have none. A prefix that
+is the vocabulary's own name is stripped (``read_prefixed_meta``), since it
+says only which vocabulary this is; a prefix that names a type within the
+vocabulary is kept (``read_namespaced_meta``), since the type is part of the
+fact; and a bare name is matched against a closed list of the names the HTML
+standard defines (``read_named_meta``). What changes between the three is the
+question, not the way a tag is found, so the xpath is written once.
 
 Dublin Core is the same shape again and keeps its own scan: it matches two
 prefixes case-insensitively and lowercases the key, which is a different
@@ -87,4 +89,28 @@ def read_namespaced_meta(
             if key.startswith(prefix):
                 found.setdefault(key, content)
                 break
+    return found
+
+
+def read_named_meta(doc: Document, names: frozenset[str]) -> dict[str, str]:
+    """Return the ``<meta name=...>`` tags whose name is one of ``names``.
+
+    ``names`` is a closed list and is matched case-insensitively, with the
+    lowercased name as the key: the web writes ``<meta name="Author">`` and
+    ``<meta name="author">`` for the one HTML metadata name, and a reader
+    that treated those as two fields would report one page as declaring an
+    author twice. Lowercasing before the first-wins is also what makes
+    first-wins mean anything across those spellings.
+
+    Only ``name`` is looked at here, unlike the prefixed readers. The HTML
+    standard defines its metadata names for the ``name`` attribute, and
+    ``property`` is the attribute the vocabularies with a prefix use; a page
+    writing ``property="author"`` is saying something in a vocabulary this
+    reader does not know.
+    """
+    found: dict[str, str] = {}
+    for _prop, name, content in _meta_tags(doc):
+        key = name.strip().lower()
+        if key in names:
+            found.setdefault(key, content)
     return found
