@@ -86,3 +86,19 @@ def test_a_missing_file_is_reported_not_crashed(tmp_path):
     assert result.exit_code == 1
     assert "does not exist" in result.stderr
     assert (result.exception is None or isinstance(result.exception, SystemExit))
+
+
+def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
+    def fake_fetch(url, rungs=None):
+        raise ImportError(
+            "Fetching a URL needs scrapling, which is not installed. "
+            "Install it with: uv pip install 'sluicer[fetch]'"
+        )
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+
+    assert result.exit_code == 1
+    assert "uv pip install 'sluicer[fetch]'" in result.stderr
+    assert isinstance(result.exception, SystemExit)
