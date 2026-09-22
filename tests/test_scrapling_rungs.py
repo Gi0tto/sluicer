@@ -53,23 +53,44 @@ def fake_scrapling(
     return seen
 
 
-def test_the_three_rungs_come_back_in_cost_order(monkeypatch):
+def test_the_default_rungs_come_back_in_cost_order(monkeypatch):
     seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.identity import USER_AGENT
     from sluicer.fetch.scrapling_rungs import default_rungs
 
     rungs = default_rungs()
-    assert [name for name, _ in rungs] == ["http", "browser", "stealth"]
+    assert [name for name, _ in rungs] == ["http", "browser"]
 
     for _, rung in rungs:
         rung("https://example.com/p")
 
-    assert seen["http"][1] == {"timeout": 30}
-    assert seen["browser"][1] == {"network_idle": True}
+    assert seen["http"][1] == {"timeout": 30, "headers": {"User-Agent": USER_AGENT}}
+    assert seen["browser"][1] == {
+        "network_idle": True,
+        "extra_headers": {"User-Agent": USER_AGENT},
+    }
+
+
+def test_the_stealth_rung_comes_after_the_default_ladder_in_cost(monkeypatch):
+    """This assertion used to be part of the three-rung default ladder.
+
+    Stealth is no longer automatic, but it is still the most expensive rung,
+    and it still sends none of our identity: moved here, not deleted.
+    """
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import stealth_rung
+
+    name, rung = stealth_rung()
+    assert name == "stealth"
+
+    rung("https://example.com/p")
+
     assert seen["stealth"][1] == {"network_idle": True}
 
 
 def test_a_rung_returns_a_fetched_carrying_the_status(monkeypatch):
     seen = fake_scrapling(monkeypatch, status=403)
+    from sluicer.fetch.identity import USER_AGENT
     from sluicer.fetch.scrapling_rungs import default_rungs
 
     name, rung = default_rungs()[0]
@@ -79,7 +100,65 @@ def test_a_rung_returns_a_fetched_carrying_the_status(monkeypatch):
     assert result.status == 403
     assert result.rung == "http"
     assert seen["http"][0] == "https://example.com/p"
-    assert seen["http"][1] == {"timeout": 30}
+    assert seen["http"][1] == {"timeout": 30, "headers": {"User-Agent": USER_AGENT}}
+
+
+def test_the_default_ladder_does_not_include_stealth(monkeypatch):
+    fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    assert [name for name, _ in default_rungs()] == ["http", "browser"]
+
+
+def test_stealth_is_available_to_a_caller_who_asks(monkeypatch):
+    fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import stealth_rung
+
+    name, rung = stealth_rung()
+
+    assert name == "stealth"
+    result = rung("https://example.com/p")
+    assert result.rung == "stealth"
+
+
+def test_the_http_rung_says_who_it_is(monkeypatch):
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.identity import USER_AGENT
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    dict(default_rungs())["http"]("https://example.com/p")
+
+    headers = seen["http"][1].get("headers") or {}
+    assert headers.get("User-Agent") == USER_AGENT
+
+
+def test_the_browser_rung_says_who_it_is(monkeypatch):
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.identity import USER_AGENT
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    dict(default_rungs())["browser"]("https://example.com/p")
+
+    headers = seen["browser"][1].get("extra_headers") or seen["browser"][1].get("headers") or {}
+    assert headers.get("User-Agent") == USER_AGENT
+
+
+def test_the_stealth_rung_sends_no_user_agent(monkeypatch):
+    """Its whole purpose is not to be recognised; announcing an identity and
+
+    then trying to evade detection would be incoherent. See the comment next
+    to ``stealth_rung`` in ``scrapling_rungs.py`` for the ruling.
+    """
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import stealth_rung
+
+    _, rung = stealth_rung()
+    rung("https://example.com/p")
+
+    kwargs = seen["stealth"][1]
+    assert "headers" not in kwargs
+    assert "extra_headers" not in kwargs
+    assert "useragent" not in kwargs
 
 
 class _NoScrapling:
@@ -128,9 +207,9 @@ def test_a_response_without_html_is_a_failed_rung(monkeypatch):
 def test_the_response_url_is_preferred_over_the_requested_one(monkeypatch):
     """A response can report a different URL than the one requested: a redirect."""
     fake_scrapling(monkeypatch, response_url="https://example.com/final")
-    from sluicer.fetch.scrapling_rungs import default_rungs
+    from sluicer.fetch.scrapling_rungs import default_rungs, stealth_rung
 
-    for _, rung in default_rungs():
+    for _, rung in [*default_rungs(), stealth_rung()]:
         result = rung("https://example.com/start")
         assert result.url == "https://example.com/final"
 
@@ -138,9 +217,9 @@ def test_the_response_url_is_preferred_over_the_requested_one(monkeypatch):
 def test_a_response_without_a_url_falls_back_to_the_one_we_asked_for(monkeypatch):
     """A response with no URL of its own never yields an empty string."""
     fake_scrapling(monkeypatch, include_url=False)
-    from sluicer.fetch.scrapling_rungs import default_rungs
+    from sluicer.fetch.scrapling_rungs import default_rungs, stealth_rung
 
-    for _, rung in default_rungs():
+    for _, rung in [*default_rungs(), stealth_rung()]:
         result = rung("https://example.com/p")
         assert result.url == "https://example.com/p"
 

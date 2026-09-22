@@ -8,6 +8,7 @@ free, so the dependency is looked up when a rung is built, not at import time.
 from __future__ import annotations
 
 from sluicer.extras import MissingExtra, import_extra
+from sluicer.fetch.identity import USER_AGENT
 from sluicer.fetch.result import Fetched, Rung
 
 
@@ -50,16 +51,48 @@ def _as_fetched(response, rung: str, requested_url: str) -> Fetched:
 
 
 def default_rungs() -> list[tuple[str, Rung]]:
-    """Return the three rungs in the order they cost us."""
-    fetcher, dynamic, stealthy = _fetchers()
+    """Return the rungs a caller gets without asking for anything more.
+
+    Two rungs, in the order they cost us. Both announce ``USER_AGENT``: a
+    site that does not want us can refuse us, the way it refuses anyone else
+    who says who they are. Climbing from "plain HTTP" to "a browser" is a
+    change of cost, not a change of what we are, so both rungs stay here.
+    """
+    fetcher, dynamic, _ = _fetchers()
 
     def http(url: str) -> Fetched:
-        return _as_fetched(fetcher.get(url, timeout=30), "http", url)
+        return _as_fetched(
+            fetcher.get(url, timeout=30, headers={"User-Agent": USER_AGENT}),
+            "http",
+            url,
+        )
 
     def browser(url: str) -> Fetched:
-        return _as_fetched(dynamic.fetch(url, network_idle=True), "browser", url)
+        return _as_fetched(
+            dynamic.fetch(url, network_idle=True, extra_headers={"User-Agent": USER_AGENT}),
+            "browser",
+            url,
+        )
+
+    return [("http", http), ("browser", browser)]
+
+
+def stealth_rung() -> tuple[str, Rung]:
+    """Return the third rung, for a caller who has decided they want it.
+
+    Climbing from announcing ourselves to disguising ourselves is a change of
+    character, not a change of technique, so it does not happen automatically
+    to a caller who never asked for it. It stays available, one argument
+    away, for someone who has decided that is what they want.
+
+    No ``User-Agent`` is sent here, and none should be added later: this
+    rung's whole purpose is not to be recognised, and announcing an identity
+    and then trying to evade detection is incoherent. That is a ruling, not
+    an oversight.
+    """
+    _, _, stealthy = _fetchers()
 
     def stealth(url: str) -> Fetched:
         return _as_fetched(stealthy.fetch(url, network_idle=True), "stealth", url)
 
-    return [("http", http), ("browser", browser), ("stealth", stealth)]
+    return ("stealth", stealth)
