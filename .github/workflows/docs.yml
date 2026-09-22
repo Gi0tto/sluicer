@@ -16,11 +16,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  # Two jobs rather than one, because they answer different questions. Building
+  # is a test: --strict fails on a broken link or a page nothing references, and
+  # it has to run on every push whatever the repository's visibility. Deploying
+  # is a publication, and GitHub Pages is unavailable on a private repository
+  # outside a paid plan -- so gating the build on that would mean a broken doc
+  # could land unnoticed while the repository is private, which is exactly when
+  # the docs are being written.
+  build:
+    name: The documentation builds
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -29,5 +34,17 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+
+  deploy:
+    name: The documentation is published
+    needs: build
+    # Pages refuses a private repository on the free plan with a 404 that reads
+    # like a missing artifact. Skipping is the honest report: nothing is wrong.
+    if: github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
