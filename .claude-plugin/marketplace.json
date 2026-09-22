@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "sluicer",
+  "description": "Deterministic web extraction for agents: the data a page declares, with provenance, and no model in the loop.",
+  "owner": { "name": "Nichita Briculschi", "url": "https://github.com/Gi0tto" },
+  "plugins": [
+    {
+      "name": "sluicer",
+      "description": "Read what a page declares about itself, in three vocabularies at once, and get back records where every field names the vocabulary it came from. Fetches only as expensively as it must, announces itself by name, and obeys robots.txt.",
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/Gi0tto/sluicer"
+    }
+  ]
+}

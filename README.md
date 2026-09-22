@@ -110,7 +110,9 @@ From an agent, in your project's `.mcp.json`:
 { "mcpServers": { "sluicer": { "command": "sluicer-mcp" } } }
 ```
 
-Or in one line: `claude mcp add sluicer -- sluicer-mcp`. Three tools arrive with
+Or in one line: `claude mcp add sluicer -- sluicer-mcp`. The repository is also a
+Claude Code plugin, so `/plugin install` brings the server and a skill that tells
+an agent when to reach for it and when not to bother. Three tools arrive with
 it. `extract_declared` returns the declared data with its provenance.
 `page_markdown` returns the readable content. `fetch_page` returns the page and
 the record of what it cost to get.
@@ -145,6 +147,7 @@ returns a plausible answer where the truth was unavailable.
 
 ## Documentation
 
+- [Examples](examples/): three runnable scripts, each verified against a live page
 - [Roadmap](ROADMAP.md): what is coming, and in what order
 - [Known limits](docs/known-limits.md): where Sluicer stops, stated plainly
 - [The field, measured](docs/field-survey.md): 1,926 repositories counted, and
