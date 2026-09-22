@@ -29,3 +29,10 @@ def test_extraction_is_deterministic():
     second = sluicer.extract(html)
 
     assert first == second
+
+
+def test_a_page_lxml_cannot_parse_extracts_nothing_instead_of_raising():
+    result = sluicer.extract("<!doctype html>")
+
+    assert result.records == []
+    assert result.sources == []
