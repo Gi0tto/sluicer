@@ -218,15 +218,17 @@ _TAGS = re.compile(r"(?s)<(script|style).*?</\1>|<[^>]+>")
 
 def why_climb(status: int, html: str, found_records: bool) -> str | None:
     """Return the reason to climb a rung, or None to stay where we are."""
-    if status in _REFUSING_STATUSES:
-        return f"the server refused: status {status}"
-    if status >= 500:
-        return None
-
     lowered = html.lower()
     for marker in _CHALLENGE_MARKERS:
         if marker in lowered:
             return f"the response is a challenge page, not the content: {marker!r}"
+    # Checked before the status, because when both are true the challenge is the
+    # more useful diagnosis: it says a browser will probably get through, where a
+    # bare status leaves the reader guessing whether it is worth trying.
+    if status in _REFUSING_STATUSES:
+        return f"the server refused: status {status}"
+    if status >= 500:
+        return None
 
     text = _TAGS.sub(" ", html).strip()
     if len(text) < TEXT_FLOOR and len(html) > MARKUP_CEILING:
