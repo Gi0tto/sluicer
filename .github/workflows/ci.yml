@@ -28,10 +28,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.11", "3.12", "3.13"]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       - name: Run the suite
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       - name: Lint
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Run the suite with the network taken away
         run: |
           cat > /tmp/no_network.py <<'PY'
@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Build the wheel and the sdist
         run: uv build
       - name: Check the metadata
@@ -122,12 +122,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Install the base package only, then import it
         run: |
           uv venv
           uv pip install .
-          uv run python -c "
+          # `.venv/bin/python`, not `uv run`, in this job and the two below:
+          # `uv run` re-syncs the environment to uv.lock and installs the source
+          # tree in its place, so the check would run against the dev
+          # environment rather than the install it names -- the trap the
+          # floors job documents.
+          .venv/bin/python -c "
           import importlib.util, sluicer
           for extra in ('scrapling', 'trafilatura', 'mcp'):
               assert importlib.util.find_spec(extra) is None, extra + ' leaked into the base install'
@@ -139,14 +144,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Install every extra
         run: |
           uv venv
           uv pip install '.[fetch,markdown,mcp]'
       - name: Use each one against the package that was really installed
         run: |
-          uv run python -c "
+          .venv/bin/python -c "
           # The suite fakes these libraries, and a fake can only confirm the shape
           # you already believe in. This job is the only place that finds out what
           # the published package actually ships. It caught the mcp 2.x rename.
@@ -196,7 +201,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       # A dependency floor nobody installs is a wish, not a constraint. Both
       # base floors were wrong when this job was written: lxml 5.0 ships no
       # wheel for cp313 and none at all for macOS arm64, and click 8.1.8 fails
@@ -248,12 +253,12 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Install the extras unpinned and use them
         run: |
           uv venv
           uv pip install '.[fetch,markdown,mcp]' --upgrade
-          uv run python -c "
+          .venv/bin/python -c "
           import asyncio, importlib.metadata as md
           for name in ('scrapling', 'trafilatura', 'mcp'):
               print(name, md.version(name))

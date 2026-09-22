@@ -3,7 +3,8 @@ name = "sluicer"
 version = "0.0.1"
 description = "Turn a web page into structured data with no model in the loop."
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [{ name = "Nichita Briculschi" }]
 keywords = [
@@ -21,13 +22,13 @@ keywords = [
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Text Processing :: Markup :: HTML",
@@ -74,6 +75,7 @@ mcp = ["mcp>=2", "sluicer[fetch]", "sluicer[markdown]"]
 
 [project.urls]
 Homepage = "https://github.com/Gi0tto/sluicer"
+Documentation = "https://gi0tto.github.io/sluicer/"
 Source = "https://github.com/Gi0tto/sluicer"
 Issues = "https://github.com/Gi0tto/sluicer/issues"
 Changelog = "https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md"
@@ -83,11 +85,19 @@ sluicer = "sluicer.cli:main"
 sluicer-mcp = "sluicer.mcp_server:main"
 
 [build-system]
-requires = ["hatchling"]
+# 1.27 is the first hatchling that writes PEP 639's License-Expression, which is
+# what the SPDX string above is for.
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sluicer"]
+
+[tool.hatch.build.targets.sdist]
+# The sdist is what a packager rebuilds from, so it carries the source, the
+# tests that prove it and the documents a user reads. The working plans under
+# docs/superpowers are how this project was built, not part of what it ships.
+exclude = ["/docs/superpowers", "/site"]
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.16", "mypy>=1.11"]

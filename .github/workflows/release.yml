@@ -5,9 +5,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Nothing here writes to the repository. The one elevated permission is the
+# OIDC token trusted publishing needs, and only the job that publishes gets it.
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
   build:
@@ -15,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: The tag and the version must agree
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -31,19 +32,47 @@ jobs:
       - run: uv build
       - name: Check the metadata the way PyPI will
         run: uvx twine check dist/*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: distributions
           path: dist/
 
+  installs:
+    name: The built wheel installs and works on its own
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # No checkout: the wheel has to stand on its own, and a source tree in the
+      # working directory is what an import would quietly find instead of it.
+      - uses: actions/download-artifact@v8
+        with:
+          name: distributions
+          path: dist/
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Install the wheel in a clean environment and use it
+        run: |
+          uv venv --python 3.13
+          uv pip install dist/*.whl
+          .venv/bin/python -c "
+          import sluicer
+          page = '<script type=\"application/ld+json\">{\"@type\":\"Product\",\"name\":\"Pad\"}</script>'
+          result = sluicer.extract(page)
+          assert result.records and result.records[0].type == 'Product', result
+          assert sluicer.__file__.startswith('$PWD/.venv/'), sluicer.__file__
+          print('wheel', sluicer.__version__, 'installs, imports and extracts')
+          "
+          .venv/bin/sluicer --version
+
   publish:
     name: Publish to PyPI
-    needs: build
+    needs: [build, installs]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment: pypi
+    permissions:
+      id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: distributions
           path: dist/

@@ -28,10 +28,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Build the site
-        run: uvx --with mkdocs-material mkdocs build --strict
-      - uses: actions/upload-pages-artifact@v3
+        # Pinned below 2 on both: MkDocs 2.0 is announced as a breaking release
+        # and mkdocs-material already warns about it, so an unpinned uvx would
+        # change what --strict means on the day it lands, not on a day we chose.
+        run: uvx --from 'mkdocs>=1.6,<2' --with 'mkdocs-material>=9.7,<10' mkdocs build --strict
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
@@ -47,4 +50,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
