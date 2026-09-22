@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import html as html_entities
 import re
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeAlias
@@ -108,6 +109,29 @@ _FURNITURE = frozenset(
 # <title>, not by the company's name.
 _ABOUT_THE_SITE = frozenset({"WebSite", "Organization", "Person", "Corporation"})
 
+# How many records of one type make a listing rather than a subject.
+_A_LISTING = 3
+
+# Meta names outside any vocabulary that pages use for these three questions,
+# most specific first. ``citation_*`` is Highwire Press's, which Google Scholar
+# reads and every journal writes; the rest are the publishing platforms' own.
+_DATE_NAMES = (
+    "citation_publication_date",
+    "citation_date",
+    "citation_online_date",
+    "parsely-pub-date",
+    "sailthru.date",
+    "article.published",
+    "publish-date",
+    "publishdate",
+    "pubdate",
+    "date",
+)
+_AUTHOR_NAMES = ("citation_author", "parsely-author", "sailthru.author", "byl")
+_TITLE_NAMES = ("citation_title",)
+_BYLINE = re.compile(r"^\s*by\s+", re.IGNORECASE)
+_TITLE_SEPARATORS = (" - ", " | ", " \u2013 ", " \u2014 ", " \u00b7 ", " :: ", " / ")
+
 _WHITESPACE = re.compile(r"\s+")
 _SCHEMA_ORG = re.compile(r"^https?://(?:www\.)?schema\.org/", re.IGNORECASE)
 
@@ -156,6 +180,7 @@ def summarise(
             og("title"),
             meta(twitter, "twitter", "title", "twitter:"),
             meta(dublincore, "dublincore", "title", "dc."),
+            _named(doc, _TITLE_NAMES),
             _element_text(doc, "//title", "<title>"),
         ],
         "description": [
@@ -178,6 +203,8 @@ def summarise(
             own("author", _names),
             own("creator", _names),
             meta(htmlmeta, "html", "author", "meta name="),
+            _named(doc, _AUTHOR_NAMES, join=True),
+            _orphan_itemprop(doc, "author"),
             meta(dublincore, "dublincore", "creator", "dc."),
             _not_an_address(og("article:author")),
         ],
@@ -190,12 +217,15 @@ def summarise(
             meta(dublincore, "dublincore", "issued", "dc."),
             meta(dublincore, "dublincore", "date", "dc."),
             meta(dublincore, "dublincore", "created", "dc."),
+            _orphan_itemprop(doc, "datePublished"),
+            _named(doc, _DATE_NAMES),
         ],
         "modified": [
             own("dateModified"),
             og("article:modified_time"),
             og("updated_time"),
             meta(dublincore, "dublincore", "modified", "dc."),
+            _orphan_itemprop(doc, "dateModified"),
         ],
         "language": [
             _language(doc),
@@ -230,6 +260,25 @@ def summarise(
         "sku": [own("sku")],
     }
 
+    # The site, by every name the page gives it: a site that signs its own
+    # articles has not named an author, and a title ending in the site's name
+    # carries a suffix, not a word of the title. Not the publisher: on a
+    # personal blog the publisher is the author, and rightly so.
+    site_names = {
+        answer.value.casefold() for answer in questions["site_name"] if answer
+    }
+    questions["author"] = [
+        answer
+        for answer in questions["author"]
+        if answer and answer.value.casefold() not in site_names
+    ]
+    questions["title"] = [
+        _without_site(answer, site_names)
+        if answer and answer.source not in ABOUT_A_THING
+        else answer
+        for answer in questions["title"]
+    ]
+
     base = base_url(doc)
     summary: dict[str, SummaryField] = {}
     for name in FIELDS:
@@ -242,11 +291,20 @@ def summarise(
 
 
 def _subject(records: list[Record]) -> Record | None:
-    """The record the page is about, or None when no declared record is."""
+    """The record the page is about, or None when no declared record is.
+
+    A type declared on three or more records is a listing -- the comments of a
+    thread, the products of a category -- and none of its items is what the
+    page is about. Measured on WCXB, taking the first of them made a forum
+    thread's title "Post #16" and a category page's title its first product.
+    Two are allowed: a product and the one related product beside it.
+    """
+    counts = Counter(name for record in records for name in set(record.types))
     ranked = [
         (rank, index, record)
         for index, record in enumerate(records)
         if (rank := _rank(record)) is not None
+        and all(counts[name] < _A_LISTING for name in record.types)
     ]
     return min(ranked, key=lambda entry: entry[:2])[2] if ranked else None
 
@@ -359,6 +417,55 @@ def _element_text(doc: Document, path: str, key: str) -> SummaryField | None:
     found = doc.tree.xpath(path)
     text = _clean(found[0].text_content()) if found else None
     return SummaryField(text, "html", key) if text else None
+
+
+def _named(
+    doc: Document, names: tuple[str, ...], join: bool = False
+) -> SummaryField | None:
+    """The first of ``names`` a ``<meta name>`` on the page carries.
+
+    ``names`` is tried in its own order, not the page's. With ``join``, every
+    tag of the winning name is read -- a paper lists each author in one -- and
+    the names are joined once each, in the order written.
+    """
+    found: dict[str, list[str]] = {}
+    for meta in doc.tree.xpath("//meta[@name][@content]"):
+        text = _clean(meta.get("content"))
+        if text:
+            found.setdefault((meta.get("name") or "").strip().lower(), []).append(text)
+    for name in names:
+        if name in found:
+            values = [_BYLINE.sub("", value) for value in found[name]]
+            unique = list(dict.fromkeys(value for value in values if value))
+            if unique:
+                text = ", ".join(unique) if join else unique[0]
+                return SummaryField(text, "html", f"meta name={name}")
+    return None
+
+
+def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
+    """A ``<meta itemprop>`` outside any item, as templates put in the head.
+
+    The microdata standard ignores it, having no item to give it to, so the
+    microdata reader does too. It is still the page stating the value.
+    """
+    for meta in doc.tree.xpath(
+        "//meta[@itemprop][@content][not(ancestor::*[@itemscope])]"
+    ):
+        if prop in (meta.get("itemprop") or "").split():
+            text = _clean(meta.get("content"))
+            if text:
+                return SummaryField(text, "html", f"<meta itemprop={prop}>")
+    return None
+
+
+def _without_site(found: SummaryField, site_names: set[str]) -> SummaryField | None:
+    """``found`` with a trailing " - Site Name" cut, when it names the site."""
+    for separator in _TITLE_SEPARATORS:
+        head, cut, tail = found.value.rpartition(separator)
+        if cut and head.strip() and tail.strip().casefold() in site_names:
+            return SummaryField(head.strip(), found.source, found.key)
+    return found
 
 
 def _canonical(doc: Document) -> SummaryField | None:

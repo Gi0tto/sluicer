@@ -255,3 +255,107 @@ def test_answers_come_in_the_stated_order():
     names = list(extract(html).summary)
 
     assert names == [name for name in FIELDS if name in names]
+
+
+def test_one_of_many_items_of_a_type_is_not_what_the_page_is_about():
+    """A forum thread's ten Comment items made the title "Post #1"."""
+    comments = "".join(
+        '<div itemscope itemtype="https://schema.org/Comment">'
+        f'<span itemprop="name">Post #{n}</span></div>'
+        for n in range(3)
+    )
+    html = (
+        '<html><head><meta property="og:title" content="Thread"></head>'
+        f"<body>{comments}</body></html>"
+    )
+
+    assert _summary(html)["title"] == ("Thread", "opengraph", "og:title")
+
+
+def test_a_product_with_one_related_product_is_still_the_subject():
+    html = _page(
+        {"@type": "Product", "name": "Main pad", "sku": "M1"},
+        {"@type": "Product", "name": "Related pad", "sku": "R1"},
+    )
+
+    assert _summary(html)["sku"][0] == "M1"
+
+
+def test_a_meta_itemprop_in_the_head_is_read_for_the_summary():
+    """Outside any item, so not microdata, and on 14 of 511 WCXB pages."""
+    html = (
+        '<html><head><meta itemprop="datePublished" content="2026-03-11">'
+        '<meta itemprop="dateModified" content="2026-03-12">'
+        "</head></html>"
+    )
+
+    summary = _summary(html)
+
+    assert summary["published"] == (
+        "2026-03-11",
+        "html",
+        "<meta itemprop=datePublished>",
+    )
+    assert summary["modified"][0] == "2026-03-12"
+
+
+def test_scholarly_citation_tags_answer_title_author_and_date():
+    html = (
+        '<html><head><meta name="citation_title" content="On sluices">'
+        '<meta name="citation_author" content="A. One">'
+        '<meta name="citation_author" content="B. Two">'
+        '<meta name="citation_publication_date" content="2021/05/04">'
+        "</head></html>"
+    )
+
+    summary = _summary(html)
+
+    assert summary["title"][0] == "On sluices"
+    assert summary["author"] == ("A. One, B. Two", "html", "meta name=citation_author")
+    assert summary["published"][0] == "2021/05/04"
+
+
+def test_the_common_date_and_byline_meta_names_are_read():
+    html = (
+        '<html><head><meta name="parsely-pub-date" content="2026-01-02T10:00:00Z">'
+        '<meta name="byl" content="By Ann Smith and Bo Li">'
+        "</head></html>"
+    )
+
+    summary = _summary(html)
+
+    assert summary["published"][0] == "2026-01-02T10:00:00Z"
+    assert summary["author"][0] == "Ann Smith and Bo Li"
+
+
+def test_the_site_is_not_the_author():
+    html = (
+        '<html><head><meta name="author" content="WRAL">'
+        '<meta property="og:site_name" content="WRAL"></head></html>'
+    )
+
+    assert "author" not in _summary(html)
+
+
+def test_the_site_name_is_not_part_of_the_title():
+    html = (
+        '<html><head><meta property="og:title" '
+        'content="Brief History of Coffee - Charleston Coffee Roasters">'
+        '<meta property="og:site_name" content="Charleston Coffee Roasters">'
+        "</head></html>"
+    )
+
+    assert _summary(html)["title"][0] == "Brief History of Coffee"
+
+
+def test_a_blogger_who_publishes_their_own_posts_is_still_the_author():
+    html = _page(
+        {
+            "@type": "BlogPosting",
+            "headline": "H",
+            "author": {"@type": "Person", "name": "Edwin Toonen"},
+            "publisher": {"@type": "Person", "name": "Edwin Toonen"},
+        }
+    )
+
+    assert _summary(html)["author"][0] == "Edwin Toonen"
