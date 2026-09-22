@@ -233,3 +233,109 @@ def test_an_mcp_that_is_installed_but_too_old_keeps_its_traceback(monkeypatch):
         _fastmcp()
 
     assert not isinstance(raised.value, McpExtraMissing)
+
+
+def absent(monkeypatch, *names):
+    """Make ``names`` genuinely unimportable, submodules and all."""
+
+    class Finder:
+        def find_spec(self, name, path=None, target=None):
+            for gone in names:
+                if name == gone or name.startswith(gone + "."):
+                    raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+            return None
+
+    for name in [n for n in list(sys.modules) if any(n == g or n.startswith(g + ".") for g in names)]:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    monkeypatch.setattr(sys, "meta_path", [Finder(), *sys.meta_path])
+
+
+def test_extract_declared_without_the_fetch_extra_returns_the_sentence(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    absent(monkeypatch, "scrapling")
+
+    result = registered["extract_declared"]("https://example.com/p")
+
+    assert "uv pip install 'sluicer[fetch]'" in result["error"]
+    assert result["missing_extra"] == "fetch"
+
+
+def test_fetch_page_without_the_fetch_extra_returns_the_sentence(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    absent(monkeypatch, "scrapling")
+
+    result = registered["fetch_page"]("https://example.com/p")
+
+    assert "uv pip install 'sluicer[fetch]'" in result["error"]
+    assert result["missing_extra"] == "fetch"
+
+
+def test_page_markdown_without_the_markdown_extra_returns_the_sentence(monkeypatch):
+    """This tool returns a str, so the explanation has to arrive as one."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    absent(monkeypatch, "trafilatura")
+
+    result = registered["page_markdown"]("<html><body>hi</body></html>")
+
+    assert isinstance(result, str)
+    assert "uv pip install 'sluicer[markdown]'" in result
+
+
+def test_a_tool_that_works_is_left_alone_by_the_guard(monkeypatch):
+    """The decorator must not change what a tool returns when nothing is missing."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    result = registered["extract_declared"](
+        '<html><head><script type="application/ld+json">'
+        '{"@type":"Product","name":"Brake pad set"}</script></head><body></body></html>'
+    )
+
+    assert "error" not in result
+    assert result["records"][0]["fields"]["name"]["value"] == "Brake pad set"
+
+
+def test_a_real_bug_inside_a_tool_is_not_swallowed(monkeypatch):
+    """Only a missing extra is turned into a result; everything else raises."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    with pytest.raises(ValueError):
+        registered["fetch_page"]("not a url at all")
+
+
+def test_page_markdown_returns_the_markdown_of_a_page_it_fetched(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, html="<html><body><h1>Brake pad set</h1></body></html>")
+    from test_markdown import fake_trafilatura
+
+    fake_trafilatura(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    assert registered["page_markdown"]("https://example.com/p") == (
+        "# Brake pad set\n\nReal content."
+    )
+
+
+def test_main_starts_the_server(monkeypatch):
+    """The fake has recorded ``__ran__`` all along and nothing ever read it."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import main
+
+    main()
+
+    assert registered["__ran__"] is True
