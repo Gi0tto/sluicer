@@ -8,3 +8,6 @@ build/
 bench/cache/
 .DS_Store
 .superpowers/
+stdout.txt
+stderr.txt
+exitcode.txt
