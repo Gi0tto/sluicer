@@ -82,7 +82,7 @@ jobs:
         run: uvx twine check dist/*
 
   import-without-extras:
-    name: Importing works without any extra
+    name: Importing works without the fetch extra
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,7 +93,42 @@ jobs:
           uv pip install .
           uv run python -c "
           import importlib.util, sluicer
-          leaked = [n for n in ('scrapling', 'trafilatura', 'mcp') if importlib.util.find_spec(n) is not None]
-          assert not leaked, 'these extras leaked into the base install: ' + ', '.join(leaked)
+          for extra in ('scrapling', 'trafilatura', 'mcp'):
+              assert importlib.util.find_spec(extra) is None, extra + ' leaked into the base install'
           print('base install imports cleanly, version', sluicer.__version__)
+          "
+
+  with-extras:
+    name: The extras install and the code can actually use them
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install every extra
+        run: |
+          uv venv
+          uv pip install '.[fetch,markdown,mcp]'
+      - name: Use each one against the package that was really installed
+        run: |
+          uv run python -c "
+          # The suite fakes these libraries, and a fake can only confirm the shape
+          # you already believe in. This job is the only place that finds out what
+          # the published package actually ships. It caught the mcp 2.x rename.
+          from sluicer.markdown import to_markdown
+          page = '<html><head><meta charset=\"windows-1252\"></head><body><article><h1>Caf\xe9</h1><p>' + ('Real sentences. ' * 30) + '</p></article></body></html>'
+          out = to_markdown(page.encode('windows-1252'))
+          assert 'Caf\xe9' in out, 'the markdown path lost the accent: ' + out[:80]
+          print('markdown: accent survived')
+
+          from sluicer.fetch.scrapling_rungs import default_rungs
+          names = [name for name, _ in default_rungs()]
+          assert names == ['http', 'browser', 'stealth'], names
+          print('fetch: three rungs built against the real scrapling')
+
+          import asyncio
+          from sluicer.mcp_server import build_server
+          server = build_server()
+          tools = sorted(t.name for t in asyncio.run(server.list_tools()))
+          assert tools == ['extract_declared', 'fetch_page', 'page_markdown'], tools
+          print('mcp: server built and three tools listed through the real SDK')
           "
