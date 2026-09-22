@@ -157,3 +157,52 @@ def test_a_directory_is_not_a_file(tmp_path):
     assert result.exit_code == 1
     assert "is not a file" in result.stderr
     assert (result.exception is None or isinstance(result.exception, SystemExit))
+
+
+def test_a_network_failure_is_a_message_not_a_traceback(monkeypatch):
+    """The common failure: the site was down, or the name did not resolve."""
+
+    def fake_fetch(url, rungs=None):
+        raise ConnectionError("Connection refused")
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+
+    assert result.exit_code == 1
+    assert (
+        "Could not fetch https://example.com/p: ConnectionError: Connection refused"
+        in result.stderr
+    )
+    assert isinstance(result.exception, SystemExit)
+
+
+def test_a_rung_that_came_back_without_html_is_a_message_too(monkeypatch):
+    """ValueError is what a rung raises when it brings back no HTML."""
+
+    def fake_fetch(url, rungs=None):
+        raise ValueError("the stealth rung returned no HTML for 'https://example.com/p'")
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+
+    assert result.exit_code == 1
+    assert "Could not fetch https://example.com/p: ValueError: " in result.stderr
+    assert "the stealth rung returned no HTML" in result.stderr
+    assert isinstance(result.exception, SystemExit)
+
+
+def test_an_unexpected_failure_is_not_dressed_up_as_a_fetch_failure(monkeypatch):
+    """A bug keeps its traceback: only operational failures become messages."""
+
+    def fake_fetch(url, rungs=None):
+        raise RuntimeError("the ladder lost count of its rungs")
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+
+    assert "Could not fetch" not in result.stderr
+    assert "Could not fetch" not in result.stdout
+    assert type(result.exception) is RuntimeError

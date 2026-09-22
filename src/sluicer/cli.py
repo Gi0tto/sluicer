@@ -37,6 +37,19 @@ def extract(source: str) -> None:
         except FetchExtraMissing as missing:
             click.echo(str(missing), err=True)
             raise SystemExit(1) from missing
+        except (OSError, ValueError) as failure:
+            # At the command line an operational failure is a message and a
+            # bug is a traceback. OSError is the operational family: the site
+            # was down, the name did not resolve, the connection timed out
+            # (ConnectionError and TimeoutError are both OSError). ValueError
+            # is what a rung raises when it comes back with no HTML. Anything
+            # else -- a broken install, a wrong type -- is a bug and keeps its
+            # full diagnostics, so it is deliberately not caught here.
+            click.echo(
+                f"Could not fetch {source}: {type(failure).__name__}: {failure}",
+                err=True,
+            )
+            raise SystemExit(1) from failure
         result = extract_html(fetched.html, url=fetched.url)
         if not result.records:
             click.echo("This page declares no structured data.", err=True)
