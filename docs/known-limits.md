@@ -28,8 +28,37 @@ because a declaration that disagrees with the bytes must not be allowed to
 corrupt the text. A caller holding the transport's charset header has better
 information than either, and nothing currently accepts it.
 
-**RDFa is named in the design and not implemented.** `declared` covers JSON-LD,
-microdata and OpenGraph today.
+**RDFa is read as Lite, not as a graph.** `declared` covers JSON-LD, microdata,
+microformats, RDFa, Dublin Core, OpenGraph and the Twitter card today. The RDFa
+reader stops where the graph begins: `vocab`, `prefix`, `typeof`, `property` and
+`resource` are read, and chained subjects, typed literals and inference are not.
+Anyone who needs the full graph is better served by a triple store than by this
+pretending.
+
+**Microformats is off unless you ask, and flattened when you do.** It is the
+only reader behind an extra, because it is the only one that cannot be written
+in the `lxml` the base install already carries: `mf2py` is the reference parser
+and costs twelve packages against a base install of three. `extract(html,
+microformats=True)` turns it on and raises `MicroformatsExtraMissing` when the
+extra is absent. What it returns is flat, and a tree is not: a repeated property
+keeps its first value, so a second `p-category` is dropped; a nested item
+contributes its name and its link, `author` and `author@url`, and nothing else,
+so an `h-geo` holding only a latitude contributes nothing at all. The address is
+read from the nested item's `url` property rather than from its `value`, which
+was measured rather than assumed -- for a `p-` prefixed item the value is the
+name, not the link. `metaformats` is left off, so OpenGraph and Twitter card
+tags are never reported as microformats; each has a reader of its own here.
+
+**Seven vocabularies fold onto one flat set of keys, and some of them collide.**
+`og:image:alt` and `twitter:image:alt` both strip to `image:alt`; a Dublin Core
+`title` lands on the same key as an `og:title`; and RDFa folds `vocab` and
+`prefix` away, so two vocabularies sharing a term name share a key. The
+precedence decides who wins -- JSON-LD, microdata, microformats, RDFa, Dublin
+Core, OpenGraph, the Twitter card -- so the answer is stated and stable rather
+than decided by the order the page's author typed. What is lost is the loser: it
+is dropped, not kept under a qualified name. Microformats keeps its own type
+spelling while it is at it: an `h-entry` records `@type` as `h-entry`, so it
+never folds with a schema.org `Article` that means the same thing.
 
 ## In announcing ourselves
 
@@ -124,11 +153,13 @@ unnoticed.
 ## In the shape of the code
 
 **Adding a reader touches three places.** The reader names are written into
-`merge`'s keyword signature, into `_record_from`'s source labels, and into the
-tuple in `api`. Adding RDFa is therefore a breaking change to a published
-signature plus edits in two modules. The seam belongs one level up, as a sequence
-of named findings or a registry. Worth moving before the first release, cheap
-while nobody depends on it.
+`merge`'s keyword signature, into the fold's source labels, and into the tuple
+in `api`. The cost is now measured rather than predicted: four readers arrived
+this way, `merge` takes seven parameters, and each addition was a breaking
+change to a published signature plus edits in two modules -- the microformats
+one also had to be threaded through as a flag, since it is optional. The seam
+belongs one level up, as a sequence of named findings or a registry. Worth
+moving before the first release, cheap while nobody depends on it.
 
 **A hand-built `Record` can be silently inert.** `Record(type="Product")`
 constructed by hand gets an empty `types`, and the fold reads `types`, so that
@@ -156,7 +187,9 @@ say something untrue about a type. lxml ships no type information, so every
 element this package touches is `Any` to the checker and the annotations
 around it are documentation rather than proof. The optional extras are
 imported by name at call time, which is the whole point, and means no checker
-ever sees them -- the `with-extras` job is the only thing that does. And a
+ever sees them -- the `with-extras` job is the only thing that does, and the
+microformats reader was confirmed against the real `mf2py` by hand, in a
+throwaway environment, because the suite fakes it. And a
 gate answers "is this well formed", never "is this right": four review passes
 found things no rule set encodes, and the gates were added so those passes
 can spend their attention elsewhere, not so they can stop.

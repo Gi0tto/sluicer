@@ -5,6 +5,12 @@ both JSON-LD and microdata, fields from the lower-precedence reader fill
 gaps in the higher-precedence one. Within a single reader, two entries with
 the same @type are two distinct things and remain separate records.
 
+Seven readers reach here, and ``merge`` is where their order of precedence
+is written down: JSON-LD, microdata, microformats, RDFa, Dublin Core,
+OpenGraph, the Twitter card. It is one rule in one place, so no pair of
+vocabularies is left to settle a shared key by whichever tag the page's
+author typed first.
+
 This slice extracts scalar values only; complex-typed fields (objects and
 lists, such as JSON-LD's offers or image) are not carried into records.
 
@@ -48,9 +54,26 @@ class Record:
 def merge(
     jsonld: list[dict[str, Any]],
     microdata: list[dict[str, str]],
+    microformats: list[dict[str, str]],
+    rdfa: list[dict[str, str]],
+    dublincore: dict[str, str],
     opengraph: dict[str, str],
+    twitter: dict[str, str],
 ) -> list[Record]:
     """Merge reader output. Earlier sources win; every field keeps its source.
+
+    The order of precedence is JSON-LD, microdata, microformats, RDFa, Dublin
+    Core, OpenGraph, the Twitter card, and this signature is where it is
+    stated: the first field written under a name is the one that survives, so a
+    reader named later can only ever fill a gap. The first four describe the
+    thing the page is about and name it with a type, so they fold by type. The
+    last three describe the document, declare no type at all, and fill the
+    first record on the page.
+
+    ``microformats`` is an empty list unless the caller asked for it, since its
+    reader needs an optional extra. It is a parameter like any other all the
+    same: what is not declared is an empty finding, and a reader that is off is
+    a reader that found nothing.
 
     Two records fold together when they declare at least one type in common:
     a page saying ``["Product", "Thing"]`` in JSON-LD and ``Thing`` in
@@ -59,38 +82,55 @@ def merge(
     things are not one thing. Each untyped record stays on its own.
 
     When more than one record could receive a gap-filling field, the fold
-    targets the first matching record in document order, and OpenGraph, which
-    declares no type at all, fills the first record on the page. Document
-    order is the only deterministic signal available in this slice: nothing
-    here knows which record is the page's primary entity, so on a page whose
-    @graph opens with a BreadcrumbList the og:title lands on the breadcrumb.
-    That is a known limit of this slice, not a claim about picking the right
-    record."""
+    targets the first matching record in document order. Document order is
+    the only deterministic signal available in this slice: nothing here knows
+    which record is the page's primary entity, so on a page whose @graph opens
+    with a BreadcrumbList the og:title lands on the breadcrumb. That is a
+    known limit of this slice, not a claim about picking the right record."""
     records: list[Record] = []
 
     for item in jsonld:
         records.append(_record_from(item, "jsonld"))
 
-    for item in microdata:
-        record = _record_from(item, "microdata")
-        target = _fold_target(records, record)
-        if target is None:
-            records.append(record)
-            continue
-        for key, value in record.fields.items():
-            target.fields.setdefault(key, value)
-
-    if opengraph:
-        target = records[0] if records else Record()
-        # ``declared``, not a second ``value``: the fold above binds ``value``
-        # to a ``Field`` and this loop binds it to the raw text OpenGraph
-        # declared. One name for two types is how a reader, and a checker,
-        # both end up believing the wrong one.
-        for key, declared in opengraph.items():
-            text = _scalar(declared)
-            if text is None:
+    # Microdata, microformats and RDFa each name a subject and its fields, so
+    # all three fold the same way. The order they are written in here is their
+    # precedence.
+    for source, items in (
+        ("microdata", microdata),
+        ("microformats", microformats),
+        ("rdfa", rdfa),
+    ):
+        for item in items:
+            record = _record_from(item, source)
+            target = _fold_target(records, record)
+            if target is None:
+                records.append(record)
                 continue
-            target.fields.setdefault(key, Field(value=text, source="opengraph"))
+            for key, value in record.fields.items():
+                target.fields.setdefault(key, value)
+
+    # Dublin Core, OpenGraph and the Twitter card describe the document. None
+    # of them declares a type, so none of them can fold by type: each fills
+    # the first record on the page, in the order written here. It is what
+    # settles ``og:title`` against ``twitter:title``, which strip to the same
+    # key and used to be decided by whichever tag the author typed first.
+    about_the_document = (
+        ("dublincore", dublincore),
+        ("opengraph", opengraph),
+        ("twitter", twitter),
+    )
+    if any(found for _, found in about_the_document):
+        target = records[0] if records else Record()
+        for source, found in about_the_document:
+            # ``declared``, not a second ``value``: the fold above binds
+            # ``value`` to a ``Field`` and this loop binds it to the raw text
+            # the page declared. One name for two types is how a reader, and a
+            # checker, both end up believing the wrong one.
+            for key, declared in found.items():
+                text = _scalar(declared)
+                if text is None:
+                    continue
+                target.fields.setdefault(key, Field(value=text, source=source))
         if not records:
             records.append(target)
     return records

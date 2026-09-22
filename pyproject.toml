@@ -48,6 +48,13 @@ dependencies = ["lxml>=5.0", "click>=8.1"]
 # here, where the import lives.
 fetch = ["scrapling[fetchers]>=0.4", "protego>=0.3"]
 markdown = ["trafilatura>=2.0"]
+# The only reader behind an extra. Every other vocabulary is read with the
+# lxml the base install already carries; microformats2 has a reference parser
+# and reimplementing its implied-property, value-class and backcompat rules in
+# XPath would be a worse parser pretending to be one. Measured on 2026-09-22, a
+# clean environment holding mf2py alone holds twelve packages, against a base
+# install of three, and that ratio is the whole argument for this line.
+microformats = ["mf2py>=2.0"]
 # The server has three tools and two of them need the other extras:
 # extract_declared and page_markdown both fetch when handed a URL, and
 # page_markdown needs trafilatura for any input at all. Installing
@@ -135,8 +142,8 @@ warn_unused_configs = true
 # across the project would also cover the day a typed dependency stops being
 # found, and say nothing.
 #
-# The optional extras -- scrapling, trafilatura, protego, mcp -- need no entry
-# at all. Not one of them is imported at module level; they arrive through
+# The optional extras -- scrapling, trafilatura, protego, mcp, mf2py -- need no
+# entry at all. Not one of them is imported at module level; they arrive through
 # `importlib.import_module` in `sluicer.extras`, so there is no import for
 # mypy to fail to resolve, and this gate runs in a virtualenv with none of
 # them installed exactly as a user's base install does.
