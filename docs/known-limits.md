@@ -28,8 +28,21 @@ because a declaration that disagrees with the bytes must not be allowed to
 corrupt the text. A caller holding the transport's charset header has better
 information than either, and nothing currently accepts it.
 
-**RDFa is named in the design and not implemented.** `declared` covers JSON-LD,
-microdata and OpenGraph today.
+**RDFa is read as Lite, not as a graph.** `declared` covers JSON-LD, microdata,
+RDFa, Dublin Core, OpenGraph and the Twitter card today. The RDFa reader stops
+where the graph begins: `vocab`, `prefix`, `typeof`, `property` and `resource`
+are read, and chained subjects, typed literals and inference are not. Anyone who
+needs the full graph is better served by a triple store than by this pretending.
+Microformats is the one vocabulary named in the design and still unwritten.
+
+**Six vocabularies fold onto one flat set of keys, and some of them collide.**
+`og:image:alt` and `twitter:image:alt` both strip to `image:alt`; a Dublin Core
+`title` lands on the same key as an `og:title`; and RDFa folds `vocab` and
+`prefix` away, so two vocabularies sharing a term name share a key. The
+precedence decides who wins -- JSON-LD, microdata, RDFa, Dublin Core, OpenGraph,
+the Twitter card -- so the answer is stated and stable rather than decided by
+the order the page's author typed. What is lost is the loser: it is dropped,
+not kept under a qualified name.
 
 ## In announcing ourselves
 
@@ -125,10 +138,11 @@ unnoticed.
 
 **Adding a reader touches three places.** The reader names are written into
 `merge`'s keyword signature, into `_record_from`'s source labels, and into the
-tuple in `api`. Adding RDFa is therefore a breaking change to a published
-signature plus edits in two modules. The seam belongs one level up, as a sequence
-of named findings or a registry. Worth moving before the first release, cheap
-while nobody depends on it.
+tuple in `api`. The cost is now measured rather than predicted: three readers
+arrived this way, `merge` takes six parameters, and each addition was a breaking
+change to a published signature plus edits in two modules. The seam belongs one
+level up, as a sequence of named findings or a registry. Worth moving before the
+first release, cheap while nobody depends on it.
 
 **A hand-built `Record` can be silently inert.** `Record(type="Product")`
 constructed by hand gets an empty `types`, and the fold reads `types`, so that

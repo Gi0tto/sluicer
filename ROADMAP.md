@@ -5,9 +5,10 @@ working software on its own, with tests, before the next one starts.
 
 ## Shipped
 
-**Reading what the page declares.** JSON-LD, microdata and OpenGraph, merged
-across vocabularies and never within one, with every field carrying the reader
-that won it.
+**Reading what the page declares.** JSON-LD, microdata, RDFa, Dublin Core,
+OpenGraph and the Twitter card, merged across vocabularies and never within one,
+in a stated order of precedence, with every field carrying the reader that won
+it.
 
 **A fetch ladder that climbs on a measurement.** Plain HTTP, then a browser, and
 only when the cheap rung brought back a refusal, a challenge page or a skeleton.

@@ -46,13 +46,19 @@ one record, and every field still says which vocabulary it came from.
 
 ## What it does
 
-**Reads what the page already declares.** JSON-LD, microdata, OpenGraph. On a
-large part of the commercial web the structured data is sitting in the source
-and nobody reads it.
+**Reads what the page already declares.** JSON-LD, microdata, RDFa, Dublin
+Core, OpenGraph and the Twitter card. On a large part of the commercial web the
+structured data is sitting in the source and nobody reads it. The newer readers
+buy compatibility rather than reach: measured on 2026-09-22 across twenty pages,
+Dublin Core, RDFa and microformats unlock zero pages that JSON-LD, microdata or
+OpenGraph do not already cover. What they buy is parity with `extruct`, which
+reads six vocabularies, takes 540,765 installs a month, and has had no release
+in 683 days.
 
 **Keeps the provenance of every field.** Precedence is JSON-LD, then microdata,
-then OpenGraph, and each value carries the reader that won it. You always know
-where a number came from before you act on it.
+then RDFa, then Dublin Core, then OpenGraph, then the Twitter card, and each
+value carries the reader that won it. You always know where a number came from
+before you act on it.
 
 **Merges across vocabularies, never inside one.** The same product described
 twice becomes one record. Two products on a listing page stay two products:

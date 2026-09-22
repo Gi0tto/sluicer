@@ -31,11 +31,29 @@ Dates are the day the work landed. Anything not listed here did not happen.
   numbered rather than dropped, and every field carries `source="induced"` so an
   inference is never mistaken for a declaration. Induction runs only where the
   page declared nothing about its own subject.
+- Readers for Dublin Core (`DC.` and `DCTERMS.` meta tags) and RDFa Lite
+  (`vocab`, `prefix`, `typeof`, `property`, `resource`), both written in `lxml`
+  alone so the base install gains no dependency. `extract()` now runs six
+  readers with a stated order of precedence -- JSON-LD, microdata, RDFa, Dublin
+  Core, OpenGraph, the Twitter card -- and `sources` names each one that fired,
+  in that order. Measured on 2026-09-22 across twenty pages, the added
+  vocabularies unlock no page the old ones did not already cover; what they buy
+  is compatibility with `extruct`, which reads six.
+
 - An identifiable user agent on every request, `robots.txt` obeyed by default,
   and `RobotsRefused` when a site says no. The answer is cached for a day, and a
   robots file that answers 5xx is treated as a full disallow, per RFC 9309.
 
 ### Changed
+- The Twitter card is a reader of its own, and its fields say
+  `source="twitter"`. `read_opengraph` used to return `og:` and `twitter:` alike
+  and label everything `opengraph`, so a value a card had won named a reader
+  that had not won it, and a key the two share -- `title`, `description`,
+  `image:alt` -- went to whichever tag the page's author happened to type first.
+  OpenGraph now runs first, the card fills what OpenGraph left empty, and the
+  rule is stated rather than emergent.
+- `merge()` takes six findings rather than three, so a caller invoking it
+  directly has to widen the call. `extract()` is unaffected.
 - The stealth rung has left the automatic ladder. `fetch(url, stealth=True)` adds
   it back for a caller who wants it.
 - An element whose whole text is its children's no longer carries a text fact of
