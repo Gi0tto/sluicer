@@ -7,7 +7,6 @@ from dataclasses import asdict
 from pathlib import Path
 
 import click
-from lxml.etree import ParserError
 
 from sluicer.api import extract as extract_html
 
@@ -28,12 +27,7 @@ def extract(source: Path) -> None:
         click.echo("This file contains no HTML.", err=True)
         raise SystemExit(1)
 
-    try:
-        result = extract_html(text, url=str(source))
-    except ParserError:
-        click.echo("This file contains no HTML.", err=True)
-        raise SystemExit(1)
-
+    result = extract_html(text, url=str(source))
     if not result.records:
         click.echo("This page declares no structured data.", err=True)
         raise SystemExit(1)
