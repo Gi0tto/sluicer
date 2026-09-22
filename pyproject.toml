@@ -36,7 +36,11 @@ classifiers = [
 dependencies = ["lxml>=5.0", "click>=8.1"]
 
 [project.optional-dependencies]
-fetch = ["scrapling>=0.4"]
+# scrapling's base install is only the parser. The fetchers, and with them
+# curl_cffi and the browsers, live behind its own extra, so asking for the
+# package alone yields a Sluicer that cannot fetch. CI found this by
+# installing it for real; the suite could not, because it fakes the library.
+fetch = ["scrapling[fetchers]>=0.4"]
 markdown = ["trafilatura>=2.0"]
 # The server has three tools and two of them need the other extras:
 # extract_declared and page_markdown both fetch when handed a URL, and
