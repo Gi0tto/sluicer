@@ -742,7 +742,9 @@ def main() -> None:
     try:
         server = build_server()
     except McpExtraMissing as missing:
-        print(str(missing), file=sys.stderr)
+        # Flushed now: the exit that follows must not be what decides whether
+        # the one line that says what to install is ever written.
+        print(str(missing), file=sys.stderr, flush=True)
         raise SystemExit(1) from missing
     # scrapling logs every request at INFO into the server's stderr, and sets
     # its level when first imported; a filter outlives that.
