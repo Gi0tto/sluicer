@@ -28,13 +28,19 @@ deterministic signal available; the template contract planned in the roadmap is
 where a better one can come from.
 
 **A declared encoding can still disagree with the bytes.** Bytes are decoded
-the way a browser decodes them: a byte order mark, then an XML declaration or a
-`<meta charset>` anywhere in the head, then UTF-8 if the bytes are valid UTF-8,
-then windows-1252. A page whose declaration lies about its bytes is read as it
-declares, as a browser reads it. A caller holding the transport's charset header
-has better information than the page, and nothing currently accepts it. When
-only text is available and lxml cannot parse it, the retry reads it as UTF-8
-whatever the document claims, because the text has already been decoded.
+as a browser decodes them -- a byte order mark, then the response's charset
+when `extract(headers=...)` is given it, then an XML declaration or a
+`<meta charset>` anywhere in the head, then windows-1252 -- with one
+departure: bytes that are valid UTF-8 and hold a character outside ASCII are
+UTF-8, whatever is declared. A page saved or re-encoded by another tool keeps
+its old `<meta charset=GB2312>` over UTF-8 bytes, and fundus's fixtures read
+as mojibake until this; on 1,427 pages as their servers sent them, no page
+changed. The one text read otherwise than a browser reads it is legacy text
+that is also valid UTF-8, such as `Ã©` written in windows-1252, which is
+mojibake already. A declaration that lies about bytes that are not UTF-8 is
+still believed. When only text is available and lxml cannot parse it, the
+retry reads it as UTF-8 whatever the document claims, because the text has
+already been decoded.
 
 **RDFa is read as Lite, not as a graph.** The RDFa reader stops where the graph begins: `vocab`, `prefix`, `typeof`, `property` and
 `resource` are read, and chained subjects, typed literals and inference are not.

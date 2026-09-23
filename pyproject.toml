@@ -135,6 +135,11 @@ select = [
     "RUF",  # ruff's own: unsorted __all__, unused unpacked variables
 ]
 
+[tool.pytest.ini_options]
+# The suite, and nothing else: a benchmark's cache under bench/ holds other
+# projects' checkouts, fundus's among them, with test suites of their own.
+testpaths = ["tests"]
+
 [tool.coverage.run]
 source = ["sluicer"]
 branch = true

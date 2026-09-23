@@ -304,6 +304,47 @@ def test_the_charset_a_response_was_sent_with_comes_before_the_page_declaration(
     assert sniff_encoding(page, "no-such-charset") == "utf-8"
 
 
+def test_bytes_that_are_utf8_are_read_as_utf8_whatever_they_declare():
+    """Found building the multilingual scoreboard: fundus stores its fixtures
+    re-encoded as UTF-8 with the page's old declaration kept, and People's
+    Daily's <meta charset=GB2312> over UTF-8 bytes read as mojibake, El
+    Mundo's iso-8859-15 as "sanciÃ³n"."""
+    from sluicer.document import sniff_encoding
+
+    title = "促进航天技术更好惠及人民"
+    stale = (
+        '<html><head><meta http-equiv="content-type" content="text/html;'
+        f'charset=GB2312"/><title>{title}</title></head></html>'
+    ).encode()
+    assert sniff_encoding(stale) == "utf-8"
+    assert load(stale).tree.findtext(".//title") == title
+    spanish = '<meta charset="iso-8859-15"><title>sanción</title>'.encode()
+    assert load(spanish).tree.findtext(".//title") == "sanción"
+    # A server that sends UTF-8 under a Latin-1 header is read as it sent.
+    assert sniff_encoding("é".encode(), "iso-8859-1") == "utf-8"
+
+
+def test_bytes_in_the_encoding_they_declare_are_read_in_it():
+    from sluicer.document import sniff_encoding
+
+    chinese = '<meta charset="gb2312"><title>人民网</title>'.encode("gb2312")
+    assert sniff_encoding(chinese) == "gb18030"
+    assert load(chinese).tree.findtext(".//title") == "人民网"
+    french = '<meta charset="windows-1252"><title>Été</title>'.encode("cp1252")
+    assert load(french).tree.findtext(".//title") == "Été"
+    ascii_only = b'<meta charset="iso-8859-15"><title>Plain</title>'
+    assert sniff_encoding(ascii_only) == "iso8859-15"
+    # The one text this reads differently from a browser: cp1252 bytes that
+    # are valid UTF-8, as "Ã©" written in cp1252 is -- text that already was
+    # mojibake before it was saved.
+    assert (
+        load('<meta charset="windows-1252"><p>Ã©</p>'.encode("cp1252")).tree.findtext(
+            ".//p"
+        )
+        == "é"
+    )
+
+
 def test_an_address_is_read_as_the_url_standard_reads_an_attribute():
     """Found by the property search: ``0``, a carriage return, ``?`` was
     answered as ``https://shop.example/c/0 `` -- the return became a space and
