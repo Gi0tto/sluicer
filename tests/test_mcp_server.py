@@ -42,25 +42,41 @@ def fake_mcp(monkeypatch):
     return registered
 
 
-def test_the_server_registers_its_nine_tools(monkeypatch):
+TOOLS = {
+    "extract_declared",
+    "page_markdown",
+    "fetch_page",
+    "compile_extractor",
+    "run_extractor",
+    "heal_extractor",
+    "audit_page",
+    "read_feed",
+    "map_site",
+    "crawl_site",
+}
+
+
+def test_the_server_registers_its_ten_tools(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
     build_server()
 
-    tools = {name for name in registered if not name.startswith("__")}
-    assert tools == {
-        "extract_declared",
-        "page_markdown",
-        "fetch_page",
-        "compile_extractor",
-        "run_extractor",
-        "heal_extractor",
-        "audit_page",
-        "read_feed",
-        "map_site",
-        "crawl_site",
-    }
+    assert {name for name in registered if not name.startswith("__")} == TOOLS
+
+
+def test_the_module_names_every_tool_it_registers_and_counts_them():
+    """A review found the docstring still saying "Nine tools" after the tenth."""
+    import re
+
+    import sluicer.mcp_server as module
+
+    doc = module.__doc__ or ""
+    listed = doc.split(" tools -- ", 1)[1].split(" -- ", 1)[0]
+    assert set(re.findall(r"``([a-z_]+)``", listed)) == TOOLS
+    count = {10: "ten", 11: "eleven", 12: "twelve"}[len(TOOLS)]
+    assert f"{count.capitalize()} tools -- " in doc
+    assert f"with its {count} tools registered" in (module.build_server.__doc__ or "")
 
 
 def test_extract_declared_reads_html_given_directly(monkeypatch):

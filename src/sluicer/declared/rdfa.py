@@ -32,6 +32,7 @@ from typing import Any
 
 from lxml.html import HtmlElement
 
+from sluicer.declared.located import Located, Place, placed
 from sluicer.declared.types import type_name
 from sluicer.document import Document, absolute
 
@@ -108,8 +109,9 @@ def _pay(left: list[int], cost: int) -> bool:
 
 def _subject(
     doc: Document, subject: HtmlElement, depth: int, left: list[int]
-) -> dict[str, Any]:
+) -> Located:
     item: dict[str, Any] = {}
+    props: dict[str, Place] = {}
     types = _names(subject, subject.get("typeof"))
     if types and _pay(left, sum(len(name) for name in types)):
         item["@type"] = types[0] if len(types) == 1 else types
@@ -138,16 +140,17 @@ def _subject(
         for name in names:
             # Every name the property carries is one more copy of its value.
             if not _pay(left, len(name) + (0 if paid else size)):
-                return item
+                return placed(item, subject, props, repeated)
             paid = False
             if name not in item:
+                props[name] = prop
                 item[name] = value
             elif name in repeated:
                 item[name].append(value)
             else:
                 item[name] = [item[name], value]
                 repeated.add(name)
-    return item
+    return placed(item, subject, props, repeated)
 
 
 def _properties(subject: HtmlElement) -> list[HtmlElement]:

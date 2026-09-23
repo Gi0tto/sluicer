@@ -23,8 +23,18 @@ boolean is recorded as the page wrote it, "true" or "false".
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, TypeAlias
 
+from sluicer.declared.located import (
+    Located,
+    Place,
+    Places,
+    Step,
+    paid,
+    place,
+    spell,
+)
 from sluicer.declared.readers import BY_NAME, READERS
 from sluicer.declared.types import type_name
 
@@ -52,6 +62,10 @@ class Field:
 
     value: JsonValue
     source: str
+    where: str | None = None
+    """Where on the page the value was declared: an XPath, and for JSON-LD the
+    ``<script>`` block's with a JSON pointer after ``#``. None where the
+    reader does not say, as for a meta tag, whose name is its place."""
 
 
 @dataclass
@@ -72,9 +86,11 @@ class Record:
     types: tuple[str, ...] = ()
     fields: dict[str, Field] = field(default_factory=dict)
     source: str | None = None
+    where: str | None = None
+    """Where on the page the record was declared, as ``Field.where``."""
 
 
-def merge(**found: Any) -> list[Record]:
+def merge(*, places: Places | None = None, **found: Any) -> list[Record]:
     """Merge what each reader found. Earlier readers win; every field keeps its source.
 
     ``found`` maps a reader's name (``jsonld``, ``html``, see ``READERS``) to
@@ -90,6 +106,10 @@ def merge(**found: Any) -> list[Record]:
     first matching record in document order, the only deterministic signal
     available; which record is the page's subject is the summary's question,
     not this one's.
+
+    Every record and field says where on the page it was declared, when its
+    reader knows (``Field.where``); ``places`` pays for those, and without it
+    they are free, as for a page the caller trusts.
 
     Raises:
         ValueError: a name no reader has, which would otherwise be dropped.
@@ -109,7 +129,7 @@ def merge(**found: Any) -> list[Record]:
             continue
         candidates = list(records)
         for item in found.get(reader.name) or ():
-            record = _record_from(item, reader.name)
+            record = _record_from(item, reader.name, places)
             target = _fold_target(candidates, record)
             if target is None:
                 records.append(record)
@@ -150,34 +170,48 @@ def _fold_target(records: list[Record], incoming: Record) -> Record | None:
     return None
 
 
-def _record_from(item: dict[str, Any], source: str) -> Record:
+def _record_from(item: dict[str, Any], source: str, places: Places | None) -> Record:
     types = _types(item.get("@type"))
-    record = Record(type=types[0] if types else None, types=types, source=source)
+    at = item.at if isinstance(item, Located) else None
+    record = Record(
+        type=types[0] if types else None,
+        types=types,
+        source=source,
+        where=paid(places, lambda: spell(at)),
+    )
     for key, value in item.items():
         if key.startswith("@"):
             continue
-        normalised = _json(value, 0)
+        normalised = _json(value, 0, None if at is None else (at, key))
         if normalised is None:
             continue
-        record.fields[key] = Field(value=normalised, source=source)
+        record.fields[key] = Field(
+            value=normalised,
+            source=source,
+            where=paid(places, partial(place, item, at, (key,))),
+        )
     return record
 
 
-def _json(value: object, depth: int) -> JsonValue | None:
+def _json(value: object, depth: int, at: Place | None = None) -> JsonValue | None:
     """``value`` as a field holds it, or None when it carries nothing.
 
     A JSON-LD value object is its ``@value``. An object keeps its ``@type`` and
     loses the other keywords, which say how to read it rather than what it
     says, unless it is nothing but an ``@id``: an unresolved reference is all a
     page said, so it is kept as one.
+
+    ``at`` is where ``value`` was declared. An object keeps its place, as a
+    ``Located``, so a value read deep inside a field can still say where it
+    was; one a reader placed keeps the reader's place.
     """
     if depth > MAX_DEPTH:
         return None
     if isinstance(value, list):
         items = [
             normalised
-            for item in value
-            if (normalised := _json(item, depth + 1)) is not None
+            for n, item in enumerate(value)
+            if (normalised := _json(item, depth + 1, _on(at, n))) is not None
         ]
         return items or None
     if not isinstance(value, dict):
@@ -185,21 +219,38 @@ def _json(value: object, depth: int) -> JsonValue | None:
     for keyword in ("@value", "@list", "@set"):
         # A value object is its value; a list or set object is its items.
         if keyword in value:
-            return _json(value[keyword], depth + 1)
+            return _json(value[keyword], depth + 1, _on(at, keyword))
+    node: dict[str, JsonValue]
+    if isinstance(value, Located):
+        node = Located(at=value.at, props=value.props)
+    elif at is not None:
+        node = Located(at=at)
+    else:
+        node = {}
+    here = node if isinstance(node, Located) else None
     out: dict[str, JsonValue] = {}
     for key, item in value.items():
         if key.startswith("@"):
             continue
-        normalised = _json(item, depth + 1)
+        normalised = _json(item, depth + 1, _on(here, key))
         if normalised is not None:
             out[key] = normalised
     if not out:
         identifier = _scalar(value.get("@id"))
-        return {"@id": identifier} if identifier is not None else None
+        if identifier is None:
+            return None
+        node["@id"] = identifier
+        return node
     types = _types(value.get("@type"))
     if types:
-        return {"@type": types[0] if len(types) == 1 else list(types), **out}
-    return out
+        node["@type"] = types[0] if len(types) == 1 else list(types)
+    node.update(out)
+    return node
+
+
+def _on(at: Place | None, step: Step) -> Place | None:
+    """One step on from ``at``, or no place when there is none to step from."""
+    return None if at is None else (at, step)
 
 
 def _scalar(value: object) -> str | None:

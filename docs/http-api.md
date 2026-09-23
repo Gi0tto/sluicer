@@ -78,14 +78,18 @@ sends them, and the answer is what the tool answers:
   "ok": true,
   "url": "https://example.com/product",
   "summary": {
-    "title": { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" }
+    "title": { "value": "Brake pad set", "source": "jsonld", "key": "Product.name",
+               "where": "/html/head/script[1]#/name" }
   },
   "records": [
     {
       "type": "Product",
       "types": ["Product"],
-      "fields": { "name": { "value": "Brake pad set", "source": "jsonld" } },
-      "source": "jsonld"
+      "fields": {
+        "name": { "value": "Brake pad set", "source": "jsonld", "where": "/html/head/script[1]#/name" }
+      },
+      "source": "jsonld",
+      "where": "/html/head/script[1]#"
     }
   ],
   "sources": ["jsonld"],

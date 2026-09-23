@@ -255,6 +255,7 @@ def test_the_json_output_carries_the_nested_value(tmp_path):
     assert offers == {
         "value": {"@type": "Offer", "price": "41.99"},
         "source": "jsonld",
+        "where": "/html/head/script[1]#/offers",
     }
 
 

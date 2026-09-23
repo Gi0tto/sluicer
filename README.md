@@ -22,11 +22,11 @@
 
 Sluicer reads the structured data a web page already declares -- JSON-LD,
 microdata, RDFa, OpenGraph, the Twitter card, HTML's own meta names -- and
-merges it into one record per thing, every value naming the vocabulary and key
-it came from. No model reads the page, so the same page always gives the same
-answer and a run costs CPU. Learn an extractor from a few pages of a template
-and every replay checks the page still keeps to it: a site that changed its
-layout fails loudly, and `heal` says what moved where.
+merges it into one record per thing, every value naming the vocabulary, the key
+and the place on the page it came from. No model reads the page, so the same
+page always gives the same answer and a run costs CPU. Learn an extractor from
+a few pages of a template and every replay checks the page still keeps to it: a
+site that changed its layout fails loudly, and `heal` says what moved where.
 
 ```bash
 uv tool install 'sluicer[fetch,markdown,mcp]'
@@ -38,20 +38,25 @@ It prints, abridged:
 ```json
 {
   "summary": {
-    "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
-    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers.price" },
-    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers.priceCurrency" },
-    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" }
+    "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name",
+                  "where": "/html/head/script[1]#/name" },
+    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers.price",
+                  "where": "/html/head/script[1]#/offers/price" },
+    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers.priceCurrency",
+                  "where": "/html/head/script[1]#/offers/priceCurrency" },
+    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image",
+                  "where": null }
   },
   "normalised": { "price": "41.90", "currency": "EUR" },
   "records": [
     {
       "type": "Product",
       "fields": {
-        "name":   { "value": "Brake pad set", "source": "jsonld" },
-        "offers": { "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" }, "source": "jsonld" },
-        "mpn":    { "value": "BP-2210", "source": "microdata" },
-        "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph" }
+        "name":   { "value": "Brake pad set", "source": "jsonld", "where": "/html/head/script[1]#/name" },
+        "offers": { "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" }, "source": "jsonld",
+                    "where": "/html/head/script[1]#/offers" },
+        "mpn":    { "value": "BP-2210", "source": "microdata", "where": "/html/body/div[1]/span[1]" },
+        "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "where": null }
       }
     }
   ],
@@ -61,7 +66,10 @@ It prints, abridged:
 
 That page described one product three times, in three vocabularies. You get one
 record, a summary of the questions you came with, and the provenance of every
-value. `sluicer inspect` prints the same reading laid out for a person.
+value: the vocabulary, and where on the page -- an XPath, and inside JSON-LD a
+pointer to the value, even one a reference fetched from elsewhere in the page.
+A meta tag's place is its key. `sluicer inspect` prints the same reading laid
+out for a person.
 
 ## How it differs
 

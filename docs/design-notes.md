@@ -69,6 +69,46 @@ a hostile page costs a bounded amount: without them, four microdata items
 naming each other with `itemref` were estimated at half an hour, and four
 thousand JSON-LD references to one node were four gigabytes from a 119 KB page.
 
+## A place travels with its value
+
+Every field, record and summary answer says where on the page it was
+declared: an XPath to the element, and for JSON-LD the `<script>` block's
+XPath with a JSON pointer after `#` -- `/html/head/script[1]#/offers/price`.
+An agent can then show the bytes behind an answer, and a person checking one
+does not have to search the page for it.
+
+The place is carried inside the value, by the reader that saw it, rather
+than rebuilt from the answer's key, because a key cannot be trusted to find
+it. A JSON-LD reference is replaced by the node it names, which was declared
+somewhere else, often another block: Yoast writes the article's author as
+`{"@id": "#/schema/person/..."}` and defines the person further down, so a
+pointer built from `Article.author.name` would point at a reference holding
+no name. And a blank item dropped from a list moves every index after it, so
+`offers[0]` in the record can be `/offers/1` on the page. Each object that
+reaches a record is therefore a `Located` dict, knowing its place; a node a
+reference was followed to carries its definition's.
+
+A place is given as finely as the reader knows it, and never finer. A
+microdata or RDFa property declared once is placed at its element, even one
+`itemref` brought in from elsewhere; one declared twice has no one element
+and is placed at its item; an index into a list of text is not counted into,
+since its items carry no place of their own. The metadata readers return
+values, not elements, so a meta tag's answer names the tag in its key and has
+no place; an answer joined from several tags has none either.
+
+Two rules keep a place stable and readable. Every step carries its position,
+`meta[1]` and not `meta`: lxml leaves out the position of the only element of
+its name, so a second `<meta>` added after the first changed the first one's
+place, and the same page answered two ways. And a path never holds a `#`: an
+element a parser made of a stray `<` -- `h&#tml`, `x'y` -- is reached by its
+position among its parent's nodes, so the first `#` in a place is always
+where its pointer starts. Places cost memory and output in proportion to the
+page's depth, so they are kept as the element and spelt only when a record
+is built, and every place an answer holds is paid for from a budget -- twice
+the page for the records, once the page for the summary -- or a page nested
+two hundred deep, with two thousand properties at the bottom, would answer
+with forty times its own size in XPaths.
+
 ## OpenGraph's arrays are read by position
 
 OpenGraph writes a list by repeating a tag, and describes an image by the tags

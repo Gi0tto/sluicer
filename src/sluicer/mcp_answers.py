@@ -75,6 +75,7 @@ class PageError(TypedDict, total=False):
 class FieldAnswer(TypedDict):
     value: Any
     source: str
+    where: str | None
 
 
 class RecordAnswer(TypedDict):
@@ -82,12 +83,14 @@ class RecordAnswer(TypedDict):
     types: list[str]
     fields: dict[str, FieldAnswer]
     source: str | None
+    where: str | None
 
 
 class SummaryAnswer(TypedDict):
     value: str
     source: str
     key: str
+    where: str | None
 
 
 class ClimbAnswer(TypedDict):

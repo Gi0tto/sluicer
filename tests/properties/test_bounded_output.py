@@ -36,8 +36,12 @@ at most ``2 n``. And ``extract`` does not multiply what they return: merge
 carries each value once, in a field and a record that add a few keys each --
 five times the smallest record a page can declare, ten characters of JSON-LD --
 and the summary is sixteen answers, each one value of one field or one tag of
-the page. So the whole answer weighs at most ``8 R + 12 n + 10_000``, where
-``R`` is what the readers returned.
+the page. Each field, record and answer also says where it was declared: one
+key more, ``where``, which puts a field at six times the smallest a page can
+declare where it was five, and a place, and every place is paid for from
+``max(10_000, 2 n)`` for the records and ``max(10_000, n)`` for the summary.
+So the whole answer weighs at most ``10 R + 15 n + 30_000``, where ``R`` is
+what the readers returned.
 
 Measured on these strategies, the largest ratios are near 10 for a reader and
 near 22 for the whole answer. Each of the bugs these properties caught was
@@ -137,7 +141,7 @@ def _assert_bounded(page) -> None:
     answer = weight(asdict(extract(html, url=page.url, induce=True)))
     readers = sum(returned.values())
     target(answer / n, label="answer per character of page")
-    assert answer <= 8 * readers + 12 * n + 10_000, (answer, readers, n)
+    assert answer <= 10 * readers + 15 * n + 30_000, (answer, readers, n)
 
 
 @pytest.mark.parametrize("shape", SHAPES)

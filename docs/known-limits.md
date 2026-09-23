@@ -67,6 +67,19 @@ loser: it is dropped, not kept under a qualified name. Microformats keeps its
 own type spelling: an `h-entry` records `@type` as `h-entry`, so it
 never folds with a schema.org `Article` that means the same thing.
 
+**A place is an XPath into the page as lxml parsed it, not as a browser
+did.** libxml2 builds its own tree: it adds no `<tbody>` to a table, which a
+browser always does, and it mends broken markup its own way, so a place such
+as `/html/body/table[1]/tr[1]/td[1]` may select nothing in a browser's
+developer tools; the same page parsed by `sluicer.document.load` finds it.
+Some values have no place at all: a meta tag's -- OpenGraph, the Twitter
+card, Dublin Core and HTML's meta names return values, not elements, and
+their key names the tag -- an induced row's, a microformats item's, an answer
+joined from several tags, and any place past the page's budget for them,
+which only a page nested far deeper than real ones reaches. A property
+declared twice in microdata or RDFa is placed at its item, not at either
+element.
+
 ## In extractors
 
 **A listing's place is an exact path.** A new wrapper or a renamed class above

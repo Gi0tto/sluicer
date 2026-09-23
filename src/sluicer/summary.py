@@ -19,11 +19,14 @@ import html as html_entities
 import re
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import TypeAlias
 
+from lxml.html import HtmlElement
+
 from sluicer.declared.links import canonicals
+from sluicer.declared.located import Places, paid, place, xpath_of
 from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Record
 from sluicer.declared.opengraph import NAMESPACES
 from sluicer.document import Document, base_url, join
@@ -38,11 +41,15 @@ class SummaryField:
     ``"html"`` also covering ``<title>``, ``<html lang>``, ``<link
     rel=canonical>`` and meta names outside any vocabulary. ``key`` is what was
     read: ``Product.offers``, ``og:title``, ``<title>``, ``meta name=author``.
+    ``where`` is where on the page it was declared, as ``Field.where``: an
+    XPath, for JSON-LD with a pointer to the value after ``#``. None when the
+    key is the whole of what is known, as for ``og:title``.
     """
 
     value: str
     source: str
     key: str
+    where: str | None = None
 
 
 Answer: TypeAlias = "SummaryField | None"
@@ -161,6 +168,7 @@ def summarise(
     twitter: dict[str, str],
     htmlmeta: dict[str, str],
     header_canonicals: list[str] | None = None,
+    places: Places | None = None,
 ) -> dict[str, SummaryField]:
     """Answer each of ``FIELDS`` the page gives an answer to, in that order.
 
@@ -170,7 +178,8 @@ def summarise(
     vocabularies are read from their own findings rather than from whichever
     record they were folded onto, so a breadcrumb that opens the page's
     ``@graph`` cannot lend them its name. ``header_canonicals`` are the
-    canonicals the response's ``Link`` header names, resolved.
+    canonicals the response's ``Link`` header names, resolved. ``places`` pays
+    for every answer's ``where``, as for the records'.
     """
     header_canonicals = header_canonicals or []
     subject = _subject(records)
@@ -357,11 +366,14 @@ def summarise(
     base = base_url(doc)
     summary: dict[str, SummaryField] = {}
     for name in FIELDS:
-        found = next((answer for answer in questions[name] if answer), None)
+        candidates = questions[name]
+        if name in ("url", "image"):
+            # Resolved before one is chosen: an address that cleans to nothing
+            # -- a lone control character -- is no answer, and the next is asked.
+            candidates = [_resolved(answer, base) for answer in candidates]
+        found = next((answer for answer in candidates if answer), None)
         if found is not None:
-            summary[name] = (
-                _resolved(found, base) if name in ("url", "image") else found
-            )
+            summary[name] = replace(found, where=paid(places, found.where))
     return summary
 
 
@@ -617,7 +629,7 @@ def _from(
         text = _clean(html_entities.unescape(text))
     if not text:
         return None
-    return SummaryField(text, field.source, f"{record.type}.{prop}")
+    return SummaryField(text, field.source, f"{record.type}.{prop}", field.where)
 
 
 def _text(value: JsonValue) -> str | None:
@@ -688,12 +700,14 @@ def _pricing(subject: Record, offers: JsonValue) -> _Pricing:
     key is the path it was read at: ``Product.offers[1].priceSpecification[0]
     .price``.
     """
-    source = subject.fields["offers"].source
+    held = subject.fields["offers"]
     name = subject.type or "Thing"
 
     def answer(value: JsonValue | None, path: str) -> SummaryField | None:
         text = _text(value) if value is not None else None
-        return SummaryField(text, source, f"{name}.{path}") if text else None
+        if not text:
+            return None
+        return SummaryField(text, held.source, f"{name}.{path}", _inside(held, path))
 
     found = _offers_in(offers, "offers")
     price = regular = currency = availability = None
@@ -840,7 +854,10 @@ def _rating(record: Record | None, keys: tuple[str, ...]) -> SummaryField | None
     for key in keys:
         text = _text(value[key]) if key in value else None
         if text:
-            return SummaryField(text, rating.source, f"{record.type}.{where}.{key}")
+            path = f"{where}.{key}"
+            return SummaryField(
+                text, rating.source, f"{record.type}.{path}", _inside(rating, path)
+            )
     return None
 
 
@@ -866,7 +883,9 @@ def _breadcrumb(records: list[Record]) -> SummaryField | None:
     if not named:
         return None
     path = " > ".join(name for _, _, name in sorted(named))
-    return SummaryField(path, crumbs.source, "BreadcrumbList.itemListElement")
+    return SummaryField(
+        path, crumbs.source, "BreadcrumbList.itemListElement", crumbs.where
+    )
 
 
 def _crumb_name(item: dict[str, JsonValue]) -> str | None:
@@ -889,7 +908,7 @@ def _position(value: JsonValue | None, order: int) -> float:
 def _type(record: Record | None) -> SummaryField | None:
     if record is None or record.type is None or record.source is None:
         return None
-    return SummaryField(record.type, record.source, "@type")
+    return SummaryField(record.type, record.source, "@type", record.where)
 
 
 def _headline_or_name(
@@ -923,7 +942,7 @@ def _headline_or_name(
 def _element_text(doc: Document, path: str, key: str) -> SummaryField | None:
     found = doc.tree.xpath(path)
     text = _clean(found[0].text_content()) if found else None
-    return SummaryField(text, "html", key) if text else None
+    return SummaryField(text, "html", key, xpath_of(found[0])) if text else None
 
 
 def _named(
@@ -935,18 +954,26 @@ def _named(
     tag of the winning name is read -- a paper lists each author in one -- and
     the names are joined once each, in the order written.
     """
-    found: dict[str, list[str]] = {}
+    found: dict[str, list[tuple[str, HtmlElement]]] = {}
     for meta in doc.tree.xpath("//meta[@name][@content]"):
         text = _clean(meta.get("content"))
         if text:
-            found.setdefault((meta.get("name") or "").strip().lower(), []).append(text)
+            name = (meta.get("name") or "").strip().lower()
+            found.setdefault(name, []).append((text, meta))
     for name in names:
         if name in found:
-            values = [_BYLINE.sub("", value) for value in found[name]]
-            unique = list(dict.fromkeys(value for value in values if value))
-            if unique:
-                text = ", ".join(unique) if join else unique[0]
-                return SummaryField(text, "html", f"meta name={name}")
+            # Each name once, at the first tag that gives it. Never empty: a
+            # cleaned text ends in something that is not a space, which the
+            # byline's "by " cannot take.
+            first: dict[str, HtmlElement] = {}
+            for text, meta in found[name]:
+                first.setdefault(_BYLINE.sub("", text), meta)
+            key = f"meta name={name}"
+            if join and len(first) > 1:
+                # Joined from several tags, the answer has no one element.
+                return SummaryField(", ".join(first), "html", key)
+            text, meta = next(iter(first.items()))
+            return SummaryField(text, "html", key, xpath_of(meta))
     return None
 
 
@@ -962,7 +989,9 @@ def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
         if prop in (meta.get("itemprop") or "").split():
             text = _clean(meta.get("content"))
             if text:
-                return SummaryField(text, "html", f"<meta itemprop={prop}>")
+                return SummaryField(
+                    text, "html", f"<meta itemprop={prop}>", xpath_of(meta)
+                )
     return None
 
 
@@ -971,7 +1000,7 @@ def _without_site(found: SummaryField, site_names: set[str]) -> SummaryField | N
     for separator in _TITLE_SEPARATORS:
         head, cut, tail = found.value.rpartition(separator)
         if cut and head.strip() and tail.strip().casefold() in site_names:
-            return SummaryField(head.strip(), found.source, found.key)
+            return replace(found, value=head.strip())
     return found
 
 
@@ -996,7 +1025,7 @@ def _language(doc: Document) -> SummaryField | None:
     for element in doc.tree.xpath("//html[@lang]"):
         lang = _clean(element.get("lang"))
         if lang:
-            return SummaryField(lang, "html", "<html lang>")
+            return SummaryField(lang, "html", "<html lang>", xpath_of(element))
     return None
 
 
@@ -1004,13 +1033,14 @@ def _locale(found: SummaryField | None) -> SummaryField | None:
     """``og:locale`` is written ``en_US``; a language tag is ``en-US``."""
     if found is None:
         return None
-    return SummaryField(found.value.replace("_", "-"), found.source, found.key)
+    return replace(found, value=found.value.replace("_", "-"))
 
 
-def _resolved(found: SummaryField, base: str | None) -> SummaryField:
-    if base is None:
+def _resolved(found: SummaryField | None, base: str | None) -> SummaryField | None:
+    if found is None or base is None:
         return found
-    return SummaryField(join(base, found.value), found.source, found.key)
+    address = join(base, found.value)
+    return replace(found, value=address) if address else None
 
 
 def _short(found: SummaryField | None) -> SummaryField | None:
@@ -1022,7 +1052,7 @@ def _short(found: SummaryField | None) -> SummaryField | None:
     if found is None:
         return None
     term = _SCHEMA_ORG.sub("", found.value)
-    return SummaryField(term, found.source, found.key) if term else None
+    return replace(found, value=term) if term else None
 
 
 def _not_an_address(found: SummaryField | None) -> SummaryField | None:
@@ -1039,3 +1069,17 @@ def _clean(text: str | None) -> str | None:
         return None
     cleaned = _WHITESPACE.sub(" ", text).strip()
     return cleaned or None
+
+
+# One step of a key's path: ``offers``, or ``[1]``.
+_STEP = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
+
+
+def _inside(held: Field, path: str) -> str | None:
+    """Where the value ``path`` names inside ``held`` was declared.
+
+    ``path`` is the answer's key without its type -- ``offers[1].price`` --
+    and starts at ``held``'s own property.
+    """
+    steps = [int(n) if n else key for key, n in _STEP.findall(path)][1:]
+    return place(held.value, held.where, steps)

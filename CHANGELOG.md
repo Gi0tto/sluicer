@@ -27,6 +27,28 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is not a price of 19.
 
 ### Added
+- Every value says where on the page it was declared. `Field.where`,
+  `Record.where` and `SummaryField.where` are an XPath to the element that
+  declared it -- for JSON-LD, the `<script>` block's, with a JSON pointer (RFC
+  6901) to the value after `#`: `/html/head/script[1]#/offers/1/price`. A
+  microdata or RDFa property is placed at its own element, even one `itemref`
+  brought from elsewhere, and a value inside a nested item at that item's.
+  The place travels with the value rather than being worked out from its key,
+  since a key cannot find it: a JSON-LD reference is replaced by the node it
+  names, and that node's own place comes with it -- Yoast's author, declared
+  in another block, is pointed to there -- and a blank item dropped from a
+  list shifts every index after it, which the key reflects and the place
+  does not. Where a place cannot be given exactly it is given coarser, never
+  wrong: a property declared twice is placed at its item, an answer joined
+  from several tags has none, and a meta tag's key is its place. Every step of
+  an XPath carries its position, so a sibling added after an element never
+  moves it, and the first `#` always starts the pointer, since a path never
+  holds one. Every place in an answer is paid for from a budget of twice the
+  page for the records and once the page for the summary, so a page nested
+  two hundred deep cannot answer with an XPath per property longer than
+  itself. The MCP and HTTP answers carry `where` too. A property test follows
+  every place on every drawn page, hostile and broken ones included, and
+  finds the declared value there.
 - `sluicer.compat.extruct`, extruct's interface answered by sluicer's own
   readers: `from sluicer.compat import extruct` in place of `import extruct`.
   `extract` takes every argument extruct 0.18 takes and answers its six
@@ -299,6 +321,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Crawl-delay` and `Sitemap` reading in the `with-extras` job.
 
 ### Fixed
+- A `url` or `image` that cleans to nothing -- a JSON-LD `url` of one control
+  character -- was answered as the empty text rather than passed over for the
+  next declaration: addresses are now resolved before one is chosen. Found by
+  the fuzz profile.
+- The MCP module's docstring still said nine tools after `read_feed` made ten;
+  a test now holds its list to the tools the server registers.
 - The audit matched a robots.txt path pattern with a regular expression that
   backtracked: `Content-Usage: /*a*a*a*a*b$ ...` took 13 seconds against a
   300-character path, and any site's robots.txt could stall an audit or an

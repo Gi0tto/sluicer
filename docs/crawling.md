@@ -176,7 +176,8 @@ Each page is one line of JSON, written the moment its turn comes:
  "found_on": "https://shop.example/", "landed": "https://shop.example/p/1",
  "fetch": {"rung": "http", "status": 200, "seconds": 0.212, "climbs": []},
  "canonical": "https://shop.example/p/1",
- "summary": {"title": {"value": "Brake pad set", "source": "jsonld", "key": "Product.name"}},
+ "summary": {"title": {"value": "Brake pad set", "source": "jsonld", "key": "Product.name",
+                       "where": "/html/head/script[1]#/name"}},
  "records": [...], "sources": ["jsonld"],
  "links": ["https://shop.example/c/brakes", "..."]}
 {"url": "https://shop.example/cart", "ok": false, "depth": 1,

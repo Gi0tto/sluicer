@@ -69,14 +69,22 @@ def test_all_three_readers_fold_into_one_record_and_each_keeps_its_source():
     assert record.type == "Product"
 
     # All three vocabularies declare a description, and they disagree.
-    # JSON-LD has precedence, and the value says where it came from.
+    # JSON-LD has precedence, and the value says where it came from: the
+    # reader, and the place on the page.
     assert record.fields["description"] == sluicer.Field(
-        value="Described by JSON-LD", source="jsonld"
+        value="Described by JSON-LD",
+        source="jsonld",
+        where="/html/head/script[1]#/description",
     )
 
     # Each reader contributed the field the other two lack.
-    assert record.fields["sku"] == sluicer.Field(value="BP-1187", source="jsonld")
-    assert record.fields["mpn"] == sluicer.Field(value="GDB1330", source="microdata")
+    assert record.fields["sku"] == sluicer.Field(
+        value="BP-1187", source="jsonld", where="/html/head/script[1]#/sku"
+    )
+    assert record.fields["mpn"] == sluicer.Field(
+        value="GDB1330", source="microdata", where="/html/body/div[1]/span[1]"
+    )
+    # A meta tag's name is its place.
     assert record.fields["image"] == sluicer.Field(
         value="https://example.com/brake-pad-set.jpg", source="opengraph"
     )

@@ -12,6 +12,7 @@ from sluicer.declared.headers import (
     read_header_rights,
 )
 from sluicer.declared.links import Links, read_links
+from sluicer.declared.located import Places
 from sluicer.declared.merge import ABOUT_A_THING, Record, merge
 from sluicer.declared.opengraph import read_opengraph
 from sluicer.declared.readers import READERS
@@ -20,6 +21,9 @@ from sluicer.document import load
 from sluicer.normalise import normalised
 from sluicer.structure import induce as induce_records
 from sluicer.summary import SummaryField, summarise
+
+# The least a page's places are paid from: a small page's are never cut.
+PLACES_FLOOR = 10_000
 
 
 @dataclass
@@ -102,7 +106,13 @@ def extract(
         for reader in READERS
     }
     sources = [name for name, declared in found.items() if declared]
-    records = merge(**{name: declared for name, declared in found.items() if declared})
+    # Every place the answer gives is paid for, twice the page for the records
+    # and the page again for the summary, so a page nested two hundred deep
+    # cannot answer with an XPath per property longer than itself.
+    records = merge(
+        places=Places(max(PLACES_FLOOR, 2 * len(doc.html))),
+        **{name: declared for name, declared in found.items() if declared},
+    )
     # A record carrying no field is a type and nothing else -- a ``WebPage``
     # with only an ``@id``, a microformats root that was a CSS class -- and an
     # empty value is not a value, whole records included.
@@ -117,6 +127,7 @@ def extract(
         found["twitter"] or {},
         found["html"] or {},
         header_links["canonicals"] if header_links else None,
+        places=Places(max(PLACES_FLOOR, len(doc.html))),
     )
     if induce and not _declared_about_its_things(records):
         induced = induce_records(doc)

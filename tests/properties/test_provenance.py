@@ -8,15 +8,23 @@ records, and against the page's own tags -- on every page drawn.
 
 The tags are looked up with XPath over the parsed page, not through sluicer's
 readers, so a reader that lost a tag cannot also vouch for it.
+
+And every place a record, a field or an answer gives is followed the way a
+caller would follow it: its XPath must name one element of the page, and a
+JSON pointer after ``#`` must name a value inside that ``<script>`` block --
+the very value, for a field that holds text.
 """
 
 from __future__ import annotations
+
+import re
 
 from hypothesis import given, strategies as st
 from strategies import broken_pages, multiplying_pages, pages
 
 from sluicer import extract
-from sluicer.declared.merge import ABOUT_A_THING
+from sluicer.declared.jsonld import _parse
+from sluicer.declared.merge import ABOUT_A_THING, _json
 from sluicer.document import load
 from sluicer.summary import FIELDS
 
@@ -120,9 +128,71 @@ def _reaches(value, steps, first) -> bool:
     return True
 
 
+def _followed(tree, where: str) -> object:
+    """What ``where`` names on the page: its element, or the JSON value inside.
+
+    Fails when the XPath names no element or several, or the pointer names
+    nothing in the block.
+    """
+    path, hashed, fragment = where.partition("#")
+    found = tree.xpath(path)
+    assert isinstance(found, list), f"{where} is not a path: it gives {found!r}"
+    assert len(found) == 1, f"{where} names {len(found)} elements"
+    [element] = found
+    if not hashed:
+        return element
+    assert element.tag == "script", where
+    value = _parse((element.text_content() or "").strip())
+    for token in fragment.split("/")[1:]:
+        token = token.replace("~1", "/").replace("~0", "~")
+        if isinstance(value, list):
+            assert token.isdigit() and int(token) < len(value), where
+            value = value[int(token)]
+        else:
+            assert isinstance(value, dict) and token in value, where
+            value = value[token]
+    return value
+
+
+def _names_the_property(element, key: str) -> bool:
+    """Whether ``element`` declares ``key``, in microdata or RDFa, however spelt.
+
+    By the name's last part, since RDFa expands ``dc:title`` to
+    ``http://purl.org/dc/terms/title`` and a vocabulary may shorten one.
+    """
+    tokens = f"{element.get('itemprop') or ''} {element.get('property') or ''}"
+    return any(_local(token) == _local(key) for token in tokens.split())
+
+
+def _local(name: str) -> str:
+    return re.split(r"[/#:]", name)[-1]
+
+
+def _placed(result, tree) -> None:
+    for record in result.records:
+        if record.where is not None:
+            _followed(tree, record.where)
+        for key, field in record.fields.items():
+            if field.where is None:
+                continue
+            found = _followed(tree, field.where)
+            if "#" in field.where and isinstance(field.value, str):
+                assert _json(found, 0) == field.value, (key, field)
+            elif (
+                "#" not in field.where
+                and field.where != record.where
+                and isinstance(field.value, str)
+            ):
+                assert _names_the_property(found, key), (key, field)
+    for answer in result.summary.values():
+        if answer.where is not None:
+            _followed(tree, answer.where)
+
+
 def _check(html: str | bytes, url: str | None) -> None:
     result = extract(html, url=url, induce=True)
     tree = load(html, url=url).tree
+    _placed(result, tree)
 
     assert set(result.sources) <= set(READERS)
     assert result.sources == sorted(result.sources, key=READERS.index)

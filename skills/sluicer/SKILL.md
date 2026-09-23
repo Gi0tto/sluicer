@@ -1,6 +1,6 @@
 ---
 name: sluicer
-description: Read the structured data a web page already declares (JSON-LD, microdata, RDFa, Dublin Core, OpenGraph, Twitter cards, HTML's own meta names, and microformats2 on request) and get back a summary -- title, author, date, price, currency, availability, brand, SKU -- plus full records, every value naming the vocabulary and key it came from, with no model and no API key. Use when asked for a product's price, an article's author or date, a recipe's ingredients, a book's metadata, or any field a page states about itself; when a scrape must be reproducible or auditable; when you need a page as clean markdown; or when fetching should announce itself and obey robots.txt.
+description: Read the structured data a web page already declares (JSON-LD, microdata, RDFa, Dublin Core, OpenGraph, Twitter cards, HTML's own meta names, and microformats2 on request) and get back a summary -- title, author, date, price, currency, availability, brand, SKU -- plus full records, every value naming the vocabulary, the key and the place on the page it came from, with no model and no API key. Use when asked for a product's price, an article's author or date, a recipe's ingredients, a book's metadata, or any field a page states about itself; when a scrape must be reproducible or auditable; when you need a page as clean markdown; or when fetching should announce itself and obey robots.txt.
 version: "0.3.0"
 license: MIT
 metadata:
@@ -12,14 +12,16 @@ metadata:
 Most commercial pages already state their own facts in machine-readable form,
 in several vocabularies at once. Sluicer reads eight of them, merges them by a
 stated order of precedence, and hands back both a one-line-per-question summary
-and the full records, every value naming where it came from. No model is asked
-for an opinion, so the same page always gives the same answer.
+and the full records, every value naming the vocabulary it came from and
+where on the page it was declared. No model is asked for an opinion, so the
+same page always gives the same answer.
 
 ## When to reach for this
 
 When the answer is a field the page states about itself: a price, a SKU, an
 author, a publication date, a rating, an ingredient list, a book's language.
-When the result has to be defensible, because every value carries its source.
+When the result has to be defensible, because every value carries its source
+and its place.
 When you want the readable article without the navigation and the cookie banner.
 
 Not when the page states nothing about itself. Sluicer then says so rather than
@@ -29,12 +31,20 @@ field says `"source": "induced"`.
 
 ## The MCP tools
 
-- `extract_declared(html_or_url, induce=false)` -- the summary and the records.
-- `page_markdown(html_or_url)` -- the main content as markdown.
+- `extract_declared(html_or_url, induce=false, at=null, respect_tdm=false)` --
+  the summary and the records. `at` is a date (`2024`, `2024-06-01`): the URL
+  as the Wayback Machine captured it nearest to then, and `fetch.archived`
+  says which capture. `respect_tdm=true` answers `tdm_reserved` instead of a
+  page whose site reserves its text and data mining rights.
+- `page_markdown(html_or_url, front_matter=false, at=null, respect_tdm=false)`
+  -- the main content as markdown.
 - `fetch_page(url)` -- the HTML (cut at 200,000 characters) and what the fetch
   cost. Prefer the other two: they return what is in the page, not all of it.
-- `compile_extractor(pages)` -- learn an extractor from two or three pages of one
-  template. Keep the object it returns.
+- `compile_extractor(pages, listing=null, want=null)` -- learn an extractor from
+  two or three pages of one template. Keep the object it returns. `want` maps a
+  column's name to a value you can see on the first page (`{"title": "Pads"}`):
+  the extractor then reads the list or the page fields holding those values,
+  under those names.
 - `run_extractor(extractor, html_or_url)` -- replay it on any page of that
   template: plain rows, and `ok: false` with the reason when the page drifted.
   Never use rows from a run that is not ok as if nothing happened.
@@ -54,7 +64,7 @@ field says `"source": "induced"`.
   rather than crawling its pages.
 - `map_site(url, limit=100)` -- a site's addresses from its sitemaps (up to
   1,000, from up to ten sitemaps), or its start page's links when it has none.
-- `crawl_site(url, max_pages=10, max_depth=2, include, exclude)` -- follow a
+- `crawl_site(url, max_pages=10, max_depth=2, include, exclude, respect_tdm)` -- follow a
   site's links, up to 25 pages on its own site, and get each page's summary and
   the types it declared; `extract_declared` on a page gives its records.
   `include` and `exclude` are plain text an address must or must not contain.
@@ -64,7 +74,8 @@ field says `"source": "induced"`.
 
 Every answer carries `ok`: true exactly when it can be used as it is. When it
 is false, the answer says why: `error` with a `code` -- `refused_by_robots`,
-`refused_address`, `fetch_failed`, `too_large`, `missing_extra` or `bad_input`,
+`refused_address`, `fetch_failed`, `too_large`, `missing_extra`, `bad_input` or
+`tdm_reserved`,
 and on a crawled page `redirected_off_site` (with its `target`) or
 `crawl_delay_too_long` -- a `message` and `retryable` (true only for
 `fetch_failed`); or, from
@@ -84,29 +95,37 @@ From `extract_declared`:
   "ok": true,
   "url": "https://example.com/product",
   "summary": {
-    "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
-    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" },
-    "language": { "value": "en", "source": "html", "key": "<html lang>" },
-    "type":     { "value": "Product", "source": "jsonld", "key": "@type" },
-    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers.price" },
-    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers.priceCurrency" },
-    "sku":      { "value": "BP-1187", "source": "jsonld", "key": "Product.sku" }
+    "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name",
+                  "where": "/html/head/script[1]#/name" },
+    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image",
+                  "where": null },
+    "language": { "value": "en", "source": "html", "key": "<html lang>", "where": "/html" },
+    "type":     { "value": "Product", "source": "jsonld", "key": "@type",
+                  "where": "/html/head/script[1]#" },
+    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers.price",
+                  "where": "/html/head/script[1]#/offers/price" },
+    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers.priceCurrency",
+                  "where": "/html/head/script[1]#/offers/priceCurrency" },
+    "sku":      { "value": "BP-1187", "source": "jsonld", "key": "Product.sku",
+                  "where": "/html/head/script[1]#/sku" }
   },
   "records": [
     {
       "type": "Product",
       "types": ["Product"],
       "fields": {
-        "name":   { "value": "Brake pad set", "source": "jsonld" },
-        "sku":    { "value": "BP-1187", "source": "jsonld" },
+        "name":   { "value": "Brake pad set", "source": "jsonld", "where": "/html/head/script[1]#/name" },
+        "sku":    { "value": "BP-1187", "source": "jsonld", "where": "/html/head/script[1]#/sku" },
         "offers": {
           "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" },
-          "source": "jsonld"
+          "source": "jsonld",
+          "where": "/html/head/script[1]#/offers"
         },
-        "mpn":    { "value": "BP-2210", "source": "microdata" },
-        "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph" }
+        "mpn":    { "value": "BP-2210", "source": "microdata", "where": "/html/body/div[1]/span[1]" },
+        "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "where": null }
       },
-      "source": "jsonld"
+      "source": "jsonld",
+      "where": "/html/head/script[1]#"
     }
   ],
   "sources": ["jsonld", "microdata", "opengraph"]
@@ -115,6 +134,13 @@ From `extract_declared`:
 
 Read `summary` first; go to `records` for anything it does not answer, such as
 `recipeIngredient` or `aggregateRating`, which arrive whole as lists and objects.
+
+`where` is the place on the page a value was declared: an XPath, and for
+JSON-LD the `<script>` block's with a JSON pointer after the first `#`. Quote
+it when asked where a value came from, rather than describing the page. It is
+null for a meta tag, whose `key` names the tag, and for an answer joined from
+several tags. A place names the page as lxml parsed it, which can differ from
+a browser's tree: a table has no `<tbody>` in it.
 
 ## From the command line or Python
 

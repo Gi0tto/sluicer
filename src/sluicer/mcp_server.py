@@ -1,10 +1,10 @@
 """Sluicer as a tool an agent can call, over the Model Context Protocol.
 
-Nine tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``,
+Ten tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``,
 ``compile_extractor``, ``run_extractor``, ``heal_extractor``, ``audit_page``,
-``map_site`` and ``crawl_site`` -- expose what the library does and add no
-logic of their own beyond bounds: a map or a crawl an agent starts is small
-and has a clock.
+``read_feed``, ``map_site`` and ``crawl_site`` -- expose what the library
+does and add no logic of their own beyond bounds: a map or a crawl an agent
+starts is small and has a clock.
 Run it with ``sluicer-mcp``; it needs the ``mcp`` extra.
 
 Every answer carries ``ok``, true exactly when it can be used as it is, and has
@@ -270,7 +270,7 @@ def _page_of(
 
 
 def build_server() -> Any:
-    """Build the server with its nine tools registered.
+    """Build the server with its ten tools registered.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
@@ -315,12 +315,15 @@ def build_server() -> Any:
         headers or meta tags).
 
         Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
-        for a URL. records are typed fields, each {"value", "source"}, where
-        source is the vocabulary that declared it (jsonld, microdata,
-        opengraph, html, ...); a nested value such as a price inside "offers"
-        arrives whole. summary answers title, author, date, price and the rest,
-        one value each, naming its source and key. On failure ok is false and
-        "error" says why; there is never a record.
+        for a URL. records are typed fields, each {"value", "source",
+        "where"}: source is the vocabulary that declared it (jsonld,
+        microdata, opengraph, html, ...), where the XPath of the element that
+        did -- for JSON-LD the <script> block's, with a JSON pointer after
+        "#" -- or null for a meta tag, whose key is its place. A nested value
+        such as a price inside "offers" arrives whole. summary answers title,
+        author, date, price and the rest, one value each, naming its source,
+        key and where. On failure ok is false and "error" says why; there is
+        never a record.
         """
         html, url, fetched, headers = _page_of(html_or_url, at)
         if respect_tdm:

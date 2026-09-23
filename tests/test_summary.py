@@ -787,3 +787,17 @@ def test_a_variant_written_as_an_address_alone_is_no_variant_to_read():
         _group(_variant("S", 10), "https://example.com/coat/m", _variant("L", 10))
     )
     assert got["price"] == ("10", "ProductGroup.hasVariant[0].offers.price")
+
+
+def test_an_address_that_cleans_to_nothing_lets_the_next_declaration_answer():
+    """Found by the fuzz profile: a JSON-LD ``url`` of one control character,
+    resolved against the page's base, was the empty answer ``""``."""
+    page = (
+        '<html><head><base href="">'
+        '<script type="application/ld+json">'
+        '{"@type": "Product", "name": "Pad", "url": "\\u001b"}</script>'
+        '<meta property="og:url" content="https://shop.example/p">'
+        "</head><body></body></html>"
+    )
+    url = extract(page, url="https://shop.example/").summary["url"]
+    assert (url.value, url.source) == ("https://shop.example/p", "opengraph")

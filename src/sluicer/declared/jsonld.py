@@ -6,6 +6,7 @@ import json
 import re
 from typing import Any
 
+from sluicer.declared.located import Located, Place, xpath_of
 from sluicer.document import Document
 
 _XPATH = "//script[@type]"
@@ -41,6 +42,7 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
     "application/ld+json;charset=UTF-8" is "application/LD+JSON".
     """
     found: list[dict[str, Any]] = []
+    places: list[Place] = []
     for script in doc.tree.xpath(_XPATH):
         if not _is_ld_json(script.get("type") or ""):
             continue
@@ -49,16 +51,30 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
             continue
         parsed = _parse(raw)
         if parsed is not None:
-            found.extend(_flatten(parsed))
-    index = _definitions(found)
+            # Every node of one block is placed from one string, its own.
+            block: Place = xpath_of(script) + "#"
+            for node, steps in _flatten(parsed):
+                found.append(node)
+                at = block
+                for step in steps:
+                    at = (at, step)
+                places.append(at)
+    index, defined_at = _definitions(found, places)
     # Every copy a reference makes is paid for from one budget, ten times what
     # the page holds, in values and in characters: four thousand references to
     # one node of four thousand items were four gigabytes of copies from a
     # 119 KB page. Past the budget
     # a reference stays a reference, in document order, so the answer is
     # deterministic.
-    walk = _Walk(index, [max(10_000, 10 * _size(found))])
-    return [walk.resolve(node, _own_id(node), 0) for node in found]
+    walk = _Walk(index, [max(10_000, 10 * _size(found))], defined_at)
+    # A top-level node is a dict, and resolving one gives a dict back; one
+    # that was only a reference is where its definition is.
+    return [
+        resolved
+        if isinstance(resolved := walk.resolve(node, _own_id(node), 0), Located)
+        else Located(resolved, at)
+        for node, at in zip(found, places, strict=True)
+    ]
 
 
 _OPENING = re.compile(r"^\s*(?:(?://|/\*)\s*)?(?:<!\[CDATA\[|<!--)\s*(?:\*/)?")
@@ -103,19 +119,25 @@ def _is_ld_json(declared: str) -> bool:
     return declared.split(";", 1)[0].strip().lower() == _MEDIA_TYPE
 
 
-def _flatten(parsed: object) -> list[dict[str, Any]]:
-    """Every top-level node in one block, ``@graph`` and arrays unwrapped."""
-    found: list[dict[str, Any]] = []
-    pending = [parsed]
+def _flatten(parsed: object) -> list[tuple[dict[str, Any], tuple[str | int, ...]]]:
+    """Every top-level node in one block, ``@graph`` and arrays unwrapped.
+
+    Each with the steps that lead to it inside the block -- ``("@graph", 1)``
+    -- which make its JSON pointer.
+    """
+    found: list[tuple[dict[str, Any], tuple[str | int, ...]]] = []
+    pending: list[tuple[object, tuple[str | int, ...]]] = [(parsed, ())]
     while pending:
-        value = pending.pop()
+        value, steps = pending.pop()
         if isinstance(value, list):
-            pending.extend(reversed(value))
+            pending.extend(
+                (item, (*steps, n)) for n, item in reversed(list(enumerate(value)))
+            )
         elif isinstance(value, dict):
             if "@graph" in value:
-                pending.append(value["@graph"])
+                pending.append((value["@graph"], (*steps, "@graph")))
             else:
-                found.append(value)
+                found.append((value, steps))
     return found
 
 
@@ -124,26 +146,41 @@ def _own_id(node: dict[str, Any]) -> frozenset[str]:
     return frozenset({identifier}) if isinstance(identifier, str) else frozenset()
 
 
-def _definitions(nodes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def _definitions(
+    nodes: list[dict[str, Any]], places: list[Place]
+) -> tuple[dict[str, dict[str, Any]], dict[str, Place]]:
     """Every node on the page that defines an ``@id``, first definition first.
 
     A definition says something besides its identity; ``{"@id": ...}`` alone is
-    a reference, and a reference is not what it refers to.
+    a reference, and a reference is not what it refers to. Beside the index,
+    where each definition sits.
     """
     index: dict[str, dict[str, Any]] = {}
+    defined_at: dict[str, Place] = {}
     # A stack pushed in reverse, so nodes are met in document order and the
     # first definition of an ``@id`` is the one kept.
-    pending: list[object] = list(reversed(nodes))
+    pending: list[tuple[object, Place]] = list(
+        reversed(list(zip(nodes, places, strict=True)))
+    )
     while pending:
-        value = pending.pop()
+        value, chain = pending.pop()
         if isinstance(value, list):
-            pending.extend(reversed(value))
+            pending.extend(
+                (item, (chain, n)) for n, item in reversed(list(enumerate(value)))
+            )
         elif isinstance(value, dict):
             identifier = value.get("@id")
-            if isinstance(identifier, str) and not _is_reference(value):
-                index.setdefault(identifier, value)
-            pending.extend(reversed(list(value.values())))
-    return index
+            if (
+                isinstance(identifier, str)
+                and not _is_reference(value)
+                and identifier not in index
+            ):
+                index[identifier] = value
+                defined_at[identifier] = chain
+            pending.extend(
+                (item, (chain, key)) for key, item in reversed(list(value.items()))
+            )
+    return index, defined_at
 
 
 def _is_reference(value: dict[str, Any]) -> bool:
@@ -155,9 +192,15 @@ def _is_reference(value: dict[str, Any]) -> bool:
 class _Walk:
     """Reference resolution for one page: its definitions, and its budget."""
 
-    def __init__(self, index: dict[str, dict[str, Any]], budget: list[int]) -> None:
+    def __init__(
+        self,
+        index: dict[str, dict[str, Any]],
+        budget: list[int],
+        defined_at: dict[str, Place],
+    ) -> None:
         self.index = index
         self.budget = budget
+        self.defined_at = defined_at
         self.sizes: dict[str, int] = {}
 
     def resolve(
@@ -188,7 +231,11 @@ class _Walk:
             if size > self.budget[0]:
                 return value
             self.budget[0] -= size
-            return self.resolve(target, path | {identifier}, hops + 1, depth + 1)
+            # What a reference is replaced by was declared at its definition.
+            return Located(
+                self.resolve(target, path | {identifier}, hops + 1, depth + 1),
+                self.defined_at[identifier],
+            )
         return {
             key: self.resolve(item, path | _own_id(value), hops, depth + 1)
             for key, item in value.items()

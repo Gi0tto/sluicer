@@ -13,6 +13,7 @@ from typing import Any
 
 from lxml.html import HtmlElement
 
+from sluicer.declared.located import Located, Place, placed
 from sluicer.declared.types import type_name
 from sluicer.document import Document, absolute
 
@@ -135,7 +136,7 @@ def _inside(element: HtmlElement, roots: set[HtmlElement]) -> bool:
 
 def _item(
     context: _Context, scope: HtmlElement, chain: frozenset[HtmlElement]
-) -> dict[str, Any]:
+) -> Located:
     """One item and, nested, the items it holds.
 
     ``chain`` is the items being expanded on the way down, the standard's
@@ -143,6 +144,7 @@ def _item(
     expanded again inside itself.
     """
     item: dict[str, Any] = {}
+    props: dict[str, Place] = {}
     types = [
         name
         for token in (scope.get("itemtype") or "").split()
@@ -176,16 +178,17 @@ def _item(
         for name in names:
             # Every name the property carries is one more copy of its value.
             if not context.pay(len(name) + (0 if paid else size)):
-                return item
+                return placed(item, scope, props, repeated)
             paid = False
             if name not in item:
+                props[name] = prop
                 item[name] = value
             elif name in repeated:
                 item[name].append(value)
             else:
                 item[name] = [item[name], value]
                 repeated.add(name)
-    return item
+    return placed(item, scope, props, repeated)
 
 
 def _properties(scope: HtmlElement, context: _Context) -> list[HtmlElement]:
