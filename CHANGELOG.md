@@ -68,6 +68,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   resolved against the page's base. WordPress's REST API, which every
   WordPress page declares as `rel=alternate type=application/json`, is not
   taken for a feed. Shown in `sluicer inspect` and in the MCP answer.
+- `sluicer warc FILES` and `sluicer.warc`: the pages a WARC file holds, as
+  Common Crawl, the Internet Archive, wget, Browsertrix and warcio write them,
+  one JSON line each with the record it came from. Every page is read with
+  the headers it was served with; chunked and gzip or deflate bodies are
+  undone; revisits, non-HTML bodies, error answers and bodies too large are
+  counted by reason, not silently dropped. Plain or gzipped, one member per
+  record or one for all, and a damaged record boundary is passed over to the
+  next record. On warcio's own eleven sample files it agrees with warcio on
+  nine and reads the two warcio refuses or empties. See
+  `docs/warc.md`. No new dependency.
 - The response's headers, kept and read. `Fetched.headers` holds them, names
   lowercased; `extract(headers=...)` reads them, and the CLI, the MCP server
   and the crawler pass them for every page they fetch. A canonical, `hreflang`

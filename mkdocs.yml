@@ -28,6 +28,7 @@ nav:
   - HTTP API: http-api.md
   - Audit: audit.md
   - Crawling: crawling.md
+  - Web archives: warc.md
   - Known limits: known-limits.md
   - Design notes: design-notes.md
   - Scoreboard: scoreboard.md

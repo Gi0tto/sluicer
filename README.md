@@ -97,6 +97,7 @@ sluicer heal shop.json https://shop.example/c -o shop.json  # after a redesign
 sluicer map https://shop.example/                   # a site's addresses, from its sitemaps
 sluicer crawl https://shop.example/ -o shop.jsonl   # follow its links, politely; --resume
 sluicer batch urls.txt -o pages.jsonl               # read a list, one JSON line per page
+sluicer warc crawl.warc.gz > pages.jsonl           # the pages a web archive holds
 ```
 
 Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3

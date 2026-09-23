@@ -1111,6 +1111,65 @@ def crawl_command(
     _report(pages, out)
 
 
+@main.command("warc")
+@click.argument("files", nargs=-1, required=True)
+@click.option(
+    "--induce",
+    is_flag=True,
+    help="Also read the rows a page repeats when it declares nothing about them.",
+)
+@click.option(
+    "--microformats",
+    is_flag=True,
+    help="Also read microformats2 (needs sluicer[microformats]).",
+)
+def warc_command(files: tuple[str, ...], induce: bool, microformats: bool) -> None:
+    """Read every page the WARC FILES hold, one JSON line per page.
+
+    Plain or gzipped, as web archives and Common Crawl write them; - reads
+    stdin. Each line is extract's answer, read with the headers the page was
+    served with, and a "warc" object naming the file and the record. Nothing
+    is fetched. Records that are not pages are passed over, and those left
+    out -- revisits, non-HTML bodies, error answers -- are counted at the end.
+    """
+    from sluicer.warc import Skipped, WarcError, extract_warc
+
+    read = 0
+    for name in files:
+        skipped = Skipped()
+        count = 0
+        try:
+            for page, extraction in extract_warc(
+                name, induce=induce, microformats=microformats, skipped=skipped
+            ):
+                count += 1
+                payload = asdict(extraction)
+                record = {
+                    "file": "-" if name == "-" else name,
+                    "record_id": page.record_id,
+                    "date": page.date,
+                    "digest": page.digest,
+                    "status": page.status,
+                }
+                if page.truncated:
+                    record["truncated"] = page.truncated
+                click.echo(
+                    json.dumps(
+                        {"url": payload.pop("url"), "warc": record, **payload},
+                        ensure_ascii=False,
+                    )
+                )
+        except MicroformatsExtraMissing as missing:
+            _fail(str(missing), missing)
+        except (OSError, WarcError) as failure:
+            _fail(f"{failure}; {count} pages were read before it.", failure)
+        read += count
+        said = f"; skipped {skipped}" if skipped else ""
+        click.echo(f"{name}: {count} pages{said}.", err=True)
+    if not read:
+        raise SystemExit(NOTHING_FOUND)
+
+
 @main.command("batch")
 @click.argument("urls_file")
 @_with_many_options
