@@ -81,7 +81,7 @@ def test_a_plain_import_error_from_inside_a_working_install_is_re_raised(monkeyp
 
 
 def test_the_package_shown_in_the_message_can_be_spelled_for_a_human(monkeypatch):
-    """"the mcp package" reads better than "mcp"; the sentence is not the module."""
+    """ "the mcp package" reads better than "mcp"; the sentence is not the module."""
     from sluicer.extras import MissingExtra, import_extra
 
     monkeypatch.delitem(sys.modules, "mcp", raising=False)

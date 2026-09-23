@@ -78,14 +78,20 @@ rows is enough to fail a run.
 with two listings that both matter needs two extractors, and there is no way yet
 to point compile at the second.
 
-**Healing matches by values and shape.** A field is moved when its new place
-holds values it held before, or values of the same shape. A redesign that
-changes the markup and every value at once is reported as fields vanished and
-new, not as moves.
+**Healing matches by values.** A field is moved only when its new place holds
+values it held before; a same-shaped field with new values is not a match, so a
+redesign that changes the markup and every value at once is reported as fields
+vanished and new, not as moves. The samples are five values, so on a listing
+whose rows changed completely between learning and healing, heal finds nothing
+to match and says so.
 
 **The thresholds are fixed.** 20% of rows may lack a required field, half a
-field's values must keep its shape, and a page needs half the fewest rows
-learnt. Editing the JSON changes what was learnt, not the thresholds.
+field's values must keep its shape, and a shape needs five values to be learnt
+or checked. Editing the JSON changes what was learnt, not the thresholds.
+
+**Two same-shaped text columns can swap unnoticed** on a page the extractor was
+not learnt from: a title and a stock line are both letters. The `values` check
+catches a swap only when one side becomes the same in every row.
 
 **How often extractors survive real redesigns is not measured.** The fixtures
 are written by hand; the benchmark on real before-and-after pages is next on the

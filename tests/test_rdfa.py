@@ -2,7 +2,7 @@ from sluicer.declared.rdfa import read_rdfa
 from sluicer.document import load
 
 PRODUCT = (
-    '<html><body>'
+    "<html><body>"
     '<div vocab="https://schema.org/" typeof="Product">'
     '  <span property="name">Brake pad set</span>'
     '  <span property="sku">BP-1187</span>'
@@ -39,7 +39,7 @@ def test_a_content_attribute_wins_over_the_text():
 
 def test_two_subjects_stay_two():
     doc = load(
-        '<body>'
+        "<body>"
         '<div vocab="https://schema.org/" typeof="Product">'
         '<span property="name">One</span></div>'
         '<div vocab="https://schema.org/" typeof="Product">'
@@ -229,7 +229,7 @@ def test_it_reads_rdfa_from_a_page_that_also_carries_microdata():
     """The shape of a real page: two vocabularies over the same book."""
     doc = load(
         '<html><head><meta property="og:title" content="The Wind in the Willows">'
-        '</head><body>'
+        "</head><body>"
         '<div itemscope itemtype="https://schema.org/Book">'
         '<span itemprop="name">The Wind in the Willows</span>'
         "</div>"

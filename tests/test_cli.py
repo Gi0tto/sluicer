@@ -48,7 +48,7 @@ def test_an_empty_file_is_reported_not_crashed(tmp_path):
 
     assert result.exit_code == 2
     assert "contains no HTML" in result.stderr
-    assert (result.exception is None or isinstance(result.exception, SystemExit))
+    assert result.exception is None or isinstance(result.exception, SystemExit)
 
 
 def test_a_url_is_fetched_and_the_ladder_is_reported(monkeypatch):
@@ -109,7 +109,7 @@ def test_a_missing_file_is_reported_not_crashed(tmp_path):
 
     assert result.exit_code == 2
     assert "does not exist" in result.stderr
-    assert (result.exception is None or isinstance(result.exception, SystemExit))
+    assert result.exception is None or isinstance(result.exception, SystemExit)
 
 
 def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
@@ -204,7 +204,7 @@ def test_a_directory_is_not_a_file(tmp_path):
 
     assert result.exit_code == 2
     assert "is not a file" in result.stderr
-    assert (result.exception is None or isinstance(result.exception, SystemExit))
+    assert result.exception is None or isinstance(result.exception, SystemExit)
 
 
 def test_a_network_failure_is_a_message_not_a_traceback(monkeypatch):
@@ -229,7 +229,9 @@ def test_a_rung_that_came_back_without_html_is_a_message_too(monkeypatch):
     """ValueError is what a rung raises when it brings back no HTML."""
 
     def fake_fetch(url, rungs=None, **kwargs):
-        raise ValueError("the stealth rung returned no HTML for 'https://example.com/p'")
+        raise ValueError(
+            "the stealth rung returned no HTML for 'https://example.com/p'"
+        )
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
 
@@ -408,9 +410,9 @@ def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(
 
     assert result.exit_code == 2
     assert "uv pip install 'sluicer[fetch]'" in result.stderr
-    assert isinstance(
-        result.exception, SystemExit
-    ), f"reached the user as {result.exception!r}"
+    assert isinstance(result.exception, SystemExit), (
+        f"reached the user as {result.exception!r}"
+    )
 
 
 def test_standard_input_is_a_source():
@@ -419,8 +421,7 @@ def test_standard_input_is_a_source():
     from sluicer.cli import main
 
     page = (
-        '<script type="application/ld+json">{"@type":"Product","name":"Pad"}'
-        "</script>"
+        '<script type="application/ld+json">{"@type":"Product","name":"Pad"}</script>'
     )
 
     result = CliRunner().invoke(main, ["extract", "-"], input=page)

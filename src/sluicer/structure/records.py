@@ -32,6 +32,7 @@ from sluicer.declared.merge import Field, Record
 
 # The prefixes CSS-in-JS tools put before a hash: emotion, styled-components,
 # styled-jsx, the Guardian's DCR, Svelte and Astro.
+_UTILITY = frozenset("[]>@:/!()")
 _TOOLING_PREFIXES = ("css-", "sc-", "jsx-", "dcr-", "svelte-", "astro-", "emotion-")
 _CSS_MODULE = re.compile(r"(.+?)__([A-Za-z0-9_-]{5,})")
 _INTERLEAVED = re.compile(r"[a-z]\d[a-z]|\d[a-z]\d", re.IGNORECASE)
@@ -77,7 +78,8 @@ def _says_something(text: str | None) -> bool:
     and a comma between two links are not.
     """
     return any(
-        char in "%#@°" or unicodedata.category(char)[0] in "LN"
+        char in "%#@°"
+        or unicodedata.category(char)[0] in "LN"
         or unicodedata.category(char) == "Sc"
         for char in text or ""
     )
@@ -128,6 +130,11 @@ def _written_by_a_person(token: str) -> str | None:
     ``Card_title__a1B2c`` is ``Card_title``.
     """
     if token.lower().startswith(_TOOLING_PREFIXES):
+        return None
+    if any(char in _UTILITY for char in token):
+        # Tailwind writes ``max-w-[1200px]``, ``md:w-1/2``, ``[&>li]:mt-2`` and
+        # ``@container``: styling, not names, and characters a field name and
+        # a path both use as separators.
         return None
     module = _CSS_MODULE.fullmatch(token)
     if module and _random(module.group(2)):

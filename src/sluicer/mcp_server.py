@@ -264,9 +264,11 @@ def build_server() -> Any:
         extractor: the object compile_extractor returned.
         pages: http(s) URLs, or the HTML itself, of the redesigned pages.
 
-        Returns {"extractor", "changes"}. A field that moved keeps its old
-        name, so rows read with the healed extractor keep their columns;
-        "vanished" or "summary-lost" in changes is data the page no longer has.
+        Returns {"extractor", "changes", "lost"}. A field that moved keeps its
+        old name, so rows read with the healed extractor keep their columns.
+        "lost" is true when a change is data the page no longer has -- vanished,
+        summary-lost, type-lost, listing-lost -- and then the old extractor,
+        which keeps failing, is the safer one to keep.
         """
         loaded = _extractor_from(extractor)
         if not pages:
@@ -279,6 +281,7 @@ def build_server() -> Any:
         return {
             "extractor": json.loads(healed.to_json()),
             "changes": [asdict(change) for change in changes],
+            "lost": any(c.kind in extractor_module.LOSSES for c in changes),
         }
 
     return server

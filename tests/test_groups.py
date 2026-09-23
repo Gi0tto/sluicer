@@ -61,7 +61,8 @@ def test_richness_is_the_widest_member_not_the_narrowest():
         "<p class='x'><span>i</span></p>"
         "</div>"
         "<div class='even'>"
-        + ("<p class='y'><span>" + "word " * 8 + "</span></p>") * 3
+        + ("<p class='y'><span>" + "word " * 8 + "</span></p>")
+        * 3
         + "</div>"
         "</main>"
     )
@@ -104,9 +105,9 @@ def test_a_comment_is_not_a_member_and_does_not_break_a_group():
     groups = repeating_groups(tree)
 
     assert [member.tag for member in groups[0]] == ["p", "p", "p"]
-    assert all(
-        isinstance(member.tag, str) for group in groups for member in group
-    ), "a group is made of elements, and a comment is not one"
+    assert all(isinstance(member.tag, str) for group in groups for member in group), (
+        "a group is made of elements, and a comment is not one"
+    )
 
 
 def test_the_head_is_not_a_listing():
@@ -171,10 +172,12 @@ def test_many_empty_children_do_not_beat_fewer_full_ones():
     tree = lxml.html.fromstring(
         "<main>"
         "<ul class='filters'>"
-        + "<li><span></span><span></span><span></span><span></span></li>" * 6
+        + "<li><span></span><span></span><span></span><span></span></li>"
+        * 6
         + "</ul>"
         "<div class='posts'>"
-        + "<article><h2>A real headline</h2><p>Real body text here</p></article>" * 4
+        + "<article><h2>A real headline</h2><p>Real body text here</p></article>"
+        * 4
         + "</div>"
         "</main>"
     )
@@ -190,9 +193,7 @@ def test_a_row_that_only_points_somewhere_is_still_worth_something():
         "<main>"
         "<div class='rules'>" + "<hr>" * 6 + "</div>"
         "<div class='grid'>"
-        + "".join(
-            f"<a href='/p/{n}'><img src='/i{n}.jpg'></a>" for n in range(4)
-        )
+        + "".join(f"<a href='/p/{n}'><img src='/i{n}.jpg'></a>" for n in range(4))
         + "</div>"
         "</main>"
     )

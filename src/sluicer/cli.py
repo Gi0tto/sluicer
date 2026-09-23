@@ -21,6 +21,7 @@ import click
 from sluicer.api import extract as extract_html
 from sluicer.declared.microformats import MicroformatsExtraMissing
 from sluicer.extractor import (
+    LOSSES,
     Extractor,
     NothingToLearn,
     compile_extractor,
@@ -263,7 +264,7 @@ def compile_command(
     except NothingToLearn as nothing:
         click.echo(f"Learnt nothing: {nothing}.", err=True)
         raise SystemExit(NOTHING_FOUND) from nothing
-    Path(output).write_text(extractor.to_json(), encoding="utf-8")
+    _write(output, extractor.to_json())
     learnt = []
     if extractor.listing is not None:
         rows = extractor.listing.rows
@@ -278,6 +279,13 @@ def compile_command(
     click.echo(f"Learnt {'; '.join(learnt)}. Wrote {output}.", err=True)
     for note in extractor.notes:
         click.echo(f"Note: {note}.", err=True)
+
+
+def _write(path: str, text: str) -> None:
+    try:
+        Path(path).write_text(text, encoding="utf-8")
+    except OSError as failure:
+        _fail(f"Could not write {path}: {failure.strerror or failure}", failure)
 
 
 @main.command("run")
@@ -327,19 +335,27 @@ def run_command(
 @click.argument("extractor_file")
 @click.argument("sources", nargs=-1, required=True)
 @click.option("-o", "--output", help="Where to write the healed extractor.")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Write the healed extractor even when healing lost something.",
+)
 @click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
 @click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")
 def heal_command(
     extractor_file: str,
     sources: tuple[str, ...],
     output: str | None,
+    force: bool,
     stealth: bool,
     no_robots: bool,
 ) -> None:
     """Learn pages again and say what moved; write the result only with -o.
 
-    Exits 3 when a field or a summary answer was lost for good: healing moved
-    what it could, and what it could not needs a person.
+    Exits 3 when a field, a summary answer, a type or the listing was lost for
+    good: healing moved what it could, and what it could not needs a person.
+    Nothing is written then without --force, so a lossy extractor never
+    quietly replaces the one that would have kept failing.
     """
     extractor = _load_extractor(extractor_file)
     pages = _read_pages(sources, stealth, no_robots)
@@ -355,13 +371,19 @@ def heal_command(
             click.echo(f"{change.kind}: {change.before} -> {change.after}", err=True)
         else:
             click.echo(f"{change.kind}: {change.before or change.after}", err=True)
-    if output:
-        Path(output).write_text(healed.to_json(), encoding="utf-8")
+    lost = any(c.kind in LOSSES for c in changes)
+    if output and (force or not lost):
+        _write(output, healed.to_json())
         click.echo(f"Wrote {output}.", err=True)
+    elif output:
+        click.echo(
+            f"Did not write {output}: healing lost data. Pass --force to write it.",
+            err=True,
+        )
     click.echo(
         json.dumps(
             {"changes": [asdict(c) for c in changes]}, indent=2, ensure_ascii=False
         )
     )
-    if any(c.kind in ("vanished", "summary-lost", "type-lost") for c in changes):
+    if lost:
         raise SystemExit(CONTRACT_BROKEN)

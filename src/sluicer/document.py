@@ -146,6 +146,8 @@ class Document:
     html: str | bytes
     tree: lxml.html.HtmlElement
     url: str | None = None
+    base: str | None = None
+    """What relative links resolve against, worked out once by ``load``."""
 
 
 def load(html: str | bytes, url: str | None = None) -> Document:
@@ -167,7 +169,8 @@ def load(html: str | bytes, url: str | None = None) -> Document:
     verbatim on the result.
     """
     if isinstance(html, bytes):
-        return Document(html=html, tree=_parse_bytes(html), url=url)
+        tree = _parse_bytes(html)
+        return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
     try:
         tree = lxml.html.fromstring(html, parser=_TEXT_PARSER)
     except lxml.etree.LxmlError:
@@ -180,7 +183,7 @@ def load(html: str | bytes, url: str | None = None) -> Document:
         # "replace": a lone surrogate is a character a str can hold and UTF-8
         # cannot, and this function promises never to raise.
         tree = _parse_utf8(html.encode("utf-8", "replace"))
-    return Document(html=html, tree=tree, url=url)
+    return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
 
 
 def _parse_bytes(data: bytes) -> lxml.html.HtmlElement:
@@ -207,13 +210,19 @@ def base_url(doc: Document) -> str | None:
     """The address relative links on the page resolve against, or None.
 
     The page's own ``<base href>`` when it has one, itself resolved against the
-    page's address, and the page's address otherwise.
+    page's address, and the page's address otherwise. Worked out once, when the
+    page is loaded: asked for every link on a page of thousands, it was most of
+    the time a page took.
     """
-    for base in doc.tree.xpath("//base[@href]"):
+    return doc.base
+
+
+def _base_of(tree: lxml.html.HtmlElement, url: str | None) -> str | None:
+    for base in tree.xpath("//base[@href]"):
         declared = (base.get("href") or "").strip()
         if declared:
-            return _join(doc.url, declared) if doc.url else declared
-    return doc.url
+            return _join(url, declared) if url else declared
+    return url
 
 
 def absolute(doc: Document, address: str) -> str:

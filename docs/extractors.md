@@ -51,8 +51,8 @@ An agent gets the same three steps as MCP tools: `compile_extractor`,
   carried. For a structured answer (price, currency, dates, sku, availability)
   learnt from two pages or more, also the shape of the answer: `41.90` is `NP`,
   `£51.77` is `NPS`.
-- **The listing the pages repeat**, when they declare nothing about a thing, or
-  always with `--listing`: where it sits (`html>body>div.page>ol.row`), what one
+- **The listing the pages repeat**, unless a page declares its own subject -- a
+  product page, an article -- or always with `--listing`: where it sits (`html>body>div.page>ol.row`), what one
   row looks like (`li.product`), how many rows each page had, and for every
   field its share of empty rows, the one shape its values shared if they did,
   and a few sample values.
@@ -63,12 +63,18 @@ The file is plain JSON, meant to be read and, if you need to, edited.
 
 | check | fails when |
 |---|---|
-| `listing` | the listing is no longer where it was |
-| `rows` | fewer than half the fewest rows it was learnt with, and never zero |
-| `field` | a field every learnt row had is missing from more than 20% of rows |
-| `shape` | fewer than half of a field's values keep the one shape it had, or a structured summary answer changed shape |
+| `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it |
+| `rows` | there are no rows |
+| `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row |
+| `shape` | fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket" -- or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
+| `values` | a field that held different values in every row now says the same thing in all of them: a page of placeholders, "Loading" |
 | `summary` | a summary question every learnt page answered goes unanswered |
 | `type` | a declared record type every learnt page carried is gone |
+| `extractor` | the extractor checks nothing at all, so a pass would mean nothing |
+
+A row that gains a class -- `on-sale` -- is still a row, a short page of the same
+template -- the last of a pagination -- passes, and the second or third tag of a
+card is a count, not a column, so pages with fewer tags pass too.
 
 `sluicer run` prints every page's rows and failed checks as JSON and exits 3 when
 any page failed any check. A run that broke its contract never exits 0.
@@ -76,11 +82,17 @@ any page failed any check. A run that broke its contract never exits 0.
 ## What healing does
 
 `heal` learns the new pages from scratch, then matches each old field to its new
-place: the new field that holds most of the sample values the old one held, then
-one with the same shape. A field that moved keeps its old name, so rows read with
-the healed extractor have the columns downstream code expects. What cannot be
-matched is reported as `vanished`, and `sluicer heal` exits 3, because data the
-page no longer has needs a person, not a guess.
+place: the new field that holds most of the sample values the old one held. Two
+columns that swapped are two moves, not two fields kept in place. A field whose
+values appear nowhere on the new page is reported as `vanished`, even if a new
+field has the same shape, because a guess would put the wrong column under the
+old name. A field that moved keeps its old name, so rows read with the healed
+extractor have the columns downstream code expects.
+
+When anything was lost -- a field, a summary answer, a declared type, the listing
+itself -- `sluicer heal` exits 3 and does not write the healed extractor unless
+given `--force`: the old one keeps failing, which is the honest state until a
+person looks.
 
 On the shop fixture in the test suite, a redesign that renamed every class and
 wrapped the listing in a new element moves all four fields to their new places:
@@ -100,11 +112,14 @@ moved: span.stock -> span.availability
   the rows fails the `listing` check; that is the point, and `heal` finds the new
   place.
 - One listing per extractor: the page's most promising repeated group.
-- Healing matches by values seen before and by shape. A redesign that changes
-  both the markup and every value at once -- a different page altogether -- is
-  reported as fields vanished and new, not as moves.
-- The thresholds (20% missing, 50% shape kept, half the fewest rows) are fixed
-  for now.
+- Healing matches by values seen before. A redesign that changes both the
+  markup and every value at once -- a different page altogether -- is reported
+  as fields vanished and new, not as moves.
+- The thresholds (20% missing for a required field, half the values keeping
+  their shape, five values before a shape is learnt or checked) are fixed.
+- Two text fields of the same shape that swap values on a page the extractor was
+  not learnt from pass the shape checks; the `values` check catches a swap only
+  when one side becomes the same in every row.
 - How often extractors survive real redesigns, and how often healing is right, is
   not measured yet. That benchmark, built from Wayback Machine snapshots of the
   same pages before and after real redesigns, is next on the

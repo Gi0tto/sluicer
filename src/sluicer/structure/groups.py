@@ -83,9 +83,7 @@ def _same_shape_siblings(parent: HtmlElement) -> list[list[HtmlElement]]:
     return ordered
 
 
-def repeating_groups(
-    tree: HtmlElement, minimum: int = 3
-) -> list[list[HtmlElement]]:
+def repeating_groups(tree: HtmlElement, minimum: int = 3) -> list[list[HtmlElement]]:
     """Return groups of same-shaped siblings, the most promising first."""
     found: list[tuple[int, int, list[HtmlElement]]] = []
     for order, parent in enumerate(tree.iter()):

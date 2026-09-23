@@ -58,9 +58,9 @@ def test_installing_the_mcp_extra_gives_a_server_whose_tools_all_work():
     # backend is free to resolve them: hatchling flattens them to the
     # underlying requirements. Both spellings install the same three
     # packages, and that is the thing worth pinning.
-    assert any(
-        "scrapling" in line or "sluicer[fetch]" in line for line in under_mcp
-    ), f"the mcp extra does not bring the fetch extra: {under_mcp}"
+    assert any("scrapling" in line or "sluicer[fetch]" in line for line in under_mcp), (
+        f"the mcp extra does not bring the fetch extra: {under_mcp}"
+    )
     assert any(
         "trafilatura" in line or "sluicer[markdown]" in line for line in under_mcp
     ), f"the mcp extra does not bring the markdown extra: {under_mcp}"
@@ -109,9 +109,9 @@ def test_the_fetch_extra_declares_the_robots_parser_it_uses():
         line for line in metadata.requires("sluicer") if "extra == 'fetch'" in line
     ]
 
-    assert any(
-        "protego" in line for line in under_fetch
-    ), f"the fetch extra does not declare protego: {under_fetch}"
+    assert any("protego" in line for line in under_fetch), (
+        f"the fetch extra does not declare protego: {under_fetch}"
+    )
 
 
 def test_the_structure_package_has_a_surface_of_its_own():

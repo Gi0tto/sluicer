@@ -26,7 +26,10 @@ def test_the_user_agent_says_who_we_are_and_where_to_find_us():
 
 
 def test_robots_lives_at_the_root_of_the_host():
-    assert robots_url_for("https://example.com/deep/page?x=1") == "https://example.com/robots.txt"
+    assert (
+        robots_url_for("https://example.com/deep/page?x=1")
+        == "https://example.com/robots.txt"
+    )
 
 
 def test_a_site_with_no_robots_allows_us():
@@ -116,9 +119,7 @@ def test_http_and_https_on_one_host_are_two_different_robots_files():
     def read(url):
         calls.append(url)
         return (
-            "User-agent: *\nDisallow: /\n"
-            if url.startswith("http://")
-            else ALLOW_ALL
+            "User-agent: *\nDisallow: /\n" if url.startswith("http://") else ALLOW_ALL
         )
 
     cache: dict = {}

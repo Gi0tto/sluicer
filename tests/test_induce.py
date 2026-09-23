@@ -113,9 +113,7 @@ def test_a_crowded_head_does_not_silence_the_page():
     records = induce(doc)
 
     assert len(records) == 5
-    assert "Cabin filter" in {
-        field.value for field in records[0].fields.values()
-    }
+    assert "Cabin filter" in {field.value for field in records[0].fields.values()}
 
 
 def test_the_sidebar_is_not_the_content():
@@ -133,7 +131,8 @@ def test_the_next_group_is_read_when_the_best_one_yields_nothing():
     doc = load(
         "<main>"
         "<ul>"
-        + "<li>a line of prose that sits directly in the item, in no element</li>" * 7
+        + "<li>a line of prose that sits directly in the item, in no element</li>"
+        * 7
         + "</ul>"
         "<div>" + "<div class='c'><h3>Title</h3><span>9.99</span></div>" * 3 + "</div>"
         "</main>"
@@ -151,7 +150,8 @@ def test_induction_reads_the_best_group_and_not_another_one():
         "<main>"
         "<ul>" + "<li><a href='/t'>x</a></li>" * 6 + "</ul>"
         "<div>"
-        + "<article><h3>Real title here</h3><p>Body text</p></article>" * 4
+        + "<article><h3>Real title here</h3><p>Body text</p></article>"
+        * 4
         + "</div>"
         "</main>"
     )
@@ -246,9 +246,7 @@ def test_site_level_opengraph_says_nothing_about_the_rows():
     assert len(result.records) == 21
     assert result.records[0].fields["site_name"].value == "Example community"
     induced = {
-        field.value
-        for record in result.records[1:]
-        for field in record.fields.values()
+        field.value for record in result.records[1:] for field in record.fields.values()
     }
     assert "The shell is a programming language" in induced
 

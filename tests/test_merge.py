@@ -42,7 +42,7 @@ def test_nothing_declared_gives_no_records():
             jsonld=[],
             microdata=[],
             microformats=[],
-        rdfa=[],
+            rdfa=[],
             dublincore={},
             opengraph={},
             twitter={},

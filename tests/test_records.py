@@ -8,11 +8,15 @@ def rows(html):
     return list(lxml.html.fromstring(html))
 
 
-LISTING = "<ul>" + "".join(
-    f"<li class='row'><a href='/p{n}'>Product name {n}</a>"
-    f"<span class='price'>{n}.99</span></li>"
-    for n in range(3)
-) + "</ul>"
+LISTING = (
+    "<ul>"
+    + "".join(
+        f"<li class='row'><a href='/p{n}'>Product name {n}</a>"
+        f"<span class='price'>{n}.99</span></li>"
+        for n in range(3)
+    )
+    + "</ul>"
+)
 
 
 def test_a_link_carries_its_text_as_well_as_its_address():
@@ -69,9 +73,7 @@ OPTIONAL_EMPHASIS = (
 
 
 def slot_holding(record, value):
-    return next(
-        name for name, field in record.fields.items() if field.value == value
-    )
+    return next(name for name, field in record.fields.items() if field.value == value)
 
 
 def test_the_same_slot_keeps_its_name_in_every_record():

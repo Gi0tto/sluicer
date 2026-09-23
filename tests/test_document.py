@@ -86,9 +86,7 @@ def test_a_parser_that_refuses_bytes_is_still_never_a_traceback(monkeypatch):
     from sluicer.document import load
 
     def refuse(*args, **kwargs):
-        raise ValueError(
-            "Unicode strings with encoding declaration are not supported."
-        )
+        raise ValueError("Unicode strings with encoding declaration are not supported.")
 
     monkeypatch.setattr(lxml.html, "fromstring", refuse)
     page = b"<html><body><p>hi</p></body></html>"
@@ -211,9 +209,15 @@ def test_the_base_url_is_the_page_s_own_base_resolved_against_its_address():
 def test_content_nested_deeper_than_libxml2_s_default_limit_is_kept():
     deep = "<div>" * 400 + '<span id="deep">here</span>' + "</div>" * 400
 
-    assert load(f"<html><body>{deep}</body></html>").tree.xpath(
-        "string(//span[@id='deep'])"
-    ) == "here"
-    assert load(f"<html><body>{deep}</body></html>".encode()).tree.xpath(
-        "string(//span[@id='deep'])"
-    ) == "here"
+    assert (
+        load(f"<html><body>{deep}</body></html>").tree.xpath(
+            "string(//span[@id='deep'])"
+        )
+        == "here"
+    )
+    assert (
+        load(f"<html><body>{deep}</body></html>".encode()).tree.xpath(
+            "string(//span[@id='deep'])"
+        )
+        == "here"
+    )

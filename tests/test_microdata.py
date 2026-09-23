@@ -28,9 +28,7 @@ def test_content_attribute_wins_over_text():
 
 
 def test_itemscope_with_only_itemtype_is_kept():
-    doc = load(
-        '<div itemscope itemtype="https://schema.org/Product"></div>'
-    )
+    doc = load('<div itemscope itemtype="https://schema.org/Product"></div>')
 
     found = read_microdata(doc)
 

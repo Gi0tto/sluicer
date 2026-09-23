@@ -32,6 +32,6 @@ def read_dublincore(doc: Document) -> dict[str, str]:
             continue
         for prefix in _PREFIXES:
             if name.startswith(prefix):
-                found.setdefault(name[len(prefix):], content)
+                found.setdefault(name[len(prefix) :], content)
                 break
     return found

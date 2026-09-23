@@ -11,12 +11,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `sluicer compile` learns from a few pages of one template what they declare
   and the listing they repeat, and writes it to a JSON file. `sluicer run`
   replays it with no induction and checks each page: the listing is where it
-  was, at least half the fewest rows are there, every field every learnt row
-  carried is in 80% of rows, values keep the one shape they had, and every
-  summary answer and declared type is still there. A page that fails any check
-  exits 3 with the reason. `sluicer heal` learns the pages again, matches each
-  field to its new place by the values it held and by shape, keeps the old
-  names, and exits 3 when a field is lost for good.
+  was and is the only one of its kind there, it has rows, every field every
+  learnt row carried is in 80% of rows and no common field vanished, values
+  keep their shape and do not collapse to one placeholder, and every summary
+  answer and declared type is still there. A page that fails any check exits 3
+  with the reason. `sluicer heal` learns the pages again, matches each field to
+  its new place by the values it held, keeps the old names, and exits 3 --
+  writing nothing without `--force` -- when a field, an answer, a type or the
+  listing is lost for good.
 - The MCP server gains `compile_extractor`, `run_extractor` and
   `heal_extractor`.
 - `docs/extractors.md`.

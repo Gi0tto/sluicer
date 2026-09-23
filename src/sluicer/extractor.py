@@ -21,7 +21,6 @@ extractor, and the same page always gives the same verdict.
 from __future__ import annotations
 
 import json
-import math
 import unicodedata
 from collections import Counter
 from collections.abc import Sequence
@@ -34,7 +33,7 @@ from lxml.html import HtmlElement
 from sluicer import __version__
 from sluicer.api import extract
 from sluicer.declared.merge import ABOUT_A_THING
-from sluicer.document import Document, absolute, load
+from sluicer.document import Document, base_url, join, load
 from sluicer.structure.groups import repeating_groups
 from sluicer.structure.records import _label, records_from
 from sluicer.structure.shape import kind
@@ -49,6 +48,15 @@ SHAPE_KEPT = 0.5
 """The share of a field's values that must keep the one shape it was learnt with."""
 
 _SAMPLES = 5
+
+# The fewest values a shape is learnt from and checked on.
+_SHAPE_EVIDENCE = 5
+
+# A field learnt in at least this share of rows must not vanish from all of them.
+_COMMON = 0.5
+
+# A field learnt with this many different values must not collapse to one.
+_VARIED = 3
 
 # The summary questions whose answers have a shape worth holding a page to. A
 # title, an author or a description is free text, and its shape says nothing.
@@ -141,38 +149,66 @@ class Extractor:
     def from_json(cls, text: str) -> Extractor:
         """Read an extractor back from its file.
 
+        Every key is checked, and its type: a file missing a part would replay
+        as an extractor that checks nothing, which passes every page.
+
         Raises:
-            ValueError: the text is not an extractor this version can read.
+            ValueError: the text is not a whole extractor this version can read.
         """
-        body = json.loads(text)
-        if not isinstance(body, dict) or body.get("format") != FORMAT:
-            raise ValueError(f"not a sluicer extractor of format {FORMAT}")
-        listing = None
-        if body.get("listing"):
-            raw = body["listing"]
-            listing = Listing(
-                container=raw["container"],
-                member=raw["member"],
-                rows=(int(raw["rows"][0]), int(raw["rows"][1])),
-                fields=tuple(
-                    ListingField(
-                        name=f["name"],
-                        path=f["path"],
-                        missing=float(f["missing"]),
-                        shape=f["shape"],
-                        samples=tuple(f["samples"]),
-                    )
-                    for f in raw["fields"]
-                ),
-            )
-        return cls(
-            learnt_from=tuple(body.get("learnt_from", [])),
-            summary=dict(body.get("summary", {})),
-            types=tuple(body.get("types", [])),
-            listing=listing,
-            notes=tuple(body.get("notes", [])),
-            version=str(body.get("sluicer", "")),
+        try:
+            body = json.loads(text)
+            return _extractor_of(body)
+        except (KeyError, TypeError, IndexError, AttributeError) as broken:
+            raise ValueError(f"not a whole sluicer extractor: {broken!r}") from None
+
+
+def _extractor_of(body: Any) -> Extractor:
+    if not isinstance(body, dict) or type(body.get("format")) is not int:
+        raise ValueError("not a sluicer extractor")
+    if body["format"] != FORMAT:
+        raise ValueError(f"an extractor of format {body['format']}, not {FORMAT}")
+    listing = None
+    if body["listing"] is not None:
+        raw = body["listing"]
+        rows = [int(n) for n in raw["rows"]]
+        if len(rows) != 2:
+            raise ValueError("a listing's rows are the fewest and the most")
+        listing = Listing(
+            container=_text(raw["container"]),
+            member=_text(raw["member"]),
+            rows=(rows[0], rows[1]),
+            fields=tuple(
+                ListingField(
+                    name=_text(f["name"]),
+                    path=_text(f["path"]),
+                    missing=float(f["missing"]),
+                    shape=None if f["shape"] is None else _text(f["shape"]),
+                    samples=tuple(_text(v) for v in f["samples"]),
+                )
+                for f in raw["fields"]
+            ),
         )
+        if not listing.fields:
+            raise ValueError("a listing with no fields checks nothing")
+    summary = body["summary"]
+    if not isinstance(summary, dict):
+        raise ValueError("the summary is a mapping of question to shape")
+    return Extractor(
+        learnt_from=tuple(_text(v) for v in body["learnt_from"]),
+        summary={
+            _text(q): None if shp is None else _text(shp) for q, shp in summary.items()
+        },
+        types=tuple(_text(v) for v in body["types"]),
+        listing=listing,
+        notes=tuple(_text(v) for v in body.get("notes", [])),
+        version=str(body.get("sluicer", "")),
+    )
+
+
+def _text(value: Any) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"expected text, found {value!r}")
+    return value
 
 
 @dataclass(frozen=True)
@@ -196,12 +232,17 @@ class Run:
     checks: list[Check] = field(default_factory=list)
 
 
+LOSSES = frozenset({"vanished", "summary-lost", "type-lost", "listing-lost"})
+"""The kinds of change that are data the page no longer has."""
+
+
 @dataclass(frozen=True)
 class Change:
     """One difference ``heal`` found between the old extractor and the page.
 
-    ``kind`` is one of container, member, kept, moved, vanished, new,
-    summary-lost, summary-gained, type-lost, type-gained.
+    ``kind`` is one of container, member, kept, moved, new, summary-gained,
+    type-gained, or one of ``LOSSES``: vanished, summary-lost, type-lost,
+    listing-lost.
     """
 
     kind: str
@@ -219,6 +260,15 @@ def shape(text: str) -> str:
     return "".join(c for c in "LNPS" if c in classes)
 
 
+def _fits(value: str, learnt: str) -> bool:
+    """Whether ``value`` has the shape it was learnt with, or a part of it.
+
+    ``42`` fits a price learnt as ``41.90``; ``Call us`` does not.
+    """
+    own = shape(value)
+    return bool(own) and set(own) <= set(learnt)
+
+
 def compile_extractor(
     pages: Sequence[Page],
     listing: bool | None = None,
@@ -229,8 +279,8 @@ def compile_extractor(
     Args:
         pages: the pages, each as ``(html, url)``.
         listing: learn the listing the pages repeat. None, the default, learns
-            one only when the pages declare nothing about a thing, the rule
-            ``extract(induce=True)`` follows; True looks for one anyway.
+            one unless a page declares its own subject -- a product, an
+            article -- whose page it is; True looks for one anyway.
         names: what to call each page in ``learnt_from``; its address by default.
 
     Raises:
@@ -252,16 +302,20 @@ def compile_extractor(
             for r in results
         ]
     )
-    declares_a_thing = any(
-        f.source in ABOUT_A_THING
+    # A page about one thing -- a product page, an article -- is read by what
+    # it declares, and its related-items strip is not its listing. A listing
+    # page declaring only a breadcrumb or an ItemList has no subject, so its
+    # rows are learnt.
+    has_a_subject = any(
+        r.summary.get("type") is not None and r.summary["type"].key == "@type"
         for r in results
-        for record in r.records
-        for f in record.fields.values()
     )
     learnt: Listing | None = None
     notes: list[str] = []
-    if listing or (listing is None and not declares_a_thing):
+    if listing or (listing is None and not has_a_subject):
         learnt, notes = _learn_listing(docs)
+    if listing and learnt is None:
+        notes.append("no listing was found on these pages")
     if not summary and not types and learnt is None:
         raise NothingToLearn(
             "these pages declare nothing and repeat nothing an extractor could keep"
@@ -281,7 +335,11 @@ def compile_extractor(
 def run_extractor(
     extractor: Extractor, html: str | bytes, url: str | None = None
 ) -> Run:
-    """Replay ``extractor`` on one page and check it against what it learnt."""
+    """Replay ``extractor`` on one page and check it against what it learnt.
+
+    An extractor that checks nothing fails: a run with no checks is a pass
+    nobody could have earned.
+    """
     doc = load(html, url=url)
     result = extract(html, url=url)
     run = Run(url=url, ok=True, summary={k: v.value for k, v in result.summary.items()})
@@ -291,7 +349,7 @@ def run_extractor(
             run.checks.append(
                 Check("summary", f"the summary answers {question}", "no answer", False)
             )
-        elif learnt_shape and shape(answer.value) != learnt_shape:
+        elif learnt_shape and not _fits(answer.value, learnt_shape):
             run.checks.append(
                 Check(
                     "shape",
@@ -317,6 +375,10 @@ def run_extractor(
         )
     if extractor.listing is not None:
         run.rows = _replay_listing(extractor.listing, doc, run.checks)
+    if not run.checks:
+        run.checks.append(
+            Check("extractor", "an extractor that checks something", "nothing", False)
+        )
     run.ok = all(check.ok for check in run.checks)
     return run
 
@@ -329,12 +391,14 @@ def heal(
     """Learn ``pages`` again and match what moved to what ``extractor`` knew.
 
     Every old field is matched to at most one new place: the one holding most of
-    the values it used to hold, then one of the same shape, and a field with no
-    match is reported as vanished. A field that moved keeps its old name, so a
-    row read with the healed extractor has the columns it always had.
+    the values it used to hold. A field whose values appear nowhere is vanished,
+    even if some new field has the same shape, because a guess would move the
+    wrong column under the old name. A field that moved keeps its old name, so
+    a row read with the healed extractor has the columns it always had.
 
     Returns:
-        The healed extractor, and every change found, in a stable order.
+        The healed extractor, and every change found, in a stable order. Any
+        change in ``LOSSES`` is data the page no longer has.
     """
     fresh = compile_extractor(
         pages, listing=True if extractor.listing else None, names=names
@@ -357,7 +421,7 @@ def heal(
         listing, listing_changes = _heal_listing(extractor.listing, listing, pages)
         changes.extend(listing_changes)
     elif extractor.listing is not None:
-        changes.append(Change("container", extractor.listing.container, None))
+        changes.append(Change("listing-lost", extractor.listing.container, None))
     healed = Extractor(
         learnt_from=fresh.learnt_from,
         summary=fresh.summary,
@@ -394,15 +458,14 @@ def _learn_summary(
 
 
 def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
-    found: list[tuple[str, str, list[HtmlElement]]] = []
+    found: list[tuple[str, str, list[HtmlElement], Document]] = []
     for doc in docs:
         group = _listing_of(doc)
         if group is not None:
-            members = group
-            found.append((path_of(members[0].getparent()), kind(members[0]), members))
+            found.append((path_of(group[0].getparent()), kind(group[0]), group, doc))
     if not found:
         return None, []
-    places = Counter((container, member) for container, member, _ in found)
+    places = Counter((container, member) for container, member, _, _ in found)
     (container, member), _count = min(
         places.items(), key=lambda item: (-item[1], _first_index(found, item[0]))
     )
@@ -414,7 +477,7 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
         )
     rows: list[dict[str, str]] = []
     counts: list[int] = []
-    for (c, m, members), doc in zip(found, docs, strict=False):
+    for c, m, members, doc in found:
         if (c, m) != (container, member):
             continue
         page_rows = _rows_of(members, doc)
@@ -428,9 +491,9 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
 
 
 def _first_index(
-    found: list[tuple[str, str, list[HtmlElement]]], key: tuple[str, str]
+    found: list[tuple[str, str, list[HtmlElement], Document]], key: tuple[str, str]
 ) -> int:
-    return next(n for n, (c, m, _) in enumerate(found) if (c, m) == key)
+    return next(n for n, (c, m, _, _) in enumerate(found) if (c, m) == key)
 
 
 def _listing_of(doc: Document) -> list[HtmlElement] | None:
@@ -444,12 +507,13 @@ def _listing_of(doc: Document) -> list[HtmlElement] | None:
 def _profile(name: str, path: str, values: list[str | None]) -> ListingField:
     present = [value for value in values if value]
     shapes = {shape(value) for value in present}
-    address = "@" in path.rsplit(">", 1)[-1]
+    # A shape learnt from a handful of values is a coincidence, not a rule.
+    shaped = len(shapes) == 1 and len(present) >= _SHAPE_EVIDENCE
     return ListingField(
         name=name,
         path=path,
         missing=round(1 - len(present) / len(values), 4) if values else 1.0,
-        shape=shapes.pop() if len(shapes) == 1 and not address else None,
+        shape=shapes.pop() if shaped and not _is_address(path) else None,
         samples=tuple(dict.fromkeys(present))[:_SAMPLES],
     )
 
@@ -489,88 +553,152 @@ def _step_label(element: HtmlElement) -> str:
     return f"{element.tag}.{written}" if written else str(element.tag)
 
 
-def _find(doc: Document, path: str) -> HtmlElement | None:
+def _find(doc: Document, path: str) -> tuple[HtmlElement | None, str]:
+    """The element at ``path``, or None and why.
+
+    A step written without ``[n]`` was the only one of its kind when learnt, so
+    it must still be the only one: a second listing of the same kind inserted
+    before it -- a sponsored strip -- is ambiguous, not the first match.
+    """
     steps = path.split(">")
     root = doc.tree
-    if not steps or _step_label(root) != steps[0].split("[")[0]:
-        return None
+    if _step_label(root) != steps[0].split("[")[0]:
+        return None, "not found"
     node = root
     for step in steps[1:]:
         label, _, ordinal = step.partition("[")
-        index = int(ordinal.rstrip("]")) - 1 if ordinal else 0
         same = [c for c in node if isinstance(c.tag, str) and _step_label(c) == label]
+        if not ordinal and len(same) > 1:
+            return None, f"{len(same)} places that match {label}, where there was one"
+        index = int(ordinal.rstrip("]")) - 1 if ordinal else 0
         if index >= len(same):
-            return None
+            return None, "not found"
         node = same[index]
-    return node
+    return node, "found"
+
+
+def _members(container: HtmlElement, member: str) -> list[HtmlElement]:
+    """The children that are rows: the learnt tag, carrying the learnt classes.
+
+    A row that gains a class -- ``on-sale``, ``is-new`` -- is still a row.
+    """
+    tag, *classes = member.split(".")
+    wanted = set(classes)
+    return [
+        child
+        for child in container
+        if isinstance(child.tag, str)
+        and child.tag == tag
+        and wanted <= set((child.get("class") or "").split())
+    ]
 
 
 def _rows_of(members: list[HtmlElement], doc: Document) -> list[dict[str, str]]:
+    base = base_url(doc)
     rows = []
     for record in records_from(members):
         rows.append(
-            {name: _value(name, f.value, doc) for name, f in record.fields.items()}
+            {
+                name: join(base, str(f.value)) if _is_address(name) else str(f.value)
+                for name, f in record.fields.items()
+            }
         )
     return rows
 
 
-def _value(name: str, value: object, doc: Document) -> str:
-    text = str(value)
-    return absolute(doc, text) if "@" in name.rsplit(">", 1)[-1] else text
+def _a_later_repeat(path: str, paths: set[str]) -> bool:
+    """Whether ``path`` is the second or later of a slot the group numbered.
+
+    ``div.tags>a.tag3`` is, when ``div.tags>a.tag1`` was learnt too.
+    """
+    head, at, attribute = path.partition("@")
+    digits = len(head) - len(head.rstrip("0123456789"))
+    if not digits or int(head[-digits:]) < 2:
+        return False
+    first = head[:-digits] + "1" + at + attribute
+    return first in paths
+
+
+def _aliases(path: str) -> tuple[str, ...]:
+    """``path`` and the spelling it takes when the group's numbering shifts.
+
+    Induction numbers a slot the moment one row repeats it, for the whole group:
+    ``span.tag`` becomes ``span.tag1`` because one row gained a second tag.
+    """
+    head, at, attribute = path.partition("@")
+    other = head[:-1] if head.endswith("1") else head + "1"
+    return (path, other + at + attribute)
 
 
 def _replay_listing(
     listing: Listing, doc: Document, checks: list[Check]
 ) -> list[dict[str, str]]:
-    container = _find(doc, listing.container)
+    container, found = _find(doc, listing.container)
     if container is None:
         checks.append(
-            Check("listing", f"the listing at {listing.container}", "not found", False)
+            Check("listing", f"the listing at {listing.container}", found, False)
         )
         return []
-    checks.append(
-        Check("listing", f"the listing at {listing.container}", "found", True)
-    )
-    members = [
-        c for c in container if isinstance(c.tag, str) and kind(c) == listing.member
-    ]
-    by_path = {f.path: f.name for f in listing.fields}
-    rows = (
-        [
-            {by_path[path]: value for path, value in row.items() if path in by_path}
-            for row in _rows_of(members, doc)
-        ]
-        if members
-        else []
-    )
-    fewest = max(1, math.ceil(listing.rows[0] / 2))
-    enough = len(rows) >= fewest
-    checks.append(Check("rows", f"at least {fewest} rows", str(len(rows)), enough))
+    checks.append(Check("listing", f"the listing at {listing.container}", found, True))
+    members = _members(container, listing.member)
+    raw = _rows_of(members, doc) if members else []
+    rows = []
+    for row in raw:
+        kept = {}
+        for f in listing.fields:
+            value = next((row[p] for p in _aliases(f.path) if p in row), None)
+            if value is not None:
+                kept[f.name] = value
+        rows.append(kept)
+    # Never zero; a short page of the same template -- the last of a
+    # pagination, a small category -- is not a drift.
+    checks.append(Check("rows", "at least 1 row", str(len(rows)), bool(rows)))
     if not rows:
         return rows
+    paths = {f.path for f in listing.fields}
     for f in listing.fields:
-        values = [row.get(f.name) for row in rows]
-        present = [v for v in values if v]
-        if f.missing == 0:
-            missing = 1 - len(present) / len(rows)
-            ok = missing <= REQUIRED_MISSING
+        present = [row[f.name] for row in rows if row.get(f.name)]
+        share = len(present) / len(rows)
+        learnt = 1 - f.missing
+        if _a_later_repeat(f.path, paths):
+            # The third tag of a card is a count, not a column: pages differ in
+            # how many their rows carry, and none of them has drifted.
+            pass
+        elif learnt == 1:
+            floor = 1 - REQUIRED_MISSING
             checks.append(
                 Check(
                     "field",
-                    f"{f.name} in at least {1 - REQUIRED_MISSING:.0%} of rows",
-                    f"in {1 - missing:.0%}",
-                    ok,
+                    f"{f.name} in at least {floor:.0%} of rows",
+                    f"in {share:.0%}",
+                    share >= floor,
                 )
             )
-        if f.shape and present:
-            kept = sum(1 for v in present if shape(v) == f.shape) / len(present)
-            example = next((v for v in present if shape(v) != f.shape), present[0])
+        elif learnt >= _COMMON:
+            # Most rows had it, and how many varies from page to page; gone from
+            # every row is gone.
+            checks.append(
+                Check("field", f"{f.name} in some rows", f"in {share:.0%}", share > 0)
+            )
+        if f.shape and len(present) >= _SHAPE_EVIDENCE:
+            kept_shape = sum(1 for v in present if _fits(v, f.shape)) / len(present)
+            example = next((v for v in present if not _fits(v, f.shape)), present[0])
             checks.append(
                 Check(
                     "shape",
                     f"{f.name} shaped {f.shape} in at least {SHAPE_KEPT:.0%} of rows",
-                    f"{kept:.0%}, e.g. {example!r}",
-                    kept >= SHAPE_KEPT,
+                    f"{kept_shape:.0%}, e.g. {example!r}",
+                    kept_shape >= SHAPE_KEPT,
+                )
+            )
+        if len(f.samples) >= _VARIED and len(present) >= _VARIED:
+            distinct = len(set(present))
+            checks.append(
+                Check(
+                    "values",
+                    f"{f.name} to differ from row to row, as it did",
+                    f"every row says {present[0]!r}" if distinct == 1 else "they do",
+                    distinct > 1,
                 )
             )
     return rows
@@ -587,52 +715,48 @@ def _heal_listing(
         changes.append(Change("container", old.container, new.container))
     if old.member != new.member:
         changes.append(Change("member", old.member, new.member))
-    values: dict[str, set[str]] = {f.path: set() for f in new.fields}
+    values: dict[str, list[str]] = {f.path: [] for f in new.fields}
     for html, url in pages:
         doc = load(html, url=url)
-        container = _find(doc, new.container)
+        container, _found = _find(doc, new.container)
         if container is None:
             continue
-        members = [
-            c for c in container if isinstance(c.tag, str) and kind(c) == new.member
-        ]
-        for row in _rows_of(members, doc) if members else []:
+        for row in _rows_of(_members(container, new.member), doc):
             for path, value in row.items():
-                values.setdefault(path, set()).add(_comparable(path, value))
+                values.setdefault(path, []).append(_comparable(path, value))
     fresh = {f.path: f for f in new.fields}
-    claimed: dict[str, str] = {}
-    for f in old.fields:
-        if f.path in fresh:
-            claimed[f.path] = f.name
-            changes.append(Change("kept", f.name, f.path))
+
+    def overlap(old_field: ListingField, path: str) -> float:
+        samples = {_comparable(old_field.path, v) for v in old_field.samples}
+        if not samples or _is_address(path) != _is_address(old_field.path):
+            return 0.0
+        held = set(values.get(path, []))
+        return sum(1 for v in samples if v in held) / len(samples)
+
+    # Every candidate pairing, best first: the values an old field held, seen
+    # again in a new place. The same place counts only as one candidate among
+    # the others, so two columns that swapped are two moves, not two keeps.
     scored = []
     for order, f in enumerate(old.fields):
-        if f.path in fresh:
-            continue
-        for path, candidate in fresh.items():
-            if path in claimed or _is_address(path) != _is_address(f.path):
-                continue
-            samples = {_comparable(f.path, sample) for sample in f.samples}
-            seen = len(samples & values.get(path, set())) / max(1, len(samples))
-            same_shape = f.shape is not None and f.shape == candidate.shape
-            if seen == 0 and not same_shape:
-                continue
-            scored.append((-(seen * 10 + same_shape), order, path, f))
+        for path in fresh:
+            seen = overlap(f, path)
+            same_place = path == f.path
+            if seen > 0 or (same_place and not f.samples):
+                scored.append((-seen, not same_place, order, path, f))
+    claimed: dict[str, str] = {}
     matched: dict[str, str] = {}
-    for _score, _order, path, f in sorted(scored, key=lambda s: (s[0], s[1], s[2])):
+    for _seen, _elsewhere, _order, path, f in sorted(scored, key=lambda s: s[:4]):
         if f.name in matched or path in claimed:
             continue
         claimed[path] = f.name
         matched[f.name] = path
-    # Reported in the order the fields were learnt in, whatever order they
-    # were matched in: best matches first is how to decide, not how to read.
-    changes.extend(
-        Change("moved", f.name, matched[f.name])
-        for f in old.fields
-        if f.name in matched
-    )
     for f in old.fields:
-        if f.path not in fresh and f.name not in matched:
+        if f.name not in matched:
+            continue
+        kind_ = "kept" if matched[f.name] == f.path else "moved"
+        changes.append(Change(kind_, f.name, matched[f.name]))
+    for f in old.fields:
+        if f.name not in matched:
             changes.append(Change("vanished", f.name, None))
     for path in fresh:
         if path not in claimed:
@@ -660,14 +784,19 @@ def _heal_listing(
 def _comparable(path: str, value: str) -> str:
     """``value`` as heal compares it: an address by its path and query only.
 
-    A page read from a file has no host to resolve against, and a site that
-    moves its images to a new CDN has not moved a field.
+    A page read from a file has no host to resolve against, a relative link
+    read from one keeps no leading slash, and a site that moves its images to a
+    new CDN has not moved a field.
     """
     if not _is_address(path):
         return value
     parts = urlsplit(value)
-    return parts.path + ("?" + parts.query if parts.query else "")
+    kept = parts.path + ("?" + parts.query if parts.query else "")
+    while kept.startswith(("./", "/")):
+        kept = kept[2:] if kept.startswith("./") else kept[1:]
+    return kept
 
 
 def _is_address(path: str) -> bool:
+    """Whether a field holds an address: induction names those ``...@href``."""
     return "@" in path.rsplit(">", 1)[-1]
