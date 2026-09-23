@@ -45,7 +45,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   and a title from the page's tags ending in its host has it cut:
   "VolunteerNC | nc.gov" on nc.gov is "VolunteerNC". Measured on the 1,688
   pages of every scoreboard: 9 answers are righter and 2 fundus labels that
-  name a site's domain as the author are no longer matched.
+  name a site's domain as the author are no longer matched. On the
+  scoreboards, WCXB's titles go from 0.725 to 0.727 and the same pages as
+  served from 0.700 to 0.706, with one author fewer invented on each.
 - `pytest` collects `tests/` only: a benchmark's cache under `bench/` holds
   other projects' checkouts, with test suites of their own.
 

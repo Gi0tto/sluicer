@@ -181,7 +181,7 @@ that carry a label; an invention is an answer on a page whose label is empty.
 
 | | title | author | date | dates invented | seconds | packages |
 |---|---|---|---|---|---|---|
-| **sluicer 0.4.0** | 0.725 | 0.521 | 0.536 | **8** | **1.4** | **3** |
+| **sluicer 0.4.1** | 0.727 | 0.521 | 0.536 | **8** | **1.4** | **3** |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.2 | 17 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.5 | 125 |
@@ -192,7 +192,7 @@ holds as their servers sent them, scripts intact:
 
 | as served | title | author | date | right when it answers a date | dates invented |
 |---|---|---|---|---|---|
-| **sluicer 0.4.0** | 0.700 | 0.674 | 0.748 | **0.735** | **34** |
+| **sluicer 0.4.1** | 0.706 | 0.674 | 0.748 | **0.735** | **34** |
 | trafilatura 2.2.0 | 0.756 | 0.860 | 0.855 | 0.393 | 187 |
 | newspaper4k 0.9.6 | 0.767 | 0.705 | 0.786 | 0.658 | 54 |
 | metascraper 5.58.1 | 0.667 | 0.845 | 0.384 | 0.271 | 80 |
