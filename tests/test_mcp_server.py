@@ -689,15 +689,17 @@ def test_an_agent_names_the_columns_it_wants_by_example(monkeypatch):
     missing = registered["compile_extractor"](
         [_drift("shop_v1.html")], want={"price": "1.00"}
     )
-    refused = registered["compile_extractor"](
+    own = registered["compile_extractor"](
         [_drift("shop_v1.html")], listing=False, want={"price": "54.23"}
     )
+    replayed = registered["run_extractor"](own["extractor"], _drift("shop_v1.html"))
 
     assert run["ok"] is True
     assert set(run["rows"][0]) == {"title", "price"}
     assert missing["ok"] is False and missing["error"]["code"] == "bad_input"
     assert "price='1.00'" in missing["error"]["message"]
-    assert refused["ok"] is False and refused["error"]["code"] == "bad_input"
+    assert replayed["ok"] is True and replayed["fields"] == {"price": "£54.23"}
+    assert run["fields"] == {}
 
 
 def test_an_agent_heals_an_extractor_after_a_redesign(monkeypatch):

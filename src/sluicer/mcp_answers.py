@@ -152,6 +152,7 @@ class RunAnswer(TypedDict, total=False):
     ok: Required[bool]
     error: ErrorDetail
     rows: list[dict[str, Any]]
+    fields: dict[str, str]
     summary: dict[str, Any]
     failed: list[CheckAnswer]
 

@@ -346,8 +346,9 @@ def build_server() -> Any:
         extractor: the object compile_extractor returned.
         html_or_url: an http(s) URL to fetch, or the HTML itself.
 
-        Returns {"ok", "rows", "summary", "failed"}. ok is false when the page
-        drifted -- the listing moved, rows or a field vanished, a price no
+        Returns {"ok", "rows", "fields", "summary", "failed"}; "fields" holds
+        the page's own values an extractor learnt from examples. ok is false
+        when the page drifted -- the listing moved, rows or a field vanished, a price no
         longer looks like a price -- and "failed" says which expectation broke.
         Never read rows from an answer whose ok is false as if nothing happened.
         """
@@ -357,6 +358,7 @@ def build_server() -> Any:
         answer = {
             "ok": run.ok,
             "rows": run.rows,
+            "fields": run.fields,
             "summary": run.summary,
             "failed": [asdict(check) for check in run.checks if not check.ok],
         }

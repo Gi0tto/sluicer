@@ -107,6 +107,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   names, and adds no column. On books.toscrape.com: `--want title=... --want
   price=51.77 --want stock="In stock"` learns the 20-row catalogue and
   replays page 3 with those three columns.
+- A page that declares nothing and lists nothing -- a product page -- is
+  learnt the same way: when no one repeated group holds every example, or
+  with `--no-listing`, the examples are the page's own values
+  (`Extractor.fields`, `Run.fields`), each where it sits, the page's own
+  place before its navigation, breadcrumb trail and listings, so a title is
+  the `<h1>` and not the trail's last step. `run` checks each is there and
+  reads as it did, and "Add to basket" in a price's place fails; `heal` keeps,
+  moves or loses each by its values. The extractor file gains a `fields` key,
+  written only when there are any.
 - A `ProductGroup`'s summary reads its variants, in both shapes Google
   documents: listed in `hasVariant`, or each its own node pointing at the
   group with `isVariantOf` or `inProductGroupWithID`. What the group leaves to

@@ -91,6 +91,33 @@ On books.toscrape.com, learnt from its first two pages with `title`, `price`
 and `stock`, the third page replays as 20 rows of those three columns, and a
 page of another site fails with the listing not found.
 
+**A page with no listing is read the same way.** When no one repeated group
+holds every example -- a product page that declares nothing -- or with
+`--no-listing`, the examples are the page's own values, each learnt where it
+sits:
+
+```bash
+sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
+    --want title="A Light in the Attic" --want price=51.77
+```
+
+- The place is the deepest element whose whole text is the example, or an
+  attribute holding it (`img.photo@src`), never a script's text. A title is
+  said three times on most product pages; the page's own place comes before
+  its navigation, asides, breadcrumb trail and listings, so it is the `<h1>`
+  and not the trail's last step or a related product's link.
+- `run` gives the values as `fields`, `{"title": ..., "price": ...}`, and checks
+  each is still there, reads as it did (a price that reads as an amount on the
+  learnt pages must still read as one: "Add to basket" fails the `reads`
+  check), and keeps its shape when five pages or more taught it one.
+- `heal` keeps a field where its place still holds a value that reads as it
+  did, moves it to where the new pages show one of its old values, and
+  reports it vanished when neither is so.
+
+On books.toscrape.com, whose product pages declare nothing, two product pages
+with `title`, `price` and a `upc` from the product table replay on a third
+with all three read, the title from its `<h1>`.
+
 ## What a run checks
 
 | check | fails when |
@@ -167,9 +194,10 @@ moved: span.stock -> span.availability (2 of 2 learnt values found there; the ne
   place.
 - One listing per extractor: the page's most promising repeated group, or the
   one the examples point at.
-- Examples find values in a listing's rows, not on a page with no listing: a
-  product page that declares nothing cannot yet be learnt by pointing at its
-  price.
+- A page field is an element's whole text, or one attribute. A value written
+  inside a sentence -- one element saying `Price: £41.90` -- is not found by
+  `--want price=41.90`; one split across elements (`£41<small>.90</small>`) is,
+  at the element that holds both.
 - Healing matches by values seen before. A redesign that changes both the
   markup and every value at once -- a different page altogether -- is reported
   as fields vanished and new, not as moves.

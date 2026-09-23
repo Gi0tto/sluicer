@@ -36,7 +36,7 @@ from sluicer.api import extract
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import Document, base_url, join, load
 from sluicer.normalise import amount, iso_date
-from sluicer.structure.groups import repeating_groups
+from sluicer.structure.groups import chrome, repeating_groups
 from sluicer.structure.records import _label, records_from
 from sluicer.structure.shape import kind
 
@@ -119,6 +119,24 @@ class Listing:
 
 
 @dataclass(frozen=True)
+class PageField:
+    """One value a page holds once, found where an example pointed.
+
+    ``path`` is the element's place, as a listing's container is written, and
+    ``@name`` after it when the value is an attribute. ``reads`` is ``amount``
+    or ``date`` when every learnt value read as one -- one is enough, since the
+    person pointing at a price said it was one -- and ``shape`` is learnt as a
+    listing field's is, from five values or more.
+    """
+
+    name: str
+    path: str
+    shape: str | None
+    samples: tuple[str, ...]
+    reads: str | None = None
+
+
+@dataclass(frozen=True)
 class Extractor:
     """What a template's pages were learnt to hold, as a replayable contract.
 
@@ -133,6 +151,9 @@ class Extractor:
     listing: Listing | None
     notes: tuple[str, ...] = ()
     version: str = __version__
+    fields: tuple[PageField, ...] = ()
+    """Values the page holds once, learnt from examples where it has no
+    listing that holds them (``compile --want``)."""
 
     def to_json(self) -> str:
         """The extractor as the JSON file it is kept in, stable key order."""
@@ -164,6 +185,17 @@ class Extractor:
                     for f in self.listing.fields
                 ],
             }
+        if self.fields:
+            body["fields"] = [
+                {
+                    "name": f.name,
+                    "path": f.path,
+                    "shape": f.shape,
+                    "reads": f.reads,
+                    "samples": list(f.samples),
+                }
+                for f in self.fields
+            ]
         return json.dumps(body, indent=2, ensure_ascii=False) + "\n"
 
     @classmethod
@@ -228,6 +260,17 @@ def _extractor_of(body: Any) -> Extractor:
         listing=listing,
         notes=tuple(_text(v) for v in body.get("notes", [])),
         version=str(body.get("sluicer", "")),
+        # Absent from a file with none, and from every file before 0.4.
+        fields=tuple(
+            PageField(
+                name=_text(f["name"]),
+                path=_text(f["path"]),
+                shape=None if f["shape"] is None else _text(f["shape"]),
+                reads=_reading(f.get("reads")),
+                samples=tuple(_text(v) for v in f["samples"]),
+            )
+            for f in body.get("fields", [])
+        ),
     )
 
 
@@ -256,6 +299,8 @@ class Run:
     rows: list[dict[str, str]] = field(default_factory=list)
     summary: dict[str, str] = field(default_factory=dict)
     checks: list[Check] = field(default_factory=list)
+    fields: dict[str, str] = field(default_factory=dict)
+    """The page's own values, by the names the examples gave them."""
 
 
 LOSSES = frozenset({"vanished", "summary-lost", "type-lost", "listing-lost"})
@@ -314,12 +359,15 @@ def compile_extractor(
             one unless a page declares its own subject -- a product, an
             article -- whose page it is; True looks for one anyway.
         names: what to call each page in ``learnt_from``; its address by default.
-        want: example values a listing's rows hold, by the name each column
-            is to have: ``{"price": "41.90", "title": "Brake pad set"}``. The
-            examples choose the listing -- the first repeated group, in page
-            order, whose rows hold every one of them -- and the columns, which
-            are only the ones named, under those names. A value matches when
-            it says the same with its spaces collapsed, or is the same amount.
+        want: example values, by the name each is to have: ``{"price":
+            "41.90", "title": "Brake pad set"}``. When a repeated group's rows
+            hold every one -- the first such group, in page order -- they
+            choose the listing and its columns, which are only the ones named.
+            When no one group holds them all, or with ``listing=False``, they
+            are the page's own values, a product page's price and title, each
+            learnt where it sits on the page, the page's own place before its
+            furniture and its listings. A value matches when it says the
+            same with its spaces collapsed, or is the same amount.
 
     Raises:
         NothingToLearn: the pages declare nothing and repeat nothing, or no
@@ -328,11 +376,8 @@ def compile_extractor(
     """
     if not pages:
         raise NothingToLearn("an extractor needs at least one page")
-    if want is not None:
-        if listing is False:
-            raise ValueError("examples of a listing's values need a listing")
-        if not want or any(not name.strip() for name in want):
-            raise ValueError("every example needs a name and a value: name=value")
+    if want is not None and (not want or any(not name.strip() for name in want)):
+        raise ValueError("every example needs a name and a value: name=value")
     docs = [load(html, url=url) for html, url in pages]
     results = [extract(html, url=url) for html, url in pages]
     summary = _learn_summary([r.summary for r in results], len(pages))
@@ -357,13 +402,20 @@ def compile_extractor(
     )
     learnt: Listing | None = None
     notes: list[str] = []
-    if want:
-        learnt, notes = _learn_wanted(docs, want)
+    fields: tuple[PageField, ...] = ()
+    if want and listing is False:
+        fields, notes = _learn_fields(docs, want, None)
+    elif want:
+        try:
+            learnt, notes = _learn_wanted(docs, want)
+        except NothingToLearn as no_listing:
+            # A product page that declares nothing: the examples are its own.
+            fields, notes = _learn_fields(docs, want, no_listing)
     elif listing or (listing is None and not has_a_subject):
         learnt, notes = _learn_listing(docs)
     if listing and learnt is None:
         notes.append("no listing was found on these pages")
-    if not summary and not types and learnt is None:
+    if not summary and not types and learnt is None and not fields:
         raise NothingToLearn(
             "these pages declare nothing and repeat nothing an extractor could keep"
         )
@@ -376,6 +428,7 @@ def compile_extractor(
         types=tuple(sorted(types)),
         listing=learnt,
         notes=tuple(notes),
+        fields=fields,
     )
 
 
@@ -422,6 +475,8 @@ def run_extractor(
         )
     if extractor.listing is not None:
         run.rows = _replay_listing(extractor.listing, doc, run.checks)
+    if extractor.fields:
+        run.fields = _replay_fields(extractor.fields, doc, run.checks)
     if not run.checks:
         run.checks.append(
             Check("extractor", "an extractor that checks something", "nothing", False)
@@ -494,6 +549,10 @@ def heal(
     for name in fresh.types:
         if name not in extractor.types:
             changes.append(Change("type-gained", None, name))
+    fields, field_changes = _heal_fields(
+        extractor.fields, [load(html, url=url) for html, url in pages]
+    )
+    changes.extend(field_changes)
     listing = fresh.listing
     if extractor.listing is not None and listing is not None:
         listing, listing_changes = _heal_listing(extractor.listing, listing, pages)
@@ -506,6 +565,7 @@ def heal(
         types=fresh.types,
         listing=listing,
         notes=fresh.notes,
+        fields=fields,
     )
     return healed, changes
 
@@ -678,6 +738,198 @@ def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
         _profile(path, path, [row.get(path) for row in rows]) for path in paths
     )
     return Listing(container, member, (min(counts), max(counts)), fields, empty)
+
+
+# Elements whose text is not the page's: a script's JSON can hold the price,
+# and a path into it breaks with the next deploy.
+_NOT_TEXT = frozenset({"script", "style", "noscript", "template", "head", "title"})
+# Attributes that hold a page's values rather than its styling or wiring.
+_VALUE_ATTRIBUTES = ("content", "href", "src", "alt", "title", "value", "datetime")
+# The most elements looked at on one page for one example.
+_MOST_ELEMENTS = 50_000
+
+
+def _learn_fields(
+    docs: list[Document], want: Mapping[str, str], no_listing: NothingToLearn | None
+) -> tuple[tuple[PageField, ...], list[str]]:
+    """Each example's place on the page itself, and what it held on every page.
+
+    The place is the deepest element whose text is the example, or an
+    attribute of one that is, on the first page that has it; every page is
+    then read at that place.
+
+    Raises:
+        NothingToLearn: an example is on none of the pages, which names it,
+            and why no listing held it either.
+    """
+    places: dict[str, str] = {}
+    notes: list[str] = []
+    for name, example in want.items():
+        found = next((p for doc in docs if (p := _places(doc, example))), None)
+        if found is None:
+            also = f", and {no_listing}" if no_listing is not None else ""
+            raise NothingToLearn(
+                f"no element on these pages holds {name}={example!r}{also}"
+            )
+        if len(found) > 1:
+            notes.append(
+                f"{name}={example!r} was in {len(found)} places on the page; "
+                f"the first, {found[0]}, was taken"
+            )
+        places[name] = found[0]
+    fields = []
+    for name, path in places.items():
+        values = [v for doc in docs if (v := _value_at(doc, path))]
+        if len(values) < len(docs):
+            notes.append(f"{name} is at {path} on {len(values)} of {len(docs)} pages")
+        present = list(dict.fromkeys(values))
+        shapes = {shape(value) for value in values}
+        reads = next(
+            (r for r, read in _READERS.items() if all(read(v) for v in values)), None
+        )
+        fields.append(
+            PageField(
+                name=name,
+                path=path,
+                shape=shapes.pop()
+                if len(shapes) == 1 and len(values) >= _SHAPE_EVIDENCE
+                else None,
+                samples=tuple(present[:_SAMPLES]),
+                reads=None if _is_address(path) else reads,
+            )
+        )
+    return tuple(fields), notes
+
+
+def _places(doc: Document, example: str) -> list[str]:
+    """Every place on the page whose value is ``example``, the deepest first.
+
+    An element's text counts when it is the whole of the element's text; an
+    ancestor that holds nothing else says the same, and is passed over for
+    the element it holds. Then the attributes, in document order.
+    """
+    wanted = " ".join(example.split())
+    worth = amount(wanted)
+    base = base_url(doc)
+
+    def same(text: str) -> bool:
+        said = " ".join(text.split())
+        return said == wanted or (worth is not None and amount(said) == worth)
+
+    texts: list[HtmlElement] = []
+    attributes: list[str] = []
+    for count, element in enumerate(doc.tree.iter()):
+        if count >= _MOST_ELEMENTS:
+            break
+        if not isinstance(element.tag, str) or _in_no_text(element):
+            continue
+        if same(element.text_content()):
+            texts.append(element)
+        for attribute in _VALUE_ATTRIBUTES:
+            value = element.get(attribute)
+            if value is None:
+                continue
+            if attribute in ("href", "src"):
+                value = join(base, value)
+            if same(value):
+                attributes.append(f"{path_of(element)}@{attribute}")
+    holding = set(texts)
+    deepest = [
+        element
+        for element in texts
+        if not any(child in holding for child in element.iterdescendants())
+    ]
+    # The page's own place first: a product's title is also its breadcrumb's
+    # last step and a related strip's link, both earlier in the document, and
+    # neither is where a person pointing at the title means.
+    repeated = {
+        member
+        for group in repeating_groups(doc.tree, furniture_too=True)
+        for member in group
+    }
+
+    def aside(element: HtmlElement) -> tuple[bool, bool]:
+        climb = [element, *element.iterancestors()]
+        return (
+            any(chrome(node) or _a_trail(node) for node in climb),
+            any(node in repeated for node in climb),
+        )
+
+    ranked = sorted(range(len(deepest)), key=lambda n: (*aside(deepest[n]), n))
+    return [path_of(deepest[n]) for n in ranked] + attributes
+
+
+def _a_trail(element: HtmlElement) -> bool:
+    """Whether ``element`` is a breadcrumb trail, by the name every CSS framework
+    and the WAI's own breadcrumb pattern give one; its last step is the page's
+    title, said again."""
+    named = " ".join(
+        element.get(attribute) or "" for attribute in ("class", "id", "aria-label")
+    )
+    return "breadcrumb" in named.lower()
+
+
+def _in_no_text(element: HtmlElement) -> bool:
+    if element.tag in _NOT_TEXT:
+        return True
+    return any(node.tag in _NOT_TEXT for node in element.iterancestors())
+
+
+def _value_at(doc: Document, path: str) -> str | None:
+    """The value at a page field's place: its text, or the attribute named."""
+    where, _, attribute = path.partition("@")
+    element, _found = _find(doc, where)
+    if element is None:
+        return None
+    if attribute:
+        value = element.get(attribute)
+        if value is None:
+            return None
+        if attribute in ("href", "src"):
+            value = join(base_url(doc), value)
+        return " ".join(value.split()) or None
+    return " ".join(element.text_content().split()) or None
+
+
+def _replay_fields(
+    fields: tuple[PageField, ...], doc: Document, checks: list[Check]
+) -> dict[str, str]:
+    """Each page field's value, checked as it was learnt."""
+    values: dict[str, str] = {}
+    for f in fields:
+        value = _value_at(doc, f.path)
+        checks.append(
+            Check(
+                "field",
+                f"{f.name} at {f.path}",
+                "found" if value else "not found",
+                value is not None,
+            )
+        )
+        if value is None:
+            continue
+        values[f.name] = value
+        if f.reads:
+            read = _READERS[f.reads]
+            checks.append(
+                Check(
+                    "reads",
+                    f"{f.name} to read as {'an' if f.reads == 'amount' else 'a'} "
+                    f"{f.reads}",
+                    repr(value),
+                    read(value) is not None,
+                )
+            )
+        if f.shape:
+            checks.append(
+                Check(
+                    "shape",
+                    f"{f.name} shaped {f.shape}",
+                    f"{value!r} ({shape(value) or 'empty'})",
+                    _fits(value, f.shape),
+                )
+            )
+    return values
 
 
 def _holding(rows: list[dict[str, str]], example: str) -> list[str]:
@@ -1019,6 +1271,57 @@ def _replay_listing(
 
 
 # -- healing ------------------------------------------------------------------
+
+
+def _heal_fields(
+    old: tuple[PageField, ...], docs: list[Document]
+) -> tuple[tuple[PageField, ...], list[Change]]:
+    """Each page field where it still is, or where its old values are now.
+
+    A field stays when its place still holds a value that reads as it did;
+    otherwise it moves to where the new pages show one of its old values, the
+    page's own place first, as it was learnt; a field found in neither way is
+    vanished and kept out, since a guess would read the wrong value under the
+    old name.
+    """
+    kept: list[PageField] = []
+    changes: list[Change] = []
+    for f in old:
+        values = [v for doc in docs if (v := _value_at(doc, f.path))]
+        read = _READERS[f.reads] if f.reads else None
+        if values and (read is None or all(read(v) for v in values)):
+            kept.append(_relearnt(f, f.path, values))
+            continue
+        moved = next(
+            (
+                place
+                for sample in f.samples
+                for doc in docs
+                if (place := next(iter(_places(doc, sample)), None))
+            ),
+            None,
+        )
+        if moved is None:
+            changes.append(Change("vanished", f.name, None))
+            continue
+        found = [v for doc in docs if (v := _value_at(doc, moved))]
+        changes.append(Change("moved", f.name, moved))
+        kept.append(_relearnt(f, moved, found))
+    return tuple(kept), changes
+
+
+def _relearnt(f: PageField, path: str, values: list[str]) -> PageField:
+    """``f`` at ``path``, its samples those of the new pages, its reading kept."""
+    shapes = {shape(v) for v in values}
+    return PageField(
+        name=f.name,
+        path=path,
+        shape=shapes.pop()
+        if f.shape and len(shapes) == 1 and len(values) >= _SHAPE_EVIDENCE
+        else None,
+        samples=tuple(dict.fromkeys(values))[:_SAMPLES] or f.samples,
+        reads=f.reads,
+    )
 
 
 def _heal_listing(

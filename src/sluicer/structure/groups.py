@@ -67,13 +67,15 @@ def _furniture(parent: HtmlElement) -> bool:
     """True when ``parent`` is, or sits inside, one of the page's chrome regions."""
     node: HtmlElement | None = parent
     while node is not None:
-        if _chrome(node):
+        if chrome(node):
             return True
         node = node.getparent()
     return False
 
 
-def _chrome(element: HtmlElement) -> bool:
+def chrome(element: HtmlElement) -> bool:
+    """Whether ``element`` is one of the page's chrome regions: its navigation,
+    its asides, a region it hides or marks with an ARIA chrome role."""
     tag = element.tag
     if not isinstance(tag, str):
         return False
@@ -140,7 +142,7 @@ def repeating_groups(
     for order, parent in enumerate(tree.iter()):
         above = furniture.get(parent.getparent())
         furniture[parent] = (
-            _furniture(parent) if above is None else above or _chrome(parent)
+            _furniture(parent) if above is None else above or chrome(parent)
         )
         if furniture[parent] and not furniture_too:
             continue

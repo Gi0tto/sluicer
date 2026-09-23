@@ -500,11 +500,15 @@ def test_an_example_no_row_holds_is_named():
         )
 
 
-def test_examples_in_two_different_listings_are_no_one_listing():
-    with pytest.raises(NothingToLearn, match="no one repeated group holds every"):
-        compile_extractor(
-            [_two_listings()], want={"deal": "Deal 1", "title": "Sapiens"}
-        )
+def test_examples_in_two_different_listings_are_read_as_the_pages_own():
+    learnt = compile_extractor(
+        [_two_listings()], want={"deal": "Deal 1", "title": "Sapiens"}
+    )
+    assert learnt.listing is None
+    assert [f.path.rsplit(">", 2)[-2:] for f in learnt.fields] == [
+        ["div.offer[1]", "b.deal"],
+        ["li.book[5]", "a.title"],
+    ]
 
 
 def test_examples_may_come_from_any_of_the_pages():
@@ -520,9 +524,7 @@ def test_a_page_without_the_listing_is_noted_and_left_out():
     assert learnt.notes[-1].endswith("on 1 of 2 pages; the others were ignored")
 
 
-def test_examples_need_a_listing_and_a_name():
-    with pytest.raises(ValueError, match="need a listing"):
-        compile_extractor([_two_listings()], listing=False, want={"title": "Sapiens"})
+def test_examples_need_a_name():
     with pytest.raises(ValueError, match="name=value"):
         compile_extractor([_two_listings()], want={" ": "Sapiens"})
     with pytest.raises(ValueError, match="name=value"):
@@ -623,7 +625,165 @@ def test_compile_takes_examples_on_the_command_line(tmp_path):
     missing = _cli("compile", str(source), "-o", str(out), "--want", "title=Nope")
     assert missing.exit_code == 1
     assert "no repeated group on these pages holds title='Nope'" in missing.stderr
-    refused = _cli(
+    own = _cli(
         "compile", str(source), "-o", str(out), "--no-listing", "--want", "t=Sapiens"
     )
-    assert refused.exit_code == 2
+    assert own.exit_code == 0, own.stderr
+    assert "1 page fields (t at " in own.stderr
+
+
+# -- a page's own values, learnt from examples ----------------------------------
+
+
+def _product(title="Brake pad set", price="£41.90", image="/i/1.jpg", extra=""):
+    """A product page that declares nothing, with the title said three times."""
+    related = "".join(
+        f'<li class="rel"><a class="t" href="/p/{n}">Other pad {n}</a></li>'
+        for n in range(1, 4)
+    )
+    html = (
+        '<html><head><title>Shop</title><script>var p = {"price": "41.90"}</script>'
+        '</head><body><ol class="breadcrumb"><li><a href="/">Home</a></li>'
+        f'<li class="active">{title}</li></ol>'
+        '<nav class="crumbs"><a href="/">Home</a><span>'
+        f"{title}</span></nav>"
+        f'<main><div class="item"><h1 class="name">{title}</h1>'
+        f'<img class="photo" src="{image}" alt="photo">'
+        f'<p class="cost"><span class="price">{price}</span></p>{extra}</div>'
+        f'<ul class="related">{related}<li class="rel"><a class="t" href="/p/9">'
+        f"{title}</a></li></ul></main></body></html>"
+    )
+    return html, "https://shop.example/p/1"
+
+
+def test_a_product_page_that_declares_nothing_is_learnt_by_pointing():
+    learnt = compile_extractor(
+        [_product()],
+        want={
+            "title": "Brake pad set",
+            "price": "41.90",
+            "image": "https://shop.example/i/1.jpg",
+        },
+    )
+    assert learnt.listing is None
+    by_name = {f.name: f for f in learnt.fields}
+    assert by_name["title"].path.endswith("main>div.item>h1.name"), "not the crumbs"
+    assert by_name["price"].path.endswith("p.cost>span.price"), "not the script"
+    assert by_name["price"].reads == "amount"
+    assert by_name["image"].path.endswith("img.photo@src")
+    assert by_name["image"].reads is None
+    assert learnt.notes[0].startswith("title='Brake pad set' was in 4 places")
+
+
+def test_a_learnt_product_page_replays_on_another_of_its_template():
+    learnt = compile_extractor(
+        [_product()], want={"title": "Brake pad set", "price": "41.90"}
+    )
+    run = run_extractor(learnt, *_product("Disc set", "£99.00"))
+    assert run.ok, failed(run)
+    assert run.fields == {"title": "Disc set", "price": "£99.00"}
+    assert run.rows == []
+
+
+def test_a_price_slot_that_holds_a_button_fails_loudly_on_a_product_page():
+    learnt = compile_extractor([_product()], want={"price": "41.90"})
+    button = run_extractor(learnt, *_product(price="Add to basket"))
+    assert not button.ok
+    assert failed(button) == ["reads"]
+    gone = _product()[0].replace('<span class="price">£41.90</span>', "")
+    missing = run_extractor(learnt, gone, url="https://shop.example/p/2")
+    assert failed(missing) == ["field"]
+
+
+def test_page_fields_are_learnt_across_every_page_given():
+    pages = [_product(price=f"£{n}.50") for n in range(1, 7)]
+    learnt = compile_extractor(pages, want={"price": "1.50"})
+    [price] = learnt.fields
+    assert price.shape is not None and price.reads == "amount"
+    assert price.samples[:2] == ("£1.50", "£2.50")
+    run = run_extractor(learnt, *_product(price="£10.50"))
+    assert run.ok, failed(run)
+    short = compile_extractor(
+        [_product(), ("<html><body></body></html>", "https://shop.example/x")],
+        want={"price": "41.90"},
+    )
+    assert short.notes[-1].endswith("on 1 of 2 pages")
+
+
+def test_no_listing_reads_examples_as_the_pages_own_even_on_a_listing():
+    learnt = compile_extractor([_two_listings()], listing=False, want={"t": "Sapiens"})
+    assert learnt.listing is None
+    assert learnt.fields[0].path.endswith("li.book[5]>a.title")
+
+
+def test_an_example_that_is_nowhere_is_named_with_why_no_listing_held_it():
+    with pytest.raises(NothingToLearn) as raised:
+        compile_extractor([_product()], want={"sku": "BP-1"})
+    assert str(raised.value) == (
+        "no element on these pages holds sku='BP-1', and no repeated group on "
+        "these pages holds sku='BP-1'"
+    )
+    with pytest.raises(NothingToLearn, match=r"^no element on these pages holds"):
+        compile_extractor([_product()], listing=False, want={"sku": "BP-1"})
+
+
+def test_page_fields_are_kept_through_the_file_and_an_old_file_has_none():
+    learnt = compile_extractor([_product()], want={"price": "41.90"})
+    text = learnt.to_json()
+    assert "fields" in json.loads(text)
+    assert Extractor.from_json(text) == learnt
+    assert "fields" not in json.loads(shop().to_json())
+    assert Extractor.from_json(shop().to_json()).fields == ()
+
+
+def test_heal_keeps_moves_or_loses_each_page_field():
+    learnt = compile_extractor(
+        [_product()], want={"title": "Brake pad set", "price": "41.90"}
+    )
+    moved = _product()[0].replace('class="price"', 'class="amount"')
+    healed, changes = heal(learnt, [(moved, "https://shop.example/p/1")])
+    assert [(c.kind, c.before) for c in changes] == [("moved", "price")]
+    assert run_extractor(healed, moved, url="https://shop.example/p/1").ok
+    assert {f.name for f in healed.fields} == {"title", "price"}
+    blank = _product(price="")[0].replace("Brake pad set", "Something else")
+    _healed, lost = heal(learnt, [(blank, "https://shop.example/p/1")])
+    assert ("vanished", "price") in [(c.kind, c.before) for c in lost]
+
+
+def test_a_run_says_its_page_fields_on_the_command_line(tmp_path):
+    source = tmp_path / "p.html"
+    source.write_text(_product()[0])
+    out = tmp_path / "p.json"
+    result = _cli("compile", str(source), "-o", str(out), "--want", "price=41.90")
+    assert result.exit_code == 0, result.stderr
+    assert "1 page fields (price at " in result.stderr
+    ran = _cli("run", str(out), str(source))
+    assert json.loads(ran.stdout)["pages"][0]["fields"] == {"price": "£41.90"}
+
+
+def test_a_page_field_in_an_attribute_is_read_there_and_missed_when_gone():
+    learnt = compile_extractor([_product()], want={"alt": "photo"})
+    [alt] = learnt.fields
+    assert alt.path.endswith("img.photo@alt")
+    assert run_extractor(learnt, *_product()).fields == {"alt": "photo"}
+    stripped = _product()[0].replace(' alt="photo"', "")
+    assert failed(run_extractor(learnt, stripped, url="https://shop.example/p")) == [
+        "field"
+    ]
+
+
+def test_a_hostile_page_is_searched_only_so_far(monkeypatch):
+    monkeypatch.setattr("sluicer.extractor._MOST_ELEMENTS", 3)
+    with pytest.raises(NothingToLearn, match="no element on these pages holds"):
+        compile_extractor([_product()], listing=False, want={"price": "41.90"})
+
+
+def test_a_value_split_across_elements_is_found_and_one_in_a_sentence_is_not():
+    split = (
+        '<html><body><p><span class="p">£41<small>.90</small></span></p></body></html>'
+    )
+    said = '<html><body><p class="c">Price: £41.90</p></body></html>'
+    learnt = compile_extractor([(split, None)], listing=False, want={"price": "41.90"})
+    assert learnt.fields[0].path.endswith("p>span.p")
+    with pytest.raises(NothingToLearn):
+        compile_extractor([(said, None)], listing=False, want={"price": "41.90"})

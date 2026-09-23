@@ -566,7 +566,9 @@ def compile_command(
     With --want, the examples say which repeated group is the listing and
     what its columns are called: --want title="Brake pad set" --want
     price=41.90 learns the listing whose rows hold both, with those two
-    columns, and a value no row holds is an error that names it.
+    columns. When no repeated group holds them -- a product page -- or with
+    --no-listing, they are the page's own values, each learnt where it sits.
+    A value that is nowhere is an error that names it.
     """
     want: dict[str, str] | None = None
     if wanted:
@@ -588,6 +590,12 @@ def compile_command(
         _fail(f"{refused}.", refused)
     _write(output, extractor.to_json())
     learnt = []
+    if extractor.fields:
+        learnt.append(
+            f"{len(extractor.fields)} page fields ("
+            + ", ".join(f"{f.name} at {f.path}" for f in extractor.fields)
+            + ")"
+        )
     if extractor.listing is not None:
         rows = extractor.listing.rows
         learnt.append(
@@ -633,6 +641,7 @@ def run_command(
                 "url": run.url,
                 "ok": run.ok,
                 "rows": run.rows,
+                "fields": run.fields,
                 "summary": run.summary,
                 "failed": failed,
             }
