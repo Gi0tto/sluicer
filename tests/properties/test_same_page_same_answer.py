@@ -308,6 +308,22 @@ def _declared(page: Page, label: str, how: str, where: str, style: Style) -> str
     return html.replace(closing, written + closing, 1)
 
 
+def _as_read(data: bytes, codec: str) -> str:
+    """The text Sluicer reads ``data``, declared in ``codec``, as.
+
+    Its declared codec, but for bytes that are valid UTF-8 and hold a
+    character outside ASCII, which are UTF-8 whatever they declare
+    (``sniff_encoding``): the fuzz profile drew an author ``Â\x80`` declared
+    Latin-1, whose bytes are UTF-8's U+0080.
+    """
+    if not data.isascii():
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+    return data.decode(codec)
+
+
 @given(
     pages(),
     st.sampled_from(sorted(DECLARED)),
@@ -319,14 +335,15 @@ def test_a_page_is_read_in_the_encoding_it_declares(page, label, how, where, sty
     """Bytes in the declared encoding give the answer the text gives.
 
     Whatever the page cannot say in that encoding is replaced first, since
-    the bytes cannot hold it; the answer compared is the text a browser
-    decodes from those bytes.
+    the bytes cannot hold it; the answer compared is the text those bytes
+    decode to, which is the declared encoding's but for bytes that are also
+    UTF-8 (``_as_read``).
     """
     codec = DECLARED[label]
     html = _declared(page, label, how, where, style)
     data = html.encode(codec, errors="replace")
 
-    assert answer(data, page.url) == answer(data.decode(codec), page.url)
+    assert answer(data, page.url) == answer(_as_read(data, codec), page.url)
 
 
 @given(pages(), st.sampled_from(["utf-8", "cp1252"]), styles())
@@ -394,4 +411,13 @@ def test_a_declaration_is_read_whatever_else_its_meta_carries(
     codec = DECLARED[label]
     data = page.html(style).encode(codec, errors="replace")
 
-    assert answer(data, page.url) == answer(data.decode(codec), page.url)
+    assert answer(data, page.url) == answer(_as_read(data, codec), page.url)
+
+
+def test_legacy_bytes_that_are_utf8_are_read_as_utf8():
+    """Found by the fuzz profile: "Â\x80" in Latin-1 is the bytes C2 80, UTF-8's
+    U+0080, and is read so -- the one departure from reading as declared."""
+    html = '<meta charset="iso-8859-1"><meta itemprop="author" content="A\u00c2\u0080">'
+    data = html.encode("latin-1")
+    assert answer(data) == answer(_as_read(data, "latin-1"))
+    assert _as_read(data, "latin-1") == data.decode("utf-8")
