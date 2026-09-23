@@ -42,7 +42,9 @@ healed, changes = heal(extractor, [(new_html, new_url)])
 ```
 
 An agent gets the same three steps as MCP tools: `compile_extractor`,
-`run_extractor` and `heal_extractor`.
+`run_extractor` and `heal_extractor`. Their answers carry `ok`, false for a page
+that drifted (with `failed`, the checks it broke) and for a heal that lost data
+(with `lost`), exactly where the command line exits 3.
 
 ## What an extractor learns
 
@@ -89,6 +91,15 @@ field has the same shape, because a guess would put the wrong column under the
 old name. A field that moved keeps its old name, so rows read with the healed
 extractor have the columns downstream code expects.
 
+Every field kept or moved carries its evidence: how many of the values it was
+learnt with were found in the new place, of how many, and how many the next
+best place held. It is reported, never used to decide. A move that rests on
+five values of five, with nothing else close, needs no second look; a move that
+rests on two of five, with a runner-up at one, is a reason for a person to look
+before the healed extractor is trusted. `heal` never heals itself above some
+confidence, because a wrong move is exactly the silent failure an extractor
+exists to prevent.
+
 When anything was lost -- a field, a summary answer, a declared type, the listing
 itself -- `sluicer heal` exits 3 and does not write the healed extractor unless
 given `--force`: the old one keeps failing, which is the honest state until a
@@ -100,10 +111,10 @@ wrapped the listing in a new element moves all four fields to their new places:
 ```text
 container: html>body>div.page>ol.row -> html>body>main.content>div.page>section.grid
 member: li.product -> div.card
-moved: a.title -> h2.name>a
-moved: a.title@href -> h2.name>a@href
-moved: span.price -> div.cost
-moved: span.stock -> span.availability
+moved: a.title -> h2.name>a (5 of 5 learnt values found there; the next best place had 0)
+moved: a.title@href -> h2.name>a@href (5 of 5 learnt values found there; the next best place had 0)
+moved: span.price -> div.cost (5 of 5 learnt values found there; the next best place had 0)
+moved: span.stock -> span.availability (2 of 2 learnt values found there; the next best place had 0)
 ```
 
 ## Limits

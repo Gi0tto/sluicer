@@ -38,19 +38,28 @@ field says `"source": "induced"`.
 - `run_extractor(extractor, html_or_url)` -- replay it on any page of that
   template: plain rows, and `ok: false` with the reason when the page drifted.
   Never use rows from a run that is not ok as if nothing happened.
-- `heal_extractor(extractor, pages)` -- after a redesign, what moved where; moved
-  fields keep their names.
+- `heal_extractor(extractor, pages)` -- after a redesign, what moved where, with
+  how many of each field's old values were found in its new place; moved fields
+  keep their names.
 
-A failure is always `{"error": ...}` with a key saying which kind:
-`refused_by_robots`, `refused_address`, `fetch_failed`, `missing_extra` or
-`bad_input`. It is never text that could be mistaken for the page. The server
+Every answer carries `ok`: true exactly when it can be used as it is. When it
+is false, the answer says why: `error` with a `code` -- `refused_by_robots`,
+`refused_address`, `fetch_failed`, `too_large`, `missing_extra` or `bad_input`
+-- a `message` and `retryable` (true only for `fetch_failed`); or, from
+`run_extractor`, `failed`, the checks the page broke; or, from
+`heal_extractor`, `lost`, when the page no longer has a field the old extractor
+read. An error is never text that could be mistaken for the page. The server
 refuses addresses off the public internet (`localhost`, `10.x`, cloud metadata)
-unless it was started with `SLUICER_ALLOW_PRIVATE=1`.
+-- redirects and a browser's requests included -- unless it was started with
+`SLUICER_ALLOW_PRIVATE=1`.
 
 ## What comes back
 
+From `extract_declared`:
+
 ```json
 {
+  "ok": true,
   "url": "https://example.com/product",
   "summary": {
     "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
@@ -118,8 +127,8 @@ print(result.summary["title"].value, result.summary["title"].source)
 the project, sends no borrowed referer, and `robots.txt` is obeyed by default,
 including for a redirect to another host. A robots.txt that cannot be read -- no
 answer, or a 5xx -- means nothing is fetched, as RFC 9309 says; that comes back
-as `fetch_failed`, which is worth retrying later, not as `refused_by_robots`,
-which is not. Pass `obey_robots=False` (`--no-robots`) only when you
+as `fetch_failed`, which is worth retrying later (`retryable: true`), not as
+`refused_by_robots`, which is not. Pass `obey_robots=False` (`--no-robots`) only when you
 have a reason you would defend.
 
 **It climbs only on a measurement.** Plain HTTP first; a browser only for a

@@ -23,6 +23,7 @@ theme:
 
 nav:
   - Sluicer: index.md
+  - Why Sluicer: why.md
   - Extractors: extractors.md
   - Known limits: known-limits.md
   - Design notes: design-notes.md

@@ -20,218 +20,109 @@
 
 ---
 
-A sluice box separates gold from gravel with water and gravity. No mercury, no
-cyanide, nothing you have to buy. Sluicer treats a web page the same way: it
-recovers your data from the structure already in the page, so the same page
-always gives you the same answer, and a run costs CPU and nothing else.
+Sluicer reads the structured data a web page already declares -- JSON-LD,
+microdata, RDFa, OpenGraph, the Twitter card, HTML's own meta names -- and
+merges it into one record per thing, every value naming the vocabulary and key
+it came from. No model reads the page, so the same page always gives the same
+answer and a run costs CPU. Learn an extractor from a few pages of a template
+and every replay checks the page still keeps to it: a site that changed its
+layout fails loudly, and `heal` says what moved where.
 
 ```bash
 uv tool install 'sluicer[fetch,markdown,mcp]'
 sluicer extract product.html --url https://example.com/product
 ```
 
+It prints, abridged:
+
 ```json
 {
-  "url": "https://example.com/product",
   "summary": {
     "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
-    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" },
-    "language": { "value": "en", "source": "html", "key": "<html lang>" },
-    "type":     { "value": "Product", "source": "jsonld", "key": "@type" },
     "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers" },
     "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers" },
-    "sku":      { "value": "BP-1187", "source": "jsonld", "key": "Product.sku" }
+    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" }
   },
   "records": [
     {
       "type": "Product",
-      "types": ["Product"],
       "fields": {
         "name":   { "value": "Brake pad set", "source": "jsonld" },
-        "sku":    { "value": "BP-1187", "source": "jsonld" },
-        "offers": {
-          "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" },
-          "source": "jsonld"
-        },
+        "offers": { "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" }, "source": "jsonld" },
         "mpn":    { "value": "BP-2210", "source": "microdata" },
         "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph" }
-      },
-      "source": "jsonld"
+      }
     }
   ],
   "sources": ["jsonld", "microdata", "opengraph"]
 }
 ```
 
-That page described the same product three times, in three vocabularies. You get
-one record, a summary that answers the questions you came with, and every value
-still says which vocabulary -- and for the summary, which key -- it came from.
+That page described one product three times, in three vocabularies. You get one
+record, a summary of the questions you came with, and the provenance of every
+value. `sluicer inspect` prints the same reading laid out for a person.
 
-## What it does
+## How it differs
 
-**Reads what the page already declares.** JSON-LD, microdata, RDFa, Dublin
-Core, OpenGraph, the Twitter card, the metadata names HTML itself defines, and
-microformats2 when you ask for it. On a large part of the commercial web the
-structured data is sitting in the source and nobody reads it.
+- **From extruct**, which returns each vocabulary as the page wrote it: Sluicer
+  merges them into one record per thing, keeps where each field came from,
+  answers a summary with its reader and key, and resolves JSON-LD references.
+- **From trafilatura and newspaper4k**, which read authors and dates from the
+  visible text: Sluicer reads only what the page declares. It answers less
+  often, and is wrong less often -- see [the numbers](#measured-losses-included).
+- **From a scraper of CSS selectors**: an extractor checks every page it reads
+  against what it learnt, and a page that drifted fails with exit code 3
+  instead of returning nulls for weeks.
+- **From an LLM scraper**: no model, no key, no bill, and the same answer
+  every time.
 
-Two of those carry most of the dates and authors on pages that declare no
-JSON-LD: across the 359 commercial pages of a public annotated corpus,
-`article:published_time` is on 33% of them and `<meta name="author">` on 29%.
-The first is part of the OpenGraph protocol, in its `article:` namespace; the
-second is a tag no vocabulary owns, which other tools either ignore or file under
-a vocabulary that never claimed it.
-
-Dublin Core, RDFa and microformats buy something different — compatibility, not
-reach. Measured across twenty live pages, they unlock zero pages that JSON-LD,
-microdata or OpenGraph do not already cover. What they buy is parity with
-`extruct`, which reads six vocabularies and, as of 2026-09-22, took 540,765
-installs a month and had had no release in 683 days.
-
-**Answers the questions you came with.** `summary` gives one value each for
-title, description, url, image, author, published, modified, language,
-site_name, publisher, type, price, currency, availability, brand and sku,
-chosen by fixed rules in a fixed order: the article's `headline` before the
-site's name, `og:title` before `<title>`, the price from inside `offers`. Each
-answer names its reader and its key, so it can be checked against the records.
-Measured on fourteen live pages, it names the Guardian's author, BBC Good Food's
-recipe over the video embedded in it, and Yoast's article over its own graph.
-
-**Keeps nested values whole.** An author, an `offers` block, a recipe's
-ingredients and steps arrive as the JSON the page declared, with `@type` kept
-and a reference to another node on the page replaced by that node.
-
-**Keeps the provenance of every field.** Precedence is JSON-LD, then microdata,
-then microformats, then RDFa, then Dublin Core, then OpenGraph, then the Twitter
-card, then HTML's own metadata names, and each value carries the reader that won
-it. A value from `<meta name="author">` says `"source": "html"`, because that is
-what it is. You always know where a number came from before you act on it.
-
-**Fails loudly when a site changes.** Learn an extractor once from two or three
-pages of a template, keep it in a small JSON file, and replay it on any page of
-that template for nothing. Every replay checks the page against what was learnt
--- the listing is where it was, the rows are there, every field that was always
-filled still is and still looks the same, every summary answer is still
-answered -- and a page that drifted fails with exit code 3 and the reason,
-instead of returning nulls for weeks. After a redesign, `sluicer heal` says
-which field moved where, and a moved field keeps the name your code reads. See
-[extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md).
-
-**Reads pages that declare nothing.** Ask for it with `induce=True` and Sluicer
-looks for the shape the page repeats -- the rows of a listing, the cards of a
-feed -- and returns one record per repetition, naming each field by where it
-sits. Every one of those fields says `"source": "induced"`, so a value the page
-stated and a value we inferred are never the same kind of thing. Induction runs
-only when the page declared nothing about its own subject, so a page that does
-carry JSON-LD is never second-guessed.
-
-**Merges across vocabularies, never inside one.** The same product described
-twice becomes one record. Two products on a listing page stay two products:
-folding them would splice one product's name onto another's price.
-
-**Fetches at the lowest price that works.** Plain HTTP first, and a browser only
-when a measurement says the cheap rung brought back a refusal, a challenge or a
-script waiting to render. Every climb is reported with the reason that forced
-it, so you can see what a page cost, and a climb that fails falls back to what
-the cheaper rung already had.
-
-**Arrives under its own name, and takes no for an answer.** Every request says
-`Sluicer/<version>` with a link to this repository and borrows no browser's
-referer or fingerprint, so a site owner can see it coming and refuse it with one
-line of `robots.txt`, which Sluicer reads and obeys by default -- for a redirect
-to another host too -- and it fetches nothing when a robots.txt cannot be read,
-as RFC 9309 says. The stealth rung exists, and it is not part of the automatic ladder:
-climbing on a measurement from plain HTTP to a browser is a change of cost, while
-climbing from announcing yourself to hiding is a change of character, and it does
-not happen to a caller who never asked for it.
-
-**Turns a page into markdown.** The article without the navigation, the cookie
-banner or the footer.
-
-**Answers an agent.** An MCP server with six tools, so Claude Code, Codex and
-anything else that speaks the protocol can call it directly. A failure comes
-back as an error the agent can read, never as text that looks like the page,
-and the server will not fetch `localhost`, a private network or a cloud's
-metadata endpoint unless started with `SLUICER_ALLOW_PRIVATE=1`.
+[Why Sluicer](https://github.com/Gi0tto/sluicer/blob/main/docs/why.md) has the
+full comparison, and when another tool is the better choice.
 
 ## Use it
 
-From the command line:
-
 ```bash
-sluicer extract page.html                      # a file you already have
-sluicer extract https://example.com/product    # or a URL
-curl -s https://example.com | sluicer extract - --url https://example.com
-sluicer extract listing.html --induce          # rows of a page that declares nothing
-sluicer markdown https://example.com/article   # the readable content
+sluicer extract page.html                           # a file, a URL, or - for stdin
+sluicer inspect https://example.com/product         # the same, for a person to read
+sluicer extract listing.html --induce               # rows of a page that declares nothing
+sluicer markdown https://example.com/article        # the readable content
 
-sluicer compile page1.html page2.html -o shop.json   # learn an extractor
-sluicer run shop.json https://shop.example/c?page=7  # replay it, checked
+sluicer compile page1.html page2.html -o shop.json  # learn an extractor
+sluicer run shop.json https://shop.example/c?p=7    # replay it, checked
 sluicer heal shop.json https://shop.example/c -o shop.json  # after a redesign
 ```
 
-Exit codes follow grep: 0 when something was found -- a record, or at least one
-summary answer such as the page's title -- 1 when the page was read and gives
-nothing at all, 2 when it could not be read. `run` and `heal` add 3: a page broke
-the extractor's contract, or healing lost a field. A drifted page never exits 0.
-
-From Python:
+Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
+for a page that broke its extractor or a heal that lost a field. A drifted page
+never exits 0.
 
 ```python
 import sluicer
 
 result = sluicer.extract(html, url="https://example.com/p")
 print(result.summary["title"].value, "via", result.summary["title"].key)
-for record in result.records:
-    for name, field in record.fields.items():
-        print(name, field.value, "via", field.source)
 ```
 
-From an agent, in your project's `.mcp.json`:
-
-```json
-{ "mcpServers": { "sluicer": { "command": "sluicer-mcp" } } }
-```
-
-Or in one line: `claude mcp add sluicer -- sluicer-mcp`. The repository is also a
-Claude Code plugin, so `/plugin install` brings the server and a skill that tells
-an agent when to reach for it and when not to bother; the plugin runs the server
-with `uvx`, so it needs [uv](https://docs.astral.sh/uv/) on the path. Six tools
-arrive with it. `extract_declared` returns the summary and the declared data
-with its provenance. `page_markdown` returns the readable content. `fetch_page`
-returns the page and the record of what it cost to get. `compile_extractor`,
-`run_extractor` and `heal_extractor` learn an extractor, replay it with its
-checks, and heal it after a redesign.
+For an agent: `claude mcp add sluicer -- sluicer-mcp`, or install the repository
+as a Claude Code plugin with `/plugin install`. Six tools -- `extract_declared`,
+`page_markdown`, `fetch_page`, `compile_extractor`, `run_extractor`,
+`heal_extractor` -- each answering with `ok`, which is true exactly when the
+answer can be used as it is, and an output schema. The server fetches nothing
+on `localhost`, a private network or a cloud's metadata endpoint -- redirects
+and a browser's requests included -- unless started with
+`SLUICER_ALLOW_PRIVATE=1`.
 
 ## Install
 
 ```bash
-uv tool install sluicer                            # the command
-uv pip install sluicer                             # the library
-uv pip install 'sluicer[fetch,markdown,mcp]'       # fetching, markdown, the server
-uv pip install 'sluicer[microformats]'             # microformats2, off by default
+uv pip install sluicer                          # the library and the command: lxml and click
+uv pip install 'sluicer[fetch,markdown,mcp]'    # fetching, markdown, the MCP server
+uv pip install 'sluicer[microformats]'          # microformats2, off by default
+uvx --from 'sluicer[fetch]' scrapling install   # the browser, once, for the browser rung
 ```
 
-
-The base install is `lxml` and `click`. Fetching, markdown and the MCP server
-each sit behind an extra, so a reader who only parses HTML never carries a
-browser. The browser rung needs its browser installed once:
-
-```bash
-uvx --from 'sluicer[fetch]' scrapling install
-```
-
-Without it, plain HTTP still works, and a page that would have climbed comes
-back from the HTTP rung with the failed climb recorded. The Docker image is
-built the same way: HTTP only, unless built with `--build-arg WITH_BROWSER=1`.
-
-Microformats is behind one too, and it is the only reader that is off by
-default: its reference parser costs twelve packages against a base install of
-three. Turn it on per call with `extract(html, microformats=True)`, and without
-the extra that call raises `MicroformatsExtraMissing` with the install line in
-the message. Measured on 2026-09-22 across twenty live pages, microformats
-appeared on exactly one, and that page carried
-OpenGraph as well, so it was already readable. What it buys is compatibility
-with `extruct`.
+Without a browser, plain HTTP still works, and a page that wanted one comes back
+from the HTTP rung with the failed climb recorded.
 
 ## Measured, losses included
 
@@ -247,50 +138,41 @@ that carry a label; an invention is an answer on a page whose label is empty.
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.5 | 125 |
 
 Sluicer loses on authors and dates, which the others also read from the visible
-text of the page and Sluicer does not guess from prose. It invents least: when
-it answers a date it is right 92% of the time, against 46% for trafilatura, which
-dates 216 pages that have none. And the corpus strips every `<script>`, so
-JSON-LD, the vocabulary Sluicer reads first, is not measured here at all. The
-full table, the method and the command that regenerates it are in
+text. It invents least: when it answers a date it is right 92% of the time,
+against 46% for trafilatura. And WCXB strips every `<script>`, so JSON-LD, the
+vocabulary Sluicer reads first, is not measured here at all. The method, every
+outcome and the command that regenerates the table are in
 [the scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md).
 
 ## Principles
 
-These are constraints, not preferences, and a test enforces the first two.
-
-**No LLM call, anywhere in the path.** Not as a fallback, not for the hard
-pages. A test walks the source and fails the build if a model client is ever
-imported.
-
-**No paid API.** If a feature needs somebody's key to work, it does not ship.
-
-**Deterministic.** The same page always gives the same answer. That is what
-makes a scoreboard possible, and the scoreboard above is regenerated by one
-command.
-
-**Honest about failure.** A page that cannot be read says so. Nothing here
-returns a plausible answer where the truth was unavailable.
+- **No LLM call, anywhere in the path.** A test fails the build if a model
+  client is ever imported.
+- **No paid API.** A feature that needs somebody's key does not ship.
+- **Deterministic.** The same page always gives the same answer, which is what
+  makes the scoreboard reproducible.
+- **Honest about failure.** A page that cannot be read says so, and nothing
+  returns a plausible answer where the truth was unavailable.
 
 ## Documentation
 
-Also published as a site at <https://gi0tto.github.io/sluicer/>.
-
-- [Examples](https://github.com/Gi0tto/sluicer/tree/main/examples): three runnable scripts, each verified against a live page
-- [Roadmap](https://github.com/Gi0tto/sluicer/blob/main/ROADMAP.md): what is coming, and in what order
-- [Extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md): learn once, replay for nothing, fail loudly, heal
-- [Scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md): the numbers above, every outcome, and how to regenerate them
-- [Known limits](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md): where Sluicer stops, stated plainly
-- [Design notes](https://github.com/Gi0tto/sluicer/blob/main/docs/design-notes.md): why the rules are the rules
-- [The field, measured](https://github.com/Gi0tto/sluicer/blob/main/docs/field-survey.md): 1,926 repositories counted, and
-  why this project builds what it builds
-- [Contributing](https://github.com/Gi0tto/sluicer/blob/main/CONTRIBUTING.md) · [Security](https://github.com/Gi0tto/sluicer/blob/main/SECURITY.md) · [Changelog](https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md)
+At <https://gi0tto.github.io/sluicer/>, or in the repository:
+[Why Sluicer](https://github.com/Gi0tto/sluicer/blob/main/docs/why.md) ·
+[Extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md) ·
+[Scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md) ·
+[Known limits](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md) ·
+[Design notes](https://github.com/Gi0tto/sluicer/blob/main/docs/design-notes.md) ·
+[Examples](https://github.com/Gi0tto/sluicer/tree/main/examples) ·
+[Roadmap](https://github.com/Gi0tto/sluicer/blob/main/ROADMAP.md) ·
+[Changelog](https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md) ·
+[Security](https://github.com/Gi0tto/sluicer/blob/main/SECURITY.md) ·
+[Contributing](https://github.com/Gi0tto/sluicer/blob/main/CONTRIBUTING.md)
 
 ## Licence
 
-MIT, and no vendored code, so nothing here is infected by what it depends on.
-The base install needs `lxml` and `click`, both BSD-3-Clause. The optional
-extras pull a wider tree that is not all permissive: `tld` is tri-licensed
-MPL-1.1, GPL-2.0-only or LGPL-2.1-or-later, `orjson` is MPL-2.0 alongside
-Apache-2.0 or MIT, and `certifi` is MPL-2.0. They are dependencies rather than
-vendored source, so none of that reaches your code. See
-[the licence notes](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md) before you ship.
+MIT, with no vendored code. The base install needs `lxml` and `click`, both
+BSD-3-Clause. The extras pull a wider tree that is not all permissive: `tld` is
+tri-licensed MPL-1.1, GPL-2.0-only or LGPL-2.1-or-later, `orjson` is MPL-2.0
+alongside Apache-2.0 or MIT, and `certifi` is MPL-2.0. CI lists every licence
+in that tree and fails on one nobody has read; see
+[the licence notes](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md).

@@ -4,6 +4,62 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Changed
+- **MCP answers, breaking for 0.2.0 clients.** Every answer carries `ok`, true
+  exactly when it can be used as it is. An error is `{"ok": false, "error":
+  {"code", "message", "retryable"}}`, with `url` or `extra` when there is one;
+  the codes are `missing_extra`, `refused_by_robots`, `refused_address`,
+  `fetch_failed` (the only retryable one), `too_large` and `bad_input`. Before,
+  each kind was its own top-level key. `run_extractor` is not ok for a page
+  that drifted, and `heal_extractor` now is not ok when it lost data, as the
+  command line exits 3 for both. `page_markdown` answers `{ok, markdown, url}`
+  rather than bare text.
+- The plain HTTP rung is built on curl_cffi directly rather than through
+  scrapling's fetcher, and decodes the body itself, with the response's
+  charset where the HTML standard puts it. What it sends is unchanged,
+  measured on the wire. The `fetch` extra now needs `scrapling>=0.4.6`, the
+  first whose browsers take `page_setup`, and declares `curl_cffi>=0.15`.
+- `merge` takes what each reader found by its source name, and the order of
+  precedence lives in one registry, `sluicer.declared.readers.READERS`.
+  Adding a reader is one entry there.
+
+### Added
+- Every fetched page is bounded at 16 MiB (`MAX_RESPONSE_BYTES`,
+  `fetch(max_bytes=)`). The HTTP rung stops reading past it after
+  decompression, so a small gzip that inflates to gigabytes costs the bound; a
+  page too heavy raises `ResponseTooLarge` and never climbs. HTML handed to the
+  MCP server directly is held to the same bound.
+- With `allow_private=False`, every redirect hop is judged before it is asked,
+  and the HTTP rung connects only to the addresses it checked, so DNS rebinding
+  reaches nothing new there. The browser rung routes every request a page makes
+  -- images, frames, `fetch()`, websockets, each hop of a redirect -- through the
+  same judgement, and gives pages no service workers. Against a local private
+  server, a real Chromium reached it by six routes without the guard and by
+  none with it (`tests/live/guard_check.py`).
+- `sluicer inspect`: the same reading as `extract`, laid out for a person --
+  what the fetch cost, which vocabularies said something, every record with
+  the source of each field, every summary answer with its source and key.
+- `heal` reports the evidence for every field it kept or moved: how many of
+  the values it was learnt with were found in the new place, and how many the
+  next best place held. Reported, never used to decide.
+- Every climb and every fetched page records how long its rung took.
+- Output schemas for the six MCP tools, from `sluicer.mcp_answers`.
+- CI: the HTTP rung and the browser guard checked against a real curl and a
+  real Chromium; a licence report over the whole installed tree that fails on
+  a licence nobody has read.
+- `docs/why.md`: where Sluicer sits among the tools people reach for, and when
+  another is the better choice.
+
+### Fixed
+- An article quoting "just a moment", or any page carrying Cloudflare's
+  bot-detection script, was taken for a challenge page and bought a browser.
+  A challenge is now a title that is one, or a marker on a page that is not
+  content.
+- The robots.txt cache kept one entry for every site a long-running server was
+  ever sent to. It keeps the 4,096 used last.
+- A page too heavy to fetch ended the command line in a traceback; it now exits
+  2 with a message.
+
 ## 0.2.0 - 2026-09-23
 
 ### Added

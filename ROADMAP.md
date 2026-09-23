@@ -48,6 +48,14 @@ a page drifted. `sluicer heal` learns the page again and says which field moved
 where, keeping the old names. The same three steps are MCP tools. No model
 anywhere, including the compile step. See [extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md).
 
+## Shipped in 0.3.0
+
+**Limits an agent can rely on.** Every page bounded at 16 MiB, every connection
+of the HTTP rung pinned to the addresses it checked, every request a browser
+makes judged before it is made, and every MCP answer carrying `ok`, an error
+code and an output schema. `sluicer inspect` for a person debugging a page, and
+the evidence behind every move `heal` reports.
+
 ## Next
 
 **The proof.** A drift benchmark built from Wayback Machine snapshots of the
@@ -62,6 +70,14 @@ e-commerce split.
 
 ## After that
 
+**More than one listing per extractor.** A page with "featured", "latest" and
+"recommended" rows is three listings; an extractor learns only the most
+promising one today.
+
+**Provenance down to the fragment.** Every field already names its reader and
+key; naming the element or the script block it was read from would let an
+agent show the bytes behind an answer.
+
 **Crawling a site.** Sitemaps, `robots.txt` as a map rather than only a rule, and
 a queue that resumes. Fetching one page is solved; fetching a site politely is
 not, for us.
@@ -74,6 +90,11 @@ says so.
 
 **Extraction with a model.** It would be easier and it would end determinism,
 which is the property everything else here rests on.
+
+**Healing itself above a confidence.** `heal` reports what each move rests on
+and never applies one because a score was high: a wrong move is the silent
+failure an extractor exists to prevent, and the person who reads the evidence
+is the check.
 
 **A managed service.** There is no plan to sell credits. The constraint that no
 feature may require somebody's key is the point, not a stage.

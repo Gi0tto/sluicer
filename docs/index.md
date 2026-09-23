@@ -2,88 +2,158 @@
 
 Turn a web page into structured data. No model, no API key, no bill.
 
-A sluice box separates gold from gravel with water and gravity — no mercury, no
-cyanide, nothing you have to buy. Sluicer treats a web page the same way: it
-recovers your data from the structure already in the page, so the same page
-always gives you the same answer, and a run costs CPU and nothing else.
+Sluicer reads the structured data a web page already declares -- JSON-LD,
+microdata, RDFa, OpenGraph, the Twitter card, HTML's own meta names -- and
+merges it into one record per thing, every value naming the vocabulary and key
+it came from. No model reads the page, so the same page always gives the same
+answer and a run costs CPU. Learn an extractor from a few pages of a template
+and every replay checks the page still keeps to it: a site that changed its
+layout fails loudly, and `heal` says what moved where.
 
 ```bash
 uv tool install 'sluicer[fetch,markdown,mcp]'
 sluicer extract product.html --url https://example.com/product
 ```
 
+It prints, abridged:
+
 ```json
 {
-  "url": "https://example.com/product",
   "summary": {
     "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
-    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" },
-    "language": { "value": "en", "source": "html", "key": "<html lang>" },
-    "type":     { "value": "Product", "source": "jsonld", "key": "@type" },
     "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers" },
     "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers" },
-    "sku":      { "value": "BP-1187", "source": "jsonld", "key": "Product.sku" }
+    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" }
   },
   "records": [
     {
       "type": "Product",
-      "types": ["Product"],
       "fields": {
         "name":   { "value": "Brake pad set", "source": "jsonld" },
-        "sku":    { "value": "BP-1187", "source": "jsonld" },
-        "offers": {
-          "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" },
-          "source": "jsonld"
-        },
+        "offers": { "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" }, "source": "jsonld" },
         "mpn":    { "value": "BP-2210", "source": "microdata" },
         "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph" }
-      },
-      "source": "jsonld"
+      }
     }
   ],
   "sources": ["jsonld", "microdata", "opengraph"]
 }
 ```
 
-That page described the same product three times, in three vocabularies. You get
-one record, a summary that answers the questions you came with, and every value
-still says where it came from.
+That page described one product three times, in three vocabularies. You get one
+record, a summary of the questions you came with, and the provenance of every
+value. `sluicer inspect` prints the same reading laid out for a person.
 
-## Start here
+## How it differs
 
-**[Scoreboard](scoreboard.md)** — the summary measured beside trafilatura,
-metascraper and newspaper4k on a public corpus, losses included, and the one
-command that regenerates it.
+- **From extruct**, which returns each vocabulary as the page wrote it: Sluicer
+  merges them into one record per thing, keeps where each field came from,
+  answers a summary with its reader and key, and resolves JSON-LD references.
+- **From trafilatura and newspaper4k**, which read authors and dates from the
+  visible text: Sluicer reads only what the page declares. It answers less
+  often, and is wrong less often -- see [the numbers](#measured-losses-included).
+- **From a scraper of CSS selectors**: an extractor checks every page it reads
+  against what it learnt, and a page that drifted fails with exit code 3
+  instead of returning nulls for weeks.
+- **From an LLM scraper**: no model, no key, no bill, and the same answer
+  every time.
 
-**[Known limits](known-limits.md)** — where this stops, stated before you find
-out the hard way.
+[Why Sluicer](why.md) has the
+full comparison, and when another tool is the better choice.
 
-**[The field, measured](field-survey.md)** — what else exists, counted rather
-than asserted: 295 live projects, their install counts, and what an install of
-each one costs.
+## Use it
 
-**[Roadmap](roadmap.md)** — what has shipped, what is next, and what was
-considered and declined.
+```bash
+sluicer extract page.html                           # a file, a URL, or - for stdin
+sluicer inspect https://example.com/product         # the same, for a person to read
+sluicer extract listing.html --induce               # rows of a page that declares nothing
+sluicer markdown https://example.com/article        # the readable content
 
-**[Changelog](changelog.md)** — dates are the day the work landed. Anything not
-listed there did not happen.
+sluicer compile page1.html page2.html -o shop.json  # learn an extractor
+sluicer run shop.json https://shop.example/c?p=7    # replay it, checked
+sluicer heal shop.json https://shop.example/c -o shop.json  # after a redesign
+```
 
-**[Contributing](contributing.md)** and **[Security](security.md)**.
+Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
+for a page that broke its extractor or a heal that lost a field. A drifted page
+never exits 0.
 
-## What it reads
+```python
+import sluicer
 
-Eight vocabularies, in a stated order of precedence: JSON-LD, microdata,
-microformats (on request), RDFa Lite, Dublin Core, OpenGraph — including the protocol's own
-`article:`, `book:`, `profile:`, `video:` and `music:` namespaces — the Twitter
-card, and last, the metadata names HTML itself defines (`author`,
-`description`, `keywords`), which arrive marked `"source": "html"` rather than
-borrowed from a vocabulary that never claimed them. Values
-fold across vocabularies and never within one, so the same product described
-twice becomes one record while two products on a listing page stay two.
+result = sluicer.extract(html, url="https://example.com/p")
+print(result.summary["title"].value, "via", result.summary["title"].key)
+```
 
-When a page declares nothing at all, `induce=True` finds the shape the page
-repeats and returns one record per repetition, every field marked
-`"source": "induced"` so an inference is never mistaken for a declaration.
+For an agent: `claude mcp add sluicer -- sluicer-mcp`, or install the repository
+as a Claude Code plugin with `/plugin install`. Six tools -- `extract_declared`,
+`page_markdown`, `fetch_page`, `compile_extractor`, `run_extractor`,
+`heal_extractor` -- each answering with `ok`, which is true exactly when the
+answer can be used as it is, and an output schema. The server fetches nothing
+on `localhost`, a private network or a cloud's metadata endpoint -- redirects
+and a browser's requests included -- unless started with
+`SLUICER_ALLOW_PRIVATE=1`.
 
-The full feature list, the fetch ladder and the MCP server are described in the
-[project README](https://github.com/Gi0tto/sluicer#readme).
+## Install
+
+```bash
+uv pip install sluicer                          # the library and the command: lxml and click
+uv pip install 'sluicer[fetch,markdown,mcp]'    # fetching, markdown, the MCP server
+uv pip install 'sluicer[microformats]'          # microformats2, off by default
+uvx --from 'sluicer[fetch]' scrapling install   # the browser, once, for the browser rung
+```
+
+Without a browser, plain HTTP still works, and a page that wanted one comes back
+from the HTTP rung with the failed climb recorded.
+
+## Measured, losses included
+
+The summary beside the tools people use for the same job, on the 511 annotated
+test pages of the public WCXB corpus. Hit rate is right answers over the pages
+that carry a label; an invention is an answer on a page whose label is empty.
+
+| | title | author | date | dates invented | seconds | packages |
+|---|---|---|---|---|---|---|
+| **sluicer 0.2.0** | 0.725 | 0.521 | 0.536 | **8** | **1.6** | **3** |
+| trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.2 | 17 |
+| newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
+| metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.5 | 125 |
+
+Sluicer loses on authors and dates, which the others also read from the visible
+text. It invents least: when it answers a date it is right 92% of the time,
+against 46% for trafilatura. And WCXB strips every `<script>`, so JSON-LD, the
+vocabulary Sluicer reads first, is not measured here at all. The method, every
+outcome and the command that regenerates the table are in
+[the scoreboard](scoreboard.md).
+
+## Principles
+
+- **No LLM call, anywhere in the path.** A test fails the build if a model
+  client is ever imported.
+- **No paid API.** A feature that needs somebody's key does not ship.
+- **Deterministic.** The same page always gives the same answer, which is what
+  makes the scoreboard reproducible.
+- **Honest about failure.** A page that cannot be read says so, and nothing
+  returns a plausible answer where the truth was unavailable.
+
+## Documentation
+
+[Why Sluicer](why.md) ·
+[Extractors](extractors.md) ·
+[Scoreboard](scoreboard.md) ·
+[Known limits](known-limits.md) ·
+[Design notes](design-notes.md) ·
+[Examples](https://github.com/Gi0tto/sluicer/tree/main/examples) ·
+[Roadmap](roadmap.md) ·
+[Changelog](changelog.md) ·
+[Security](security.md) ·
+[Contributing](contributing.md)
+
+## Licence
+
+MIT, with no vendored code. The base install needs `lxml` and `click`, both
+BSD-3-Clause. The extras pull a wider tree that is not all permissive: `tld` is
+tri-licensed MPL-1.1, GPL-2.0-only or LGPL-2.1-or-later, `orjson` is MPL-2.0
+alongside Apache-2.0 or MIT, and `certifi` is MPL-2.0. CI lists every licence
+in that tree and fails on one nobody has read; see
+[the licence notes](known-limits.md).

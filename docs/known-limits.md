@@ -113,17 +113,15 @@ now turned off, and a local server confirmed neither reaches it. If you change
 how a rung is built, ask a real server what it saw.
 
 **The robots answer is believed for a day.** A site that adds a rule is noticed
-within twenty-four hours, not immediately, and the cache is unbounded in the
-number of hosts it remembers. On a long-running server that is a slow leak and a
-slow update; both are acceptable today and neither is measured.
+within twenty-four hours, not immediately. The process remembers the answers of
+the 4,096 sites it used most recently (`ROBOTS_CACHE_HOSTS`); a site pushed out
+is only asked again.
 
-**A redirect is checked where it landed, after it landed.** A page whose
+**Robots.txt is asked where a redirect landed, after it landed.** A page whose
 redirects ended on another host is refused if that host's robots.txt says no,
-and with `allow_private=False` one that ended on a private address is refused
-too -- but the request has already been made by then. Plain HTTP refuses to
-follow a redirect into a private address on its own; the browser rung does not,
-so behind `allow_private=False` a browser can still be steered into one by a
-redirect, and only the answer is withheld.
+but the hops in between were requested without asking theirs. Addresses are
+stricter: with `allow_private=False` every hop is judged before it is requested,
+by both rungs (see the MCP section below).
 
 **`Crawl-delay` is read by nobody.** Sluicer fetches one page when you ask for
 one page, so there is nothing yet to pace, and that stops being true the day it
@@ -138,10 +136,14 @@ happen to a caller who never asked for it.
 
 ## In fetching
 
-**A challenge is detected by matching words against the whole page.** A page
-whose prose legitimately contains "just a moment" climbs a rung it did not need
-to. The cost is one wasted browser fetch and a reason string that names the
-marker it matched, so the mistake is visible rather than silent.
+**A challenge is detected by words, on a page that is not content.** A title
+that is the challenge ("Just a moment...") counts on any page; a marker anywhere
+else counts only on a page that declared nothing about a thing and carries less
+than 1,500 characters of text. Until 0.3.0 any marker anywhere counted, and an
+article quoting "just a moment", or any page carrying Cloudflare's bot-detection
+script, bought a browser it did not need. A short challenge page that declares a
+record would now be missed; none has been seen. The reason string names the
+marker, so a mistake either way is visible.
 
 **A legitimately empty body is treated as a failed rung.** A site that answers
 200 with nothing costs a climb. A response with no HTML is not a page, and the
@@ -158,10 +160,10 @@ could pass for a page.
 **A redirect to a login page is not detected as a refusal.** A refusal status, a
 challenge page and a skeletal body are.
 
-**The fetch layer holds bytes and passes text.** `load()` takes bytes so a
-document's own encoding wins, and the adapter still hands it
-`response.html_content`, which scrapling has already decoded. Deciding which of
-the two is more trustworthy needs a measurement nobody has taken yet.
+**The browser decodes its own pages.** The HTTP rung decodes the bytes itself,
+with the sniffing `load()` uses and the response's own charset where the HTML
+standard puts it, between a byte order mark and the page's declaration. The
+browser rungs hand over the DOM the browser built, decoded by the browser.
 
 **The same page is parsed twice on a successful URL fetch**, once by the ladder
 to decide whether to climb and once by the caller. Deterministic, so the cost is
@@ -169,41 +171,54 @@ time rather than correctness.
 
 ## In the MCP server
 
-**The address filter is a filter.** The server refuses addresses off the public
-internet before a request and after its redirects, which stops an agent being
-told to read `http://localhost:8080` or a cloud metadata endpoint. It does not
-stop DNS rebinding, and a redirect the browser rung follows into a private
-address has been requested by the time it is refused. SECURITY.md says so too.
+**The address filter covers every request, and the browser's names are its
+own.** The server refuses addresses off the public internet before any
+request, and both rungs judge every address a redirect names before asking it.
+The HTTP rung connects only to the addresses it checked, so DNS rebinding
+reaches nothing there. The browser rung routes every request the page makes --
+images, frames, `fetch()`, websockets -- through the same judgement and never
+lets the browser follow a redirect itself, and pages get no service workers,
+which fetch outside any route. What remains: the browser resolves names in its
+own network stack, so a name that answers differently between the check and the
+connection is reached from there. SECURITY.md says so too.
 
-**What reaches an agent is cut, what the server holds is not.** `fetch_page`
-returns at most 200,000 characters and says when it cut; the fetch underneath
-has no size limit, and a 200 MB response was measured holding 1.14 GB.
+**A page is bounded at 16 MiB, and what reaches an agent at 200,000
+characters.** The HTTP rung stops reading past `MAX_RESPONSE_BYTES`, after
+decompression, so a gzip that inflates to gigabytes costs the bound; before
+0.3.0 a 200 MB response was measured holding 1.14 GB. The browser rungs are held
+to the same bound only once the page is loaded: the browser's own memory is the
+browser's.
 
 **Every error answer has `is_error` false.** A missing extra, a robots
-refusal, a refused address, a failed fetch and a bad input come back as results
-carrying `error` and one of `missing_extra`, `refused_by_robots`,
-`refused_address`, `fetch_failed` or `bad_input`, not as protocol failures, so
-an agent that branches only on that flag will not notice. The alternative is
+refusal, a refused address, a failed fetch, a page too heavy and a bad input
+come back as results, `{"ok": false, "error": {"code", "message",
+"retryable"}}`, not as protocol failures, so an agent that branches only on the
+protocol's flag will not notice; one that checks `ok` will. The alternative is
 worse: a raised exception becomes `Error executing tool fetch_page` and the
 sentence that says what happened is discarded by the SDK. Measured against mcp
 2.2.0.
 
-**Nothing validates the shape a tool returns.** mcp 2.2.0 passes a tool's
-mapping through as `structured_content` but publishes no output schema for it,
-so the contract between us and an agent is prose, not schema.
+**The output schemas stop at the extractor.** Every tool publishes an output
+schema built from `sluicer.mcp_answers`, and `ok` is its one required key.
+Records, fields and summary answers are typed; a field's value is any JSON, as
+the page declared it, and the extractor object is a plain mapping whose shape
+is documented in [extractors](extractors.md), not in the schema.
 
 **The six tools are pinned by set equality**, so a seventh cannot appear
 unnoticed.
 
 ## In the shape of the code
 
-**Adding a reader touches three places.** The reader names are written into
-`merge`'s keyword signature, into the fold's source labels, and into the tuple
-in `api`. `merge` takes eight parameters, and each new reader is a breaking
-change to its signature plus edits in two modules; microformats also has to be
-threaded through as a flag, since it is optional. The seam belongs one level
-up, as a sequence of named findings or a registry. Worth moving before 1.0,
-while few depend on it.
+**A new reader answers summary questions only once the summary is taught.**
+Adding a vocabulary is one entry in `sluicer.declared.readers.READERS`: its
+name, its read function, whether it describes things or the page, and the
+`extract` flag that turns it on if it is optional. The order of that tuple is
+the precedence, and the fold, the `sources` list and `ABOUT_A_THING` all read
+it. The summary still asks the document-level vocabularies by name, since
+`og:title` and `twitter:title` are questions about what each one says, so a
+new document-level reader fills records but answers no summary question until
+`sluicer.summary` knows its keys. Until 0.3.0, a reader was written into three
+places and `merge` took eight parameters.
 
 **A hand-built `Record` can be silently inert.** `Record(type="Product")`
 constructed by hand gets an empty `types`, and the fold reads `types`, so that

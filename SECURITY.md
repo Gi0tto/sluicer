@@ -39,13 +39,17 @@ Before any request it reads the host the way the client will -- an octal,
 hex or percent-encoded host, a backslash before an `@`, an IPv4 address
 inside an IPv6 one -- resolves it, and refuses `localhost`, `.local` and
 `.internal` names and any address that is not on the public internet:
-loopback, private ranges, link-local, `169.254.169.254` among them. After the
-fetch it refuses a page whose redirects ended on such an address. What it does
-not stop, and cannot from inside a library: a name that resolves differently
-at connect time than it did a moment earlier (DNS rebinding), and a browser
-following a redirect into your network, where only the answer is withheld and
-the request has already been made. Set `SLUICER_ALLOW_PRIVATE=1` to turn the
-filter off.
+loopback, private ranges, link-local, `169.254.169.254` among them. Every
+redirect is judged the same way before it is followed. The HTTP rung then
+connects only to the addresses it checked, so a name that resolves differently
+the second time (DNS rebinding) reaches nothing new. The browser rung sends
+every request the page makes -- images, frames, `fetch()`, websockets, and each
+hop of a redirect -- through the same judgement, and gives pages no service
+workers. What it does not stop, and cannot from inside a library: the browser
+resolves names itself, so DNS rebinding is still possible through the browser
+rung. `tests/live/guard_check.py` shows a real Chromium reaching a private
+server by six routes without the guard and by none with it. Set
+`SLUICER_ALLOW_PRIVATE=1` to turn the filter off.
 
 So: run the MCP server where you would be willing to run `curl` with a URL
 somebody else chose. If that is not acceptable in your environment, put the
@@ -57,7 +61,9 @@ It can lie. Structured data is written by the site, so a record Sluicer returns
 says what the page claimed, not what is true. Every field carries the reader
 that produced it precisely so you can weigh it.
 
-It can be large. There is no size limit on a fetch or on input; a deliberately
-enormous document will use memory in proportion (measured on 2026-09-22: a
-200 MB response held 1.14 GB). The MCP server cuts what it hands an agent at
-200,000 characters, which bounds the agent's context, not the server's memory.
+It can be large. A fetched page is bounded at 16 MiB (`MAX_RESPONSE_BYTES`):
+the HTTP rung stops reading there, after decompression, and a browser's page
+heavier than that is refused once loaded. Before 0.3.0 there was no bound, and a
+200 MB response was measured holding 1.14 GB. HTML handed to the MCP server
+directly is held to the same bound. What it hands an agent is cut at 200,000
+characters, which bounds the agent's context.
