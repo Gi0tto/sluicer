@@ -39,11 +39,15 @@ def _furniture(parent: HtmlElement) -> bool:
     """True when ``parent`` is, or sits inside, one of the page's chrome regions."""
     node: HtmlElement | None = parent
     while node is not None:
-        tag = node.tag
-        if isinstance(tag, str) and tag.lower() in _CHROME:
+        if _chrome(node):
             return True
         node = node.getparent()
     return False
+
+
+def _chrome(element: HtmlElement) -> bool:
+    tag = element.tag
+    return isinstance(tag, str) and tag.lower() in _CHROME
 
 
 def _member(child: HtmlElement) -> bool:
@@ -86,8 +90,17 @@ def _same_shape_siblings(parent: HtmlElement) -> list[list[HtmlElement]]:
 def repeating_groups(tree: HtmlElement, minimum: int = 3) -> list[list[HtmlElement]]:
     """Return groups of same-shaped siblings, the most promising first."""
     found: list[tuple[int, int, list[HtmlElement]]] = []
+    # Decided once per element, from its parent's answer, since the walk meets
+    # a parent before its children. Asked of every element by climbing to the
+    # root, a listing under two thousand wrappers took three seconds of an
+    # 85 KB page, and the climb was all of it.
+    furniture: dict[HtmlElement, bool] = {}
     for order, parent in enumerate(tree.iter()):
-        if _furniture(parent):
+        above = furniture.get(parent.getparent())
+        furniture[parent] = (
+            _furniture(parent) if above is None else above or _chrome(parent)
+        )
+        if furniture[parent]:
             continue
         for members in _same_shape_siblings(parent):
             if len(members) >= minimum:

@@ -250,3 +250,33 @@ def test_rows_of_another_class_between_the_rows_stay_out_of_the_group():
         assert len({member.get("class") for member in group}) == 1, group
     stories = next(group for group in groups if group[0].get("class") == "athing")
     assert len(stories) == 4
+
+
+def test_a_listing_under_two_thousand_wrappers_is_found_in_a_moment():
+    """Found profiling why the bounded-output property was slow on deep pages.
+
+    Whether an element sits in the page's furniture was decided by climbing
+    from it to the root, once for every element: 3,000 rows under 2,000
+    wrappers took 2.9 seconds of an 85 KB page.
+    """
+    import time
+
+    from sluicer.document import load
+
+    rows = "<li><a href=/p>x</a></li>" * 3000
+    doc = load("<div>" * 2000 + "<ul>" + rows)
+
+    started = time.perf_counter()
+    groups = repeating_groups(doc.tree)
+
+    assert time.perf_counter() - started < 0.5
+    assert len(groups[0]) == 3000
+
+
+def test_a_listing_deep_inside_the_furniture_is_still_furniture():
+    from sluicer.document import load
+
+    rows = "<li><a href=/p>x</a></li>" * 3
+    doc = load("<body><nav>" + "<div>" * 300 + "<ul>" + rows + "</ul></nav></body>")
+
+    assert repeating_groups(doc.tree) == []
