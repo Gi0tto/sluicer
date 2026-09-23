@@ -149,8 +149,13 @@ from announcing yourself to hiding is a change of character, and it should not
 happen to a caller who never asked for it.
 
 **Normalisation reads English and ISO, and refuses what is ambiguous.** A date
-is read from ISO 8601 and its common variants, RFC 2822, and English month
-names; "16 juin 2025" is not read. An all-number date other than ISO's, an
+is read from ISO 8601 and its common variants, RFC 2822, JavaScript's
+`Date.toString()`, and English month names before or after the day or after
+the year; "16 juin 2025" is not read. Of the 669 dates the benchmarks' pages
+declare, 6 are not read, each on purpose: two all-number dates
+(`08/21/2025`), two six-digit ones (`240221`) and a date with a time glued to
+it (`Jan 24, 2026T00:00:00-05:00`), twice. None was in another language, but
+the pages are nearly all English, so that says little about other languages. An all-number date other than ISO's, an
 amount whose only separator has exactly three digits after it (`1,299`), and a
 bare `$`, `¥` or `kr` have no normalised value, since each means two things
 somewhere. Indian digit grouping (`12,34,567`) is refused too. The currency

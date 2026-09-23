@@ -93,6 +93,14 @@ _ISO = re.compile(
 )
 _MONTH_FIRST = re.compile(r"([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})")
 _DAY_FIRST = re.compile(r"(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})")
+# PubMed writes a citation's date year first: "2023 Jan 7".
+_YEAR_FIRST = re.compile(r"(\d{4})\s+([A-Za-z]{3,9})\.?\s+(\d{1,2})")
+# The month, day, year, time and offset of JavaScript's Date.toString(), the
+# weekday already taken off: "Oct 24 2025 03:22:33 GMT+0000 (GMT)".
+_JAVASCRIPT = re.compile(
+    r"([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})"
+    r"\s+GMT([+-]\d{4})(?:\s+\([^()]*\))?"
+)
 _WEEKDAY = re.compile(r"^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+", re.I)
 
 
@@ -127,9 +135,11 @@ def iso_date(text: str) -> str | None:
 
     Read: ISO 8601 and its common variants (a space for the ``T``, an offset
     without a colon, a trailing ``UTC``), RFC 2822 (``Tue, 03 Jun 2025 10:00:00
-    GMT``), and English month names either side of the day (``Jun 16, 2025``,
-    ``16 June 2025``). Not read: all-number forms other than ISO's, since
-    ``03/04/2025`` is March in one country and April in another.
+    GMT``), English month names either side of the day (``Jun 16, 2025``,
+    ``16 June 2025``) or after the year, as PubMed writes a citation's date
+    (``2023 Jan 7``), and JavaScript's ``Date.toString()`` (``Fri Oct 24 2025
+    03:22:33 GMT+0000 (GMT)``). Not read: all-number forms other than ISO's,
+    since ``03/04/2025`` is March in one country and April in another.
     """
     text = text.strip()
     iso = _ISO.fullmatch(text)
@@ -143,14 +153,31 @@ def iso_date(text: str) -> str | None:
         if parsed is not None:
             return parsed.isoformat()
     words = _WEEKDAY.sub("", text)
-    for pattern, month_at, day_at in ((_MONTH_FIRST, 1, 2), (_DAY_FIRST, 2, 1)):
+    javascript = _JAVASCRIPT.fullmatch(words)
+    if javascript:
+        return _from_javascript(javascript)
+    for pattern, year_at, month_at, day_at in (
+        (_MONTH_FIRST, 3, 1, 2),
+        (_DAY_FIRST, 3, 2, 1),
+        (_YEAR_FIRST, 1, 2, 3),
+    ):
         match = pattern.fullmatch(words)
         if match:
             month = _MONTHS.get(match.group(month_at).lower())
             if month is None:
                 return None
-            return _day(int(match.group(3)), month, int(match.group(day_at)))
+            return _day(int(match.group(year_at)), month, int(match.group(day_at)))
     return None
+
+
+def _from_javascript(match: re.Match[str]) -> str | None:
+    """A ``Date.toString()``: its moment, at the offset it was written in."""
+    name, day, year, hour, minute, second, zone = match.groups()
+    month = _MONTHS.get(name.lower())
+    date = _day(int(year), month, int(day)) if month else None
+    if date is None:
+        return None
+    return _at(date, hour, minute, second, zone)
 
 
 def _from_iso(match: re.Match[str]) -> str | None:
@@ -158,6 +185,13 @@ def _from_iso(match: re.Match[str]) -> str | None:
     date = _day(int(year), int(month), int(day))
     if date is None or hour is None:
         return date
+    return _at(date, hour, minute, second, zone)
+
+
+def _at(
+    date: str, hour: str, minute: str, second: str | None, zone: str | None
+) -> str | None:
+    """``date`` at a time of day, with the offset it was written in, if any."""
     try:
         moment = datetime.time(int(hour), int(minute), int(second or 0))
     except ValueError:

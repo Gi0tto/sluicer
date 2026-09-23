@@ -2,6 +2,16 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Added
+- Two more ways of writing a date are read into ISO 8601: the year first, as
+  PubMed writes a citation's date (`2023 Jan 7`), and JavaScript's
+  `Date.toString()`, which one page wrote into its JSON-LD (`Fri Oct 24 2025
+  03:22:33 GMT+0000 (GMT)`), at its offset. Of the 669 dates the benchmarks'
+  pages declare, the ones not read go from 11 to 6, all six refused on
+  purpose.
+
 ## 0.4.0 - 2026-09-23
 
 ### Changed

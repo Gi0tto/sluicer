@@ -20,6 +20,15 @@ from sluicer.normalise import ISO_4217, amount, currency, iso_date
         ("16 June 2025", "2025-06-16"),
         ("Monday, 3 March 2025", "2025-03-03"),
         ("Tue, 03 Jun 2025 10:00:00 GMT", "2025-06-03T10:00:00+00:00"),
+        # PubMed's citation_publication_date, seen on pages as served:
+        ("2023 Jan 7", "2023-01-07"),
+        ("2024 Jun 30", "2024-06-30"),
+        # JavaScript's Date.toString(), seen in a page's JSON-LD:
+        ("Fri Oct 24 2025 03:22:33 GMT+0000 (GMT)", "2025-10-24T03:22:33+00:00"),
+        (
+            "Fri Oct 24 2025 05:22:33 GMT+0200 (Central European Summer Time)",
+            "2025-10-24T05:22:33+02:00",
+        ),
     ],
 )
 def test_a_date_is_read_into_iso_8601(written, meant):
@@ -35,6 +44,12 @@ def test_a_date_is_read_into_iso_8601(written, meant):
         "2026-01-01T25:00:00",
         "Jan 24, 2026T00:00:00-05:00",  # seen on a page as served
         "Mayo 3, 2025",
+        "2023 Jan 32",
+        "Thu, 08/21/2025 - 13:40",  # seen on a page as served; all numbers
+        "Fri Oct 24 2025 03:22:33",  # no offset, so no moment
+        "Fri Oct 24 2025 03:22:33 GMT+2500",
+        "Fri Feb 30 2025 03:22:33 GMT+0000",
+        "Fri Okt 24 2025 03:22:33 GMT+0000",
         "soon",
         "",
     ],
