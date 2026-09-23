@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from sluicer.declared.tdmrep import Reservation
+
 SEVERITIES = ("error", "warning", "info")
 """``error``: the page breaks a rule its documentation states -- a required
 property missing, a value in a form refused. ``warning``: it could do what the
@@ -133,6 +135,8 @@ class Site:
     robots: SiteFile
     llms_txt: SiteFile
     llms_full_txt: SiteFile
+    tdmrep: SiteFile | None = None
+    """TDMRep's ``/.well-known/tdmrep.json``, when it was read."""
 
 
 @dataclass(frozen=True)
@@ -168,6 +172,9 @@ class Audit:
     ``robots_txt`` then says what the site answered for it, its text left out,
     and ``other_agents`` every ``User-agent`` it names that no agent here
     answers to.
+    ``tdm`` is the page's TDMRep reservation -- from the site's tdmrep.json
+    when the site was read, and the page's own meta tags -- or None when
+    nothing declares one.
     ``not_checked`` says, in a sentence each, what was not checked and why, so
     that a silence is never taken for a pass. ``errors``, ``warnings`` and
     ``notes`` count the findings of each severity, everywhere.
@@ -181,6 +188,7 @@ class Audit:
     other_agents: list[str] = field(default_factory=list)
     llms_txt: LlmsTxt | None = None
     llms_full_txt: LlmsTxt | None = None
+    tdm: Reservation | None = None
     not_checked: list[str] = field(default_factory=list)
     errors: int = 0
     warnings: int = 0

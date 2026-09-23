@@ -225,6 +225,14 @@ def test_each_tool_error_arrives_with_its_status(client, monkeypatch, absent):
     answers["too_large"] = http.post(
         "/v1/tools/extract_declared", json={"html_or_url": "<p>" + "x" * 200}
     )
+    answers["tdm_reserved"] = http.post(
+        "/v1/tools/extract_declared",
+        json={
+            "html_or_url": '<html><head><meta name="tdm-reservation" content="1">'
+            "</head></html>",
+            "respect_tdm": True,
+        },
+    )
     absent("trafilatura")
     answers["missing_extra"] = http.post(
         "/v1/tools/page_markdown", json={"html_or_url": PAGE}
@@ -571,6 +579,7 @@ def test_the_openapi_document_says_what_each_tool_takes_and_answers(client):
             "413",
             "415",
             "421",
+            "451",
             "500",
             "501",
             "502",

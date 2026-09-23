@@ -74,6 +74,8 @@ TOOL_STATUS: dict[str, int] = {
     "too_large": 413,
     "missing_extra": 501,
     "fetch_failed": 502,
+    # RFC 7725's Unavailable For Legal Reasons: the rights holder reserved it.
+    "tdm_reserved": 451,
 }
 """The status each of the tools' error codes is sent with.
 

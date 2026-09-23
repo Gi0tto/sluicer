@@ -389,7 +389,7 @@ class Rung:
         return Fetched(url=url, html=body, status=status, rung="http")
 
 
-def test_the_three_files_are_read_from_the_sites_root():
+def test_the_four_files_are_read_from_the_sites_root():
     rung = Rung(
         {
             "https://example.com/robots.txt": (200, "User-agent: *\nAllow: /\n"),
@@ -403,6 +403,7 @@ def test_the_three_files_are_read_from_the_sites_root():
         "https://example.com/robots.txt",
         "https://example.com/llms.txt",
         "https://example.com/llms-full.txt",
+        "https://example.com/.well-known/tdmrep.json",
     ]
     assert read_back.robots.text == "User-agent: *\nAllow: /\n"
     assert read_back.llms_txt.found and read_back.llms_txt.text == "# Example\n"
@@ -428,7 +429,7 @@ def test_without_robots_obedience_everything_is_fetched():
 
     read_site(URL, rung=rung, obey_robots=False)
 
-    assert len(rung.asked) == 3
+    assert len(rung.asked) == 4
 
 
 def test_an_unreadable_robots_txt_keeps_the_llms_files_unfetched():
@@ -499,4 +500,6 @@ def test_an_empty_llms_txt_has_no_name():
     ],
 )
 def test_a_robots_path_pattern_matches_as_rfc_9309_says(pattern, target, matches):
-    assert crawlers._matches(pattern, target) is matches
+    from sluicer.pathmatch import matches as matched
+
+    assert matched(pattern, target) is matches

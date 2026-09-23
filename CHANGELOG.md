@@ -133,6 +133,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   picked: on Google's page-per-variant example, which prices one variant and
   links the rest, the group has no price. On Google's own example the summary
   had only title, brand and type.
+- `--respect tdm` on every command that reads a page, `crawl` and `batch`
+  included (`respect_tdm` in Python and on the MCP tools `extract_declared`,
+  `page_markdown` and `crawl_site`): a page whose text and data mining rights
+  TDMRep reserves is refused, an error `tdm_reserved` (HTTP 451 at the HTTP
+  door, RFC 7725's Unavailable For Legal Reasons), never its data. The site's
+  `/.well-known/tdmrep.json` is read -- once per site in a crawl, through its
+  robots.txt and its delay -- then the `TDM-Reservation` header, then the
+  meta tag, each superseding the earlier as the report's section 6.7 says; in
+  the file the first rule that matches wins, not the longest. The audit
+  reports the page's reservation as `tdm`. `sluicer.declared.tdmrep` and
+  `sluicer.pathmatch`, robots.txt's path patterns in one matcher for every
+  file that writes them.
 - `--at DATE` on every command that reads a URL, and
   `sluicer.fetch.archive.fetch_archived`: the page as the Wayback Machine
   captured it nearest to the date, in its `id_` form, so a reading is

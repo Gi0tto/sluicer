@@ -36,6 +36,8 @@ from sluicer.audit.report import (
     SiteFile,
 )
 from sluicer.declared.readers import BY_NAME
+from sluicer.declared.rights import read_rights
+from sluicer.declared.tdmrep import read_tdmrep, reservation
 from sluicer.document import load
 
 __all__ = [
@@ -124,6 +126,12 @@ def audit(
         )
     else:
         _site(result, url, site)
+    rules = read_tdmrep(site.tdmrep.text) if site and site.tdmrep else []
+    if isinstance(page, Extraction):
+        rights = page.rights
+    else:
+        rights = read_rights(load(page, url=url))
+    result.tdm = reservation(rules, url, rights)
     findings = result.findings()
     result.errors = sum(1 for finding in findings if finding.severity == "error")
     result.warnings = sum(1 for finding in findings if finding.severity == "warning")

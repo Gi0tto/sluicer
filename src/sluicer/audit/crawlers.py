@@ -25,11 +25,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from typing import Any
-from urllib.parse import urlsplit
 
 from sluicer.audit.report import CrawlerVerdict, SiteFile
 from sluicer.declared.headers import stated
 from sluicer.extras import import_extra
+from sluicer.pathmatch import matches, target_of
 
 _OPENAI = "https://developers.openai.com/api/docs/bots"
 _ANTHROPIC = (
@@ -360,7 +360,7 @@ def verdicts(url: str, robots: SiteFile) -> tuple[list[CrawlerVerdict], list[str
     parser = _parse(text) if text else None
     known = {agent.token.lower() for agent in AGENTS}
     groups = _groups(text)
-    target = _target(url)
+    target = target_of(url)
     found = [
         CrawlerVerdict(
             agent=agent.token,
@@ -439,12 +439,6 @@ def _groups(text: str) -> dict[str, list[tuple[str, str]]]:
     return rules
 
 
-def _target(url: str) -> str:
-    """The part of ``url`` a robots.txt path is matched against."""
-    parts = urlsplit(url)
-    return (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
-
-
 def _preferences(
     groups: dict[str, list[tuple[str, str]]], group: str | None, target: str
 ) -> dict[str, dict[str, str]]:
@@ -465,7 +459,7 @@ def _preferences(
             if key != label:
                 continue
             path, statement = _path_and_statement(value)
-            if not _matches(path, target):
+            if not matches(path, target):
                 continue
             if len(path) > best:
                 best, chosen = len(path), [statement]
@@ -497,34 +491,6 @@ def _path_and_statement(value: str) -> tuple[str, str]:
         if char in " \t":
             return value[:index], value[index + 1 :].strip()
     return value, ""
-
-
-def _matches(path: str, target: str) -> bool:
-    """Whether a robots.txt path pattern matches ``target``, RFC 9309 2.2.3.
-
-    ``*`` is any run of characters and a final ``$`` ends the path; anything
-    else matches itself, as a prefix of ``target``. Matched with two pointers,
-    not a regular expression: a pattern written as ``/*a*a*a*a*b$`` took a
-    backtracking regular expression 13 seconds against a 300-character path,
-    and a site's robots.txt is anyone's to write.
-    """
-    anchored = path.endswith("$")
-    pattern = path[:-1] if anchored else path + "*"
-    at = seen = 0
-    star = mark = -1
-    while seen < len(target):
-        if at < len(pattern) and pattern[at] == "*":
-            star, mark = at, seen
-            at += 1
-        elif at < len(pattern) and pattern[at] == target[seen]:
-            at += 1
-            seen += 1
-        elif star != -1:
-            at, mark = star + 1, mark + 1
-            seen = mark
-        else:
-            return False
-    return all(char == "*" for char in pattern[at:])
 
 
 def _parse(text: str) -> Any:

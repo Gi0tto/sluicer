@@ -25,6 +25,7 @@ ErrorCode = Literal[
     "fetch_failed",
     "too_large",
     "bad_input",
+    "tdm_reserved",
 ]
 """What a whole tool call can fail with; the HTTP door has a status for each."""
 
@@ -35,6 +36,7 @@ PageErrorCode = Literal[
     "fetch_failed",
     "too_large",
     "bad_input",
+    "tdm_reserved",
     "redirected_off_site",
     "crawl_delay_too_long",
 ]
@@ -255,6 +257,14 @@ class LlmsTxtAnswer(TypedDict):
     findings: list[FindingAnswer]
 
 
+class TdmAnswer(TypedDict):
+    """A page's TDMRep reservation, and which declaration last said it."""
+
+    reserved: bool
+    policy: str | None
+    source: str
+
+
 class AuditAnswer(TypedDict, total=False):
     ok: Required[bool]
     error: ErrorDetail
@@ -266,6 +276,7 @@ class AuditAnswer(TypedDict, total=False):
     other_agents: list[str]
     llms_txt: LlmsTxtAnswer | None
     llms_full_txt: LlmsTxtAnswer | None
+    tdm: TdmAnswer | None
     not_checked: list[str]
     errors: int
     warnings: int

@@ -122,6 +122,13 @@ _fetch_options = [
         help="The address a file or stdin came from, to resolve its links.",
     ),
     click.option(
+        "--respect",
+        type=click.Choice(["tdm"]),
+        multiple=True,
+        help="Refuse a page whose rights are reserved: tdm reads TDMRep's "
+        "tdmrep.json, headers and meta tags.",
+    ),
+    click.option(
         "--at",
         metavar="DATE",
         help="Read a URL as the Wayback Machine captured it nearest to DATE "
@@ -137,6 +144,53 @@ def _with_fetch_options(command: click.decorators.FC) -> click.decorators.FC:
 
 
 def _read_source(
+    source: str,
+    stealth: bool = False,
+    no_robots: bool = False,
+    base_url: str | None = None,
+    at: str | None = None,
+    respect: tuple[str, ...] = (),
+) -> tuple[str | bytes, str | None, Fetched | None]:
+    """``_read_page``, then refused when ``respect`` names a reservation the
+    page makes: its text and data mining rights, for ``tdm``."""
+    html, url, fetched = _read_page(source, stealth, no_robots, base_url, at)
+    if "tdm" in respect:
+        _refuse_reserved(html, url, fetched, obey_robots=not no_robots)
+    return html, url, fetched
+
+
+def _refuse_reserved(
+    html: str | bytes, url: str | None, fetched: Fetched | None, obey_robots: bool
+) -> None:
+    """Exit with ``COULD_NOT_READ`` when TDMRep reserves the page's TDM rights.
+
+    The site's tdmrep.json is read for a page fetched live; an archived
+    capture and a file are judged by their own headers and meta tags.
+    """
+    from sluicer.declared.headers import lowered, read_header_rights
+    from sluicer.declared.rights import read_rights
+    from sluicer.declared.tdmrep import read_tdmrep, reservation
+    from sluicer.document import load
+
+    headers = lowered(fetched.headers) if fetched is not None else {}
+    rights = read_rights(
+        load(html, url=url), read_header_rights(headers) if headers else None
+    )
+    rules = []
+    if fetched is not None and fetched.archived is None and url:
+        from sluicer.fetch.site import read_tdmrep_file
+
+        rules = read_tdmrep(read_tdmrep_file(url, obey_robots=obey_robots).text)
+    found = reservation(rules, url, rights)
+    if found is not None and found.reserved:
+        policy = f", policy {found.policy}" if found.policy else ""
+        _fail(
+            f"{url or 'The page'} reserves its text and data mining rights "
+            f"(TDMRep, by its {found.source}{policy}), and --respect tdm was given."
+        )
+
+
+def _read_page(
     source: str,
     stealth: bool = False,
     no_robots: bool = False,
@@ -236,10 +290,11 @@ def extract(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    respect: tuple[str, ...],
     at: str | None,
 ) -> None:
     """Read the structured data a URL, a file or stdin declares."""
-    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at)
+    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at, respect)
     try:
         result = extract_html(
             html,
@@ -296,6 +351,7 @@ def inspect(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    respect: tuple[str, ...],
     at: str | None,
 ) -> None:
     """Show, for a person, what a page declares and where each answer came from.
@@ -305,7 +361,7 @@ def inspect(
     the source of each field, and every summary answer with its source and
     key. Exit codes are ``extract``'s.
     """
-    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at)
+    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at, respect)
     try:
         result = extract_html(
             html,
@@ -499,6 +555,7 @@ def diff_command(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    respect: tuple[str, ...],
     at: str | None,
 ) -> None:
     """Say what changed between two readings of a page, question by question.
@@ -512,7 +569,9 @@ def diff_command(
     """
     readings = []
     for source, when in ((before, at), (after, None)):
-        html, url, fetched = _read_source(source, stealth, no_robots, base_url, when)
+        html, url, fetched = _read_source(
+            source, stealth, no_robots, base_url, when, respect
+        )
         readings.append(
             extract_html(html, url=url, headers=fetched.headers if fetched else None)
         )
@@ -550,10 +609,13 @@ def markdown(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    respect: tuple[str, ...],
     at: str | None,
 ) -> None:
     """Print the main content of a URL, a file or stdin as markdown."""
-    html, url, _fetched = _read_source(source, stealth, no_robots, base_url, at)
+    html, url, _fetched = _read_source(
+        source, stealth, no_robots, base_url, at, respect
+    )
     # MarkdownExtraMissing: trafilatura is not installed; the message says how.
     try:
         content = (
@@ -828,6 +890,7 @@ def audit_command(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    respect: tuple[str, ...],
     at: str | None,
 ) -> None:
     """Check what a page declares against what Google documents, and more.
@@ -846,7 +909,7 @@ def audit_command(
     there was nothing to audit, and 0. 2, as everywhere, when the page could
     not be read.
     """
-    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at)
+    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at, respect)
     site = None
     try:
         if fetched is not None and not no_site and fetched.archived is None:
@@ -943,6 +1006,13 @@ def _audit_report(
         lines.append("")
         lines.extend(_llms_lines("llms.txt", result.llms_txt))
         lines.extend(_llms_lines("llms-full", result.llms_full_txt))
+    if result.tdm is not None:
+        said = "reserved" if result.tdm.reserved else "not reserved"
+        policy = f", policy {result.tdm.policy}" if result.tdm.policy else ""
+        lines.append(
+            f"tdm       text and data mining {said} "
+            f"(TDMRep, by its {result.tdm.source}{policy})"
+        )
     notes = list(result.not_checked)
     if fetched is None and not no_site:
         notes = [
@@ -1157,6 +1227,13 @@ _many_options = [
         is_flag=True,
         help="Also read the rows a page repeats when it declares nothing about them.",
     ),
+    click.option(
+        "--respect",
+        type=click.Choice(["tdm"]),
+        multiple=True,
+        help="Give a page whose rights are reserved as an error, not its data: "
+        "tdm reads TDMRep's tdmrep.json, headers and meta tags.",
+    ),
 ]
 
 
@@ -1209,6 +1286,7 @@ def crawl_command(
     resume: bool,
     delay: float,
     induce: bool,
+    respect: tuple[str, ...],
 ) -> None:
     """Crawl a site from URL, politely, one JSON line per page.
 
@@ -1227,6 +1305,7 @@ def crawl_command(
             exclude=exclude,
             state=out,
             induce=induce,
+            respect_tdm="tdm" in respect,
             min_delay=delay,
         )
     except (FetchExtraMissing, ValueError) as failure:
@@ -1297,7 +1376,12 @@ def warc_command(files: tuple[str, ...], induce: bool, microformats: bool) -> No
 @click.argument("urls_file")
 @_with_many_options
 def batch_command(
-    urls_file: str, out: str | None, resume: bool, delay: float, induce: bool
+    urls_file: str,
+    out: str | None,
+    resume: bool,
+    delay: float,
+    induce: bool,
+    respect: tuple[str, ...],
 ) -> None:
     """Read every address in URLS_FILE, politely, one JSON line per page.
 
@@ -1323,7 +1407,13 @@ def batch_command(
     if not listed:
         _fail(f"{urls_file} lists no address.")
     try:
-        pages = extract_many(listed, state=out, induce=induce, min_delay=delay)
+        pages = extract_many(
+            listed,
+            state=out,
+            induce=induce,
+            respect_tdm="tdm" in respect,
+            min_delay=delay,
+        )
     except (FetchExtraMissing, ValueError) as failure:
         _fail(str(failure), failure)
     _report(pages, out)

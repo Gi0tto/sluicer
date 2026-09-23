@@ -1,4 +1,5 @@
-"""The files a site serves beside a page: robots.txt, llms.txt, llms-full.txt.
+"""The files a site serves beside a page: robots.txt, llms.txt, llms-full.txt,
+and TDMRep's tdmrep.json.
 
 Read for ``sluicer.audit``, over plain HTTP only -- a text file wants no
 browser -- and under the same rules as every other request: our own name, and
@@ -14,6 +15,7 @@ from collections.abc import Callable, Iterable
 from urllib.parse import urlsplit, urlunsplit
 
 from sluicer.audit.report import Site, SiteFile
+from sluicer.declared.tdmrep import WELL_KNOWN
 from sluicer.extras import import_extra
 from sluicer.fetch.address import AddressRefused, _resolve
 from sluicer.fetch.http_rung import http_rung
@@ -66,7 +68,43 @@ def read_site(
         files.append(
             SiteFile(address, error=refusal) if refusal else _read(rung, address)
         )
-    return Site(robots, files[0], files[1])
+    tdmrep = urlunsplit((parts.scheme, parts.netloc, WELL_KNOWN, "", ""))
+    refusal = _refusal(tdmrep, robots) if obey_robots else None
+    tdm_file = SiteFile(tdmrep, error=refusal) if refusal else _read(rung, tdmrep)
+    return Site(robots, files[0], files[1], tdm_file)
+
+
+def read_tdmrep_file(
+    url: str,
+    rung: Rung | None = None,
+    obey_robots: bool = True,
+    allow_private: bool = True,
+    resolve: Callable[[str], Iterable[str]] = _resolve,
+) -> SiteFile:
+    """The site's ``/.well-known/tdmrep.json``, TDMRep's file of reservations.
+
+    Read as the llms files are: over plain HTTP, and left out when the site's
+    robots.txt refuses it. A 404 is a site that publishes none, which is most.
+
+    Raises:
+        AddressRefused: ``allow_private`` is false and the site is private.
+        FetchExtraMissing: the ``fetch`` extra is not installed.
+    """
+    if rung is None:
+        rung = http_rung(
+            allow_private,
+            resolve,
+            MAX_RESPONSE_BYTES,
+            error=FetchExtraMissing,
+            allow_empty=True,
+        )
+    parts = urlsplit(url)
+    address = urlunsplit((parts.scheme, parts.netloc, WELL_KNOWN, "", ""))
+    if obey_robots:
+        refusal = _refusal(address, _read(rung, robots_url_for(url)))
+        if refusal:
+            return SiteFile(address, error=refusal)
+    return _read(rung, address)
 
 
 def _read(rung: Rung, address: str) -> SiteFile:

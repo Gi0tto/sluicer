@@ -214,6 +214,12 @@ and release, and it alone is distributed under CC BY-SA 3.0, as `LICENSE`
 says, with the licence's text in `LICENSES/`. The rest of sluicer is MIT. Google's pages are CC BY 4.0, and each rule cites the page it
 comes from.
 
+**TDMRep is read from HTML pages and their headers, and the site's file.**
+Its metadata in EPUB and PDF files is not read, since sluicer reads no such
+file. An archived capture is judged by its own headers and meta tags; today's
+tdmrep.json says nothing about a page of last year. A TDM policy is reported
+as its address, never fetched or read.
+
 ## In fetching
 
 **A challenge is detected by words, on a page that is not content.** A title

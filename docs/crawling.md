@@ -101,6 +101,23 @@ climbed to the moment the last came back, and a batch that began the moment
 the map before it ended. The five scrapeme.live products each came back as a
 `Product` with its price, read from its JSON-LD.
 
+## Rights a site reserves
+
+`--respect tdm` (`respect_tdm=True`, and for an agent `respect_tdm` on
+`crawl_site`, `extract_declared` and `page_markdown`) gives a page whose text
+and data mining rights are reserved as an error, `tdm_reserved`, never its
+data. The reservation is TDMRep's, a W3C Community Group final report of
+2024-05-10 written for the EU's DSM Directive, Article 4, read in its own
+order: the site's `/.well-known/tdmrep.json` first -- read once per site,
+through its robots.txt and its delay -- then the page's `TDM-Reservation`
+header, then its `<meta name="tdm-reservation">`, each later one superseding
+the earlier, an absent one resetting nothing. In the file the first rule
+whose `location` matches is the one, as the report says, not the longest.
+The page is fetched either way: a reservation in its meta tags is only seen
+in the page. The error says which declaration reserved it and the policy it
+names, if any. Without `--respect`, nothing is refused, and the reservation
+is still reported in each page's `rights`.
+
 ## What a crawl follows
 
 Breadth first from the start, `max_depth` links deep (3 by default), taking at

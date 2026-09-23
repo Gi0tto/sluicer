@@ -24,6 +24,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import IO, Any
+from urllib.parse import urlsplit
 
 from sluicer.api import Extraction, extract
 from sluicer.crawl.schedule import (
@@ -37,6 +38,7 @@ from sluicer.crawl.schedule import (
 )
 from sluicer.crawl.urls import canonical_of, links_on, names_a_file, normalise, site_of
 from sluicer.crawl.web import Web, default_web
+from sluicer.declared.tdmrep import WELL_KNOWN, TdmRule, read_tdmrep, reservation
 from sluicer.document import load
 from sluicer.fetch import (
     AddressRefused,
@@ -48,7 +50,7 @@ from sluicer.fetch import (
     fetch,
 )
 from sluicer.fetch.address import _resolve, why_not_public
-from sluicer.fetch.identity import RobotsUnreachable
+from sluicer.fetch.identity import RobotsUnreachable, robots_refusal
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
 
 MAX_PAGES = 100
@@ -190,6 +192,7 @@ def crawl(
     *,
     state: str | Path | None = None,
     induce: bool = False,
+    respect_tdm: bool = False,
     min_delay: float = DEFAULT_DELAY_SECONDS,
     max_delay: float = MAX_DELAY_SECONDS,
     concurrency: int = CONCURRENCY,
@@ -218,6 +221,9 @@ def crawl(
         state: a JSON Lines file: pages it already holds are not fetched
             again, and every new page is appended as its turn comes.
         induce: also read repeated rows from a page that declares nothing.
+        respect_tdm: give a page whose site reserves its text and data mining
+            rights (TDMRep: its tdmrep.json, headers or meta tags) as a
+            ``tdm_reserved`` error, never its data.
         min_delay: the least seconds between two requests to one site.
         max_delay: the longest robots.txt ``Crawl-delay`` waited for.
         concurrency: how many sites may be asked at once.
@@ -256,7 +262,15 @@ def crawl(
         web, min_delay, clock, sleep, allow_private, resolve, max_bytes
     )
     visitor = _Visitor(
-        web, polite, allow_private, resolve, max_bytes, max_delay, induce, kept
+        web,
+        polite,
+        allow_private,
+        resolve,
+        max_bytes,
+        max_delay,
+        induce,
+        kept,
+        respect_tdm,
     )
     deadline = None if time_budget is None else clock() + time_budget
     schedule: Schedule[Page] = Schedule(visitor.visit, polite, concurrency, deadline)
@@ -282,6 +296,7 @@ def extract_many(
     *,
     state: str | Path | None = None,
     induce: bool = False,
+    respect_tdm: bool = False,
     min_delay: float = DEFAULT_DELAY_SECONDS,
     max_delay: float = MAX_DELAY_SECONDS,
     concurrency: int = CONCURRENCY,
@@ -334,7 +349,15 @@ def extract_many(
         web, min_delay, clock, sleep, allow_private, resolve, max_bytes
     )
     visitor = _Visitor(
-        web, polite, allow_private, resolve, max_bytes, max_delay, induce, None
+        web,
+        polite,
+        allow_private,
+        resolve,
+        max_bytes,
+        max_delay,
+        induce,
+        None,
+        respect_tdm,
     )
     deadline = None if time_budget is None else clock() + time_budget
     schedule: Schedule[Page] = Schedule(visitor.visit, polite, concurrency, deadline)
@@ -444,6 +467,7 @@ class _Visitor:
         max_delay: float,
         induce: bool,
         kept: Callable[[str], str | None] | None,
+        respect_tdm: bool = False,
     ) -> None:
         self.web = web
         self.polite = polite
@@ -454,6 +478,40 @@ class _Visitor:
         self.max_delay = max_delay
         self.induce = induce
         self.kept = kept
+        self.respect_tdm = respect_tdm
+        # Each site's tdmrep.json, read once, as its robots.txt is.
+        self.tdm_rules: dict[str, list[TdmRule]] = {}
+
+    def rules_of(self, url: str) -> list[TdmRule]:
+        """The site's tdmrep.json rules, read once per site, politely.
+
+        Read as a sitemap is: refused where robots.txt refuses it, after the
+        site's delay; a file that could not be read holds no rules.
+        """
+        parts = urlsplit(url)
+        origin = f"{parts.scheme}://{parts.netloc}"
+        if origin in self.tdm_rules:
+            return self.tdm_rules[origin]
+        address = origin + WELL_KNOWN
+        rules: list[TdmRule] = []
+        try:
+            if (
+                robots_refusal(address, self.polite.reader, now=self.polite.clock)
+                is None
+            ):
+                self.polite.wait(address, self.polite.delay_for(address))
+                try:
+                    response = self.web.get(address)
+                finally:
+                    self.polite.ended(address)
+                if 200 <= response.status < 300:
+                    rules = read_tdmrep(response.body.decode("utf-8", "replace"))
+        # Deliberately blind: a file that could not be read, however, is a
+        # site that declared nothing there, and the page's own tags still count.
+        except Exception:  # noqa: BLE001
+            rules = []
+        self.tdm_rules[origin] = rules
+        return rules
 
     def visit(self, task: Task) -> Page:
         def failed(
@@ -513,6 +571,23 @@ class _Visitor:
                 target=landed,
             )
         doc = load(fetched.html, url=fetched.url)
+        extraction = extract(
+            fetched.html,
+            url=fetched.url,
+            induce=self.induce,
+            headers=fetched.headers,
+        )
+        if self.respect_tdm:
+            found = reservation(
+                self.rules_of(fetched.url), fetched.url, extraction.rights
+            )
+            if found is not None and found.reserved:
+                policy = f", policy {found.policy}" if found.policy else ""
+                return failed(
+                    "tdm_reserved",
+                    f"{fetched.url} reserves its text and data mining rights "
+                    f"(TDMRep, by its {found.source}{policy})",
+                )
         # An error page's links and canonical are the error page's: a 404 that
         # names a product as its canonical would have the product marked seen.
         answered = fetched.status < 400
@@ -525,12 +600,7 @@ class _Visitor:
             status=fetched.status,
             seconds=fetched.seconds,
             climbs=tuple(fetched.climbs),
-            extraction=extract(
-                fetched.html,
-                url=fetched.url,
-                induce=self.induce,
-                headers=fetched.headers,
-            ),
+            extraction=extraction,
             canonical=canonical_of(doc, fetched.headers) if answered else None,
             links=tuple(links_on(doc, fetched.headers)) if answered else (),
         )

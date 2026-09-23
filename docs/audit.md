@@ -245,6 +245,15 @@ nothing when it stated nothing. The report says them once per group.
 A robots.txt that answered 4xx has no rules, which allows everything; one that
 could not be read decides nothing, and every verdict is unknown.
 
+### Text and data mining
+
+The page's TDMRep reservation is reported as `tdm` -- reserved or not, the
+policy it names, and which declaration last said so: the site's
+`/.well-known/tdmrep.json`, read with the other files, or the page's
+`<meta name="tdm-reservation">`, which supersedes it. It is a statement
+recorded, never a finding: a page may reserve its rights, and one that does
+not has broken no rule.
+
 ### llms.txt
 
 Read against the proposal at [llmstxt.org](https://llmstxt.org/) (v2, August

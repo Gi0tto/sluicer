@@ -134,6 +134,8 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
             return _error("fetch_failed", failed, retryable=True, url=failed.url)
         except _BadInput as bad:
             return _error("bad_input", bad)
+        except _Reserved as reserved:
+            return _error("tdm_reserved", reserved, url=reserved.url)
 
     return guarded
 
@@ -155,6 +157,46 @@ def _error(
 
 class _BadInput(ValueError):
     """A tool was handed something it cannot take."""
+
+
+class _Reserved(Exception):
+    """The page reserves its text and data mining rights, and the call said to
+    respect that."""
+
+    def __init__(self, url: str | None, message: str) -> None:
+        super().__init__(message)
+        self.url = url
+
+
+def _respect_tdm(
+    html: str,
+    url: str | None,
+    fetched: dict[str, Any] | None,
+    headers: dict[str, str] | None,
+) -> None:
+    """Raise ``_Reserved`` when TDMRep reserves the page's TDM rights."""
+    from sluicer.declared.headers import lowered, read_header_rights
+    from sluicer.declared.rights import read_rights
+    from sluicer.declared.tdmrep import read_tdmrep, reservation
+    from sluicer.document import load
+
+    sent = lowered(headers) if headers else {}
+    rights = read_rights(
+        load(html, url=url), read_header_rights(sent) if sent else None
+    )
+    rules = []
+    if fetched is not None and "archived" not in fetched and url:
+        from sluicer.fetch.site import read_tdmrep_file
+
+        rules = read_tdmrep(read_tdmrep_file(url, allow_private=_allow_private()).text)
+    found = reservation(rules, url, rights)
+    if found is not None and found.reserved:
+        policy = f", policy {found.policy}" if found.policy else ""
+        raise _Reserved(
+            url,
+            f"{url or 'The page'} reserves its text and data mining rights "
+            f"(TDMRep, by its {found.source}{policy})",
+        )
 
 
 def _allow_private() -> bool:
@@ -254,7 +296,10 @@ def build_server() -> Any:
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
     def extract_declared(
-        html_or_url: str, induce: bool = False, at: str | None = None
+        html_or_url: str,
+        induce: bool = False,
+        at: str | None = None,
+        respect_tdm: bool = False,
     ) -> answers.ExtractAnswer:
         """Read the structured data a page declares, with where each value came from.
 
@@ -263,6 +308,9 @@ def build_server() -> Any:
         declares nothing about them; those fields say source "induced".
         at: a date (2024, 2024-06, 2024-06-01): read the URL as the Wayback
         Machine captured it nearest to then; "fetch" says which capture.
+        respect_tdm: answer tdm_reserved instead of the page when the site
+        reserves its text and data mining rights (TDMRep: its tdmrep.json,
+        headers or meta tags).
 
         Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
         for a URL. records are typed fields, each {"value", "source"}, where
@@ -273,6 +321,8 @@ def build_server() -> Any:
         "error" says why; there is never a record.
         """
         html, url, fetched, headers = _page_of(html_or_url, at)
+        if respect_tdm:
+            _respect_tdm(html, url, fetched, headers)
         read = extract(html, url=url, induce=induce, headers=headers)
         result = {"ok": True, **asdict(read)}
         if fetched is not None:
@@ -282,7 +332,10 @@ def build_server() -> Any:
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
     def page_markdown(
-        html_or_url: str, front_matter: bool = False, at: str | None = None
+        html_or_url: str,
+        front_matter: bool = False,
+        at: str | None = None,
+        respect_tdm: bool = False,
     ) -> answers.MarkdownAnswer:
         """Return a page's main content as markdown, without navigation or footer.
 
@@ -291,12 +344,16 @@ def build_server() -> Any:
         declares about itself (title, author, dates, url...) and each
         answer's source.
         at: a date: read the URL as the Wayback Machine captured it then.
+        respect_tdm: answer tdm_reserved when the site reserves its text and
+        data mining rights (TDMRep).
 
         Returns {"ok", "markdown", "url"}, and "fetch" for a URL. The markdown
         is always the page's own content: a failure is ok false with "error",
         never text that could be mistaken for the page.
         """
-        html, url, fetched = _html_of(html_or_url, at)
+        html, url, fetched, headers = _page_of(html_or_url, at)
+        if respect_tdm:
+            _respect_tdm(html, url, fetched, headers)
         result: dict[str, Any] = {
             "ok": True,
             "markdown": to_markdown(html, url=url, front_matter=front_matter),
@@ -506,6 +563,7 @@ def build_server() -> Any:
         max_depth: int = 2,
         include: list[str] | None = None,
         exclude: list[str] | None = None,
+        respect_tdm: bool = False,
     ) -> answers.CrawlAnswer:
         """Crawl a site from url, following its links, and summarise every page.
 
@@ -513,6 +571,8 @@ def build_server() -> Any:
         site are followed.
         max_pages: the most pages taken, 1 to 25.
         max_depth: the most links from url, 0 to 3; 0 reads url alone.
+        respect_tdm: give a page whose site reserves its text and data mining
+        rights (TDMRep) as a tdm_reserved error, never its summary.
         include: text an address must contain for its link to be followed
         (any one of them); plain text, not a pattern.
         exclude: text that stops a link being followed when its address
@@ -540,6 +600,7 @@ def build_server() -> Any:
                 max_delay=CRAWL_MAX_DELAY_SECONDS,
                 time_budget=TIME_BUDGET_SECONDS,
                 allow_private=_allow_private(),
+                respect_tdm=respect_tdm,
             )
         except ValueError as bad:
             raise _BadInput(str(bad)) from bad
