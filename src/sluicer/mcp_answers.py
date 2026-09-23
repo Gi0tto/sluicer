@@ -120,12 +120,20 @@ class FetchRecord(TypedDict, total=False):
     archived: CaptureAnswer
 
 
+class ConflictAnswer(TypedDict):
+    """A question the page answers two ways: the summary's answer, then the rest."""
+
+    question: str
+    answers: list[SummaryAnswer]
+
+
 class ExtractAnswer(TypedDict, total=False):
     ok: Required[bool]
     error: ErrorDetail
     url: str | None
     summary: dict[str, SummaryAnswer]
     normalised: dict[str, str]
+    conflicts: list[ConflictAnswer]
     records: list[RecordAnswer]
     sources: list[str]
     links: dict[str, Any]

@@ -2,6 +2,20 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Added
+- `Extraction.conflicts`: every question the page answers in two ways that
+  mean different things -- a price, its currency, the date of publication
+  or of modification -- the summary's answer first, each with its source,
+  key and place. `sluicer inspect` shows them under the summary, and the MCP
+  and HTTP answers carry them. Compared by meaning: `126` and `126.00` are
+  one price, two dates agree when they are one instant or name one day as
+  written, and a value no rule reads is no disagreement. On the 1,690 pages
+  of the scoreboards there are 11: 4 of Zyte's product pages state two
+  prices (150 and 200, 997.00 and 1148.00, 32.00 and 36.49, 90 and 400) and
+  7 pages two days, 2023 against 2026 among them.
+
 ## 0.4.1 - 2026-09-24
 
 ### Added

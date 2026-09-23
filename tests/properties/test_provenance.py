@@ -187,6 +187,20 @@ def _placed(result, tree) -> None:
     for answer in result.summary.values():
         if answer.where is not None:
             _followed(tree, answer.where)
+    for conflict in result.conflicts:
+        # A conflict starts with what the summary said, and holds at least
+        # one other declaration, each placed where it says.
+        assert len(conflict.answers) > 1, conflict
+        said = result.summary[conflict.question]
+        first = conflict.answers[0]
+        assert (first.value, first.source, first.key) == (
+            said.value,
+            said.source,
+            said.key,
+        ), (conflict, said)
+        for answer in conflict.answers:
+            if answer.where is not None:
+                _followed(tree, answer.where)
 
 
 def _check(html: str | bytes, url: str | None) -> None:

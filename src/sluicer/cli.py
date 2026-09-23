@@ -530,6 +530,19 @@ def _inspection(
         for question, answer in result.summary.items()
     ]
     lines.extend(_columns(rows, indent="  "))
+    for conflict in result.conflicts:
+        # The page answers this question twice, meaning two things: every
+        # answer beside the summary's, so a person sees which to trust.
+        lines.append(f"  conflict: {conflict.question} is declared two ways")
+        lines.extend(
+            _columns(
+                [
+                    ("", _brief(answer.value), f"{answer.source} {answer.key}")
+                    for answer in conflict.answers
+                ],
+                indent="    ",
+            )
+        )
     return "\n".join(lines)
 
 

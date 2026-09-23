@@ -15,13 +15,14 @@ was chosen from.
 
 from __future__ import annotations
 
+import datetime
 import html as html_entities
 import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from decimal import Decimal
-from typing import TypeAlias
+from typing import Any, TypeAlias
 from urllib.parse import urlsplit
 
 from lxml.html import HtmlElement
@@ -31,7 +32,11 @@ from sluicer.declared.located import Places, paid, place, xpath_of
 from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Record
 from sluicer.declared.opengraph import NAMESPACES
 from sluicer.document import Document, base_url, join
-from sluicer.normalise import amount
+from sluicer.normalise import (
+    amount,
+    currency as currency_of,
+    iso_date,
+)
 
 
 @dataclass(frozen=True)
@@ -176,6 +181,35 @@ def summarise(
     places: Places | None = None,
 ) -> dict[str, SummaryField]:
     """Answer each of ``FIELDS`` the page gives an answer to, in that order.
+
+    ``read_summary`` is the same reading, with the page's conflicts beside it.
+    """
+    return read_summary(
+        doc,
+        records,
+        dublincore,
+        opengraph,
+        twitter,
+        htmlmeta,
+        header_canonicals,
+        places,
+    )[0]
+
+
+def read_summary(
+    doc: Document,
+    records: list[Record],
+    dublincore: dict[str, str],
+    opengraph: dict[str, str],
+    twitter: dict[str, str],
+    htmlmeta: dict[str, str],
+    header_canonicals: list[str] | None = None,
+    places: Places | None = None,
+) -> tuple[dict[str, SummaryField], list[Conflict]]:
+    """The summary, and every question the page answers in two ways.
+
+    The summary answers each of ``FIELDS`` the page gives an answer to, in
+    that order.
 
     The subject is the first declared record whose type is about a thing --
     a product, a recipe, an article -- ahead of any page, site or piece of
@@ -396,7 +430,17 @@ def summarise(
         found = next((answer for answer in candidates if answer), None)
         if found is not None:
             summary[name] = replace(found, where=paid(places, found.where))
-    return summary
+    found_conflicts = [
+        replace(
+            conflict,
+            answers=[
+                replace(answer, where=paid(places, answer.where))
+                for answer in conflict.answers
+            ],
+        )
+        for conflict in _conflicts(questions)
+    ]
+    return summary, found_conflicts
 
 
 def _subject(
@@ -739,6 +783,114 @@ def _address(value: JsonValue) -> str | None:
         if key in value and (found := _address(value[key])):
             return found
     return None
+
+
+@dataclass(frozen=True)
+class Conflict:
+    """A question the page answers in two ways that mean different things.
+
+    ``answers`` is the answer the summary gave, first, then every other
+    declaration of the same fact that means something else, in the order
+    the summary asks them: a price of 41.90 in JSON-LD and 39.90 in
+    OpenGraph. Two declarations that write one meaning differently --
+    ``126`` and ``126.00``, one instant at two offsets -- agree, and one
+    that cannot be read is no disagreement.
+    """
+
+    question: str
+    answers: list[SummaryField]
+
+
+def _moment(text: str) -> tuple[str, datetime.datetime | None] | None:
+    """A date's day as written, and its instant when it states one."""
+    written = iso_date(text)
+    if written is None:
+        return None
+    instant = None
+    if "T" in written:
+        try:
+            parsed = datetime.datetime.fromisoformat(written.replace("Z", "+00:00"))
+        except ValueError:
+            parsed = None
+        instant = parsed if parsed is not None and parsed.tzinfo else None
+    return written[:10], instant
+
+
+def _same_moment(
+    one: tuple[str, datetime.datetime | None],
+    other: tuple[str, datetime.datetime | None],
+) -> bool:
+    """Whether two dates name one day: one instant, or one day as written.
+
+    A time a page truncates to the minute, or an offset it writes wrong on
+    one of two tags -- the same 06:00:09 at -07:00 and at +00:00 -- is the
+    same day, and not what a reader asks. Two instants that are one are one
+    date even across midnight, 19:45 at -06:00 being 01:45 the next day in
+    UTC.
+    """
+    if one[1] is not None and other[1] is not None and one[1] == other[1]:
+        return True
+    return one[0] == other[0]
+
+
+def _same_text(one: object, other: object) -> bool:
+    return one == other
+
+
+def _decimal(text: str) -> Decimal | None:
+    """An amount by its value: 41.90 and 41.9 are one price."""
+    written = amount(text)
+    return Decimal(written) if written is not None else None
+
+
+# What each compared question's candidates must be to state the same fact,
+# and how two of them are compared. A page's upload or creation date is not
+# its publication date, so only the keys that say "published" are compared.
+_PUBLISHED = (
+    "datePublished",
+    "article:published_time",
+    "dc.date.issued",
+    "dc.issued",
+    "meta name=citation_publication_date",
+)
+_COMPARED: dict[
+    str, tuple[Callable[[str], bool], Callable[[str], Any], Callable[[Any, Any], bool]]
+] = {
+    "price": (lambda key: True, _decimal, _same_text),
+    "currency": (lambda key: True, currency_of, _same_text),
+    "published": (lambda key: key.endswith(_PUBLISHED), _moment, _same_moment),
+    "modified": (lambda key: True, _moment, _same_moment),
+}
+
+
+def _conflicts(questions: dict[str, list[Answer]]) -> list[Conflict]:
+    """Each compared question whose declarations of one fact disagree.
+
+    Only where the summary's own answer is one of them and can be read: a
+    conflict starts with what the summary said, so a page whose answer was
+    its upload date, or a price no reader can call one number, is not
+    compared.
+    """
+    found = []
+    for question, (same_fact, meaning, agree) in _COMPARED.items():
+        answers = [answer for answer in questions.get(question, []) if answer]
+        if not answers or not same_fact(answers[0].key):
+            continue
+        first = meaning(answers[0].value)
+        if first is None:
+            continue
+        kept: list[tuple[SummaryField, Any]] = [(answers[0], first)]
+        for answer in answers[1:]:
+            if not same_fact(answer.key):
+                continue
+            meant = meaning(answer.value)
+            # Unread is not different: a value no rule can read is no
+            # disagreement with one it can.
+            if meant is not None and all(not agree(meant, other) for _, other in kept):
+                kept.append((answer, meant))
+        if len(kept) > 1:
+            found.append(Conflict(question, [answer for answer, _ in kept]))
+    return found
 
 
 @dataclass(frozen=True)

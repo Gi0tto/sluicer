@@ -20,7 +20,7 @@ from sluicer.declared.rights import Rights, read_rights
 from sluicer.document import load
 from sluicer.normalise import normalised
 from sluicer.structure import induce as induce_records
-from sluicer.summary import SummaryField, summarise
+from sluicer.summary import Conflict, SummaryField, read_summary
 
 # The least a page's places are paid from: a small page's are never cut.
 PLACES_FLOOR = 10_000
@@ -43,11 +43,15 @@ class Extraction:
     reader that found something. ``normalised`` reads
     the summary's dates, price and currency into ISO 8601, a decimal and an ISO
     4217 code, where the page's text leaves no doubt (see ``sluicer.normalise``).
+    ``conflicts`` is every question the page answers in two ways that mean
+    different things -- a price in JSON-LD and another in OpenGraph -- the
+    summary's answer first (see ``sluicer.summary.Conflict``).
     """
 
     url: str | None = None
     summary: dict[str, SummaryField] = field(default_factory=dict)
     normalised: dict[str, str] = field(default_factory=dict)
+    conflicts: list[Conflict] = field(default_factory=list)
     records: list[Record] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     links: Links = field(default_factory=lambda: Links())
@@ -117,7 +121,7 @@ def extract(
     # with only an ``@id``, a microformats root that was a CSS class -- and an
     # empty value is not a value, whole records included.
     records = [record for record in records if record.fields]
-    summary = summarise(
+    summary, conflicts = read_summary(
         doc,
         records,
         found["dublincore"] or {},
@@ -138,6 +142,7 @@ def extract(
         url=url,
         summary=summary,
         normalised=normalised(summary),
+        conflicts=conflicts,
         records=records,
         sources=sources,
         links=read_links(doc, header_links),

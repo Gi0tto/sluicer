@@ -136,6 +136,11 @@ From `extract_declared`:
 Read `summary` first; go to `records` for anything it does not answer, such as
 `recipeIngredient` or `aggregateRating`, which arrive whole as lists and objects.
 
+`conflicts` lists each question the page answers two ways that mean
+different things -- two prices, two currencies, two publication days --
+the summary's answer first. When one is there, say that the page contradicts
+itself and quote both, rather than trusting either.
+
 `where` is the place on the page a value was declared: an XPath, and for
 JSON-LD the `<script>` block's with a JSON pointer after the first `#`. Quote
 it when asked where a value came from, rather than describing the page. It is

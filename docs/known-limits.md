@@ -61,6 +61,15 @@ was measured rather than assumed -- for a `p-` prefixed item the value is the
 name, not the link. `metaformats` is left off, so OpenGraph and Twitter card
 tags are never reported as microformats; each has a reader of its own here.
 
+**Conflicts are stated for four questions.** The price, the currency and
+the dates of publication and modification are compared across the page's
+declarations of them; titles, descriptions, authors, availability and
+identifiers are not, since vocabularies word them differently on purpose,
+or, for availability, name its values each their own way (`InStock`,
+`instock`, `in stock`). Two dates on one day are one date, whatever their
+times; two records of one thing that disagree in JSON-LD and microdata are
+compared by `sluicer audit`, record against record, not here.
+
 **Eight vocabularies fold onto one flat set of keys, and some of them collide.**
 `og:image:alt` and `twitter:image:alt` both strip to `image:alt`; a Dublin Core
 `title` lands on the same key as an `og:title`. RDFa shortens schema.org terms

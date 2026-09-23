@@ -352,8 +352,11 @@ def build_server() -> Any:
         "#" -- or null for a meta tag, whose key is its place. A nested value
         such as a price inside "offers" arrives whole. summary answers title,
         author, date, price and the rest, one value each, naming its source,
-        key and where. On failure ok is false and "error" says why; there is
-        never a record.
+        key and where. conflicts lists each question the page answers two
+        ways that mean different things -- a price of 41.90 in JSON-LD and
+        39.90 in OpenGraph -- the summary's answer first: say so rather than
+        trusting either. On failure ok is false and "error" says why; there
+        is never a record.
         """
         html, url, fetched, headers = _page_of(html_or_url, at)
         if respect_tdm:

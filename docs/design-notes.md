@@ -145,6 +145,32 @@ lowest to the highest a variant declares, and no variant is picked. A
 page that misuses a term is answered by that misuse, which is why every answer
 names the key it was read from.
 
+## A disagreement is stated, not settled
+
+The summary answers each question by precedence, and a page that declares
+a fact twice sometimes declares two things: of Zyte's 140 product pages, 10
+state a price in their record and again in OpenGraph, and 4 of those state
+two prices -- 150 and 200, 997.00 and 1148.00. Precedence picks one and
+says nothing of the other, which is right for an answer and wrong for an
+agent that will act on it. So `conflicts` lists every question the page
+answers in two ways that mean different things, the summary's answer first,
+each with its source, key and place.
+
+Only the facts a page states once in fact are compared: the price, its
+currency, and the dates of publication and modification. A title, a
+description or an author is written differently in every vocabulary on
+purpose, and comparing them would report every page. Two declarations
+disagree only in meaning: `126` and `126.00` are one price, `EUR` and `eur`
+one currency, and two dates agree when they are one instant or name one day
+as written. The day is the rule because the time is where pages are
+careless: on the 1,690 pages of the scoreboards, 43 pairs of dates are two
+instants, 36 of them on one day -- a second truncated, or an offset written
+wrong on one tag, the same 06:00:09 at -07:00 and at +00:00 -- and 7 name
+two different days, 2023 against 2026 among them. A value no rule can read is no disagreement, and a question
+whose own answer is some other fact -- an upload date standing in for a
+publication date -- is not compared, since a conflict starts from what the
+summary said.
+
 ## A cache asks, it does not guess
 
 `--cache DIR` keeps each page a fetch brought back with its `ETag` and

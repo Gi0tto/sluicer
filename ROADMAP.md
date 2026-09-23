@@ -100,13 +100,15 @@ check that a price column still reads as prices. And
 `from sluicer.compat import extruct` answers extruct's calls, in its shapes,
 from sluicer's readers.
 
-## Next
+## Built for the next release
 
-**Conflicts, stated.** When two vocabularies disagree on a question -- a
-price of 41.90 in JSON-LD and 39.90 in OpenGraph -- the summary answers by
-precedence and says nothing of the other. Stating the disagreement, with
-both places, would let an agent see that the page contradicts itself. It
-stays a rule, not a score.
+**Conflicts, stated.** When two declarations of a price, a currency or a
+date disagree -- 41.90 in JSON-LD and 39.90 in OpenGraph -- `conflicts`
+says so, both answers with their places, so an agent sees that the page
+contradicts itself. A rule, not a score: 4 of Zyte's 140 product pages
+state two prices.
+
+## Next
 
 **The proof, made bigger.** A first drift benchmark is in
 [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md): 44 pairs of

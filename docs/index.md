@@ -50,7 +50,9 @@ That page described one product three times, in three vocabularies. You get one
 record, a summary of the questions you came with, and the provenance of every
 value: the vocabulary, and where on the page -- an XPath, and inside JSON-LD a
 pointer to the value, even one a reference fetched from elsewhere in the page.
-A meta tag's place is its key. `sluicer inspect` prints the same reading laid
+A meta tag's place is its key. When the page answers one question two ways
+-- a price of 41.90 in JSON-LD and 39.90 in OpenGraph -- `conflicts` says so,
+both answers with their places. `sluicer inspect` prints the same reading laid
 out for a person.
 
 ## How it differs
