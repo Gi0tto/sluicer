@@ -68,6 +68,9 @@ value. `sluicer inspect` prints the same reading laid out for a person.
 - **From extruct**, which returns each vocabulary as the page wrote it: Sluicer
   merges them into one record per thing, keeps where each field came from,
   answers a summary with its reader and key, and resolves JSON-LD references.
+  `from sluicer.compat import extruct` answers extruct's own calls, in its
+  shapes, for code written against it -- see
+  [moving from extruct](https://github.com/Gi0tto/sluicer/blob/main/docs/extruct.md).
 - **From trafilatura and newspaper4k**, which read authors and dates from the
   visible text: Sluicer reads only what the page declares. It answers less
   often, and is wrong less often -- see [the numbers](#measured-losses-included).

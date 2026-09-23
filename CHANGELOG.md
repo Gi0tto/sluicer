@@ -22,6 +22,26 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is not a price of 19.
 
 ### Added
+- `sluicer.compat.extruct`, extruct's interface answered by sluicer's own
+  readers: `from sluicer.compat import extruct` in place of `import extruct`.
+  `extract` takes every argument extruct 0.18 takes and answers its six
+  syntaxes in extruct's shapes, `uniform=True` included; the extractor
+  classes are under extruct's module names. RDFa is read by a processor of
+  its own, in the `lxml` the base install carries, that answers what pyRdfa
+  and rdflib answer for extruct, so nothing extruct needs is installed but
+  mf2py for microformats. On sluicer's fixtures, the 360 pages as served and
+  Zyte's 140 product pages, JSON-LD, OpenGraph, RDFa and microformats are
+  identical on every page extruct reads, and microdata on all but four;
+  every difference is one where extruct is wrong: a JSON-LD block that is not
+  JSON loses extruct the whole page, an item named by `itemref` is `null` in
+  it, a `<time>` without `datetime` is `""`, an absent `href` is the page's
+  own address, and names Dublin Core never claimed, `<meta name="description">`
+  first, are Dublin Core to it, on 448 of the 520 pages; two of them write a
+  Dublin Core name. Bytes are read as their charset says, where extruct reads
+  every page as UTF-8, and no page makes a syntax raise. `docs/extruct.md`
+  has the migration, the measured table and every difference;
+  `bench/extruct_compat.py` regenerates the table, running extruct in an
+  environment of its own.
 - `sluicer diff BEFORE AFTER` and `sluicer.diff.compare`: what changed between
   two readings of a page, question by question -- a price, an availability, a
   canonical that moved, a page that started reserving its rights -- each side
