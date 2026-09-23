@@ -7,7 +7,8 @@ it from a person. Sluicer arrives under its own name and obeys robots.txt.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections import OrderedDict
+from collections.abc import Callable, MutableMapping
 from urllib.parse import urlsplit, urlunsplit
 
 from sluicer import __version__
@@ -21,6 +22,15 @@ ROBOTS_TTL_SECONDS = 24 * 60 * 60
 
 A day, the conventional figure. Cached for the life of the process, a
 long-running MCP server would never learn that a Disallow was added.
+"""
+
+
+ROBOTS_CACHE_HOSTS = 4096
+"""How many sites' robots.txt answers the process keeps, least recent out first.
+
+Without a bound, a long-running server that is sent to many sites keeps one
+entry for each of them for a day. Four thousand answers are a few megabytes at
+most, and a site pushed out is only asked again.
 """
 
 
@@ -54,7 +64,7 @@ def robots_url_for(url: str) -> str:
 def robots_allows(
     url: str,
     read: Callable[[str], str | None],
-    cache: dict[str, tuple[float, str | None]] | None = None,
+    cache: MutableMapping[str, tuple[float, str | None]] | None = None,
     now: Callable[[], float] = time.monotonic,
 ) -> bool:
     """Say whether ``url`` may be fetched, according to the site's own rules.
@@ -82,7 +92,7 @@ def robots_allows(
 def robots_refusal(
     url: str,
     read: Callable[[str], str | None],
-    cache: dict[str, tuple[float, str | None]] | None = None,
+    cache: MutableMapping[str, tuple[float, str | None]] | None = None,
     now: Callable[[], float] = time.monotonic,
 ) -> str | None:
     """Why ``url`` may not be fetched, or None when it may.
@@ -104,7 +114,9 @@ def robots_refusal(
                 # long-running server away from a site for a day.
                 store.pop(key, None)
                 raise RobotsUnreachable(url, said + first[len(marker) + 4 :])
-        store[key] = entry
+    # Written back even when it was only read: that is what keeps a site in
+    # use from being the one a bounded cache forgets.
+    store[key] = entry
     text = entry[1]
     if not text:
         return None
@@ -135,8 +147,26 @@ def _cache_key(url: str) -> str:
     return f"{parts.scheme}://{parts.netloc}"
 
 
-_CACHE: dict[str, tuple[float, str | None]] = {}
+class _Recent(OrderedDict[str, tuple[float, str | None]]):
+    """A mapping that forgets its least recently written entry past ``limit``.
+
+    ``robots_refusal`` writes back every answer it uses, so written is used.
+    """
+
+    def __init__(self, limit: int) -> None:
+        super().__init__()
+        self.limit = limit
+
+    def __setitem__(self, key: str, value: tuple[float, str | None]) -> None:
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+        while len(self) > self.limit:
+            self.popitem(last=False)
+
+
+_CACHE = _Recent(ROBOTS_CACHE_HOSTS)
 """Every answer this process has been given, with the moment it was given.
 
-Process-global on purpose: one site, one answer, however many callers.
+Process-global on purpose: one site, one answer, however many callers. Bounded
+by ``ROBOTS_CACHE_HOSTS``.
 """

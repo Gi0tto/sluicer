@@ -148,3 +148,33 @@ def test_a_missing_protego_says_the_fetch_extra_is_what_installs_it(absent):
 
     assert raised.value.extra == "fetch"
     assert "uv pip install 'sluicer[fetch]'" in str(raised.value)
+
+
+def test_the_process_cache_forgets_the_least_recently_used_site_past_its_bound(
+    monkeypatch,
+):
+    """Unbounded, a long-running server kept an entry for every site it was sent to."""
+    from sluicer.fetch import identity
+
+    bounded = identity._Recent(2)
+    monkeypatch.setattr(identity, "_CACHE", bounded)
+    asked: list[str] = []
+
+    def read(url: str) -> str:
+        asked.append(url)
+        return ""
+
+    for site in ("a.test", "b.test", "a.test", "c.test", "a.test", "b.test"):
+        robots_allows(f"https://{site}/p", read=read)
+
+    assert list(bounded) == ["https://a.test", "https://b.test"]
+    # a stayed because it kept being used; b was forgotten when c came, and
+    # asked again at the end.
+    assert asked.count("https://a.test/robots.txt") == 1
+    assert asked.count("https://b.test/robots.txt") == 2
+
+
+def test_the_process_cache_is_bounded_by_default():
+    from sluicer.fetch import identity
+
+    assert identity._CACHE.limit == identity.ROBOTS_CACHE_HOSTS
