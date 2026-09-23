@@ -26,7 +26,13 @@ from sluicer.document import sniff_encoding
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch.address import _numeric, _resolve, public_addresses
 from sluicer.fetch.identity import USER_AGENT
-from sluicer.fetch.result import MAX_RESPONSE_BYTES, Fetched, ResponseTooLarge, Rung
+from sluicer.fetch.result import (
+    MAX_RESPONSE_BYTES,
+    EmptyBody,
+    Fetched,
+    ResponseTooLarge,
+    Rung,
+)
 
 HTTP_TIMEOUT_SECONDS = 20
 """How long the plain HTTP rung waits for one response."""
@@ -85,7 +91,7 @@ def http_rung(
             charset = _charset(headers.get("content-type") or "")
             html = body.decode(sniff_encoding(body, charset), errors="replace")
             if not html and not allow_empty:
-                raise ValueError(f"the http rung returned no HTML for {url!r}")
+                raise EmptyBody(url, "http", status)
             return Fetched(url=current, html=html, status=status, rung="http")
         raise TooManyRedirects(f"{url} redirected more than {MAX_REDIRECTS} times")
 

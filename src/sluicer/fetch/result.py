@@ -28,6 +28,20 @@ class ResponseTooLarge(Exception):
         self.limit = limit
 
 
+class EmptyBody(ValueError):
+    """A rung was answered with nothing at all.
+
+    For a page it is a rung that failed, and the ladder climbs past it. For a
+    robots.txt it is an answer -- an empty file has no rules -- so the status
+    the site answered with is kept, for the reader to decide by.
+    """
+
+    def __init__(self, url: str, rung: str, status: int) -> None:
+        super().__init__(f"the {rung} rung returned no HTML for {url!r}")
+        self.url = url
+        self.status = status
+
+
 @dataclass(frozen=True)
 class Climb:
     """One step between rungs, and the measurement that forced it.

@@ -129,6 +129,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   build the server at all: they refuse the `Required[...]` keys of its output
   schemas. The suite fakes the SDK, so the floors job, which installs 2.0.0 on
   3.10, had never built it for real.
+- A site whose robots.txt was an empty file could not be fetched: the HTTP
+  rung refuses an empty body, and the robots reader took that refusal for an
+  unreachable robots.txt, which RFC 9309 treats as a full disallow. An empty
+  robots.txt now allows everything; a 5xx with an empty body is still
+  unreachable.
+
 
 ## 0.3.0 - 2026-09-23
 

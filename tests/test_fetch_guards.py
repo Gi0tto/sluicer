@@ -539,3 +539,40 @@ def test_a_browser_failure_that_is_not_a_redirect_is_the_rungs_failure(monkeypat
     browser = dict(default_rungs(allow_private=False, resolve=public))["browser"]
     with pytest.raises(KeyError):
         browser("https://example.com/p")
+
+
+@pytest.mark.parametrize(
+    ("status", "fetched"), [(200, True), (404, True), (503, False)]
+)
+def test_an_empty_robots_txt_is_judged_by_its_status(monkeypatch, status, fetched):
+    """An empty robots.txt has no rules and allows everything (RFC 9309).
+
+    The HTTP rung refuses an empty body, since an empty page is no page, and
+    the robots reader built from it took that refusal for an unreachable
+    robots.txt: a site whose robots.txt was an empty file could not be fetched
+    at all. A 5xx with an empty body is still unreachable.
+    """
+    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.ladder import FetchFailed
+
+    fake_curl(monkeypatch, [(status, b"", {}), PAGE])
+    ladder = [("http", http_rung())]
+
+    if fetched:
+        assert fetch("https://example.com/p", rungs=ladder).html.startswith("<html>")
+    else:
+        with pytest.raises(FetchFailed, match="status 503"):
+            fetch("https://example.com/p", rungs=ladder)
+
+
+def test_an_empty_page_is_still_a_rung_that_failed(monkeypatch):
+    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.result import EmptyBody
+
+    fake_curl(monkeypatch, [(200, b"", {})])
+
+    with pytest.raises(EmptyBody, match="returned no HTML") as raised:
+        http_rung()("https://example.com/p")
+
+    assert raised.value.status == 200
+    assert isinstance(raised.value, ValueError), "callers catch ValueError"

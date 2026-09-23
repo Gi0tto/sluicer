@@ -158,7 +158,10 @@ record would now be missed; none has been seen. The reason string names the
 marker, so a mistake either way is visible.
 
 **A legitimately empty body is treated as a failed rung.** A site that answers
-200 with nothing costs a climb. A response with no HTML is not a page, and the
+200 with nothing costs a climb. An empty robots.txt is the exception: it is a
+file with no rules, and allows everything. Until the audit read one, the
+robots reader took the rung's refusal for an unreachable robots.txt, and a site
+whose robots.txt was an empty file could not be fetched at all. A response with no HTML is not a page, and the
 ladder already knows how to climb past a failure, so this was the cheap side of
 the trade.
 

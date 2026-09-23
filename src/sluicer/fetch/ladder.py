@@ -32,6 +32,7 @@ from sluicer.fetch.identity import (
 from sluicer.fetch.result import (
     MAX_RESPONSE_BYTES,
     Climb,
+    EmptyBody,
     Fetched,
     ResponseTooLarge,
     Rung,
@@ -84,7 +85,7 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
     already knows how to fetch a URL, so reading robots.txt needs no wiring.
     Statuses mean what RFC 9309 says they mean:
 
-    * 2xx -- the body is the rules.
+    * 2xx -- the body is the rules; an empty body is no rules at all.
     * 4xx -- the site published no rules, so nothing is refused.
     * 5xx, or the rung raised -- unreachable (section 2.3.1.4), a full
       disallow. The reader returns a stand-in full disallow whose first line is
@@ -99,6 +100,11 @@ def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
     def read(url: str) -> str | None:
         try:
             response = cheapest_rung(url)
+        except EmptyBody as empty:
+            # The rung refuses an empty body because an empty page is no page;
+            # an empty robots.txt is a file with no rules, which allows
+            # everything, and is judged by its status like any other.
+            response = Fetched(url=url, html="", status=empty.status, rung="")
         # Deliberately blind: every way a rung can fail to reach robots.txt is
         # the same event, "unreachable", and a list of exception types would
         # be a list of the failures someone happened to think of.
