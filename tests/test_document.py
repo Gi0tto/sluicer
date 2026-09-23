@@ -220,6 +220,16 @@ def test_a_greater_than_sign_in_a_quoted_value_does_not_end_the_meta(meta):
     assert _title(page.encode("windows-1251")) == "Тормоза"
 
 
+def test_a_quote_that_never_closes_holds_the_rest_of_the_head():
+    """As the standard's prescan reads it: the value runs on, so a declaration
+    written after it is inside it, not a declaration of its own."""
+    from sluicer.document import sniff_encoding
+
+    head = b'<meta content="never closed><meta charset="windows-1251">'
+
+    assert sniff_encoding(head + "Тормоза".encode("windows-1251")) == "windows-1252"
+
+
 def test_a_head_of_unclosed_meta_tags_is_read_in_one_pass():
     """Every ``<meta`` in the head was tried from where it began, and one that
     never closed was scanned to the end of the head each time: 64 KB of
