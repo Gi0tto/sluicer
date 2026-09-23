@@ -67,6 +67,30 @@ loser: it is dropped, not kept under a qualified name. Microformats keeps its
 own type spelling: an `h-entry` records `@type` as `h-entry`, so it
 never folds with a schema.org `Article` that means the same thing.
 
+## In extractors
+
+**A listing's place is an exact path.** A new wrapper or a renamed class above
+the rows fails the `listing` check. That is what makes the failure loud, and
+`heal` finds the new place; it also means one cosmetic change upstream of the
+rows is enough to fail a run.
+
+**One listing per extractor**, the page's most promising repeated group. A page
+with two listings that both matter needs two extractors, and there is no way yet
+to point compile at the second.
+
+**Healing matches by values and shape.** A field is moved when its new place
+holds values it held before, or values of the same shape. A redesign that
+changes the markup and every value at once is reported as fields vanished and
+new, not as moves.
+
+**The thresholds are fixed.** 20% of rows may lack a required field, half a
+field's values must keep its shape, and a page needs half the fewest rows
+learnt. Editing the JSON changes what was learnt, not the thresholds.
+
+**How often extractors survive real redesigns is not measured.** The fixtures
+are written by hand; the benchmark on real before-and-after pages is next on the
+roadmap.
+
 ## In announcing ourselves
 
 **The user agent on the wire is verified by hand, not by the suite.** Both the
@@ -162,7 +186,7 @@ sentence that says what happened is discarded by the SDK. Measured against mcp
 mapping through as `structured_content` but publishes no output schema for it,
 so the contract between us and an agent is prose, not schema.
 
-**The three tools are pinned by set equality**, so a fourth cannot appear
+**The six tools are pinned by set equality**, so a seventh cannot appear
 unnoticed.
 
 ## In the shape of the code

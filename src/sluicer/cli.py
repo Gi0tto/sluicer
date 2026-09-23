@@ -3,7 +3,8 @@
 Exit codes follow grep: 0 when something was found -- a record, or at least one
 summary answer -- 1 when the page was read and gives nothing at all, 2 when it
 could not be read. A script can tell "this page gives nothing" from "the fetch
-failed" without parsing English.
+failed" without parsing English. ``run`` and ``heal`` add 3: a page broke the
+extractor's contract, or healing lost a field, and that is never a success.
 """
 
 from __future__ import annotations
@@ -13,11 +14,19 @@ import logging
 import sys
 from dataclasses import asdict
 from pathlib import Path
+from typing import NoReturn
 
 import click
 
 from sluicer.api import extract as extract_html
 from sluicer.declared.microformats import MicroformatsExtraMissing
+from sluicer.extractor import (
+    Extractor,
+    NothingToLearn,
+    compile_extractor,
+    heal as heal_extractor,
+    run_extractor,
+)
 from sluicer.fetch import FetchFailed, RobotsRefused, fetch as fetch_url
 from sluicer.fetch.result import Fetched
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
@@ -25,6 +34,7 @@ from sluicer.markdown import MarkdownExtraMissing, to_markdown
 
 NOTHING_FOUND = 1
 COULD_NOT_READ = 2
+CONTRACT_BROKEN = 3
 
 
 @click.group()
@@ -53,7 +63,7 @@ def _quiet_scrapling() -> None:
     )
 
 
-def _fail(message: str, cause: BaseException | None = None) -> None:
+def _fail(message: str, cause: BaseException | None = None) -> NoReturn:
     click.echo(message, err=True)
     raise SystemExit(COULD_NOT_READ) from cause
 
@@ -214,3 +224,144 @@ def markdown(source: str, stealth: bool, no_robots: bool, base_url: str | None) 
         click.echo("This page has no main content.", err=True)
         raise SystemExit(NOTHING_FOUND)
     click.echo(content)
+
+
+def _read_pages(
+    sources: tuple[str, ...], stealth: bool, no_robots: bool
+) -> list[tuple[str | bytes, str | None]]:
+    return [_read_source(source, stealth, no_robots, None)[:2] for source in sources]
+
+
+def _load_extractor(path: str) -> Extractor:
+    try:
+        return Extractor.from_json(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as failure:
+        _fail(f"{path} is not an extractor: {failure}", failure)
+
+
+@main.command("compile")
+@click.argument("sources", nargs=-1, required=True)
+@click.option("-o", "--output", required=True, help="Where to write the extractor.")
+@click.option(
+    "--listing/--no-listing",
+    default=None,
+    help="Learn the rows the pages repeat (default: only if they declare no thing).",
+)
+@click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
+@click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")
+def compile_command(
+    sources: tuple[str, ...],
+    output: str,
+    listing: bool | None,
+    stealth: bool,
+    no_robots: bool,
+) -> None:
+    """Learn an extractor from pages of one template, and write it to a file."""
+    pages = _read_pages(sources, stealth, no_robots)
+    try:
+        extractor = compile_extractor(pages, listing=listing, names=list(sources))
+    except NothingToLearn as nothing:
+        click.echo(f"Learnt nothing: {nothing}.", err=True)
+        raise SystemExit(NOTHING_FOUND) from nothing
+    Path(output).write_text(extractor.to_json(), encoding="utf-8")
+    learnt = []
+    if extractor.listing is not None:
+        rows = extractor.listing.rows
+        learnt.append(
+            f"a listing at {extractor.listing.container}, {rows[0]}-{rows[1]} rows "
+            f"of {len(extractor.listing.fields)} fields"
+        )
+    if extractor.summary:
+        learnt.append(f"{len(extractor.summary)} summary answers")
+    if extractor.types:
+        learnt.append("declared " + ", ".join(extractor.types))
+    click.echo(f"Learnt {'; '.join(learnt)}. Wrote {output}.", err=True)
+    for note in extractor.notes:
+        click.echo(f"Note: {note}.", err=True)
+
+
+@main.command("run")
+@click.argument("extractor_file")
+@click.argument("sources", nargs=-1, required=True)
+@click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
+@click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")
+def run_command(
+    extractor_file: str, sources: tuple[str, ...], stealth: bool, no_robots: bool
+) -> None:
+    """Replay an extractor on pages, and exit 3 if any page broke its contract."""
+    extractor = _load_extractor(extractor_file)
+    pages = []
+    broken = False
+    for source, (html, url) in zip(
+        sources, _read_pages(sources, stealth, no_robots), strict=True
+    ):
+        run = run_extractor(extractor, html, url=url)
+        failed = [asdict(check) for check in run.checks if not check.ok]
+        pages.append(
+            {
+                "source": source,
+                "url": run.url,
+                "ok": run.ok,
+                "rows": run.rows,
+                "summary": run.summary,
+                "failed": failed,
+            }
+        )
+        for check in run.checks:
+            if not check.ok:
+                broken = True
+                click.echo(
+                    f"FAILED {source}: expected {check.expected}, got {check.got}",
+                    err=True,
+                )
+    click.echo(
+        json.dumps(
+            {"extractor": extractor_file, "pages": pages}, indent=2, ensure_ascii=False
+        )
+    )
+    if broken:
+        raise SystemExit(CONTRACT_BROKEN)
+
+
+@main.command("heal")
+@click.argument("extractor_file")
+@click.argument("sources", nargs=-1, required=True)
+@click.option("-o", "--output", help="Where to write the healed extractor.")
+@click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
+@click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")
+def heal_command(
+    extractor_file: str,
+    sources: tuple[str, ...],
+    output: str | None,
+    stealth: bool,
+    no_robots: bool,
+) -> None:
+    """Learn pages again and say what moved; write the result only with -o.
+
+    Exits 3 when a field or a summary answer was lost for good: healing moved
+    what it could, and what it could not needs a person.
+    """
+    extractor = _load_extractor(extractor_file)
+    pages = _read_pages(sources, stealth, no_robots)
+    try:
+        healed, changes = heal_extractor(extractor, pages, names=list(sources))
+    except NothingToLearn as nothing:
+        click.echo(f"The pages hold nothing to heal from: {nothing}.", err=True)
+        raise SystemExit(CONTRACT_BROKEN) from nothing
+    for change in changes:
+        if change.kind == "kept":
+            continue
+        if change.before and change.after:
+            click.echo(f"{change.kind}: {change.before} -> {change.after}", err=True)
+        else:
+            click.echo(f"{change.kind}: {change.before or change.after}", err=True)
+    if output:
+        Path(output).write_text(healed.to_json(), encoding="utf-8")
+        click.echo(f"Wrote {output}.", err=True)
+    click.echo(
+        json.dumps(
+            {"changes": [asdict(c) for c in changes]}, indent=2, ensure_ascii=False
+        )
+    )
+    if any(c.kind in ("vanished", "summary-lost", "type-lost") for c in changes):
+        raise SystemExit(CONTRACT_BROKEN)

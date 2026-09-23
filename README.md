@@ -105,6 +105,16 @@ card, then HTML's own metadata names, and each value carries the reader that won
 it. A value from `<meta name="author">` says `"source": "html"`, because that is
 what it is. You always know where a number came from before you act on it.
 
+**Fails loudly when a site changes.** Learn an extractor once from two or three
+pages of a template, keep it in a small JSON file, and replay it on any page of
+that template for nothing. Every replay checks the page against what was learnt
+-- the listing is where it was, the rows are there, every field that was always
+filled still is and still looks the same, every summary answer is still
+answered -- and a page that drifted fails with exit code 3 and the reason,
+instead of returning nulls for weeks. After a redesign, `sluicer heal` says
+which field moved where, and a moved field keeps the name your code reads. See
+[extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md).
+
 **Reads pages that declare nothing.** Ask for it with `induce=True` and Sluicer
 looks for the shape the page repeats -- the rows of a listing, the cards of a
 feed -- and returns one record per repetition, naming each field by where it
@@ -136,7 +146,7 @@ not happen to a caller who never asked for it.
 **Turns a page into markdown.** The article without the navigation, the cookie
 banner or the footer.
 
-**Answers an agent.** An MCP server with three tools, so Claude Code, Codex and
+**Answers an agent.** An MCP server with six tools, so Claude Code, Codex and
 anything else that speaks the protocol can call it directly. A failure comes
 back as an error the agent can read, never as text that looks like the page,
 and the server will not fetch `localhost`, a private network or a cloud's
@@ -152,11 +162,16 @@ sluicer extract https://example.com/product    # or a URL
 curl -s https://example.com | sluicer extract - --url https://example.com
 sluicer extract listing.html --induce          # rows of a page that declares nothing
 sluicer markdown https://example.com/article   # the readable content
+
+sluicer compile page1.html page2.html -o shop.json   # learn an extractor
+sluicer run shop.json https://shop.example/c?page=7  # replay it, checked
+sluicer heal shop.json https://shop.example/c -o shop.json  # after a redesign
 ```
 
 Exit codes follow grep: 0 when something was found -- a record, or at least one
 summary answer such as the page's title -- 1 when the page was read and gives
-nothing at all, 2 when it could not be read.
+nothing at all, 2 when it could not be read. `run` and `heal` add 3: a page broke
+the extractor's contract, or healing lost a field. A drifted page never exits 0.
 
 From Python:
 
@@ -179,10 +194,12 @@ From an agent, in your project's `.mcp.json`:
 Or in one line: `claude mcp add sluicer -- sluicer-mcp`. The repository is also a
 Claude Code plugin, so `/plugin install` brings the server and a skill that tells
 an agent when to reach for it and when not to bother; the plugin runs the server
-with `uvx`, so it needs [uv](https://docs.astral.sh/uv/) on the path. Three tools arrive with
-it. `extract_declared` returns the declared data with its provenance.
-`page_markdown` returns the readable content. `fetch_page` returns the page and
-the record of what it cost to get.
+with `uvx`, so it needs [uv](https://docs.astral.sh/uv/) on the path. Six tools
+arrive with it. `extract_declared` returns the summary and the declared data
+with its provenance. `page_markdown` returns the readable content. `fetch_page`
+returns the page and the record of what it cost to get. `compile_extractor`,
+`run_extractor` and `heal_extractor` learn an extractor, replay it with its
+checks, and heal it after a redesign.
 
 ## Install
 
@@ -194,7 +211,7 @@ uv pip install 'sluicer[microformats]'             # microformats2, off by defau
 ```
 
 Until the first upload to PyPI, install from the tagged release on GitHub:
-`uv tool install 'sluicer[fetch,markdown,mcp] @ git+https://github.com/Gi0tto/sluicer@v0.1.0'`.
+`uv tool install 'sluicer[fetch,markdown,mcp] @ git+https://github.com/Gi0tto/sluicer@v0.2.0'`.
 
 The base install is `lxml` and `click`. Fetching, markdown and the MCP server
 each sit behind an extra, so a reader who only parses HTML never carries a
@@ -261,6 +278,7 @@ Also published as a site at <https://gi0tto.github.io/sluicer/>.
 
 - [Examples](https://github.com/Gi0tto/sluicer/tree/main/examples): three runnable scripts, each verified against a live page
 - [Roadmap](https://github.com/Gi0tto/sluicer/blob/main/ROADMAP.md): what is coming, and in what order
+- [Extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md): learn once, replay for nothing, fail loudly, heal
 - [Scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md): the numbers above, every outcome, and how to regenerate them
 - [Known limits](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md): where Sluicer stops, stated plainly
 - [Design notes](https://github.com/Gi0tto/sluicer/blob/main/docs/design-notes.md): why the rules are the rules

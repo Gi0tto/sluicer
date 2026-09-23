@@ -1,13 +1,15 @@
 """Sluicer as a tool an agent can call, over the Model Context Protocol.
 
-Three tools -- ``extract_declared``, ``page_markdown``, ``fetch_page`` -- expose
-what the library does and add no logic of their own. Run it with
+Six tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``, and
+``compile_extractor``, ``run_extractor``, ``heal_extractor`` -- expose what the
+library does and add no logic of their own. Run it with
 ``sluicer-mcp``; it needs the ``mcp`` extra.
 """
 
 from __future__ import annotations
 
 import functools
+import json
 import logging
 import os
 import sys
@@ -15,7 +17,7 @@ from collections.abc import Callable
 from dataclasses import asdict
 from typing import Any
 
-from sluicer import __version__
+from sluicer import __version__, extractor as extractor_module
 from sluicer.api import extract
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused
@@ -129,7 +131,7 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
 
 
 def build_server() -> Any:
-    """Build the server with its three tools registered.
+    """Build the server with its six tools registered.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
@@ -205,7 +207,90 @@ def build_server() -> Any:
             "length": len(html),
         }
 
+    @server.tool()  # type: ignore[untyped-decorator]
+    @_answers_instead_of_raising
+    def compile_extractor(
+        pages: list[str], listing: bool | None = None
+    ) -> dict[str, Any]:
+        """Learn an extractor from pages of one template, to replay later for free.
+
+        pages: http(s) URLs, or the HTML itself, of pages built from one
+        template -- two or three pages of one listing, or of one kind of
+        product page.
+        listing: learn the rows the pages repeat; by default only where they
+        declare nothing about a thing.
+
+        Returns {"extractor": {...}}: keep that object and hand it to
+        run_extractor. It holds what the pages declared, the listing's place,
+        its fields, and what every field looked like.
+        """
+        if not pages:
+            raise _BadInput("compile_extractor needs at least one page")
+        read = [_html_of(one)[:2] for one in pages]
+        try:
+            learnt = extractor_module.compile_extractor(read, listing=listing)
+        except extractor_module.NothingToLearn as nothing:
+            raise _BadInput(str(nothing)) from nothing
+        return {"extractor": json.loads(learnt.to_json())}
+
+    @server.tool()  # type: ignore[untyped-decorator]
+    @_answers_instead_of_raising
+    def run_extractor(extractor: dict[str, Any], html_or_url: str) -> dict[str, Any]:
+        """Replay an extractor on one page, and check the page still keeps to it.
+
+        extractor: the object compile_extractor returned.
+        html_or_url: an http(s) URL to fetch, or the HTML itself.
+
+        Returns {"ok", "rows", "summary", "failed"}. ok is false when the page
+        drifted -- the listing moved, rows or a field vanished, a price no
+        longer looks like a price -- and "failed" says which expectation broke.
+        Never read rows from a run whose ok is false as if nothing happened.
+        """
+        loaded = _extractor_from(extractor)
+        html, url, _fetched = _html_of(html_or_url)
+        run = extractor_module.run_extractor(loaded, html, url=url)
+        return {
+            "ok": run.ok,
+            "rows": run.rows,
+            "summary": run.summary,
+            "failed": [asdict(check) for check in run.checks if not check.ok],
+        }
+
+    @server.tool()  # type: ignore[untyped-decorator]
+    @_answers_instead_of_raising
+    def heal_extractor(extractor: dict[str, Any], pages: list[str]) -> dict[str, Any]:
+        """Learn pages again after a redesign, and say what moved where.
+
+        extractor: the object compile_extractor returned.
+        pages: http(s) URLs, or the HTML itself, of the redesigned pages.
+
+        Returns {"extractor", "changes"}. A field that moved keeps its old
+        name, so rows read with the healed extractor keep their columns;
+        "vanished" or "summary-lost" in changes is data the page no longer has.
+        """
+        loaded = _extractor_from(extractor)
+        if not pages:
+            raise _BadInput("heal_extractor needs at least one page")
+        read = [_html_of(one)[:2] for one in pages]
+        try:
+            healed, changes = extractor_module.heal(loaded, read)
+        except extractor_module.NothingToLearn as nothing:
+            raise _BadInput(str(nothing)) from nothing
+        return {
+            "extractor": json.loads(healed.to_json()),
+            "changes": [asdict(change) for change in changes],
+        }
+
     return server
+
+
+def _extractor_from(given: dict[str, Any]) -> extractor_module.Extractor:
+    try:
+        return extractor_module.Extractor.from_json(json.dumps(given))
+    except (ValueError, KeyError, TypeError) as invalid:
+        raise _BadInput(
+            f"not an extractor from compile_extractor: {invalid}"
+        ) from invalid
 
 
 def main() -> None:

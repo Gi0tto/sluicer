@@ -48,7 +48,14 @@ def test_the_server_registers_the_three_tools(monkeypatch):
     build_server()
 
     tools = {name for name in registered if not name.startswith("__")}
-    assert tools == {"extract_declared", "page_markdown", "fetch_page"}
+    assert tools == {
+        "extract_declared",
+        "page_markdown",
+        "fetch_page",
+        "compile_extractor",
+        "run_extractor",
+        "heal_extractor",
+    }
 
 
 def test_extract_declared_reads_html_given_directly(monkeypatch):
@@ -592,3 +599,66 @@ def test_the_server_reports_its_own_version(monkeypatch):
     build_server()
 
     assert registered["__options__"]["version"] == sluicer.__version__
+
+
+def _drift(name):
+    from pathlib import Path
+
+    return (Path(__file__).parent / "fixtures" / "drift" / name).read_text()
+
+
+def test_an_agent_compiles_an_extractor_and_replays_it(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    learnt = registered["compile_extractor"](
+        [_drift("shop_v1.html"), _drift("shop_v1_page2.html")]
+    )
+    good = registered["run_extractor"](learnt["extractor"], _drift("shop_v1.html"))
+    bad = registered["run_extractor"](
+        learnt["extractor"], _drift("shop_prices_gone.html")
+    )
+
+    assert learnt["extractor"]["listing"]["member"] == "li.product"
+    assert good["ok"] is True and len(good["rows"]) == 6
+    assert bad["ok"] is False
+    assert bad["failed"][0]["name"] == "field"
+
+
+def test_an_agent_heals_an_extractor_after_a_redesign(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    learnt = registered["compile_extractor"]([_drift("shop_v1.html")])
+    healed = registered["heal_extractor"](
+        learnt["extractor"], [_drift("shop_redesigned.html")]
+    )
+    run = registered["run_extractor"](
+        healed["extractor"], _drift("shop_redesigned.html")
+    )
+
+    moved = {c["before"]: c["after"] for c in healed["changes"] if c["kind"] == "moved"}
+    assert moved["span.price"] == "div.cost"
+    assert run["ok"] is True
+    assert set(run["rows"][0]) == {
+        "a.title",
+        "a.title@href",
+        "span.price",
+        "span.stock",
+    }
+
+
+def test_a_bad_extractor_or_no_page_is_a_bad_input(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    assert registered["run_extractor"]({"format": 99}, "<p>x</p>")["bad_input"] is True
+    assert registered["compile_extractor"]([])["bad_input"] is True
+    assert registered["compile_extractor"](["<p>x</p>"])["bad_input"] is True
+    learnt = registered["compile_extractor"]([_drift("shop_v1.html")])
+    assert registered["heal_extractor"](learnt["extractor"], [])["bad_input"] is True
+    assert registered["heal_extractor"](learnt["extractor"], ["<p>x</p>"])["bad_input"]

@@ -1,7 +1,7 @@
 ---
 name: sluicer
 description: Read the structured data a web page already declares (JSON-LD, microdata, RDFa, Dublin Core, OpenGraph, Twitter cards, HTML's own meta names, and microformats2 on request) and get back a summary -- title, author, date, price, currency, availability, brand, SKU -- plus full records, every value naming the vocabulary and key it came from, with no model and no API key. Use when asked for a product's price, an article's author or date, a recipe's ingredients, a book's metadata, or any field a page states about itself; when a scrape must be reproducible or auditable; when you need a page as clean markdown; or when fetching should announce itself and obey robots.txt.
-version: "0.1.0"
+version: "0.2.0"
 license: MIT
 metadata:
   homepage: "https://github.com/Gi0tto/sluicer"
@@ -27,12 +27,19 @@ guessing, and reading the page yourself is the right move. For a listing that
 declares nothing, `induce=True` reads the rows the page repeats, and every such
 field says `"source": "induced"`.
 
-## The three MCP tools
+## The MCP tools
 
 - `extract_declared(html_or_url, induce=false)` -- the summary and the records.
 - `page_markdown(html_or_url)` -- the main content as markdown.
 - `fetch_page(url)` -- the HTML (cut at 200,000 characters) and what the fetch
   cost. Prefer the other two: they return what is in the page, not all of it.
+- `compile_extractor(pages)` -- learn an extractor from two or three pages of one
+  template. Keep the object it returns.
+- `run_extractor(extractor, html_or_url)` -- replay it on any page of that
+  template: plain rows, and `ok: false` with the reason when the page drifted.
+  Never use rows from a run that is not ok as if nothing happened.
+- `heal_extractor(extractor, pages)` -- after a redesign, what moved where; moved
+  fields keep their names.
 
 A failure is always `{"error": ...}` with a key saying which kind:
 `refused_by_robots`, `refused_address`, `fetch_failed`, `missing_extra` or
@@ -85,10 +92,16 @@ sluicer extract https://example.com/product      # summary and records, as JSON
 sluicer extract saved.html --url https://x.example/p   # a file, and where it came from
 sluicer extract listing.html --induce            # rows of a page that declares nothing
 sluicer markdown https://example.com/article
+sluicer compile page1.html page2.html -o shop.json   # an extractor, learnt once
+sluicer run shop.json https://shop.example/c?page=7  # exit 3 if the page drifted
 ```
 
 Exit codes: 0 something found (a record or a summary answer), 1 the page gives
-nothing at all, 2 could not be read.
+nothing at all, 2 could not be read, 3 a page broke an extractor's contract.
+
+When the same kind of page will be read again and again -- a listing checked
+daily, a product page watched -- compile an extractor once and run it: each run
+is free and says when the site changed, instead of returning nulls.
 
 ```python
 import sluicer

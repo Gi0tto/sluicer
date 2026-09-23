@@ -37,32 +37,24 @@ one command, losses included:
 It is a start, not the ruler: the corpus strips every `<script>`, so JSON-LD goes
 unmeasured, and it labels only three fields.
 
+## Shipped in 0.2.0
+
+**Extractors that fail loudly.** `sluicer compile` learns an extractor from a
+few pages of one template and writes it as a small, readable JSON file;
+`sluicer run` replays it with no induction and checks every page against what
+was learnt -- the listing's place, the row count, the required fields, the shape
+of their values, the summary answers and the declared types -- and exits 3 when
+a page drifted. `sluicer heal` learns the page again and says which field moved
+where, keeping the old names. The same three steps are MCP tools. No model
+anywhere, including the compile step. See [extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md).
+
 ## Next
 
-**Extractors that fail loudly.** The most repeated complaint about scraping is
-not fetching or parsing: it is a scraper that keeps returning nulls for weeks
-after a site changes its markup, and an automation that reports success when it
-failed. The plan, in order, each step shipping on its own:
-
-1. *An extractor is a file.* `sluicer compile` induces an extractor from pages
-   of one template and writes it as a small, versioned, readable artifact;
-   `sluicer run` replays it with no induction and no per-page cost, identically
-   on any machine.
-2. *A contract, checked on every run.* The artifact states what a good run
-   looks like -- the field set, row counts, null rates, and that two pages of
-   one template yield the same fields. A run that breaks it exits non-zero with
-   what failed, by how much, on which page. It can never exit 0.
-3. *Healing is a diff.* When the contract fails, re-induce on the new page and
-   print which fields moved, vanished or appeared. A new version is written
-   only when asked.
-4. *The proof.* A drift benchmark built from Wayback Machine snapshots of the
-   same pages before and after real redesigns: the share of extractors that
-   survive, that fail loudly, that fail silently, and that heal -- measured for
-   Sluicer and for the adaptive selectors of Scrapling beside it. Silent
-   failure is the headline number.
-
-No model anywhere in this, including the compile step: the extractor is induced
-from the markup, which is what makes it reproducible and free to run.
+**The proof.** A drift benchmark built from Wayback Machine snapshots of the
+same pages before and after real redesigns: the share of extractors that
+survive, that fail loudly, that fail silently, and that heal -- measured for
+Sluicer and for the adaptive selectors of Scrapling beside it. Silent failure is
+the headline number. Until it exists, the claim is only what the fixtures show.
 
 **A better ruler.** Pages as they are served, scripts intact, so JSON-LD is
 measured; more fields, starting with price and currency; a multilingual

@@ -181,7 +181,7 @@ jobs:
           from sluicer.mcp_server import build_server
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
-          assert tools == ['extract_declared', 'fetch_page', 'page_markdown'], tools
+          assert tools == ['compile_extractor', 'extract_declared', 'fetch_page', 'heal_extractor', 'page_markdown', 'run_extractor'], tools
 
           # Registration is not use. The SDK's dispatch is where a future release
           # can break us while every import still resolves, so call a tool for real.
@@ -265,7 +265,7 @@ jobs:
           from sluicer.mcp_server import build_server
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
-          assert tools == ['extract_declared', 'fetch_page', 'page_markdown'], tools
+          assert tools == ['compile_extractor', 'extract_declared', 'fetch_page', 'heal_extractor', 'page_markdown', 'run_extractor'], tools
           print('still building against the newest published extras')
           "
 

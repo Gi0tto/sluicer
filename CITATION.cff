@@ -7,8 +7,8 @@ authors:
     given-names: Nichita
 repository-code: "https://github.com/Gi0tto/sluicer"
 license: MIT
-version: 0.1.0
-date-released: "2026-09-22"
+version: 0.2.0
+date-released: "2026-09-23"
 abstract: >-
   Sluicer reads the structured data a web page already declares, in JSON-LD,
   microdata, RDFa, Dublin Core, OpenGraph, the Twitter card, HTML's own metadata
