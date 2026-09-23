@@ -92,3 +92,23 @@ shingles, at or above the threshold the scoreboard states and justifies. It is
 polite: one request per second per archive host, four pages in flight, retries
 with backoff on 429 and 5xx; a request that still fails is counted as not
 fetched, never as an empty page. A full discovery takes about an hour.
+
+## extruct's interface, beside extruct
+
+[`docs/extruct.md`](../docs/extruct.md) measures `sluicer.compat.extruct`
+against extruct itself, syntax by syntax, on sluicer's test fixtures, the 360
+pages as served and Zyte's 140 product pages.
+
+```bash
+uv run bench/extruct_compat.py            # both, then the table in docs/extruct.md
+uv run bench/extruct_compat.py --reuse    # reuse extruct's last run
+```
+
+extruct runs in an environment of its own, pinned by
+`requirements/extruct.txt`, on the interpreter running the script, since
+`urljoin` changed between Python versions. It needs the served pages in
+`bench/cache/realweb/`, which `bench/realweb.py` fetches, and downloads Zyte's
+benchmark as `bench/products.py` does. A syntax is identical when the two
+answers are equal as JSON, and RDFa when they are the same graph. Every
+difference is put in the first category whose test explains it; one no test
+explains fails the run.
