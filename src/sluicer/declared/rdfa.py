@@ -66,6 +66,16 @@ _INITIAL_CONTEXT = {
 _OPENGRAPH = ("http://ogp.me/ns", "https://ogp.me/ns")
 _MAX_DEPTH = 16
 
+# What the whole page may copy into the answer: every character of a value, a
+# name or a type is paid for from one budget, ten times what the page holds and
+# never less than this. A property nested in another holds all the text below
+# it, one ``property`` can name hundreds of fields, and a long ``vocab`` or
+# ``prefix`` is written into every name resolved under it, so each of those made
+# 1.6 MB of JSON from a page of a few kilobytes. When a cost cannot be paid the
+# budget is spent and the reader stops, so a hostile page gets the start of its
+# answer in document order, the same every time.
+_PAGE_FLOOR = 10_000
+
 
 def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     """Return one dict per top-level ``typeof`` subject found in the page.
@@ -75,24 +85,40 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     around it. ``typeof`` may name several types, and ``property`` several
     fields, each of which gets the value, because that is what the page said.
     """
+    left = [max(_PAGE_FLOOR, 10 * len(doc.html))]
     found: list[dict[str, Any]] = []
     for subject in doc.tree.xpath("//*[@typeof]"):
+        if left[0] <= 0:
+            break
         is_a_property = subject.get("property") is not None
         if is_a_property and _nearest_subject(subject) is not None:
             continue
-        item = _subject(doc, subject, 0)
+        item = _subject(doc, subject, 0, left)
         if item:
             found.append(item)
     return found
 
 
-def _subject(doc: Document, subject: HtmlElement, depth: int) -> dict[str, Any]:
+def _pay(left: list[int], cost: int) -> bool:
+    """Take ``cost`` from what the page has left, or spend it all and say no."""
+    if cost > left[0]:
+        left[0] = 0
+        return False
+    left[0] -= cost
+    return True
+
+
+def _subject(
+    doc: Document, subject: HtmlElement, depth: int, left: list[int]
+) -> dict[str, Any]:
     item: dict[str, Any] = {}
     types = _names(subject, subject.get("typeof"))
-    if types:
+    if types and _pay(left, sum(len(name) for name in types)):
         item["@type"] = types[0] if len(types) == 1 else types
     repeated: set[str] = set()
     for prop in _properties(subject):
+        if left[0] <= 0:
+            break
         names = _names(prop, prop.get("property"))
         if not names:
             continue
@@ -100,16 +126,24 @@ def _subject(doc: Document, subject: HtmlElement, depth: int) -> dict[str, Any]:
         if prop.get("typeof") is not None:
             if depth >= _MAX_DEPTH:
                 continue
-            value = _subject(doc, prop, depth + 1)
+            before = left[0]
+            value = _subject(doc, prop, depth + 1, left)
             if not any(not key.startswith("@") for key in value):
                 continue
+            # Its first copy was paid for as it was read.
+            size, paid = before - left[0], True
         else:
             value = _value(doc, prop)
             if not value:
                 # An empty value is not a value: recording it here would
                 # shadow the real one another reader may carry.
                 continue
+            size, paid = len(value), False
         for name in names:
+            # Every name the property carries is one more copy of its value.
+            if not _pay(left, len(name) + (0 if paid else size)):
+                return item
+            paid = False
             if name not in item:
                 item[name] = value
             elif name in repeated:

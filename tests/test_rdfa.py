@@ -1,3 +1,5 @@
+import pytest
+
 from sluicer.declared.rdfa import read_rdfa
 from sluicer.document import load
 
@@ -274,3 +276,49 @@ def test_an_rdfa_address_is_resolved_against_the_page():
 
     assert item["url"] == "https://shop.example/p/1"
     assert item["sameAs"] == "https://shop.example/wiki/Pad"
+
+
+_LONG = "x" * 4000
+_SUBJECT = '<div vocab="https://schema.org/" typeof="Thing">'
+_COPIED_MANY_TIMES = {
+    "four hundred properties nested in each other": (
+        _SUBJECT + '<span property="a">' * 400 + _LONG + "</span>" * 400 + "</div>"
+    ),
+    "one element naming four hundred properties": (
+        _SUBJECT
+        + '<p property="'
+        + " ".join(f"p{i}" for i in range(400))
+        + f'">{_LONG}</p></div>'
+    ),
+    "four hundred terms under a long vocab": (
+        f'<div vocab="http://v.example/{_LONG}#" typeof="Thing">'
+        + "".join(f'<span property="a{i}">x</span>' for i in range(400))
+        + "</div>"
+    ),
+    "four hundred terms under a long prefix": (
+        f'<div prefix="p: http://p.example/{_LONG}#" typeof="Thing">'
+        + "".join(f'<span property="p:a{i}">x</span>' for i in range(400))
+        + "</div>"
+    ),
+    "four hundred links resolved against a long base": (
+        f'<base href="http://h.example/{_LONG}/">'
+        + _SUBJECT
+        + '<a property="u" href="x">x</a>' * 400
+        + "</div>"
+    ),
+}
+
+
+@pytest.mark.parametrize("html", _COPIED_MANY_TIMES.values(), ids=_COPIED_MANY_TIMES)
+def test_a_value_copied_many_times_costs_at_most_ten_times_the_page(html):
+    """Found by the property that what a page yields is bounded by its size.
+
+    Each of these made 1.6 MB of JSON from a page of 6 to 17 KB, between 96
+    and 269 times the page, and the ratio grows with the page.
+    """
+    import json
+
+    found = read_rdfa(load(html))
+
+    assert found
+    assert len(json.dumps(found)) <= 11 * len(html)
