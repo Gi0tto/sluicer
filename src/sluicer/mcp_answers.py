@@ -95,13 +95,24 @@ class ClimbAnswer(TypedDict):
     seconds: float
 
 
-class FetchRecord(TypedDict):
-    """How a URL was fetched: the rung that got it, and every climb before."""
+class CaptureAnswer(TypedDict):
+    """Which archived capture a page was read from."""
 
-    rung: str
-    status: int
-    seconds: float
-    climbs: list[ClimbAnswer]
+    archive: str
+    asked: str
+    captured: str
+    url: str
+
+
+class FetchRecord(TypedDict, total=False):
+    """How a URL was fetched: the rung that got it, and every climb before;
+    ``archived`` when it was read from an archive."""
+
+    rung: Required[str]
+    status: Required[int]
+    seconds: Required[float]
+    climbs: Required[list[ClimbAnswer]]
+    archived: CaptureAnswer
 
 
 class ExtractAnswer(TypedDict, total=False):

@@ -138,7 +138,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   page's. It is an ordinary fetch -- plain HTTP, the archive's robots.txt, the
   size bound, private addresses refused -- that follows redirects only within
   the archive. `sluicer diff URL URL --at 2024-01` reads BEFORE from the
-  archive and AFTER live: what changed since then.
+  archive and AFTER live: what changed since then. The MCP tools
+  `extract_declared` and `page_markdown` take `at` too; a page the archive
+  never captured is `fetch_failed` with `retryable` false.
 - `sluicer warc FILES` and `sluicer.warc`: the pages a WARC file holds, as
   Common Crawl, the Internet Archive, wget, Browsertrix and warcio write them,
   one JSON line each with the record it came from. Every page is read with

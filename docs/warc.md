@@ -71,7 +71,10 @@ away, so the answer says which capture it read, never just the date asked for:
   or llms.txt: today's files say nothing about a page of last year.
 
 From Python: `sluicer.fetch.archive.fetch_archived(url, "2024-01")` gives the
-`Fetched` page, with `archived` saying which capture it is.
+`Fetched` page, with `archived` saying which capture it is. For an agent, the
+MCP tools `extract_declared` and `page_markdown` take `at`; a page never
+captured answers `fetch_failed` with `retryable` false, since asking again
+will not make the archive have held it.
 
 On python.org, `sluicer diff https://www.python.org/ https://www.python.org/
 --at 2019-01` finds the PEP feed that moved to peps.python.org since then.

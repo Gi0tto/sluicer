@@ -267,3 +267,46 @@ def test_a_date_that_is_not_one_or_a_page_never_captured_exits_two(monkeypatch):
     bad = CliRunner().invoke(main, ["extract", "http://shop.example/x", "--at", "June"])
     assert bad.exit_code == 2
     assert "is not a date" in bad.stderr
+
+
+# -- for an agent --------------------------------------------------------------
+
+
+def test_an_agent_reads_a_page_as_it_was(monkeypatch, archived):
+    from test_mcp_server import fake_mcp
+
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    read = registered["extract_declared"]("http://shop.example/p/1", at="2020-06")
+    assert read["ok"] is True
+    assert read["fetch"]["archived"]["captured"] == "20200629104713"
+    assert read["links"]["canonical"] == "http://shop.example/p/1"
+    text = registered["page_markdown"]("http://shop.example/p/1", at="2020")
+    assert text["ok"] is True and text["fetch"]["rung"] == "archive"
+
+
+def test_an_agent_is_told_why_there_is_no_capture(monkeypatch):
+    from test_mcp_server import fake_mcp
+
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    def never(url, at, **kwargs):
+        raise NotArchived(url, at)
+
+    monkeypatch.setattr("sluicer.fetch.archive.fetch_archived", never)
+    build_server()
+    missing = registered["extract_declared"]("http://shop.example/x", at="2020")
+    assert missing["ok"] is False
+    assert missing["error"]["code"] == "fetch_failed"
+    assert missing["error"]["retryable"] is False, "asking again will not help"
+    literal = registered["extract_declared"]("<html></html>", at="2020")
+    assert literal["error"]["code"] == "bad_input"
+    monkeypatch.undo()
+    registered = fake_mcp(monkeypatch)
+    build_server()
+    bad = registered["extract_declared"]("http://shop.example/x", at="June")
+    assert bad["error"]["code"] == "bad_input"
+    assert "is not a date" in bad["error"]["message"]

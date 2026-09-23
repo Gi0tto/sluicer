@@ -28,6 +28,7 @@ from sluicer.api import extract
 from sluicer.audit import answered_with, audit
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused
+from sluicer.fetch.archive import NotArchived
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
 from sluicer.markdown import to_markdown
 
@@ -103,7 +104,8 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
     responses: ``missing_extra`` (install what the message says),
     ``refused_by_robots`` (do not work around it), ``refused_address`` (a
     private address, refused by default), ``fetch_failed`` (worth trying
-    later: the only retryable one), ``too_large`` and ``bad_input``. Raised
+    later: the only retryable one, unless the archive holds no capture),
+    ``too_large`` and ``bad_input``. Raised
     instead, each reached the agent as the SDK's bare "Error executing tool".
 
     An error is never where a tool's content goes: returned as text, "Turning a
@@ -125,6 +127,9 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
         except ResponseTooLarge as heavy:
             fetched = heavy.url.startswith(("http://", "https://"))
             return _error("too_large", heavy, url=heavy.url if fetched else None)
+        except NotArchived as missing:
+            # Asking again will not make the archive have held the page.
+            return _error("fetch_failed", missing, url=missing.url)
         except FetchFailed as failed:
             return _error("fetch_failed", failed, retryable=True, url=failed.url)
         except _BadInput as bad:
@@ -156,30 +161,46 @@ def _allow_private() -> bool:
     return os.environ.get(ALLOW_PRIVATE_ENV, "").strip().lower() in {"1", "true", "yes"}
 
 
-def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
+def _html_of(
+    html_or_url: str, at: str | None = None
+) -> tuple[str, str | None, dict[str, Any] | None]:
     """Return the page's HTML, the URL to attribute it to, and the fetch record.
 
     The URL is where the fetch landed, after redirects, since that is what the
     page's relative links resolve against; for literal HTML it is None. Literal
     HTML is held to the bound a fetched page is.
     """
-    html, url, record, _headers = _page_of(html_or_url)
+    html, url, record, _headers = _page_of(html_or_url, at)
     return html, url, record
 
 
 def _page_of(
-    html_or_url: str,
+    html_or_url: str, at: str | None = None
 ) -> tuple[str, str | None, dict[str, Any] | None, dict[str, str] | None]:
     """``_html_of``, and the response's headers for a URL.
 
     The headers are read into the answer -- a canonical in ``Link``,
     ``X-Robots-Tag`` -- and never sent back raw: a response's cookies are not
-    the agent's to see.
+    the agent's to see. ``at`` reads a URL as the Wayback Machine captured it
+    nearest to that date, and the record then says which capture it was.
     """
-    if html_or_url.strip().lower().startswith(("http://", "https://")):
+    is_url = html_or_url.strip().lower().startswith(("http://", "https://"))
+    if at is not None and not is_url:
+        raise _BadInput("at reads an address from the Wayback Machine, not HTML")
+    if is_url and at is not None:
+        from sluicer.fetch.archive import fetch_archived
+
+        try:
+            fetched = fetch_archived(
+                html_or_url.strip(), at, allow_private=_allow_private()
+            )
+        except ValueError as bad:
+            raise _BadInput(str(bad)) from bad
+    elif is_url:
         from sluicer.fetch import fetch
 
         fetched = fetch(html_or_url, allow_private=_allow_private())
+    if is_url:
         return (
             fetched.html,
             fetched.url,
@@ -191,6 +212,11 @@ def _page_of(
                     {**asdict(climb), "seconds": round(climb.seconds, 3)}
                     for climb in fetched.climbs
                 ],
+                **(
+                    {"archived": asdict(fetched.archived)}
+                    if fetched.archived is not None
+                    else {}
+                ),
             },
             fetched.headers,
         )
@@ -228,13 +254,15 @@ def build_server() -> Any:
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
     def extract_declared(
-        html_or_url: str, induce: bool = False
+        html_or_url: str, induce: bool = False, at: str | None = None
     ) -> answers.ExtractAnswer:
         """Read the structured data a page declares, with where each value came from.
 
         html_or_url: an http(s) URL to fetch, or the HTML itself.
         induce: also read repeated rows (a listing, a feed) from a page that
         declares nothing about them; those fields say source "induced".
+        at: a date (2024, 2024-06, 2024-06-01): read the URL as the Wayback
+        Machine captured it nearest to then; "fetch" says which capture.
 
         Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
         for a URL. records are typed fields, each {"value", "source"}, where
@@ -244,7 +272,7 @@ def build_server() -> Any:
         one value each, naming its source and key. On failure ok is false and
         "error" says why; there is never a record.
         """
-        html, url, fetched, headers = _page_of(html_or_url)
+        html, url, fetched, headers = _page_of(html_or_url, at)
         read = extract(html, url=url, induce=induce, headers=headers)
         result = {"ok": True, **asdict(read)}
         if fetched is not None:
@@ -254,7 +282,7 @@ def build_server() -> Any:
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
     def page_markdown(
-        html_or_url: str, front_matter: bool = False
+        html_or_url: str, front_matter: bool = False, at: str | None = None
     ) -> answers.MarkdownAnswer:
         """Return a page's main content as markdown, without navigation or footer.
 
@@ -262,12 +290,13 @@ def build_server() -> Any:
         front_matter: open the markdown with a YAML block of what the page
         declares about itself (title, author, dates, url...) and each
         answer's source.
+        at: a date: read the URL as the Wayback Machine captured it then.
 
         Returns {"ok", "markdown", "url"}, and "fetch" for a URL. The markdown
         is always the page's own content: a failure is ok false with "error",
         never text that could be mistaken for the page.
         """
-        html, url, fetched = _html_of(html_or_url)
+        html, url, fetched = _html_of(html_or_url, at)
         result: dict[str, Any] = {
             "ok": True,
             "markdown": to_markdown(html, url=url, front_matter=front_matter),
