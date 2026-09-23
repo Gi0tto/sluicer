@@ -188,10 +188,16 @@ def test_a_label_python_knows_and_no_page_can_be_in_is_passed_over(label):
     decoded with, and a NUL makes the lookup itself refuse: each of those was
     a traceback out of ``load``. EBCDIC is text, and reads the ASCII the
     declaration was written in as something else.
+
+    The bytes decide instead. The title is not asserted: libxml2 2.12, at
+    lxml's floor, stops reading at the NUL, which is not what this is about.
     """
+    from sluicer.document import sniff_encoding
+
     page = f'<html><head><meta charset="{label}"><title>Bremsöl</title></head>'
 
-    assert _title(page.encode("utf-8")) == "Bremsöl"
+    assert sniff_encoding(page.encode("utf-8")) == "utf-8"
+    assert load(page.encode("utf-8")).tree is not None
 
 
 @pytest.mark.parametrize(
