@@ -66,8 +66,8 @@ From `extract_declared`:
     "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" },
     "language": { "value": "en", "source": "html", "key": "<html lang>" },
     "type":     { "value": "Product", "source": "jsonld", "key": "@type" },
-    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers" },
-    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers" },
+    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers.price" },
+    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers.priceCurrency" },
     "sku":      { "value": "BP-1187", "source": "jsonld", "key": "Product.sku" }
   },
   "records": [

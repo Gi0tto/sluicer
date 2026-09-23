@@ -21,8 +21,8 @@ It prints, abridged:
 {
   "summary": {
     "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
-    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers" },
-    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers" },
+    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers.price" },
+    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers.priceCurrency" },
     "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" }
   },
   "normalised": { "price": "41.90", "currency": "EUR" },

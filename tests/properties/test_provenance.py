@@ -85,13 +85,35 @@ def _declared_by_a_record(records, answer) -> bool:
             record.type == answer.value and record.source == answer.source
             for record in records
         )
-    type_, _, prop = answer.key.rpartition(".")
+    type_, _, path = answer.key.partition(".")
+    steps = path.split(".")
+    first = steps[0].split("[")[0]
     return any(
         record.type == type_
-        and prop in record.fields
-        and record.fields[prop].source == answer.source
+        and first in record.fields
+        and record.fields[first].source == answer.source
+        and _reaches(record.fields[first].value, steps, first)
         for record in records
     )
+
+
+def _reaches(value, steps, first) -> bool:
+    """Whether the path an answer names -- ``offers[0].priceSpecification[1]
+    .price`` -- leads somewhere in the field it starts from."""
+    for number, step in enumerate(steps):
+        name, _, index = step.partition("[")
+        if number > 0:
+            if not isinstance(value, dict) or name not in value:
+                return False
+            value = value[name]
+        elif name != first:
+            return False
+        if index:
+            position = int(index.rstrip("]"))
+            if not isinstance(value, list) or position >= len(value):
+                return False
+            value = value[position]
+    return True
 
 
 def _check(html: str | bytes, url: str | None) -> None:

@@ -96,7 +96,7 @@ _WEEKDAY = re.compile(r"^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+", re.I)
 def normalised(summary: dict[str, SummaryField]) -> dict[str, str]:
     """The normalised value of every summary answer that has one, by question.
 
-    ``published`` and ``modified`` as ISO 8601, ``price`` as a decimal with a
+    ``published`` and ``modified`` as ISO 8601, every price as a decimal with a
     point, ``currency`` as its ISO 4217 code. Each is read from the answer of
     the same name, so it shares that answer's source and key.
     """
@@ -104,6 +104,9 @@ def normalised(summary: dict[str, SummaryField]) -> dict[str, str]:
         "published": iso_date,
         "modified": iso_date,
         "price": amount,
+        "price_regular": amount,
+        "price_low": amount,
+        "price_high": amount,
         "currency": currency,
     }
     found = {}

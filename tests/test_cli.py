@@ -528,7 +528,7 @@ def test_inspect_shows_each_field_and_answer_with_where_it_came_from():
     )
     assert any("Product  (jsonld)" in line for line in lines)
     assert any(
-        line.split() == ["price", "41.90", "[jsonld", "Product.offers]"]
+        line.split() == ["price", "41.90", "[jsonld", "Product.offers.price]"]
         for line in lines
     )
     assert any("not read: microformats" in line for line in lines)

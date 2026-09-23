@@ -152,7 +152,8 @@ def test_a_product_answers_its_price_from_inside_its_offers():
     assert summary["sku"][0] == "BP-1"
 
 
-def test_an_aggregate_offer_answers_with_its_lowest_price():
+def test_an_aggregate_offer_answers_with_its_lowest_price_as_the_lowest():
+    """A plain price would be a claim the page never made: "from 19" is not 19."""
     html = _page(
         {
             "@type": "Product",
@@ -165,7 +166,11 @@ def test_an_aggregate_offer_answers_with_its_lowest_price():
         }
     )
 
-    assert _summary(html)["price"][0] == "19"
+    summary = _summary(html)
+
+    assert summary["price_low"][0] == "19"
+    assert "price" not in summary
+    assert summary["currency"][0] == "EUR"
 
 
 def test_a_price_in_a_price_specification_is_found():
@@ -377,3 +382,92 @@ def test_an_availability_that_is_only_the_vocabulary_is_no_answer():
     availability = extract(html).summary["availability"]
 
     assert (availability.value, availability.source) == ("in stock", "opengraph")
+
+
+def _offers(offers):
+    return _summary(_page({"@type": "Product", "name": "Pads", "offers": offers}))
+
+
+def test_a_strikethrough_price_listed_first_is_the_regular_price_not_the_price():
+    """Google's merchant listing: an active price has no priceType."""
+    summary = _offers(
+        {
+            "@type": "Offer",
+            "priceSpecification": [
+                {
+                    "price": "15.00",
+                    "priceCurrency": "EUR",
+                    "priceType": "https://schema.org/StrikethroughPrice",
+                },
+                {"price": "10.00", "priceCurrency": "EUR"},
+            ],
+        }
+    )
+
+    assert summary["price"][0] == "10.00"
+    assert summary["price"][2] == "Product.offers.priceSpecification[1].price"
+    assert summary["price_regular"][0] == "15.00"
+
+
+def test_a_member_price_listed_first_is_not_the_price():
+    summary = _offers(
+        {
+            "@type": "Offer",
+            "priceSpecification": [
+                {"price": "8.00", "validForMemberTier": {"name": "Gold"}},
+                {"price": "10.00", "priceCurrency": "EUR"},
+            ],
+        }
+    )
+
+    assert summary["price"][0] == "10.00"
+    assert "price_regular" not in summary
+
+
+def test_the_offers_inside_an_aggregate_offer_are_read():
+    summary = _offers(
+        {
+            "@type": "AggregateOffer",
+            "offerCount": 2,
+            "offers": [
+                {"@type": "Offer", "price": "12.50", "priceCurrency": "GBP"},
+                {"@type": "Offer", "price": "13", "priceCurrency": "USD"},
+            ],
+        }
+    )
+
+    assert summary["price"] == ("12.50", "jsonld", "Product.offers.offers[0].price")
+    assert summary["currency"][0] == "GBP"
+
+
+def test_price_and_currency_always_come_from_one_offer():
+    summary = _offers(
+        [
+            {
+                "@type": "Offer",
+                "price": "5",
+                "priceType": "ListPrice",
+                "priceCurrency": "USD",
+            },
+            {"@type": "Offer", "price": "6", "priceCurrency": "EUR"},
+        ]
+    )
+
+    assert summary["price"][0] == "6"
+    assert summary["currency"] == ("EUR", "jsonld", "Product.offers[1].priceCurrency")
+
+
+def test_facebook_s_product_tags_answer_a_page_with_no_offer():
+    html = (
+        '<meta property="og:type" content="product">'
+        '<meta property="product:price:amount" content="24.95">'
+        '<meta property="product:price:currency" content="EUR">'
+        '<meta property="product:availability" content="in stock">'
+        '<meta property="product:retailer_item_id" content="BP-1187">'
+    )
+
+    summary = _summary(html)
+
+    assert summary["price"] == ("24.95", "opengraph", "product:price:amount")
+    assert summary["currency"][0] == "EUR"
+    assert summary["sku"] == ("BP-1187", "opengraph", "product:retailer_item_id")

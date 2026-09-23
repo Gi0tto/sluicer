@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from sluicer.declared.merge import ABOUT_A_THING, JsonValue, Record
-from sluicer.declared.opengraph import VERTICALS
+from sluicer.declared.opengraph import NAMESPACES
 from sluicer.document import Document, base_url, join
 
 
@@ -57,6 +57,9 @@ FIELDS = (
     "publisher",
     "type",
     "price",
+    "price_regular",
+    "price_low",
+    "price_high",
     "currency",
     "availability",
     "brand",
@@ -171,13 +174,14 @@ def summarise(
     def og(key: str) -> Answer:
         # OpenGraph's verticals keep their namespace in the key; og: does not.
         return meta(
-            opengraph, "opengraph", key, "" if key.startswith(VERTICALS) else "og:"
+            opengraph, "opengraph", key, "" if key.startswith(NAMESPACES) else "og:"
         )
 
     def own(prop: str, read: Callable[[JsonValue], str | None] = _text) -> Answer:
         return _from(subject, prop, read)
 
     offers = subject.fields.get("offers") if subject is not None else None
+    pricing = _pricing(subject, offers.value) if subject and offers else _Pricing()
     questions: dict[str, list[Answer]] = {
         "title": [
             *_headline_or_name(own("headline"), own("name"), doc, opengraph),
@@ -248,20 +252,22 @@ def summarise(
             _from(organisation, "name", _text),
         ],
         "type": [_type(subject), og("type")],
-        "price": [
-            own("offers", _offer(("price", "lowPrice"))) if offers else None,
-            og("price:amount"),
-        ],
+        "price": [pricing.price, og("price:amount"), og("product:price:amount")],
+        "price_regular": [pricing.regular],
+        "price_low": [pricing.low],
+        "price_high": [pricing.high],
         "currency": [
-            own("offers", _offer(("priceCurrency",))) if offers else None,
+            pricing.currency,
             og("price:currency"),
+            og("product:price:currency"),
         ],
         "availability": [
-            _short(own("offers", _offer(("availability",)))) if offers else None,
+            _short(pricing.availability),
             og("availability"),
+            _short(og("product:availability")),
         ],
-        "brand": [own("brand", _names), og("brand")],
-        "sku": [own("sku")],
+        "brand": [own("brand", _names), og("brand"), og("product:brand")],
+        "sku": [own("sku"), og("product:retailer_item_id")],
     }
 
     # The site, by every name the page gives it: a site that signs its own
@@ -390,42 +396,143 @@ def _address(value: JsonValue) -> str | None:
     return None
 
 
-def _offer(keys: tuple[str, ...]) -> Callable[[JsonValue], str | None]:
-    """Read ``keys`` from the one offer the summary answers from.
+@dataclass(frozen=True)
+class _Pricing:
+    """The prices the subject's offers declare, each with the path it was read at."""
 
-    One offer for every question, so a price and a currency never come from
-    two different offers: the first that states a price, or else the first.
+    price: SummaryField | None = None
+    regular: SummaryField | None = None
+    low: SummaryField | None = None
+    high: SummaryField | None = None
+    currency: SummaryField | None = None
+    availability: SummaryField | None = None
+
+
+# A priceType that says a price is not the one a buyer pays now. Google's
+# merchant listing documentation: "Active prices have neither a priceType nor a
+# validForMemberTier property"; a strikethrough price is StrikethroughPrice,
+# and for a transition period ListPrice.
+_REGULAR = frozenset({"strikethroughprice", "listprice"})
+
+
+def _pricing(subject: Record, offers: JsonValue) -> _Pricing:
+    """The subject's prices, chosen by the rules Google documents, not by order.
+
+    ``price`` is the first active price: a price with neither a ``priceType``
+    nor a ``validForMemberTier``, on an offer or in its ``priceSpecification``.
+    ``price_regular`` is the strikethrough price of that same offer. An
+    ``AggregateOffer``'s ``lowPrice`` and ``highPrice`` are ``price_low`` and
+    ``price_high``, never a plain price, and the offers inside it are read like
+    any other. Currency and availability come from the offer the price came
+    from, so a price and a currency never come from two offers. Every answer's
+    key is the path it was read at: ``Product.offers[1].priceSpecification[0]
+    .price``.
     """
+    source = subject.fields["offers"].source
+    name = subject.type or "Thing"
 
-    def read(value: JsonValue) -> str | None:
-        offer = _the_offer(value)
-        if offer is None:
-            return None
-        for place in (offer, offer.get("priceSpecification")):
-            specification = _the_offer(place) if place is not offer else offer
-            if specification is None:
+    def answer(value: JsonValue | None, path: str) -> SummaryField | None:
+        text = _text(value) if value is not None else None
+        return SummaryField(text, source, f"{name}.{path}") if text else None
+
+    found = _offers_in(offers, "offers")
+    price = regular = currency = availability = None
+    for offer, path in found:
+        for spec, spec_path in _specifications(offer, path):
+            if "price" not in spec:
                 continue
-            for key in keys:
-                if key in specification and (text := _text(specification[key])):
-                    return text
-        return None
+            kind = _price_kind(spec)
+            if kind == "active" and price is None:
+                price = answer(spec["price"], f"{spec_path}.price")
+                currency = answer(
+                    spec.get("priceCurrency"), f"{spec_path}.priceCurrency"
+                ) or answer(offer.get("priceCurrency"), f"{path}.priceCurrency")
+            elif kind == "regular" and regular is None:
+                regular = answer(spec["price"], f"{spec_path}.price")
+        if price is not None:
+            availability = answer(offer.get("availability"), f"{path}.availability")
+            break
+        regular = None
+    low = high = None
+    for offer, path in found:
+        if low is None and high is None:
+            low = answer(offer.get("lowPrice"), f"{path}.lowPrice")
+            high = answer(offer.get("highPrice"), f"{path}.highPrice")
+            if (low or high) and currency is None and price is None:
+                currency = answer(offer.get("priceCurrency"), f"{path}.priceCurrency")
+    if availability is None:
+        availability = next(
+            (
+                a
+                for offer, path in found
+                if (a := answer(offer.get("availability"), f"{path}.availability"))
+            ),
+            None,
+        )
+    if currency is None and price is None and low is None and high is None:
+        currency = next(
+            (
+                c
+                for offer, path in found
+                if (c := answer(offer.get("priceCurrency"), f"{path}.priceCurrency"))
+            ),
+            None,
+        )
+    return _Pricing(price, regular, low, high, currency, availability)
 
-    return read
+
+def _offers_in(value: JsonValue, path: str) -> list[tuple[dict[str, JsonValue], str]]:
+    """Every offer under ``value``, in document order, each with its path.
+
+    An offer that holds ``offers`` of its own -- an ``AggregateOffer`` wrapping
+    the sellers' offers -- comes first, then the offers inside it.
+    """
+    items = value if isinstance(value, list) else [value]
+    found: list[tuple[dict[str, JsonValue], str]] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        here = f"{path}[{index}]" if isinstance(value, list) else path
+        found.append((item, here))
+        inner = item.get("offers")
+        if inner is not None and len(found) < _MOST_OFFERS:
+            found.extend(_offers_in(inner, f"{here}.offers"))
+    return found[:_MOST_OFFERS]
 
 
-def _the_offer(value: JsonValue | None) -> dict[str, JsonValue] | None:
-    offers = [
-        offer
-        for offer in (value if isinstance(value, list) else [value])
-        if isinstance(offer, dict)
-    ]
-    priced = [
-        offer
-        for offer in offers
-        if any(key in offer for key in ("price", "lowPrice", "priceSpecification"))
-    ]
-    chosen = priced or offers
-    return chosen[0] if chosen else None
+# Offers read per subject: a page is not a price list, and a hostile one
+# should not make the summary cost more than its records did.
+_MOST_OFFERS = 100
+
+
+def _specifications(
+    offer: dict[str, JsonValue], path: str
+) -> list[tuple[dict[str, JsonValue], str]]:
+    """The offer itself, then each of its ``priceSpecification``, with paths."""
+    specs = [(offer, path)]
+    declared = offer.get("priceSpecification")
+    items = declared if isinstance(declared, list) else [declared]
+    for index, item in enumerate(items):
+        if isinstance(item, dict):
+            where = (
+                f"{path}.priceSpecification[{index}]"
+                if isinstance(declared, list)
+                else f"{path}.priceSpecification"
+            )
+            specs.append((item, where))
+    return specs
+
+
+def _price_kind(spec: dict[str, JsonValue]) -> str:
+    """``active``, ``regular`` (a strikethrough price), or ``other``."""
+    if spec.get("validForMemberTier") is not None:
+        return "other"
+    declared = spec.get("priceType")
+    kind = (_text(declared) if declared is not None else "") or ""
+    kind = kind.rstrip("/").rsplit("/", 1)[-1]
+    if not kind:
+        return "active"
+    return "regular" if kind.lower() in _REGULAR else "other"
 
 
 def _type(record: Record | None) -> SummaryField | None:

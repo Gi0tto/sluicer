@@ -4,6 +4,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Changed
+- A price's key is the path it was read at -- `Product.offers.price`,
+  `Product.offers[1].priceSpecification[0].price` -- rather than
+  `Product.offers` for every offer answer.
+- An `AggregateOffer`'s `lowPrice` and `highPrice` answer `price_low` and
+  `price_high`, new summary questions, and no longer a plain `price`: "from 19"
+  is not a price of 19.
+
 ### Added
 - `sluicer serve`, the MCP server's tools over HTTP, behind a new `api` extra
   (`starlette>=1.2`, `uvicorn>=0.31.1`, and the `mcp` extra). `POST
@@ -20,7 +28,33 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `docs/http-api.md` says all of it; `tests/live/api_check.py` asks a real
   server over a real socket; the image serves it.
 
+- `Extraction.links`: what the page's `<link>` elements declare about where
+  else it lives -- its canonical address, every `hreflang` alternate, its RSS,
+  Atom and JSON feeds, `next` and `prev` (from `<a>` too, where pagination
+  usually is), AMP, the web app manifest and oEmbed endpoints -- each address
+  resolved against the page's base. WordPress's REST API, which every
+  WordPress page declares as `rel=alternate type=application/json`, is not
+  taken for a feed. Shown in `sluicer inspect` and in the MCP answer.
+- `Extraction.normalised`: the summary's `published`, `modified`, `price` and
+  `currency` read into ISO 8601, a decimal with a point and an ISO 4217 code,
+  where the page's text leaves no doubt. The summary keeps what the page wrote.
+  `03/04/2025`, `1,299` and `$` are each two things somewhere, so they have no
+  normalised value. A date keeps its offset and is never moved to UTC. Also in
+  the MCP answer and beside each answer in `sluicer inspect`.
+- Facebook's `product:` Open Graph type (`product:price:amount`,
+  `product:price:currency`, `product:availability`, `product:brand`,
+  `product:retailer_item_id`), which Meta's catalogues read, answers price,
+  currency, availability, brand and sku after the page's own offers.
+
 ### Fixed
+- The summary's price followed the page's order, so on markup Google documents
+  it answered the wrong one: a strikethrough price or a member price listed
+  before the active price was taken for the price, and an `AggregateOffer`
+  wrapping its sellers' `offers` gave none. The price is now chosen by Google's
+  merchant-listing rule -- an active price has neither a `priceType` nor a
+  `validForMemberTier` -- and a strikethrough price of the same offer is
+  `price_regular`. Currency and availability come from the offer the price
+  came from. Found by the survey of other projects, with probes it wrote.
 - `compile` took page furniture for the listing on 6 of the drift benchmark's 25
   sites: GitHub's language menu of 491 links, old Reddit's sidebar lists, the
   paragraphs of one Hackaday post, page sections on the BBC and Ars Technica,
@@ -40,21 +74,6 @@ Dates are the day the work landed. Anything not listed here did not happen.
   build the server at all: they refuse the `Required[...]` keys of its output
   schemas. The suite fakes the SDK, so the floors job, which installs 2.0.0 on
   3.10, had never built it for real.
-
-### Added
-- `Extraction.links`: what the page's `<link>` elements declare about where
-  else it lives -- its canonical address, every `hreflang` alternate, its RSS,
-  Atom and JSON feeds, `next` and `prev` (from `<a>` too, where pagination
-  usually is), AMP, the web app manifest and oEmbed endpoints -- each address
-  resolved against the page's base. WordPress's REST API, which every
-  WordPress page declares as `rel=alternate type=application/json`, is not
-  taken for a feed. Shown in `sluicer inspect` and in the MCP answer.
-- `Extraction.normalised`: the summary's `published`, `modified`, `price` and
-  `currency` read into ISO 8601, a decimal with a point and an ISO 4217 code,
-  where the page's text leaves no doubt. The summary keeps what the page wrote.
-  `03/04/2025`, `1,299` and `$` are each two things somewhere, so they have no
-  normalised value. A date keeps its offset and is never moved to UTC. Also in
-  the MCP answer and beside each answer in `sluicer inspect`.
 
 ## 0.3.0 - 2026-09-23
 
