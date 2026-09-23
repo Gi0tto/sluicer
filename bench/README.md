@@ -93,6 +93,29 @@ polite: one request per second per archive host, four pages in flight, retries
 with backoff on 429 and 5xx; a request that still fails is counted as not
 fetched, never as an empty page. A full discovery takes about an hour.
 
+## News in many languages
+
+[`docs/scoreboard-news.md`](../docs/scoreboard-news.md) scores the same tools,
+with `score.py`, on the parser fixtures of
+[fundus](https://github.com/flairNLP/fundus) (MIT): one or two news pages per
+publisher, from 42 countries' publishers, each with the title, authors and
+publishing date fundus's hand-written parser for that publisher reads.
+
+```bash
+uv run bench/news.py                    # fundus at its pinned commit, then the scoreboard
+uv run bench/news.py --tools sluicer    # rerun one tool, reuse the others
+```
+
+`news.py` downloads fundus at one pinned commit into `bench/cache/fundus/`
+(about 17 MB) and pairs each page with its labels by running fundus's own
+code, `bench/tools/fundus_labels.py`, in an environment holding that
+checkout: the parser version valid on the day the page was crawled, as
+fundus's test suite pairs them. Pages are grouped by the language their
+`<html lang>` declares. The labels read the page a person sees, so a
+headline the page declares for search and a different one it shows count as
+a disagreement, and fundus stores its pages re-encoded as UTF-8 under their
+original charset declaration.
+
 ## extruct's interface, beside extruct
 
 [`docs/extruct.md`](../docs/extruct.md) measures `sluicer.compat.extruct`

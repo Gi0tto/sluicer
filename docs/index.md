@@ -193,6 +193,14 @@ Sluicer's price F1 is 0.750 and its availability F1 0.907, against 0.685 and
 paid API, which reads the visible page with trained models. See
 [the product scoreboard](scoreboard-products.md).
 
+On news in many languages -- fundus's fixtures, 263 pages from 42 countries'
+publishers in 21 declared languages -- Sluicer's titles are the most often
+right of the four tools, 0.863 against trafilatura's 0.852, and its dates are
+never wrong when it answers one; trafilatura finds more authors, 0.879 against
+0.817, reading bylines from the visible text too. See
+[the scoreboard on news in many languages](scoreboard-news.md), with a table
+per language.
+
 Extractors are measured too: learnt on Wayback Machine captures of 25 sites and
 replayed on later ones, 44 pairs, none failed silently and none raised a false
 alarm. See [drift](drift.md).
@@ -211,11 +219,13 @@ alarm. See [drift](drift.md).
 
 [Why Sluicer](why.md) ·
 [Extractors](extractors.md) ·
+[In your agent](agents.md) ·
 [HTTP API](http-api.md) ·
 [Crawling](crawling.md) ·
 [Scoreboard](scoreboard.md) ·
 [Scoreboard, as served](scoreboard-served.md) ·
 [Scoreboard, products](scoreboard-products.md) ·
+[Scoreboard, news](scoreboard-news.md) ·
 [Drift](drift.md) ·
 [Known limits](known-limits.md) ·
 [Design notes](design-notes.md) ·

@@ -214,6 +214,14 @@ Sluicer's price F1 is 0.750 and its availability F1 0.907, against 0.685 and
 paid API, which reads the visible page with trained models. See
 [the product scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md).
 
+On news in many languages -- fundus's fixtures, 263 pages from 42 countries'
+publishers in 21 declared languages -- Sluicer's titles are the most often
+right of the four tools, 0.863 against trafilatura's 0.852, and its dates are
+never wrong when it answers one; trafilatura finds more authors, 0.879 against
+0.817, reading bylines from the visible text too. See
+[the scoreboard on news in many languages](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md),
+with a table per language.
+
 Extractors are measured too: learnt on Wayback Machine captures of 25 sites and
 replayed on later ones, 44 pairs, none failed silently and none raised a false
 alarm. See [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md).
@@ -233,12 +241,14 @@ alarm. See [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md).
 At <https://gi0tto.github.io/sluicer/>, or in the repository:
 [Why Sluicer](https://github.com/Gi0tto/sluicer/blob/main/docs/why.md) ·
 [Extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md) ·
+[In your agent](https://github.com/Gi0tto/sluicer/blob/main/docs/agents.md) ·
 [HTTP API](https://github.com/Gi0tto/sluicer/blob/main/docs/http-api.md) ·
 [Audit](https://github.com/Gi0tto/sluicer/blob/main/docs/audit.md) ·
 [Crawling](https://github.com/Gi0tto/sluicer/blob/main/docs/crawling.md) ·
 [Scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md) ·
 [Scoreboard, as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md) ·
 [Scoreboard, products](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md) ·
+[Scoreboard, news](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md) ·
 [Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md) ·
 [Known limits](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md) ·
 [Design notes](https://github.com/Gi0tto/sluicer/blob/main/docs/design-notes.md) ·
