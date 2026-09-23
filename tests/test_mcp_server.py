@@ -942,7 +942,12 @@ def _fake_site_library(monkeypatch, pages=None):
 def test_map_site_lists_the_sites_addresses_within_its_bounds(monkeypatch):
     registered = fake_mcp(monkeypatch)
     _, calls = _fake_site_library(monkeypatch)
-    from sluicer.mcp_server import MAP_SITEMAPS, TIME_BUDGET_SECONDS, build_server
+    from sluicer.mcp_server import (
+        CRAWL_MAX_DELAY_SECONDS,
+        MAP_SITEMAPS,
+        TIME_BUDGET_SECONDS,
+        build_server,
+    )
 
     monkeypatch.delenv("SLUICER_ALLOW_PRIVATE", raising=False)
     build_server()
@@ -959,6 +964,7 @@ def test_map_site_lists_the_sites_addresses_within_its_bounds(monkeypatch):
     assert answer["sitemaps"][0]["kind"] == "urlset"
     assert calls[0]["max_sitemaps"] == MAP_SITEMAPS
     assert calls[0]["time_budget"] == TIME_BUDGET_SECONDS
+    assert calls[0]["max_delay"] == CRAWL_MAX_DELAY_SECONDS
     assert calls[0]["allow_private"] is False
 
 

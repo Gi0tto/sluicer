@@ -65,9 +65,9 @@ TIME_BUDGET_SECONDS = 60.0
 already started finishes, so an answer can take a little longer."""
 
 CRAWL_MAX_DELAY_SECONDS = 10.0
-"""The longest ``Crawl-delay`` a tool call waits for; a site asking for more
-is answered ``crawl_delay_too_long`` rather than holding the agent a minute a
-page."""
+"""The longest ``Crawl-delay`` ``map_site`` and ``crawl_site`` wait for; a site
+asking for more is answered ``crawl_delay_too_long`` rather than holding the
+agent a minute a page."""
 
 
 class McpExtraMissing(MissingExtra):
@@ -430,6 +430,7 @@ def build_server() -> Any:
             url,
             limit=limit,
             max_sitemaps=MAP_SITEMAPS,
+            max_delay=CRAWL_MAX_DELAY_SECONDS,
             time_budget=TIME_BUDGET_SECONDS,
             allow_private=_allow_private(),
         )
