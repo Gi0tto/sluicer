@@ -590,3 +590,15 @@ def test_a_page_too_heavy_to_fetch_exits_two_with_a_message(monkeypatch):
 
     assert result.exit_code == 2
     assert "larger than 16 bytes" in result.stderr
+
+
+def test_inspect_shows_what_a_date_means_beside_what_the_page_wrote(tmp_path):
+    page = tmp_path / "dated.html"
+    page.write_text(
+        '<html><head><meta property="article:published_time" content="Jun 16, 2025">'
+        "<title>A post</title></head></html>"
+    )
+
+    result = CliRunner().invoke(main, ["inspect", str(page)])
+
+    assert "Jun 16, 2025 = 2025-06-16" in result.stdout

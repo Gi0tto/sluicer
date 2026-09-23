@@ -82,6 +82,7 @@ class ExtractAnswer(TypedDict, total=False):
     error: ErrorDetail
     url: str | None
     summary: dict[str, SummaryAnswer]
+    normalised: dict[str, str]
     records: list[RecordAnswer]
     sources: list[str]
     fetch: FetchRecord

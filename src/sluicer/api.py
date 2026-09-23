@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from sluicer.declared.merge import ABOUT_A_THING, Record, merge
 from sluicer.declared.readers import READERS
 from sluicer.document import load
+from sluicer.normalise import normalised
 from sluicer.structure import induce as induce_records
 from sluicer.summary import SummaryField, summarise
 
@@ -19,11 +20,14 @@ class Extraction:
     questions most callers ask -- title, author, date, price -- one value each,
     chosen from the records by fixed rules, each naming its reader and key (see
     ``sluicer.summary.FIELDS``). ``records`` is everything the page declared.
-    ``sources`` names every reader that found something.
+    ``sources`` names every reader that found something. ``normalised`` reads
+    the summary's dates, price and currency into ISO 8601, a decimal and an ISO
+    4217 code, where the page's text leaves no doubt (see ``sluicer.normalise``).
     """
 
     url: str | None = None
     summary: dict[str, SummaryField] = field(default_factory=dict)
+    normalised: dict[str, str] = field(default_factory=dict)
     records: list[Record] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
 
@@ -88,7 +92,13 @@ def extract(
         if induced:
             records = [*records, *induced]
             sources = [*sources, "induced"]
-    return Extraction(url=url, summary=summary, records=records, sources=sources)
+    return Extraction(
+        url=url,
+        summary=summary,
+        normalised=normalised(summary),
+        records=records,
+        sources=sources,
+    )
 
 
 def _declared_about_its_things(records: list[Record]) -> bool:

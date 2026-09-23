@@ -134,6 +134,15 @@ measurement from plain HTTP to a browser is a change of cost, while climbing
 from announcing yourself to hiding is a change of character, and it should not
 happen to a caller who never asked for it.
 
+**Normalisation reads English and ISO, and refuses what is ambiguous.** A date
+is read from ISO 8601 and its common variants, RFC 2822, and English month
+names; "16 juin 2025" is not read. An all-number date other than ISO's, an
+amount whose only separator has exactly three digits after it (`1,299`), and a
+bare `$`, `¥` or `kr` have no normalised value, since each means two things
+somewhere. Indian digit grouping (`12,34,567`) is refused too. The currency
+list is ISO 4217's as SIX published it on 2026-09-17, and is only as current as
+that.
+
 ## In fetching
 
 **A challenge is detected by words, on a page that is not content.** A title

@@ -43,6 +43,7 @@ It prints, abridged:
     "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers" },
     "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" }
   },
+  "normalised": { "price": "41.90", "currency": "EUR" },
   "records": [
     {
       "type": "Product",

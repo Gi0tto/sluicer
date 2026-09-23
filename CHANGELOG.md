@@ -4,6 +4,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Added
+- `Extraction.normalised`: the summary's `published`, `modified`, `price` and
+  `currency` read into ISO 8601, a decimal with a point and an ISO 4217 code,
+  where the page's text leaves no doubt. The summary keeps what the page wrote.
+  `03/04/2025`, `1,299` and `$` are each two things somewhere, so they have no
+  normalised value. A date keeps its offset and is never moved to UTC. Also in
+  the MCP answer and beside each answer in `sluicer inspect`.
+
 ## 0.3.0 - 2026-09-23
 
 ### Changed

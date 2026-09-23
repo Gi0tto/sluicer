@@ -317,7 +317,16 @@ def _inspection(
     answers = len(result.summary)
     lines.append(f"summary   {answers} answer{'s' if answers != 1 else ''}")
     rows = [
-        (question, _brief(answer.value), f"{answer.source} {answer.key}")
+        (
+            question,
+            _brief(answer.value)
+            + (
+                f" = {result.normalised[question]}"
+                if result.normalised.get(question, answer.value) != answer.value
+                else ""
+            ),
+            f"{answer.source} {answer.key}",
+        )
         for question, answer in result.summary.items()
     ]
     lines.extend(_columns(rows, indent="  "))
