@@ -10,11 +10,12 @@
 </p>
 
 <p align="center">
+  <a href="https://pypi.org/project/sluicer/"><img src="https://img.shields.io/pypi/v/sluicer" alt="PyPI"></a>
   <a href="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml"><img src="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/network%20in%20tests-none-blue" alt="no network in tests">
   <img src="https://img.shields.io/badge/LLM%20calls-none-blue" alt="no LLM calls">
   <a href="https://github.com/Gi0tto/sluicer/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT-yellow.svg" alt="MIT"></a>
-  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
+  <a href="https://pypi.org/project/sluicer/"><img src="https://img.shields.io/pypi/pyversions/sluicer" alt="Python versions"></a>
 </p>
 
 ---
@@ -210,8 +211,6 @@ uv pip install 'sluicer[fetch,markdown,mcp]'       # fetching, markdown, the ser
 uv pip install 'sluicer[microformats]'             # microformats2, off by default
 ```
 
-Until the first upload to PyPI, install from the tagged release on GitHub:
-`uv tool install 'sluicer[fetch,markdown,mcp] @ git+https://github.com/Gi0tto/sluicer@v0.2.0'`.
 
 The base install is `lxml` and `click`. Fetching, markdown and the MCP server
 each sit behind an extra, so a reader who only parses HTML never carries a
