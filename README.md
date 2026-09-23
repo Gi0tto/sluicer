@@ -172,6 +172,12 @@ both tables are in
 [the scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md)
 and [the scoreboard on pages as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md).
 
+On product pages -- Zyte's benchmark of 140, scored by Zyte's own evaluator --
+Sluicer's price F1 is 0.750 and its availability F1 0.907, against 0.685 and
+0.626 for the extruct baseline Zyte published and 0.918 and 0.957 for Zyte's
+paid API, which reads the visible page with trained models. See
+[the product scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md).
+
 Extractors are measured too: learnt on Wayback Machine captures of 25 sites and
 replayed on later ones, 44 pairs, none failed silently and none raised a false
 alarm. See [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md).
@@ -194,6 +200,7 @@ At <https://gi0tto.github.io/sluicer/>, or in the repository:
 [HTTP API](https://github.com/Gi0tto/sluicer/blob/main/docs/http-api.md) ·
 [Scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md) ·
 [Scoreboard, as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md) ·
+[Scoreboard, products](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md) ·
 [Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md) ·
 [Known limits](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md) ·
 [Design notes](https://github.com/Gi0tto/sluicer/blob/main/docs/design-notes.md) ·

@@ -13,6 +13,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is not a price of 19.
 
 ### Added
+- A scoreboard on product pages (`bench/products.py`,
+  `docs/scoreboard-products.md`): Zyte's product-extraction benchmark, 140
+  pages as served with price, SKU and availability labelled by hand, scored by
+  Zyte's own evaluator beside Zyte's and Diffbot's paid APIs and an extruct
+  baseline. Price F1 0.750 against extruct's 0.685, availability 0.907 against
+  0.626, SKU 0.527 against 0.537; the paid services, reading the visible page
+  with trained models, are ahead on all three.
 - `sluicer serve`, the MCP server's tools over HTTP, behind a new `api` extra
   (`starlette>=1.2`, `uvicorn>=0.31.1`, and the `mcp` extra). `POST
   /v1/tools/<name>` takes a tool's arguments as a JSON object and answers what
@@ -55,6 +62,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   currency, availability, brand and sku after the page's own offers.
 
 ### Fixed
+- A product declared once per colour or size, as Zara declares it, or beside
+  related products that carry no offer, as Argos does, was taken for a
+  listing, and the page had no subject and no price. Records of one name are
+  now one product, answering only what they all agree on -- the price, not
+  the sku of one colour -- and the one record of a type that carries an offer
+  is the subject. A price whose text holds two numbers (`71,91 € 79,90 €`) is
+  no price and gives way to the next declaration. On two YETI pages the
+  title is now the product's declared name, shorter than the heading WCXB
+  labels, so the served scoreboard counts two titles fewer.
 - The summary's price followed the page's order, so on markup Google documents
   it answered the wrong one: a strikethrough price or a member price listed
   before the active price was taken for the price, and an `AggregateOffer`

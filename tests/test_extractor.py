@@ -314,10 +314,14 @@ def test_a_summary_answer_that_changes_shape_fails_loudly():
         [(template.format(price="41.90"), None), (template.format(price="9.50"), None)]
     )
 
-    run = run_extractor(extractor, template.format(price="Call us"))
+    run = run_extractor(extractor, template.format(price="41 EUR"))
+    words = run_extractor(extractor, template.format(price="Call us"))
 
     assert extractor.summary["price"] == "NP"
     assert "shape" in failed(run)
+    # Text with no number is no price at all, so the answer is gone: as loud.
+    assert not words.ok
+    assert "summary" in failed(words)
 
 
 def test_healing_a_page_that_stopped_declaring_reports_what_was_lost():

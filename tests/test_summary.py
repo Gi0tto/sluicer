@@ -546,3 +546,66 @@ def test_a_gtin_with_a_wrong_check_digit_is_answered_but_not_normalised():
 
     assert result.summary["gtin"].value == "4001234567890"
     assert "gtin" not in result.normalised
+
+
+def _product(name, **fields):
+    return _page({"@type": "Product", "name": name, **fields})
+
+
+def test_one_product_declared_once_per_colour_is_one_product():
+    """Zara, on Zyte's product benchmark: a Product per colour, one name."""
+    colours = "".join(
+        _product(
+            "Boots",
+            sku=f"BOOT-{n}",
+            offers={
+                "price": "69.95",
+                "priceCurrency": "EUR",
+                "availability": "InStock" if n % 2 else "OutOfStock",
+            },
+        )
+        for n in range(4)
+    )
+
+    summary = _summary(colours)
+
+    assert summary["title"][0] == "Boots"
+    assert summary["price"][0] == "69.95"
+    # What the colours disagree on belongs to one colour, not to the product.
+    assert "sku" not in summary
+    assert "availability" not in summary
+
+
+def test_the_one_product_with_an_offer_among_related_ones_is_the_subject():
+    """Argos: its product with an offer, and four related ones without."""
+    page = _product(
+        "Kettle", sku="4667999", offers={"price": "34.99", "priceCurrency": "GBP"}
+    )
+    page += "".join(_product(f"Related {n}") for n in range(4))
+
+    summary = _summary(page)
+
+    assert summary["title"][0] == "Kettle"
+    assert summary["price"][0] == "34.99"
+
+
+def test_a_category_page_is_still_a_listing():
+    page = "".join(
+        _product(f"Item {n}", offers={"price": f"{n}.00", "priceCurrency": "EUR"})
+        for n in range(4)
+    )
+
+    assert "price" not in _summary(page)
+
+
+def test_a_price_that_holds_two_numbers_gives_way_to_the_next_declaration():
+    """Almedina: microdata price text '71,91 € 79,90 €', and a clean product: tag."""
+    page = (
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<span itemprop="name">Book</span>'
+        '<div itemprop="offers" itemscope itemtype="https://schema.org/Offer">'
+        '<span itemprop="price">71,91 € 79,90 €</span></div></div>'
+        '<meta property="product:price:amount" content="71.91">'
+    )
+
+    assert _summary(page)["price"] == ("71.91", "opengraph", "product:price:amount")

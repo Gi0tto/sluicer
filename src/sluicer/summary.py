@@ -184,11 +184,34 @@ def summarise(
             opengraph, "opengraph", key, "" if key.startswith(NAMESPACES) else "og:"
         )
 
+    # The other descriptions of the subject when the page declares it several
+    # times over, one per colour or size: an answer they do not all agree on
+    # belongs to one variant, not to the thing the page is about.
+    variants = _variants(records, subject)
+
     def own(prop: str, read: Callable[[JsonValue], str | None] = _text) -> Answer:
-        return _from(subject, prop, read)
+        found = _from(subject, prop, read)
+        if found is None or not variants:
+            return found
+        agreed = all(
+            (other := _from(variant, prop, read)) is not None
+            and other.value == found.value
+            for variant in variants
+        )
+        return found if agreed else None
 
     offers = subject.fields.get("offers") if subject is not None else None
     pricing = _pricing(subject, offers.value) if subject and offers else _Pricing()
+    if variants and subject is not None:
+        pricing = _agreed(
+            pricing,
+            [
+                _pricing(v, v.fields["offers"].value)
+                if "offers" in v.fields
+                else _Pricing()
+                for v in variants
+            ],
+        )
     questions: dict[str, list[Answer]] = {
         "title": [
             *_headline_or_name(own("headline"), own("name"), doc, opengraph),
@@ -259,10 +282,14 @@ def summarise(
             _from(organisation, "name", _text),
         ],
         "type": [_type(subject), og("type")],
-        "price": [pricing.price, og("price:amount"), og("product:price:amount")],
-        "price_regular": [pricing.regular],
-        "price_low": [pricing.low],
-        "price_high": [pricing.high],
+        "price": [
+            _one_amount(pricing.price),
+            _one_amount(og("price:amount")),
+            _one_amount(og("product:price:amount")),
+        ],
+        "price_regular": [_one_amount(pricing.regular)],
+        "price_low": [_one_amount(pricing.low)],
+        "price_high": [_one_amount(pricing.high)],
         "currency": [
             pricing.currency,
             og("price:currency"),
@@ -327,9 +354,74 @@ def _subject(records: list[Record]) -> Record | None:
         (rank, index, record)
         for index, record in enumerate(records)
         if (rank := _rank(record)) is not None
-        and all(counts[name] < _A_LISTING for name in record.types)
+        and all(
+            counts[name] < _A_LISTING or _one_of_many(records, name) is record
+            for name in record.types
+        )
     ]
     return min(ranked, key=lambda entry: entry[:2])[2] if ranked else None
+
+
+def _variants(records: list[Record], subject: Record | None) -> list[Record]:
+    """The other records that describe ``subject`` under its own name.
+
+    Only where the page declares the subject's type a listing's worth of times
+    and every one of them bears the subject's name: Zara's Product per colour.
+    """
+    if subject is None or "name" not in subject.fields:
+        return []
+    name = _text(subject.fields["name"].value)
+    same = [
+        record
+        for record in records
+        if record is not subject
+        and set(record.types) == set(subject.types)
+        and "name" in record.fields
+        and _text(record.fields["name"].value) == name
+    ]
+    return same if len(same) + 1 >= _A_LISTING else []
+
+
+def _agreed(pricing: _Pricing, others: list[_Pricing]) -> _Pricing:
+    """``pricing`` with every answer the variants do not all share taken out."""
+
+    def kept(name: str) -> SummaryField | None:
+        found: SummaryField | None = getattr(pricing, name)
+        if found is None:
+            return None
+        values = {
+            getattr(other, name).value if getattr(other, name) else None
+            for other in others
+        }
+        return found if values == {found.value} else None
+
+    return _Pricing(
+        *(
+            kept(name)
+            for name in ("price", "regular", "low", "high", "currency", "availability")
+        )
+    )
+
+
+def _one_of_many(records: list[Record], name: str) -> Record | None:
+    """The one record the page is about among many of type ``name``, if there is.
+
+    Two shapes of product page declare a type three times or more and are
+    still about one thing, both measured on Zyte's product benchmark. Zara
+    declares a Product per colour, each with the same name: one product, and
+    the first is it. Argos declares its product with an offer and four
+    related products with only a name and a rating: the one with the offer is
+    it. A category page, whose products differ in name and each carry an
+    offer, is still a listing.
+    """
+    same = [record for record in records if name in record.types]
+    names = {
+        _text(record.fields["name"].value) for record in same if "name" in record.fields
+    }
+    if len(names) == 1 and None not in names and all("name" in r.fields for r in same):
+        return same[0]
+    offered = [record for record in same if "offers" in record.fields]
+    return offered[0] if len(offered) == 1 else None
 
 
 def _rank(record: Record) -> int | None:
@@ -546,6 +638,23 @@ def _price_kind(spec: dict[str, JsonValue]) -> str:
     if not kind:
         return "active"
     return "regular" if kind.lower() in _REGULAR else "other"
+
+
+_NUMBER = re.compile(r"\d(?:[\d.,'\s]*\d)?")
+
+
+def _one_amount(found: SummaryField | None) -> SummaryField | None:
+    """``found`` if it holds one number, which is what a price is.
+
+    Almedina's microdata ``price`` is the text of an element holding the price
+    and the price it replaced, ``71,91 € 79,90 €``, and MediaMarkt's is
+    ``109€109€109``: two and three numbers, which no reader can call one price.
+    Refused here, the question falls to the next declaration, which on both
+    pages is a clean ``product:price:amount``.
+    """
+    if found is None:
+        return None
+    return found if len(_NUMBER.findall(found.value)) == 1 else None
 
 
 # The identifiers schema.org names for a trade item, most specific first. A
