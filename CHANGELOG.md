@@ -121,8 +121,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   its `Crawl-delay` or `Request-rate` if longer -- robots.txt, sitemaps, each
   redirect hop and each rung included, and remembered for the process. A crawl
   refuses a redirect that leaves its site before the other site is asked,
-  marks where a page landed and its canonical seen, and skips links that name
-  a file. The same site crawled twice gives the same pages in the same order,
+  marks where a page landed and its canonical seen, skips links that name a
+  file, and admits nothing from a page that answered 4xx or 5xx. The same site crawled twice gives the same pages in the same order,
   and the output, one JSON line per page, is the state a crawl resumes from
   without asking for any page again.
 - `sluicer map`, `sluicer crawl` and `sluicer batch`, writing JSON Lines to
