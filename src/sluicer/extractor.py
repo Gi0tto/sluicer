@@ -21,6 +21,7 @@ extractor, and the same page always gives the same verdict.
 from __future__ import annotations
 
 import json
+import re
 import unicodedata
 from collections import Counter
 from collections.abc import Sequence
@@ -638,16 +639,62 @@ def _rows_of(members: list[HtmlElement], doc: Document) -> list[dict[str, str]]:
 
 
 def _a_later_repeat(path: str, paths: set[str]) -> bool:
-    """Whether ``path`` is the second or later of a slot the group numbered.
+    """Whether ``path`` runs through the second or later of a slot the group
+    numbered, at any step.
 
-    ``div.tags>a.tag3`` is, when ``div.tags>a.tag1`` was learnt too.
+    ``div.tags>a.tag3`` is, when ``div.tags>a.tag1`` was learnt too; so is
+    ``div.meta>span2>a@href``, the link in a row's second span, when anything
+    under ``div.meta>span1`` was learnt. Found by the drift benchmark: GitHub's
+    trending rows hold a language, then stars, then forks, each a span, and a
+    row with no language renumbers the rest.
     """
-    head, at, attribute = path.partition("@")
-    digits = len(head) - len(head.rstrip("0123456789"))
-    if not digits or int(head[-digits:]) < 2:
-        return False
-    first = head[:-digits] + "1" + at + attribute
-    return first in paths
+    head = path.partition("@")[0]
+    steps = head.split(">")
+    learnt = {other.partition("@")[0] for other in paths}
+    for index, step in enumerate(steps):
+        slot = _slot_number(step)
+        if slot is None or slot[1] < 2:
+            continue
+        first = ">".join([*steps[:index], f"{slot[0]}1"])
+        if any(other == first or other.startswith(first + ">") for other in learnt):
+            return True
+    return False
+
+
+def _a_numbered_slot(path: str, paths: set[str]) -> bool:
+    """Whether ``path`` runs through the first of a slot the group numbered.
+
+    The first slot shows the group is there, so it is still held to some rows;
+    not to every row, since a row with one item fewer shifts what the first
+    slot holds: GitHub's language span, absent from a repository with no
+    language, hands the first slot to the stars.
+    """
+    head = path.partition("@")[0]
+    steps = head.split(">")
+    learnt = {other.partition("@")[0] for other in paths}
+    for index, step in enumerate(steps):
+        slot = _slot_number(step)
+        if slot is None or slot[1] != 1:
+            continue
+        second = ">".join([*steps[:index], f"{slot[0]}2"])
+        if any(other == second or other.startswith(second + ">") for other in learnt):
+            return True
+    return False
+
+
+def _slot_number(step: str) -> tuple[str, int] | None:
+    """A step's name and the number induction gave it, or None if it has none.
+
+    A bare heading's own digit is its tag, not a number: ``h2`` is not the
+    second ``h``, and ``h23`` is the third ``h2``.
+    """
+    heading = re.fullmatch(r"(h[1-6])(\d*)", step)
+    if heading:
+        return (heading[1], int(heading[2])) if heading[2] else None
+    digits = len(step) - len(step.rstrip("0123456789"))
+    if not digits:
+        return None
+    return step[:-digits], int(step[-digits:])
 
 
 def _slot_of(path: str) -> str:
@@ -722,7 +769,7 @@ def _replay_listing(
             # The third tag of a card is a count, not a column: pages differ in
             # how many their rows carry, and none of them has drifted.
             pass
-        elif learnt == 1:
+        elif learnt == 1 and not _a_numbered_slot(f.path, paths):
             floor = 1 - REQUIRED_MISSING
             checks.append(
                 Check(

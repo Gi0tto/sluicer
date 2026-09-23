@@ -4,13 +4,18 @@ A listing is a parent whose children are the same shape over and over. Groups
 of at least three are found and ranked by how much a reader would get out of
 them.
 
-Two things a reader does without thinking are done here. The page's furniture
-is ignored: anything inside ``head``, ``nav``, ``aside`` or ``footer`` repeats
-more than any listing and is never the content, and ``script`` and ``style``
-are never members (lxml gives them no element children, but inline scripts sit
-among content and carry more characters than any row). And members are
-measured by what they carry -- their text plus the addresses they point at --
-so a row of empty ``<span>`` is worth nothing, however many parts it has.
+Three things a reader does without thinking are done here. The page's
+furniture is ignored: anything inside ``head``, ``nav``, ``aside`` or
+``footer``, anything the page marks as a menu, a navigation, a sidebar, a
+dialog or a toolbar with its ARIA ``role``, and anything it hides, repeats more
+than any listing and is never the content; and ``script`` and ``style`` are
+never members (lxml gives them no element children, but inline scripts sit
+among content and carry more characters than any row). Members are measured by
+what they carry -- their text plus the addresses they point at -- so a row of
+empty ``<span>`` is worth nothing, however many parts it has. And a group whose
+members are mostly another listing is sections, not rows: the three columns of
+a news page are not three stories, and the stories inside them are ranked on
+their own.
 """
 
 from __future__ import annotations
@@ -24,7 +29,30 @@ from sluicer.structure.shape import alike, kind, outline
 
 # Regions a reader skips on the way to the content, wherever inside them the
 # repetition sits.
-_CHROME = frozenset({"head", "nav", "aside", "footer"})
+_CHROME = frozenset({"head", "nav", "aside", "footer", "template", "dialog"})
+# The same regions, as the page names them with ARIA. Measured on the drift
+# benchmark: GitHub's trending page holds a language menu of 491 links, role
+# "menu", which outweighed the 25 repositories it lists.
+_CHROME_ROLES = frozenset(
+    {
+        "navigation",
+        "menu",
+        "menubar",
+        "complementary",
+        "contentinfo",
+        "banner",
+        "search",
+        "dialog",
+        "alertdialog",
+        "toolbar",
+        "tablist",
+        "listbox",
+        "tree",
+    }
+)
+# How much of a member a listing inside it must carry for the member to be a
+# section holding rows rather than a row.
+_SECTION = 0.5
 # Elements that are code rather than content, and are never a record.
 _CODE = frozenset({"script", "style"})
 
@@ -47,7 +75,14 @@ def _furniture(parent: HtmlElement) -> bool:
 
 def _chrome(element: HtmlElement) -> bool:
     tag = element.tag
-    return isinstance(tag, str) and tag.lower() in _CHROME
+    if not isinstance(tag, str):
+        return False
+    if tag.lower() in _CHROME or element.get("hidden") is not None:
+        return True
+    if (element.get("aria-hidden") or "").strip().lower() == "true":
+        return True
+    roles = (element.get("role") or "").lower().split()
+    return any(role in _CHROME_ROLES for role in roles)
 
 
 def _member(child: HtmlElement) -> bool:
@@ -106,5 +141,37 @@ def repeating_groups(tree: HtmlElement, minimum: int = 3) -> list[list[HtmlEleme
             if len(members) >= minimum:
                 richest = max(_worth(member) for member in members)
                 found.append((len(members) * richest, order, members))
-    found.sort(key=lambda item: (-item[0], item[1]))
-    return [members for _, _, members in found]
+    rows = [item for item in found if not _sections(item[2], found)]
+    rows.sort(key=lambda item: (-item[0], item[1]))
+    return [members for _, _, members in rows]
+
+
+def _sections(
+    members: list[HtmlElement], found: list[tuple[int, int, list[HtmlElement]]]
+) -> bool:
+    """Whether most of ``members`` are mostly one of the other groups found.
+
+    A member is a section when a group inside it carries at least
+    ``_SECTION`` of what the member carries, and that group's members have
+    parts of their own: a story has a link, a line and a date, while a quote's
+    five tags are five words, and a quote is not a section of tags. Most
+    members, not all: one column of a page may hold a single story.
+    """
+    inside: dict[HtmlElement, int] = {}
+    for _, _, group in found:
+        if group is members or sum(1 for member in group if len(member)) * 2 <= len(
+            group
+        ):
+            continue
+        parent = group[0].getparent()
+        worth = sum(_worth(member) for member in group)
+        for member in members:
+            if parent is member or member in parent.iterancestors():
+                inside[member] = max(inside.get(member, 0), worth)
+                break
+    sections = sum(
+        1
+        for member in members
+        if inside.get(member, 0) >= _SECTION * max(_worth(member), 1)
+    )
+    return sections * 2 > len(members)

@@ -642,3 +642,50 @@ def test_cards_that_carry_fewer_tags_than_before_have_not_drifted():
     )
 
     assert run.ok, failed(run)
+
+
+def test_a_numbered_slot_in_the_middle_of_a_path_is_a_count_not_a_column():
+    """GitHub's trending rows: language, stars, forks, each a span. On a page
+    where half the repositories have no language, the stars take the first
+    span and the forks the second: the same template, not a drift."""
+
+    def repo(i, language=True):
+        spans = (
+            (f"<span class='meta'>Lang {i}</span>" if language else "")
+            + f"<span class='meta'><a href='/r{i}/stars'>{i}</a></span>"
+            + f"<span class='meta'><a href='/r{i}/forks'>{i * 2}</a></span>"
+        )
+        return (
+            f"<li class='repo'><h3><a href='/r{i}'>repo {i}</a></h3>"
+            f"<div class='f6'>{spans}</div></li>"
+        )
+
+    learnt = learn(shop_page([repo(i) for i in range(8)]))
+    run = run_extractor(
+        learnt,
+        shop_page([repo(i, language=i % 2 == 0) for i in range(8)]),
+        "https://s/x",
+    )
+
+    assert run.ok, failed(run)
+
+
+def test_a_numbered_group_that_vanished_from_every_row_still_fails():
+    """The first slot is held to some rows, so the group cannot go unnoticed."""
+
+    def repo(i, meta=True):
+        spans = (
+            f"<div class='f6'><span class='meta'>Lang {i}</span>"
+            f"<span class='meta'><a href='/r{i}/stars'>{i}</a></span></div>"
+            if meta
+            else ""
+        )
+        return f"<li class='repo'><h3><a href='/r{i}'>repo {i}</a></h3>{spans}</li>"
+
+    learnt = learn(shop_page([repo(i) for i in range(8)]))
+    run = run_extractor(
+        learnt, shop_page([repo(i, meta=False) for i in range(8)]), "https://s/x"
+    )
+
+    assert not run.ok
+    assert "field" in failed(run)

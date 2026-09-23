@@ -5,7 +5,11 @@ differ and the shape agrees, so the shape is what we compare, in two parts.
 
 The element itself is compared exactly: its tag and its first three classes.
 The class attribute is most of what a page says about what a thing is, and it
-is what keeps a story row apart from the subtext row beside it.
+is what keeps a story row apart from the subtext row beside it. Not every class
+says what a thing is, though: ``id-t3_8gxz1`` and ``post-4121`` name one item,
+``odd`` and ``even`` alternate, ``category-reviews`` and ``has-post-thumbnail``
+change from post to post. Those are left out, or old Reddit's front page and
+every WordPress blog would be as many kinds as rows.
 
 What is inside it is compared loosely. Its outline is the set of tag paths down
 to a bounded depth -- tags only, and each path once -- and two outlines only
@@ -30,11 +34,41 @@ _MAX_CLASSES = 3
 _ALIKE = 2 / 3
 
 
+# Classes that differ between rows of one listing by design.
+_POSITIONAL = frozenset(
+    {"odd", "even", "first", "last", "alt", "active", "selected", "current"}
+)
+_PER_ITEM_PREFIXES = (
+    "is-",
+    "has-",
+    "category-",
+    "tag-",
+    "format-",
+    "status-",
+    "type-",
+    "author-",
+    "product_cat-",
+    "product_tag-",
+)
+
+
 def kind(element: HtmlElement) -> str:
-    """The element's own tag and first classes, which a member must match."""
-    classes = sorted((element.get("class") or "").split())[:_MAX_CLASSES]
+    """The element's own tag and first classes that say what it is."""
+    classes = sorted(
+        token for token in (element.get("class") or "").split() if not _varies(token)
+    )[:_MAX_CLASSES]
     tag = element.tag if isinstance(element.tag, str) else "?"
     return tag + ("." + ".".join(classes) if classes else "")
+
+
+def _varies(token: str) -> bool:
+    """Whether a class names one item, a position or a state, not a kind."""
+    lowered = token.lower()
+    return (
+        any(char.isdigit() for char in lowered)
+        or lowered in _POSITIONAL
+        or lowered.startswith(_PER_ITEM_PREFIXES)
+    )
 
 
 def outline(element: HtmlElement, depth: int = 3) -> frozenset[str]:

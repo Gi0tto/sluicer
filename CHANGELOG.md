@@ -4,6 +4,23 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Fixed
+- `compile` took page furniture for the listing on 6 of the drift benchmark's 25
+  sites: GitHub's language menu of 491 links, old Reddit's sidebar lists, the
+  paragraphs of one Hackaday post, page sections on the BBC and Ars Technica,
+  and metacpan's three day-tables. Regions the page marks with an ARIA role
+  such as `menu` or `navigation`, or hides, are now furniture; a group whose
+  members are mostly another listing is sections, not rows; and classes that
+  name one item, a position or a state (`id-t3_8gxz1`, `odd`,
+  `category-reviews`, `has-post-thumbnail`) no longer split one listing into as
+  many kinds as rows. All 25 now learn the listing a person would point at, and
+  the benchmark still shows no silent failure and no false alarm.
+- A numbered slot in the middle of a path -- the link in a row's second span --
+  was held as a column, so a row with one item fewer, which renumbers the rest,
+  failed a page of the same template. A numbered slot at any step is now a
+  count, and the first slot of a group is held to some rows rather than every
+  row.
+
 ### Added
 - `Extraction.normalised`: the summary's `published`, `modified`, `price` and
   `currency` read into ISO 8601, a decimal with a point and an ISO 4217 code,

@@ -280,3 +280,63 @@ def test_a_listing_deep_inside_the_furniture_is_still_furniture():
     doc = load("<body><nav>" + "<div>" * 300 + "<ul>" + rows + "</ul></nav></body>")
 
     assert repeating_groups(doc.tree) == []
+
+
+def _stories(n, cls="story"):
+    return "".join(
+        f"<li class='{cls}'><a href='/s{i}'>Story {i} with a longer headline</a>"
+        f"<span class='by'>by someone</span><time>2026-01-0{i % 9 + 1}</time></li>"
+        for i in range(n)
+    )
+
+
+def test_a_menu_the_page_marks_with_its_role_is_furniture():
+    """GitHub's trending page: a language menu of 491 links, role "menu"."""
+    menu = "".join(
+        f"<a role='menuitem' href='/l{i}'>Language {i}</a>" for i in range(60)
+    )
+    tree = lxml.html.fromstring(
+        f"<body><div role='menu'>{menu}</div><ol>{_stories(5)}</ol></body>"
+    )
+
+    groups = repeating_groups(tree)
+
+    assert groups[0][0].get("class") == "story"
+    assert all(group[0].get("role") != "menuitem" for group in groups)
+
+
+def test_what_the_page_hides_is_furniture():
+    hidden = "".join(f"<a href='/x{i}'>Hidden choice {i}</a>" for i in range(40))
+    tree = lxml.html.fromstring(
+        f"<body><div hidden>{hidden}</div><div aria-hidden='true'>{hidden}</div>"
+        f"<ol>{_stories(4)}</ol></body>"
+    )
+
+    assert repeating_groups(tree)[0][0].get("class") == "story"
+
+
+def test_sections_holding_listings_are_not_rows():
+    """The BBC and Ars Technica: three page sections outweighed their stories."""
+    sections = "".join(
+        f"<section class='column'><h2>Column {c}</h2><ol>{_stories(6)}</ol></section>"
+        for c in range(3)
+    )
+    tree = lxml.html.fromstring(f"<body><main>{sections}</main></body>")
+
+    groups = repeating_groups(tree)
+
+    assert groups[0][0].tag == "li"
+    assert all(group[0].tag != "section" for group in groups)
+
+
+def test_classes_that_name_one_item_or_a_position_do_not_split_a_listing():
+    """Old Reddit and WordPress: id-t3_…, odd/even, category-… on every row."""
+    rows = "".join(
+        f"<div class='thing link id-t3_a{i} {'odd' if i % 2 else 'even'} "
+        f"category-c{i % 3}'><a href='/p{i}'>Post {i} with a title</a>"
+        f"<span>{i} points</span></div>"
+        for i in range(6)
+    )
+    tree = lxml.html.fromstring(f"<body><div id='siteTable'>{rows}</div></body>")
+
+    assert len(repeating_groups(tree)[0]) == 6

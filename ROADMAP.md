@@ -66,10 +66,10 @@ that found eleven defects the example tests had never met.
 [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md): 44 pairs of
 Wayback Machine captures on 25 sites, judged by an oracle that does not use the
 extractor's code, with Scrapling's adaptive selectors beside it. It found seven
-defects, all fixed, and now shows no silent failure and no false alarm. Next:
-more pairs, pairs chosen so that A and B share items and heal can be judged,
-and a compile that picks the listing rather than page furniture, which it did
-on 6 of the 25 sites.
+defects, all fixed, and now shows no silent failure and no false alarm; since
+then every one of its 25 sites learns the listing rather than page furniture.
+Next: more pairs, real shops among them, and pairs chosen so that A and B share
+items and heal can be judged.
 
 **A better ruler.** The WCXB labels are now also scored on the pages as served,
 scripts intact ([scoreboard, as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md)),
