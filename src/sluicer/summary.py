@@ -22,6 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeAlias
 
+from sluicer.declared.links import canonicals
 from sluicer.declared.merge import ABOUT_A_THING, JsonValue, Record
 from sluicer.declared.opengraph import NAMESPACES
 from sluicer.document import Document, base_url, join
@@ -625,12 +626,11 @@ def _without_site(found: SummaryField, site_names: set[str]) -> SummaryField | N
 
 
 def _canonical(doc: Document) -> SummaryField | None:
-    for link in doc.tree.xpath("//link[@rel][@href]"):
-        if "canonical" in (link.get("rel") or "").lower().split():
-            href = _clean(link.get("href"))
-            if href:
-                return SummaryField(href, "html", "<link rel=canonical>")
-    return None
+    """The page's canonical address, when its head names exactly one."""
+    declared = canonicals(doc)
+    if len(declared) != 1:
+        return None
+    return SummaryField(declared[0], "html", "<link rel=canonical>")
 
 
 def _language(doc: Document) -> SummaryField | None:

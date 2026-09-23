@@ -1,6 +1,7 @@
 """Read what a page's ``<link>`` elements declare about where else it lives.
 
-A page says which address is its own (``canonical``), which addresses carry it
+A page says which address is its own (``canonical``, read from the head
+only, and reported as a conflict when it names two), which addresses carry it
 in other languages (``alternate`` with ``hreflang``), where its feeds are, which
 page comes next and which before in a series, where its AMP version is, and
 where to ask for an oEmbed description of it. None of it is about the page's
@@ -36,6 +37,7 @@ class Feed(TypedDict):
 
 class Links(TypedDict, total=False):
     canonical: str
+    canonical_conflict: list[str]
     alternates: list[Alternate]
     feeds: list[Feed]
     next: str
@@ -56,6 +58,24 @@ _OEMBED = frozenset({"application/json+oembed", "text/xml+oembed"})
 # The most any one list holds: a page is not a directory, and a hostile one
 # should not make the answer grow with its size.
 _MOST = 200
+
+
+def canonicals(doc: Document) -> list[str]:
+    """The distinct canonical addresses the page's ``<head>`` declares, as written.
+
+    Only the head: Google accepts ``rel=canonical`` "only if it appears in the
+    ``<head>`` section", so a canonical in the body -- which a page's own
+    content, a comment, can put there -- names nothing. One address repeated
+    is one address; two different ones are a conflict, and Google then uses
+    neither.
+    """
+    found: list[str] = []
+    for link in doc.tree.xpath("//head//link[@rel][@href]"):
+        if "canonical" in (link.get("rel") or "").lower().split():
+            href = " ".join((link.get("href") or "").split())
+            if href and href not in found:
+                found.append(href)
+    return found
 
 
 def read_links(doc: Document) -> Links:
@@ -80,8 +100,6 @@ def read_links(doc: Document) -> Links:
         address = join(base, href)
         is_link = element.tag == "link"
         kind = (element.get("type") or "").strip().lower().split(";")[0]
-        if is_link and "canonical" in rels:
-            found.setdefault("canonical", address)
         if "next" in rels:
             found.setdefault("next", address)
         if rels & {"prev", "previous"}:
@@ -105,6 +123,11 @@ def read_links(doc: Document) -> Links:
             feeds.append({"format": _FEEDS[kind], "href": address, "title": title})
         elif kind in _OEMBED and address not in oembed:
             oembed.append(address)
+    declared = [join(base, href) for href in canonicals(doc)][:_MOST]
+    if len(set(declared)) == 1:
+        found["canonical"] = declared[0]
+    elif declared:
+        found["canonical_conflict"] = list(dict.fromkeys(declared))
     if alternates:
         found["alternates"] = alternates[:_MOST]
     if feeds:

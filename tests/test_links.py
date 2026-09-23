@@ -13,7 +13,7 @@ PAGE = """<html><head>
 <link rel="alternate" type="application/json+oembed" href="/oembed?url=x">
 <link rel="amphtml" href="/amp/p/brake-pads">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="canonical" href="/somewhere-else">
+<link rel="canonical" href="/p/brake-pads">
 </head><body><a rel="next" href="?page=2">Next</a><a rel="prev" href="?page=0">Back</a>
 </body></html>"""
 
@@ -49,11 +49,43 @@ def test_wordpress_s_rest_api_link_is_not_a_feed():
     assert all("wp-json" not in feed["href"] for feed in links["feeds"])
 
 
-def test_a_canonical_is_only_read_from_link_and_the_first_one_wins():
-    page = '<a rel="canonical" href="/a"></a><link rel="canonical" href="/b">'
+def test_a_canonical_in_the_body_names_nothing():
+    """Google accepts rel=canonical only in the head; a body is the page's content."""
+    page = (
+        "<html><head></head><body>"
+        '<link rel="canonical" href="https://evil.example/x"></body></html>'
+    )
+
+    result = extract(page, url="https://site.example/a")
+
+    assert "canonical" not in result.links
+    assert "url" not in result.summary
+
+
+def test_two_different_canonicals_are_a_conflict_with_no_answer():
+    page = (
+        '<html><head><link rel="canonical" href="/a">'
+        '<link rel="canonical" href="/b"></head></html>'
+    )
+
+    result = extract(page, url="https://site.example/a")
+
+    assert result.links["canonical_conflict"] == [
+        "https://site.example/a",
+        "https://site.example/b",
+    ]
+    assert "canonical" not in result.links
+    assert "url" not in result.summary
+
+
+def test_one_canonical_repeated_is_one_canonical():
+    page = (
+        '<html><head><link rel="canonical" href="/a">'
+        '<link rel="canonical" href="/a"></head></html>'
+    )
 
     assert read_links(load(page, url="https://s.example/"))["canonical"] == (
-        "https://s.example/b"
+        "https://s.example/a"
     )
 
 

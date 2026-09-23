@@ -55,6 +55,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `validForMemberTier` -- and a strikethrough price of the same offer is
   `price_regular`. Currency and availability come from the offer the price
   came from. Found by the survey of other projects, with probes it wrote.
+- A `<link rel=canonical>` in the body was taken for the page's own address, so
+  a page's content could name another host as the page. Google accepts a
+  canonical only in the head, and so does Sluicer now; two different ones in
+  the head are reported as `links.canonical_conflict` and answer no `url`, as
+  Google then uses neither.
 - `compile` took page furniture for the listing on 6 of the drift benchmark's 25
   sites: GitHub's language menu of 491 links, old Reddit's sidebar lists, the
   paragraphs of one Hackaday post, page sections on the BBC and Ars Technica,
