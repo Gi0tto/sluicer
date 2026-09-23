@@ -66,8 +66,12 @@ _CLOSING = re.compile(r"(?:(?://|/\*)\s*)?(?:\]\]>|-->)\s*(?:\*/)?\s*$")
 _TRAILING_COMMA = re.compile(r",\s*([}\]])")
 
 
-def _parse(raw: str) -> object | None:
-    """The JSON in one block, or None when there is none to be had."""
+def _parse(raw: str, as_written: bool = True) -> object | None:
+    """The JSON in one block, or None when there is none to be had.
+
+    ``as_written`` keeps every number as its text; without it the block is
+    read as ``json.loads`` reads it, which is what extruct's callers get.
+    """
     unwrapped = raw.lstrip("\ufeff")
     for _ in range(2):
         unwrapped = _CLOSING.sub("", _OPENING.sub("", unwrapped))
@@ -77,12 +81,16 @@ def _parse(raw: str) -> object | None:
         (raw, unwrapped, _TRAILING_COMMA.sub(r"\1", unwrapped))
     ):
         try:
-            parsed: object = json.loads(
-                candidate,
-                strict=False,
-                parse_float=str,
-                parse_int=str,
-                parse_constant=lambda _name: None,
+            parsed: object = (
+                json.loads(
+                    candidate,
+                    strict=False,
+                    parse_float=str,
+                    parse_int=str,
+                    parse_constant=lambda _name: None,
+                )
+                if as_written
+                else json.loads(candidate, strict=False)
             )
         except (ValueError, RecursionError):
             continue

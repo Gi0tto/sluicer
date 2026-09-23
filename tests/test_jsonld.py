@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sluicer.declared.jsonld import read_jsonld
+from sluicer.declared.jsonld import _parse, read_jsonld
 from sluicer.document import load
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -122,3 +122,14 @@ def test_a_block_at_the_edge_of_the_parser_never_escapes_as_a_recursion_error():
         deep = '{"a":' * depth + '"x"' + "}" * depth
         html = f'<script type="application/ld+json">{deep}</script>'
         extract(html)
+
+
+def test_a_block_can_be_read_with_its_numbers_as_json_reads_them():
+    raw = '{"price": 41.90, "count": 3, "ratio": NaN}'
+
+    assert _parse(raw) == {"price": "41.90", "count": "3", "ratio": None}
+    parsed = _parse(raw, as_written=False)
+    assert isinstance(parsed, dict)
+    assert (parsed["price"], parsed["count"]) == (41.9, 3)
+    assert parsed["ratio"] != parsed["ratio"]  # NaN, as json.loads reads it
+    assert _parse('{"a": 1,}', as_written=False) == {"a": 1}
