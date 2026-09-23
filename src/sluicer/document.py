@@ -291,7 +291,7 @@ def base_url(doc: Document) -> str | None:
 
 def _base_of(tree: lxml.html.HtmlElement, url: str | None) -> str | None:
     for base in tree.xpath("//base[@href]"):
-        declared = (base.get("href") or "").strip()
+        declared = trimmed(base.get("href"))
         if declared:
             return _join(url, declared) if url else declared
     return url
@@ -313,6 +313,17 @@ def join(base: str | None, address: str) -> str:
     Either way the address is first cleaned as ``clean_address`` says.
     """
     return _join(base, address) if base else clean_address(address)
+
+
+def trimmed(value: str | None) -> str:
+    """An attribute's address with its ends trimmed as the URL standard trims
+    them: controls and ASCII spaces, nothing else.
+
+    ``str.strip`` also takes a no-break space or an ideographic space, which
+    a browser keeps as part of the address and percent-encodes, so a
+    ``<link href="\u00a0x">`` would have pointed somewhere else here.
+    """
+    return (value or "").strip(_C0_OR_SPACE)
 
 
 def clean_address(address: str) -> str:

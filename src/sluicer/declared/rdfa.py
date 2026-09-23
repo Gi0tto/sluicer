@@ -34,7 +34,7 @@ from lxml.html import HtmlElement
 
 from sluicer.declared.located import Located, Place, placed
 from sluicer.declared.types import type_name
-from sluicer.document import Document, absolute
+from sluicer.document import Document, absolute, trimmed
 
 # The address attributes RDFa reads a value from when an element carries no
 # `content` and no `resource`. `href` on the elements HTML gives it, `src` on
@@ -189,15 +189,15 @@ def _value(doc: Document, element: HtmlElement) -> str:
     content: str | None = element.get("content")
     if content:
         return content.strip()
-    resource: str | None = element.get("resource")
-    if resource and resource.strip():
-        return absolute(doc, resource.strip())
+    resource = trimmed(element.get("resource"))
+    if resource:
+        return absolute(doc, resource)
     attr = _VALUE_ATTRS.get(element.tag)
     if attr is not None:
         declared: str | None = element.get(attr)
-        if declared and declared.strip():
-            address = declared.strip()
-            return address if attr == "datetime" else absolute(doc, address)
+        found = (declared or "").strip() if attr == "datetime" else trimmed(declared)
+        if found:
+            return found if attr == "datetime" else absolute(doc, found)
     text: str | None = element.text_content()
     return " ".join((text or "").split())
 

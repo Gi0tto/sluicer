@@ -345,6 +345,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Crawl-delay` and `Sitemap` reading in the `with-extras` job.
 
 ### Fixed
+- An address read from an attribute or a `Link` header lost a no-break space
+  or an ideographic space at its ends: `str.strip` takes them, and the URL
+  standard trims only controls and ASCII spaces, so a browser keeps them and
+  percent-encodes them. Seven readers did it -- the `<base>`, `<link>` and
+  `rel=license` addresses, a `Link` header's, microdata and RDFa address
+  properties, the crawler's links and the audit's canonicals -- and now each
+  resolves `\u00a0x` to `%C2%A0x`, as Node's WHATWG `URL` does on the same
+  base. Found by the fuzz profile.
 - The skill's frontmatter had a top-level `version`, which the Agent Skills
   standard does not allow and its own validator refused, so a client that
   reads the standard, as Codex does, could refuse the skill. The version is

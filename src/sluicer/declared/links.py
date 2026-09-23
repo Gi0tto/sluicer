@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from sluicer.declared.headers import HeaderLinks
-from sluicer.document import Document, base_url, clean_address, join
+from sluicer.document import Document, base_url, clean_address, join, trimmed
 
 
 class Alternate(TypedDict):
@@ -100,7 +100,7 @@ def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:
     seen: set[tuple[str, str]] = set()
     for element in doc.tree.xpath("//link[@rel][@href] | //a[@rel][@href]"):
         rels = set((element.get("rel") or "").lower().split())
-        href = (element.get("href") or "").strip()
+        href = trimmed(element.get("href"))
         if not href or href.startswith(("javascript:", "#")):
             continue
         address = join(base, href)

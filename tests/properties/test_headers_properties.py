@@ -178,3 +178,12 @@ def test_an_address_that_is_no_utf8_is_compared_decoded_on_both_sides():
     """Found by the fuzz profile: the header's canonical "%AA", answered as
     written, was decoded on one side only and read as a mismatch."""
     _check("<html></html>", None, {"Link": "<%AA>; rel=canonical"})
+
+
+def test_a_no_break_space_in_an_address_is_kept_and_encoded():
+    """Found by the fuzz profile: "<\u00a0:>" lost its no-break space."""
+    _check(
+        "<html></html>",
+        "https://shop.example/c/brakes",
+        {"Link": "<https://s.example/c>, <" + chr(0xA0) + ":>; rel=canonical"},
+    )

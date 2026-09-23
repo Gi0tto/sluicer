@@ -27,7 +27,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TypedDict
 
-from sluicer.document import join
+from sluicer.document import join, trimmed
 
 # The most read of any one header, and the most links or directives kept: a
 # response is not a directory, and a hostile one should not make the answer
@@ -111,7 +111,7 @@ def parse_link(value: str) -> list[LinkValue]:
         close = text.find(">", at)
         if close == -1:
             break
-        href = text[at + 1 : close].strip()
+        href = trimmed(text[at + 1 : close])
         at = close + 1
         params: dict[str, str] = {}
         while True:

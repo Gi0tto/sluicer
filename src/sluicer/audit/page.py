@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from sluicer.audit.report import Finding
 from sluicer.declared.opengraph import read_opengraph
-from sluicer.document import Document
+from sluicer.document import Document, trimmed
 
 _GOOGLE = "https://developers.google.com/search/docs/"
 TITLE_RULE = _GOOGLE + "appearance/title-link"
@@ -76,7 +76,7 @@ def page_findings(doc: Document) -> list[Finding]:
 
 def _canonical(doc: Document) -> list[Finding]:
     declared = [
-        (link.get("href") or "").strip()
+        trimmed(link.get("href"))
         for link in doc.tree.xpath("//link[@rel][@href]")
         if "canonical" in (link.get("rel") or "").lower().split()
     ]

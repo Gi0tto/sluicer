@@ -31,7 +31,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from sluicer.declared.headers import HeaderRights
-from sluicer.document import Document, base_url, join
+from sluicer.document import Document, base_url, join, trimmed
 
 # Crawler names a page may put in place of ``robots``, as the engines document
 # them. A name outside this list is some other meta tag, not a directive.
@@ -115,7 +115,7 @@ def _licences(doc: Document) -> list[str]:
     ):
         if "license" not in (element.get("rel") or "").lower().split():
             continue
-        href = (element.get("href") or "").strip()
+        href = trimmed(element.get("href"))
         if not href or href.startswith(("#", "javascript:")):
             continue
         address = join(base, href)

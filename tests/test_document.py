@@ -320,6 +320,43 @@ def test_an_address_is_read_as_the_url_standard_reads_an_attribute():
 
 
 @pytest.mark.parametrize(
+    ("href", "resolved"),
+    [
+        # Each as Node's WHATWG URL resolves it against the same base, 2026-09-24.
+        (chr(0xA0) + ":", "https://shop.example/c/%C2%A0:"),
+        (chr(0xA0) + "x", "https://shop.example/c/%C2%A0x"),
+        (chr(0x3000) + "/p", "https://shop.example/c/%E3%80%80/p"),
+        (" /p ", "https://shop.example/p"),
+    ],
+)
+def test_only_controls_and_ascii_spaces_are_trimmed_from_an_attribute(href, resolved):
+    """Found by the fuzz profile: a Link header's "<\u00a0:>" was answered as
+    https://shop.example/c/: -- str.strip took the no-break space, which a
+    browser keeps and encodes. The same strip read seven kinds of address."""
+    from sluicer import extract
+    from sluicer.document import join, trimmed
+
+    base = "https://shop.example/c/brakes"
+    assert join(base, trimmed(href)) == resolved
+    header = extract(
+        "<html></html>", url=base, headers={"Link": f"<{href}>; rel=canonical"}
+    )
+    assert header.summary["url"].value == resolved
+    linked = extract(
+        f'<html><head><link rel="alternate" type="application/rss+xml" href="{href}">'
+        "</head></html>",
+        url=base,
+    )
+    assert linked.links["feeds"][0]["href"] == resolved
+    microdata = extract(
+        '<div itemscope itemtype="https://schema.org/Product">'
+        f'<a itemprop="url" href="{href}">x</a><b itemprop="name">P</b></div>',
+        url=base,
+    )
+    assert microdata.records[0].fields["url"].value == resolved
+
+
+@pytest.mark.parametrize(
     ("address", "resolved"),
     [
         ("0?", "https://shop.example/c/0"),

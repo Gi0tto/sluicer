@@ -15,7 +15,7 @@ from lxml.html import HtmlElement
 
 from sluicer.declared.located import Located, Place, placed
 from sluicer.declared.types import type_name
-from sluicer.document import Document, absolute
+from sluicer.document import Document, absolute, trimmed
 
 # The element whose value is an attribute rather than its text, and which one.
 # The standard's list, in full: a ``<video itemprop>`` is its URL, not the
@@ -252,8 +252,10 @@ def _value(doc: Document, element: HtmlElement) -> str:
         # A <time> without a datetime is its text; every other element in the
         # list is its attribute or nothing.
         if declared is not None or element.tag != "time":
-            found = (declared or "").strip()
-            return absolute(doc, found) if found and attr in _ADDRESSES else found
+            if attr not in _ADDRESSES:
+                return (declared or "").strip()
+            found = trimmed(declared)
+            return absolute(doc, found) if found else found
     content: str | None = element.get("content")
     if content:
         return content.strip()

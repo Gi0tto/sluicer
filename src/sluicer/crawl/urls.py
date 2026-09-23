@@ -32,7 +32,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 
 from sluicer.declared.headers import lowered, read_header_links, read_header_rights
 from sluicer.declared.links import canonicals
-from sluicer.document import Document, absolute
+from sluicer.document import Document, absolute, trimmed
 
 MAX_LINKS_PER_PAGE = 5000
 """The most links one page contributes, in document order.
@@ -130,7 +130,7 @@ def links_on(doc: Document, headers: Mapping[str, str] | None = None) -> list[st
     for element in doc.tree.xpath("//a[@href] | //area[@href]"):
         if "nofollow" in (element.get("rel") or "").lower().split():
             continue
-        href = (element.get("href") or "").strip().translate(_INVISIBLE)
+        href = trimmed(element.get("href")).translate(_INVISIBLE)
         address = normalise(absolute(doc, href)) if href else None
         if address is not None:
             found.setdefault(address)
