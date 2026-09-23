@@ -548,10 +548,15 @@ def _resolved(found: SummaryField, base: str | None) -> SummaryField:
 
 
 def _short(found: SummaryField | None) -> SummaryField | None:
-    """``https://schema.org/InStock`` is the schema.org term ``InStock``."""
+    """``https://schema.org/InStock`` is the schema.org term ``InStock``.
+
+    The vocabulary's address alone names no term, and is no answer: an empty
+    one would stop the next candidate from being asked.
+    """
     if found is None:
         return None
-    return SummaryField(_SCHEMA_ORG.sub("", found.value), found.source, found.key)
+    term = _SCHEMA_ORG.sub("", found.value)
+    return SummaryField(term, found.source, found.key) if term else None
 
 
 def _not_an_address(found: SummaryField | None) -> SummaryField | None:

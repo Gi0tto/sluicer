@@ -359,3 +359,21 @@ def test_a_blogger_who_publishes_their_own_posts_is_still_the_author():
     )
 
     assert _summary(html)["author"][0] == "Edwin Toonen"
+
+
+def test_an_availability_that_is_only_the_vocabulary_is_no_answer():
+    """Found by the property that every answer is a value.
+
+    ``https://schema.org/`` shortened to its term is the empty string, and it
+    was reported as the availability -- an empty answer, which also kept the
+    page's ``og:availability`` from being asked.
+    """
+    html = (
+        '<meta property="og:availability" content="in stock">'
+        '<script type="application/ld+json">{"@type": "Product", "name": "P",'
+        '"offers": {"price": "1", "availability": "https://schema.org/"}}</script>'
+    )
+
+    availability = extract(html).summary["availability"]
+
+    assert (availability.value, availability.source) == ("in stock", "opengraph")
