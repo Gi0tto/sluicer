@@ -385,6 +385,24 @@ def main() -> int:
             check.failures.append(
                 f"fetch_page did not bring the page: {str(fetched)[:200]}"
             )
+        # The site has no sitemap, so the map is its start page's links; the
+        # crawl reads that page within its small budget. Both through B.
+        mapped = check.expect(
+            "map_site",
+            call(b, "map_site", {"url": f"{site}/page", "limit": 5}),
+            200,
+            tool="map_site",
+        )
+        if mapped.get("ok") is not True:
+            check.failures.append(f"map_site did not map the site: {mapped}")
+        crawled = check.expect(
+            "crawl_site",
+            call(b, "crawl_site", {"url": f"{site}/page", "max_pages": 1}),
+            200,
+            tool="crawl_site",
+        )
+        if not crawled.get("pages"):
+            check.failures.append(f"crawl_site crawled nothing: {str(crawled)[:200]}")
         declared = check.expect(
             "extract_declared, fetched",
             call(b, "extract_declared", {"html_or_url": f"{site}/page"}),

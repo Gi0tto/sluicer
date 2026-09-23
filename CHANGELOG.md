@@ -109,7 +109,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   each is for, the `User-agent` names no vendor documents, and llms.txt read
   against llmstxt.org's format. Exit codes: 3 when anything is an error, 1 when
   nothing is declared, 0 otherwise, 2 when the page could not be read.
-- MCP: seven tools; `audit_page` has an output schema like the others.
+- MCP: `audit_page`, with an output schema like the others. The server has
+  nine tools with `map_site` and `crawl_site`.
 - **Crawling, politely** (`sluicer.crawl`, `docs/crawling.md`). `map_site`
   lists a site's addresses from its sitemaps -- the ones robots.txt names, or
   `/sitemap.xml` and `/sitemap_index.xml` -- following an index on the same
@@ -130,7 +131,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
   whole run.
 - MCP tools `map_site` and `crawl_site`, bounded to a thousand addresses or 25
   pages and a minute, with the error codes `redirected_off_site` and
-  `crawl_delay_too_long` for a crawled page. The server has eight tools.
+  `crawl_delay_too_long` for a crawled page.
 - Sitemaps are parsed with no entity resolved, nothing fetched from inside,
   any document type refused, and gzip inflated no further than 16 MiB;
   billion laughs and XXE are tested.

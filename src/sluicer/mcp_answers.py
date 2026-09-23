@@ -25,23 +25,44 @@ ErrorCode = Literal[
     "fetch_failed",
     "too_large",
     "bad_input",
+]
+"""What a whole tool call can fail with; the HTTP door has a status for each."""
+
+PageErrorCode = Literal[
+    "missing_extra",
+    "refused_by_robots",
+    "refused_address",
+    "fetch_failed",
+    "too_large",
+    "bad_input",
     "redirected_off_site",
     "crawl_delay_too_long",
 ]
+"""What one crawled page can have instead of an answer: a call's codes, and two
+of a crawl's own, which never end a call and so have no HTTP status."""
 
 
 class ErrorDetail(TypedDict, total=False):
-    """Why a tool could not answer, or why one crawled page has nothing.
+    """Why a tool could not answer.
 
     ``retryable`` is true only for ``fetch_failed``: the same call may work
     later. The others need something to change first -- an install, an input,
-    or the caller's mind about a site that said no. The last two codes are a
-    crawled page's own: ``redirected_off_site``, with the ``target`` it
-    pointed to, and ``crawl_delay_too_long``, a site asking for more time
-    between requests than a crawl waits.
+    or the caller's mind about a site that said no.
     """
 
     code: Required[ErrorCode]
+    message: Required[str]
+    retryable: Required[bool]
+    url: str
+    extra: str
+
+
+class PageError(TypedDict, total=False):
+    """Why one crawled page has nothing: ``redirected_off_site``, with the
+    ``target`` it pointed to, or ``crawl_delay_too_long``, a site asking for
+    more time between requests than a crawl waits, or any code a call has."""
+
+    code: Required[PageErrorCode]
     message: Required[str]
     retryable: Required[bool]
     url: str
@@ -282,7 +303,7 @@ class CrawledPage(TypedDict, total=False):
     sources: list[str]
     types: list[str]
     links: int
-    error: ErrorDetail
+    error: PageError
 
 
 class CrawlAnswer(TypedDict, total=False):
