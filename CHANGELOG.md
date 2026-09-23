@@ -13,6 +13,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is not a price of 19.
 
 ### Added
+- `sluicer diff BEFORE AFTER` and `sluicer.diff.compare`: what changed between
+  two readings of a page, question by question -- a price, an availability, a
+  canonical that moved, a page that started reserving its rights -- each side
+  naming its source and key. A value written differently with the same
+  meaning (`41.90`, `41.9`) is `rewritten`, not `changed`. Exit codes are
+  diff's: 0 same, 1 different, 2 unreadable.
 - A `reads` check in extractors: a listing field whose every learnt value read
   as an amount or a date must still read so in half its values. The shape
   check could not tell `12.99` from `2025-01-02`, both digits and

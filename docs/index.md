@@ -69,6 +69,7 @@ sluicer extract page.html                           # a file, a URL, or - for st
 sluicer inspect https://example.com/product         # the same, for a person to read
 sluicer extract listing.html --induce               # rows of a page that declares nothing
 sluicer markdown https://example.com/article        # the readable content
+sluicer diff yesterday.html https://shop.example/p  # what changed, and where from
 
 sluicer compile page1.html page2.html -o shop.json  # learn an extractor
 sluicer run shop.json https://shop.example/c?p=7    # replay it, checked

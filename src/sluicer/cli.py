@@ -22,6 +22,7 @@ import click
 from sluicer.api import Extraction, extract as extract_html
 from sluicer.declared.microformats import MicroformatsExtraMissing
 from sluicer.declared.readers import READERS
+from sluicer.diff import compare
 from sluicer.extractor import (
     LOSSES,
     Extractor,
@@ -393,6 +394,50 @@ def _brief(value: object, limit: int = 72) -> str:
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
     text = " ".join(text.split())
     return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+@main.command("diff")
+@click.argument("before")
+@click.argument("after")
+@click.option("--json", "as_json", is_flag=True, help="Print the differences as JSON.")
+@_with_fetch_options
+def diff_command(
+    before: str,
+    after: str,
+    as_json: bool,
+    stealth: bool,
+    no_robots: bool,
+    base_url: str | None,
+) -> None:
+    """Say what changed between two readings of a page, question by question.
+
+    BEFORE and AFTER are each a URL, a file or - for stdin. Exit codes are
+    diff's: 0 when nothing differs, 1 when something does, 2 when either could
+    not be read. A value written differently with the same meaning (41.90 and
+    41.9) is reported as rewritten.
+    """
+    readings = []
+    for source in (before, after):
+        html, url, _fetched = _read_source(source, stealth, no_robots, base_url)
+        readings.append(extract_html(html, url=url))
+    differences = compare(readings[0], readings[1])
+    if as_json:
+        click.echo(
+            json.dumps([asdict(d) for d in differences], indent=2, ensure_ascii=False)
+        )
+    else:
+        for d in differences:
+            if d.kind == "added":
+                click.echo(f"+ {d.question}: {_brief(d.after)}  [{d.after_source}]")
+            elif d.kind == "removed":
+                click.echo(f"- {d.question}: {_brief(d.before)}  [{d.before_source}]")
+            else:
+                click.echo(
+                    f"{'~' if d.kind == 'rewritten' else '*'} {d.question}: "
+                    f"{_brief(d.before)} -> {_brief(d.after)}  [{d.after_source}]"
+                )
+    if differences:
+        raise SystemExit(1)
 
 
 @main.command()
