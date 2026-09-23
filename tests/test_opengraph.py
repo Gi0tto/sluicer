@@ -1,3 +1,5 @@
+import pytest
+
 from sluicer.declared.opengraph import read_opengraph
 from sluicer.document import load
 
@@ -101,3 +103,18 @@ def test_a_name_attribute_is_read_when_property_holds_something_else():
     doc = load('<meta property="description" name="og:title" content="From name">')
 
     assert read_opengraph(doc)["title"] == "From name"
+
+
+@pytest.mark.parametrize("between", [" ", "  ", "\n\t"])
+def test_a_property_naming_two_terms_is_read_by_the_one_opengraph_owns(between):
+    """Found by the property that the spacing between the tokens of a token list
+    does not change the answer.
+
+    RDFa, which OpenGraph is written in, makes ``property`` a list of terms:
+    ``<meta property="og:title name">`` is ``og:title`` and ``name``. The tag
+    was read as one name, a field called "title name", spelt with whatever
+    whitespace the page put between the two terms.
+    """
+    doc = load(f'<meta property="og:title{between}name" content="Pad">')
+
+    assert read_opengraph(doc) == {"title": "Pad"}

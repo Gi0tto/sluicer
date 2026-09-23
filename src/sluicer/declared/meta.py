@@ -26,10 +26,14 @@ from sluicer.document import Document
 def _meta_tags(doc: Document) -> Iterator[tuple[list[str], str, str]]:
     """Yield ``(keys, name, content)`` for every ``<meta>`` carrying a value.
 
-    ``keys`` holds the ``property`` and then the ``name`` attribute, trimmed and
-    lowercased, so ``OG:Title`` is ``og:title`` and a tag whose ``property``
-    says something else is still read by its ``name``. ``name`` is also given
-    as written, for the reader that matches HTML's own metadata names.
+    ``keys`` holds the terms of the ``property`` attribute and then the ``name``
+    attribute, lowercased, so ``OG:Title`` is ``og:title`` and a tag whose
+    ``property`` says something else is still read by its ``name``. RDFa, which
+    OpenGraph is written in, makes ``property`` a list of terms, so
+    ``property="og:title name"`` is ``og:title`` and ``name``; read as one name,
+    it was a field called "title name", spelt with whatever whitespace the page
+    put between the two. ``name`` is one name, and is also given as written,
+    for the reader that matches HTML's own metadata names.
 
     An empty or whitespace-only ``content`` is not a value and never leaves
     here, so no caller has to remember to drop it.
@@ -39,8 +43,8 @@ def _meta_tags(doc: Document) -> Iterator[tuple[list[str], str, str]]:
         if not content:
             continue
         name = meta.get("name") or ""
-        prop = (meta.get("property") or "").strip().lower()
-        keys = [key for key in (prop, name.strip().lower()) if key]
+        terms = (meta.get("property") or "").lower().split()
+        keys = [*terms, name.strip().lower()] if name.strip() else terms
         yield keys, name, content
 
 
