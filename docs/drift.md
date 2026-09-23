@@ -6,9 +6,9 @@ and replayed on a later one. An oracle that does not use the extractor's
 code judges the result. Losses come first.
 
 Regenerated on 2026-09-23 from commit
-`f592d0c` (sluicer 0.3.0, Scrapling 0.4.15) with
+`c77772d` (sluicer 0.3.0, Scrapling 0.4.15) with
 `uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`, in
-11 seconds from the cache.
+12 seconds from the cache.
 
 !!! warning "Read this before the numbers"
     This is 44 pairs on 25 sites,
@@ -109,7 +109,7 @@ questions and are not ranked.
 | stackoverflow-com-questions-short | 15-50 / 15 | same | passed | survived | nothing to match | no A item is still on B |
 | old-reddit-com-r-programming-short | 23 / 25 | same | passed | survived | nothing to match | no A item is still on B |
 | old-reddit-com-r-programming-long | 23 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match (1 items) | no A item is still on B |
-| sfbay-craigslist-org-search-sss-long | 120 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | nothing to match | no A item is still on B |
+| sfbay-craigslist-org-search-sss-long | 120 / 0 | drift: the listing's container is gone | failed: listing, summary, type | failed loudly | nothing to match | no A item is still on B |
 | www-imdb-com-chart-top-short | 250 / 250 | same | passed | survived | right (248 items) | right |
 | www-imdb-com-chart-top-long | 250 / 0 | drift: the listing's container is gone | failed: listing, summary | failed loudly | partly right (23 items) | nothing found |
 | www-python-org-jobs-long | 117 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
