@@ -208,6 +208,17 @@ jobs:
           assert robots_allows('https://example.com/p', read=lambda u: None, cache={}) is True
           print('robots: the real parser agrees with what the suite believes')
 
+          # The audit reads the same robots.txt for each AI agent, through the
+          # real protego, and names the line that decided.
+          from sluicer.audit import Site, SiteFile, audit
+          rules = 'User-agent: GPTBot\nDisallow: /\n\nUser-agent: ChatGPT\nDisallow: /private/\n\nUser-agent: *\nAllow: /\n'
+          site = Site(SiteFile('https://example.com/robots.txt', 200, rules), SiteFile('https://example.com/llms.txt', 404), SiteFile('https://example.com/llms-full.txt', 404))
+          verdicts = {v.agent: v for v in audit('<html></html>', url='https://example.com/private/p', site=site).crawlers}
+          assert verdicts['GPTBot'].allowed is False and verdicts['GPTBot'].group == 'gptbot', verdicts['GPTBot']
+          assert verdicts['ChatGPT-User'].allowed is False and verdicts['ChatGPT-User'].group == 'chatgpt', verdicts['ChatGPT-User']
+          assert verdicts['ClaudeBot'].allowed is True and verdicts['ClaudeBot'].group == '*', verdicts['ClaudeBot']
+          print('audit: the real parser decides each AI agent as the audit names it')
+
           from sluicer.fetch.scrapling_rungs import default_rungs
           names = [name for name, _ in default_rungs()]
           assert names[:2] == ['http', 'browser'], names

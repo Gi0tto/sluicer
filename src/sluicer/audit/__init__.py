@@ -4,7 +4,9 @@
 declare and says which of Google's rich-result features each is documented
 for, which required and recommended properties it lacks, and which of its
 values are in a form the documentation or schema.org refuses; then what the
-page as a whole lacks, and where two vocabularies contradict each other.
+page as a whole lacks, where two vocabularies contradict each other, and,
+given what the site serves beside the page, which AI agents its robots.txt
+admits and whether its llms.txt keeps to llmstxt.org's format.
 
 Every rule names the page it comes from. No model reads anything and no clock
 is consulted, so the same page always gets the same audit. What Google's own
@@ -20,7 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 from sluicer.api import Extraction
-from sluicer.audit import records
+from sluicer.audit import crawlers, llmstxt, records
 from sluicer.audit.page import page_findings
 from sluicer.audit.report import (
     Audit,
@@ -50,7 +52,11 @@ __all__ = [
 ]
 
 
-def audit(page: str | bytes | Extraction, url: str | None = None) -> Audit:
+def audit(
+    page: str | bytes | Extraction,
+    url: str | None = None,
+    site: Site | None = None,
+) -> Audit:
     """Audit what ``page`` declares against what its documentation asks.
 
     Args:
@@ -60,10 +66,21 @@ def audit(page: str | bytes | Extraction, url: str | None = None) -> Audit:
             each finding naming the reader of the property it is about, and the
             checks that need the page itself are listed in ``not_checked``.
         url: the address the page came from.
+        site: what the site serves beside the page, as
+            ``sluicer.fetch.site.read_site`` reads it; without it the AI
+            agents and llms.txt are not checked, and ``not_checked`` says so.
 
     Returns:
-        An ``Audit``. Nothing is fetched here.
+        An ``Audit``. Nothing is fetched here: ``site`` is read by the caller.
+
+    Raises:
+        ValueError: ``site`` without ``url``: which page the agents may have is
+            a question about an address.
+        FetchExtraMissing: ``site`` holds a robots.txt and protego, from the
+            ``fetch`` extra, is not installed.
     """
+    if site is not None and url is None:
+        raise ValueError("auditing what a site serves needs the page's address")
     result = Audit(url=url if url is not None else _url_of(page))
     if isinstance(page, Extraction):
         result.records = _merged(page)
@@ -100,6 +117,12 @@ def audit(page: str | bytes | Extraction, url: str | None = None) -> Audit:
                 "resolve links against the page's address, which was not given."
             )
         result.page = [*page_findings(doc), *records.conflicts(found)]
+    if site is None or url is None:
+        result.not_checked.append(
+            "The AI agents robots.txt admits, and llms.txt: the site was not read."
+        )
+    else:
+        _site(result, url, site)
     findings = result.findings()
     result.errors = sum(1 for finding in findings if finding.severity == "error")
     result.warnings = sum(1 for finding in findings if finding.severity == "warning")
@@ -138,3 +161,12 @@ def _merged(extraction: Extraction) -> list[RecordAudit]:
             )
         )
     return audited
+
+
+def _site(result: Audit, url: str, site: Site) -> None:
+    result.crawlers, result.other_agents = crawlers.verdicts(url, site.robots)
+    result.robots_txt = SiteFile(
+        url=site.robots.url, status=site.robots.status, error=site.robots.error
+    )
+    result.llms_txt = llmstxt.read_llms_txt(site.llms_txt)
+    result.llms_full_txt = llmstxt.read_llms_full_txt(site.llms_full_txt)

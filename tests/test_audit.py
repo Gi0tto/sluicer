@@ -6,7 +6,7 @@ from dataclasses import asdict
 import pytest
 
 from sluicer import extract
-from sluicer.audit import audit, google, records
+from sluicer.audit import Site, SiteFile, audit, google, records
 from test_audit_features import VALID, page
 
 
@@ -474,6 +474,17 @@ def test_an_extraction_of_a_page_that_declares_nothing_has_no_records():
 
 
 # -- Arguments ------------------------------------------------------------------
+
+
+def test_a_site_without_the_pages_address_is_refused():
+    site = Site(
+        SiteFile("https://e.com/robots.txt"),
+        SiteFile("https://e.com/llms.txt"),
+        SiteFile("https://e.com/llms-full.txt"),
+    )
+
+    with pytest.raises(ValueError, match="needs the page's address"):
+        audit("<html></html>", site=site)
 
 
 def test_a_need_that_is_not_written_in_the_short_form_is_refused():

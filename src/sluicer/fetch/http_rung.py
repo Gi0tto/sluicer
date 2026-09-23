@@ -47,6 +47,7 @@ def http_rung(
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
     error: type[MissingExtra] = MissingExtra,
+    allow_empty: bool = False,
 ) -> Rung:
     """Build the HTTP rung.
 
@@ -57,6 +58,9 @@ def http_rung(
         max_bytes: the most a body may weigh before ``ResponseTooLarge``.
         error: what a missing ``fetch`` extra raises, so callers can catch
             the same class for every rung.
+        allow_empty: return an empty body rather than fail on it. A page with
+            no HTML is a rung that failed; an empty robots.txt or llms.txt is
+            an answer, and ``sluicer.fetch.site`` reads those.
     """
     requests = import_extra(
         "curl_cffi.requests", "fetch", doing="Fetching a URL", error=error
@@ -80,7 +84,7 @@ def http_rung(
                 continue
             charset = _charset(headers.get("content-type") or "")
             html = body.decode(sniff_encoding(body, charset), errors="replace")
-            if not html:
+            if not html and not allow_empty:
                 raise ValueError(f"the http rung returned no HTML for {url!r}")
             return Fetched(url=current, html=html, status=status, rung="http")
         raise TooManyRedirects(f"{url} redirected more than {MAX_REDIRECTS} times")
