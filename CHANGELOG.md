@@ -10,7 +10,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
   42 countries' publishers in 21 declared languages, with scripts, each
   paired with its labels by fundus's own code. The same questions, tools and
   scoring as the other scoreboards, and a table per language. Sluicer's
-  titles are the most often right of the four tools (0.863), its dates are
+  titles are the most often right of the four tools (0.875), its dates are
   never wrong when it answers one, and trafilatura finds more authors, which
   it also reads from the visible byline.
 - `docs/agents.md` shows Sluicer in LangChain, the OpenAI Agents SDK and
