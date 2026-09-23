@@ -49,6 +49,11 @@ import jsonschema
 
 TOKEN = "live-check-token"
 DRIFT = Path(__file__).resolve().parent.parent / "fixtures" / "drift"
+FEED = (
+    '<?xml version="1.0"?><rss version="2.0"><channel><title>Notes</title>'
+    "<item><title>Pads</title><link>https://shop.example/pads</link></item>"
+    "</channel></rss>"
+)
 PAGE = (
     "<html><head><title>Brake pad set</title>"
     '<script type="application/ld+json">'
@@ -403,6 +408,14 @@ def main() -> int:
         )
         if not crawled.get("pages"):
             check.failures.append(f"crawl_site crawled nothing: {str(crawled)[:200]}")
+        feed = check.expect(
+            "read_feed",
+            call(b, "read_feed", {"url_or_text": FEED}),
+            200,
+            tool="read_feed",
+        )
+        if feed.get("items_total") != 1 or feed.get("format") != "rss":
+            check.failures.append(f"read_feed did not read the feed: {str(feed)[:200]}")
         declared = check.expect(
             "extract_declared, fetched",
             call(b, "extract_declared", {"html_or_url": f"{site}/page"}),
@@ -449,6 +462,21 @@ def main() -> int:
             502,
             "fetch_failed",
             tool="fetch_page",
+        )
+        check.expect(
+            "a page that reserves its text and data mining rights",
+            call(
+                b,
+                "extract_declared",
+                {
+                    "html_or_url": '<html><head><meta name="tdm-reservation" '
+                    'content="1"></head></html>',
+                    "respect_tdm": True,
+                },
+            ),
+            451,
+            "tdm_reserved",
+            tool="extract_declared",
         )
         check.expect(
             "trafilatura is missing",
