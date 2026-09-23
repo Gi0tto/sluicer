@@ -132,12 +132,13 @@ def _check(html, url, sent):
     if answer is not None and answer.source == "http":
         assert answer.key == "Link: rel=canonical"
         loose = _header_canonicals(sent, url)
-        # A space in an address is percent-encoded, as a browser encodes it.
+        # A space in an address is percent-encoded, as a browser encodes it,
+        # so both sides are decoded alike: decoded on one side only, the
+        # header's own "%AA", which is no UTF-8, read as "\ufffd" against "%AA".
         said = unquote(answer.value)
-        assert any(said.split("#")[0] in c or c in said for c in loose), (
-            answer,
-            sent,
-        )
+        assert any(
+            said.split("#")[0] in unquote(c) or unquote(c) in said for c in loose
+        ), (answer, sent)
 
     http = result.rights.get("http")
     if http is not None:
@@ -171,3 +172,9 @@ def test_bytes_with_a_transport_charset_are_read_without_raising(page, sent):
     html = page.html()
     data = html.encode("utf-8", errors="replace") if isinstance(html, str) else html
     extract(data, url=page.url, headers=sent)
+
+
+def test_an_address_that_is_no_utf8_is_compared_decoded_on_both_sides():
+    """Found by the fuzz profile: the header's canonical "%AA", answered as
+    written, was decoded on one side only and read as a mismatch."""
+    _check("<html></html>", None, {"Link": "<%AA>; rel=canonical"})
