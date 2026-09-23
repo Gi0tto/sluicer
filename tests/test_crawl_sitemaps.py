@@ -576,3 +576,40 @@ def test_a_sitemap_in_utf_16_is_read_by_its_byte_order_mark():
     read = parse_sitemap(body.encode("utf-16"))
 
     assert read.entries == (("https://example.com/é", None),)
+
+
+@pytest.mark.parametrize(
+    "declared",
+    [
+        # Parameter entities expand inside the document type itself.
+        '<!DOCTYPE urlset [<!ENTITY % a "aaaaaaaaaa"><!ENTITY % b "%a;%a;%a;">]>',
+        '<!doctype urlset system "http://127.0.0.1:9/evil.dtd">',
+        '<!DOCTYPE urlset PUBLIC "-//x//y" "evil.dtd">',
+        "<!DOCTYPE urlset><!DOCTYPE urlset>",
+        '<!ENTITY x "a stray declaration">',
+    ],
+)
+def test_a_document_type_is_refused_before_the_parser_reads_it(declared, monkeypatch):
+    import lxml.etree
+
+    def must_not_parse(*args, **kwargs):
+        raise AssertionError("the parser was handed a document type")
+
+    monkeypatch.setattr(lxml.etree, "iterparse", must_not_parse)
+    body = f"<?xml version='1.0'?>{declared}<urlset {NS}></urlset>"
+
+    for encoded in (body.encode(), body.encode("utf-16")):
+        with pytest.raises(SitemapUnreadable, match="declares a document type"):
+            parse_sitemap(encoded)
+
+
+def test_a_page_built_to_make_the_refusal_slow_is_refused_in_linear_time():
+    """Two megabytes of unclosed declarations: a search that restarted at each
+    would read them all again for every one of them."""
+    body = b"<?xml version='1.0'?>" + b"<!DOCTYPE urlset " * 120_000
+    started = time.perf_counter()
+
+    with pytest.raises(SitemapUnreadable, match="declares a document type"):
+        parse_sitemap(body)
+
+    assert time.perf_counter() - started < 1.0
