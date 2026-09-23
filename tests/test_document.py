@@ -302,3 +302,18 @@ def test_the_charset_a_response_was_sent_with_comes_before_the_page_declaration(
     assert sniff_encoding(page) == "utf-8"
     assert sniff_encoding(b"\xef\xbb\xbf" + page, "windows-1252") == "utf-8"
     assert sniff_encoding(page, "no-such-charset") == "utf-8"
+
+
+def test_an_address_is_read_as_the_url_standard_reads_an_attribute():
+    """Found by the property search: ``0``, a carriage return, ``?`` was
+    answered as ``https://shop.example/c/0 `` -- the return became a space and
+    the empty query took the rest away."""
+    from sluicer.document import clean_address, join
+
+    assert clean_address("0\r?") == "0?"
+    assert clean_address(" \t/x\n ") == "/x"
+    assert clean_address("/a b") == "/a%20b"
+    assert clean_address("/a" + chr(0xA0)) == "/a%C2%A0"
+    assert clean_address("/café") == "/café"
+    assert join("https://shop.example/c/brakes", "0\r?") == "https://shop.example/c/0"
+    assert join(None, " /x ") == "/x"

@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from sluicer.declared.headers import HeaderLinks
-from sluicer.document import Document, base_url, join
+from sluicer.document import Document, base_url, clean_address, join
 
 
 class Alternate(TypedDict):
@@ -73,7 +73,7 @@ def canonicals(doc: Document) -> list[str]:
     found: list[str] = []
     for link in doc.tree.xpath("//head//link[@rel][@href]"):
         if "canonical" in (link.get("rel") or "").lower().split():
-            href = " ".join((link.get("href") or "").split())
+            href = clean_address(link.get("href") or "")
             if href and href not in found:
                 found.append(href)
     return found

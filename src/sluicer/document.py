@@ -7,7 +7,7 @@ import functools
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 import lxml.etree
 import lxml.html
@@ -64,6 +64,8 @@ _BODY = re.compile(rb"<body\b", re.IGNORECASE)
 # How far a declaration is looked for when the body never starts. Bounded, so
 # a page that is all head costs a fixed amount to sniff.
 _SNIFF_LIMIT = 64 * 1024
+# What the URL standard strips from an address's ends: C0 controls and space.
+_C0_OR_SPACE = "".join(chr(code) for code in range(0x21))
 
 
 def sniff_encoding(data: bytes, transport: str | None = None) -> str:
@@ -308,11 +310,30 @@ def join(base: str | None, address: str) -> str:
     An unfilled template writes ``https://[domain]/p``, which is not a URL and
     which ``urljoin`` refuses with a ``ValueError``; a page is read whatever
     its links look like, so the link is kept the way the page wrote it.
+    Either way the address is first cleaned as ``clean_address`` says.
     """
-    return _join(base, address) if base else address
+    return _join(base, address) if base else clean_address(address)
+
+
+def clean_address(address: str) -> str:
+    """``address`` as the URL standard reads it out of an attribute.
+
+    Controls and spaces at its ends are dropped, and every tab and newline
+    inside it, so ``/p``, a carriage return and ``?`` is ``/p?``; any other
+    white space left is
+    percent-encoded, as a browser encodes it, so an address is never
+    answered with a space in it or around it. Nothing else is encoded: an
+    address written in Unicode stays readable.
+    """
+    text = address.strip(_C0_OR_SPACE)
+    text = text.replace("\t", "").replace("\n", "").replace("\r", "")
+    if any(c.isspace() for c in text):
+        text = "".join(quote(c, safe="") if c.isspace() else c for c in text)
+    return text
 
 
 def _join(base: str, address: str) -> str:
+    address = clean_address(address)
     try:
         return urljoin(base, address)
     except ValueError:

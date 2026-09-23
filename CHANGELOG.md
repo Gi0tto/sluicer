@@ -157,6 +157,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Crawl-delay` and `Sitemap` reading in the `with-extras` job.
 
 ### Fixed
+- An address is read as the URL standard reads it out of an attribute: its
+  ends stripped, every tab and newline inside dropped, any other white space
+  percent-encoded. `href="0<CR>?"` was answered as `https://shop.example/c/0 `,
+  with a space the page never wrote -- the return became a space, and the
+  empty query took what followed it. Found by the property search.
 - A product declared once per colour or size, as Zara declares it, or beside
   related products that carry no offer, as Argos does, was taken for a
   listing, and the page had no subject and no price. Records of one name are

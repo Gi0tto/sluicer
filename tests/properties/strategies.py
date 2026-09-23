@@ -34,6 +34,8 @@ from typing import Any
 
 from hypothesis import strategies as st
 
+from sluicer.declared.rights import _CRAWLERS
+
 # -- running what they draw -----------------------------------------------------
 
 
@@ -394,9 +396,12 @@ META_KEYS = (
 )
 
 # The names whose every tag is read, rather than the first: a paper lists each
-# author in one. A later duplicate of these is a new value, not a repeat.
+# author in one, and a page's robots directives are gathered from all its
+# robots tags, as Google combines them. A later duplicate of these is a new
+# value, not a repeat.
 JOINED_META_KEYS = frozenset(
-    {"citation_author", "parsely-author", "sailthru.author", "byl"}
+    {"citation_author", "parsely-author", "sailthru.author", "byl", "robots"}
+    | _CRAWLERS
 )
 
 
