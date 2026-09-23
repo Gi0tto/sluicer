@@ -154,3 +154,56 @@ def test_a_submodule_is_importable_in_a_process_that_knows_nothing():
         )
 
         assert done.returncode == 0, f"{statement}\n{done.stderr}"
+
+
+def test_every_file_that_states_the_version_or_the_licence_agrees():
+    """The version is written in five files and the licence in four: a release
+    that bumps one and forgets another tells PyPI, the plugin, the skill and
+    a citation four different things. Read with patterns, not ``tomllib``,
+    which Python 3.10 lacks."""
+    import json
+    import re
+    from pathlib import Path
+
+    import sluicer
+
+    root = Path(__file__).resolve().parent.parent
+    pyproject = (root / "pyproject.toml").read_text()
+    plugin = json.loads((root / ".claude-plugin" / "plugin.json").read_text())
+    skill = (root / "skills" / "sluicer" / "SKILL.md").read_text()
+    citation = (root / "CITATION.cff").read_text()
+
+    def stated(pattern: str, text: str) -> str:
+        found = re.search(pattern, text, re.MULTILINE)
+        assert found, pattern
+        return found[1]
+
+    version = sluicer.__version__
+    assert stated(r'^version = "(.+)"$', pyproject) == version
+    assert plugin["version"] == version
+    assert stated(r'^version: "(.+)"$', skill) == version
+    assert stated(r"^version: (.+)$", citation) == version
+
+    licence = stated(r'^license = "(.+)"$', pyproject)
+    assert licence == "MIT AND CC-BY-SA-3.0"
+    assert plugin["license"] == licence
+    listed = stated(r"^license:\n((?:  - .+\n)+)", citation).splitlines()
+    assert " AND ".join(line.removeprefix("  - ") for line in listed) == licence
+
+
+def test_the_plugin_counts_the_tools_the_server_registers():
+    """The server's docstring is held to the registered tools elsewhere; the
+    plugin's description, which a marketplace shows, is held to it here."""
+    import json
+    import re
+    from pathlib import Path
+
+    import sluicer.mcp_server
+
+    root = Path(__file__).resolve().parent.parent
+    plugin = json.loads((root / ".claude-plugin" / "plugin.json").read_text())
+    counted = re.match(
+        r"(\w+) tools -- ", (sluicer.mcp_server.__doc__ or "").split("\n\n")[1]
+    )
+    assert counted, "the server's docstring counts its tools"
+    assert f"with {counted[1].lower()} tools" in plugin["description"]

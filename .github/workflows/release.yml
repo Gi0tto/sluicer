@@ -28,7 +28,10 @@ jobs:
           print('version agrees:', declared)
           "
       - name: The suite must pass before anything is published
-        run: uv run --python 3.13 pytest -q
+        # The same run as the CI's coverage step, extra and floor included: a
+        # gate lighter than the CI would publish what the CI would refuse.
+        # Without the api extra the HTTP door's tests are skipped.
+        run: uv run --python 3.13 --extra api pytest -q --cov
       - run: uv build
       - name: Check the metadata the way PyPI will
         run: uvx twine check dist/*

@@ -327,6 +327,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the fuzz profile.
 - The MCP module's docstring still said nine tools after `read_feed` made ten;
   a test now holds its list to the tools the server registers.
+- The CI's check of the installed extras still expected nine MCP tools, so it
+  failed from the day `read_feed` made ten; it now lists ten and calls
+  `read_feed` through the SDK's dispatch too. The release workflow's test gate
+  ran without the `api` extra, so it skipped the HTTP door's tests the CI
+  runs: it now runs what the CI's coverage step runs, floor included. The
+  plugin's manifest still said nine tools and, with the citation file, MIT
+  alone; both now say what the package says, and a test holds the version and
+  the licence alike in every file that states them.
 - The audit matched a robots.txt path pattern with a regular expression that
   backtracked: `Content-Usage: /*a*a*a*a*b$ ...` took 13 seconds against a
   300-character path, and any site's robots.txt could stall an audit or an

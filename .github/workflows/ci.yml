@@ -65,8 +65,9 @@ jobs:
       - name: Coverage
         # One interpreter, so the floor is measured against the same thing
         # every time. The matrix above is what proves the suite passes on all
-        # five versions. With the api extra, or the HTTP door's module is
-        # measured with its tests skipped: 96% on 2026-09-23, under the floor.
+        # five versions. With the api extra: without it the HTTP door's tests
+        # are skipped while its module is still measured, which gave 96% on
+        # 2026-09-23, under the 97% floor in pyproject.
         run: uv run --python 3.13 --extra api pytest -q --cov --cov-report=term-missing
 
   offline:
@@ -234,7 +235,7 @@ jobs:
           from sluicer.mcp_server import build_server
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
-          assert tools == ['audit_page', 'compile_extractor', 'crawl_site', 'extract_declared', 'fetch_page', 'heal_extractor', 'map_site', 'page_markdown', 'run_extractor'], tools
+          assert tools == ['audit_page', 'compile_extractor', 'crawl_site', 'extract_declared', 'fetch_page', 'heal_extractor', 'map_site', 'page_markdown', 'read_feed', 'run_extractor'], tools
 
           # Registration is not use. The SDK's dispatch is where a future release
           # can break us while every import still resolves, so call a tool for real.
@@ -243,6 +244,10 @@ jobs:
           text = str(answer)
           assert 'Brake pad set' in text, 'the SDK dispatch lost the record: ' + text[:200]
           assert 'jsonld' in text, 'the provenance did not survive dispatch: ' + text[:200]
+          assert '/html/head/script[1]#/name' in text, 'the place did not survive dispatch: ' + text[:300]
+
+          feed = str(asyncio.run(server.call_tool('read_feed', {'url_or_text': '<rss version=\"2.0\"><channel><title>News</title><item><title>First story</title><link>https://example.com/1</link></item></channel></rss>'})))
+          assert 'First story' in feed and 'rss' in feed, feed[:300]
 
           markdown_answer = asyncio.run(server.call_tool('page_markdown', {'html_or_url': '<html><body><article><h1>Title</h1><p>' + ('Real sentences. ' * 30) + '</p></article></body></html>'}))
           assert 'Title' in str(markdown_answer), str(markdown_answer)[:200]
@@ -269,7 +274,7 @@ jobs:
           for tool in ('map_site', 'crawl_site'):
               refused = asyncio.run(server.call_tool(tool, {'url': 'http://127.0.0.1:9/'}))
               assert 'refused_address' in str(refused), tool + ': ' + str(refused)[:300]
-          print('mcp: nine tools listed, and five of them answered through the SDK dispatch')
+          print('mcp: ten tools listed, and six of them answered through the SDK dispatch')
           "
 
   live:
@@ -410,7 +415,7 @@ jobs:
           from sluicer.mcp_server import build_server
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
-          assert tools == ['audit_page', 'compile_extractor', 'crawl_site', 'extract_declared', 'fetch_page', 'heal_extractor', 'map_site', 'page_markdown', 'run_extractor'], tools
+          assert tools == ['audit_page', 'compile_extractor', 'crawl_site', 'extract_declared', 'fetch_page', 'heal_extractor', 'map_site', 'page_markdown', 'read_feed', 'run_extractor'], tools
           from starlette.testclient import TestClient
           from sluicer.http_api import build_app
           http = TestClient(build_app(), base_url='http://127.0.0.1')
