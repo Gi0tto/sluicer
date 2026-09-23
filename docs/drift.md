@@ -6,9 +6,9 @@ and replayed on a later one. An oracle that does not use the extractor's
 code judges the result. Losses come first.
 
 Regenerated on 2026-09-23 from commit
-`9d0d33c` (sluicer 0.2.0, Scrapling 0.4.15) with
+`271f91c` (sluicer 0.3.0, Scrapling 0.4.15) with
 `uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`, in
-7 seconds from the cache.
+8 seconds from the cache.
 
 !!! warning "Read this before the numbers"
     This is 44 pairs on 25 sites,
@@ -19,8 +19,6 @@ Regenerated on 2026-09-23 from commit
 ## The losses
 
 No pair failed silently.
-
-**metacpan-org-recent-short**, false alarm. Read by hand: the same template, so the oracle is right and the run is wrong. What Sluicer learnt here is not the list of releases but the three day tables that hold it, each release row its own numbered field, 308 fields in all. On B the fifteenth release of each of the three days carried the same river-gauge label, 'River stage zero No dependents', the commonest label a new release has. The values check read three identical values as rows collapsed to a placeholder. With three rows it cannot tell that from a coincidence, and it is held from three rows up. Not fixed; see the limits. The oracle: same. The checks that failed: `values: tbody>tr15>td.river-gauge>span.river-gauge-gauge>svg>g>title to differ from row to row, as it did -> every row says 'River stage zero No dependents'`.
 
 **old-reddit-com-r-programming-long**, heal partly right. Read by hand: the learnt listing is not the posts. It is the three bullet lists of the sidebar: the rules, the related subreddits, and one more. The only field that names a list is the link in its fifth item. By 2024 the rules had been reordered, and the rule that links reddiquette is no longer fifth. The healed extractor reads the fifth item, as it should for a numbered slot, and finds no link there. Two of the three lists read the same as before. The oracle: drift, the listing's container is gone. The checks that failed: `listing: the listing at html>body>div.side>div.spacer[6]>div.titlebox>form.usertext>div.may-blank-within>div.md -> not found`.
 
@@ -40,9 +38,9 @@ Scrapling's misses:
 | outcome | pairs | what it means |
 |---|---|---|
 | failed silently | 0 | the oracle saw drift and the run passed: the failure this project exists to prevent |
-| false alarm | 1 | the oracle saw the same template and the run failed |
+| false alarm | 0 | the oracle saw the same template and the run failed |
 | failed loudly | 23 | drift, and the run said so |
-| survived | 20 | same template, and the run passed |
+| survived | 21 | same template, and the run passed |
 
 `heal` was run on every B capture. A heal counts as right when the healed
 extractor reads the items A and B share with the values A had.
@@ -75,6 +73,8 @@ questions and are not ranked.
 - run failed pages of the same template when one row renumbered a step in the middle of a path: one Stack Overflow user with a second kind of badge, one Verge story with a second author. These were two of the three false alarms.
 - heal called a link vanished when the site tagged every link with a new parameter, as IMDb did in its 2023 redesign with ?ref_=chttp_t_1.
 - heal broke a tie between two new places holding a field's old values by the alphabet. On SourceForge's redesign it put each project's name on its icon's alt text, which a quarter of the rows lack, rather than on its heading.
+- run passed a page whose rows had become empty shells, skeletons waiting for a script, as a short page: a member that carries nothing was not a row. No capture here did it; reading the benchmark's results found it. An extractor now learns the share of empty members its pages had.
+- the values check read three rows that said the same thing by chance as a page of placeholders: metacpan's three day-tables, whose fifteenth release carried the same label. That was the benchmark's last false alarm; the check is now held from five rows up.
 
 ## Other pairs, read by hand
 
@@ -132,7 +132,7 @@ questions and are not ranked.
 | www-npr-org-sections-news-short | 21-22 / 22 | same | passed | survived | nothing to match | no A item is still on B |
 | www-npr-org-sections-news-long | 21-22 / 21 | drift: div.item-image&gt;div.imagewrap&gt;a@href is in 0% of rows | failed: field | failed loudly | nothing to match | no A item is still on B |
 | weworkremotely-com-categories-remote-programming-long | 90 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match (1 items) | no A item is still on B |
-| metacpan-org-recent-short | 3 / 3 | same | failed: values | false alarm | nothing to match | no A item is still on B |
+| metacpan-org-recent-short | 3 / 3 | same | passed | survived | nothing to match | no A item is still on B |
 | metacpan-org-recent-long | 3 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
 | hackaday-com-blog-short | 3 / 1 | drift: a is in 0% of rows | failed: field | failed loudly | nothing to judge | no title to follow |
 | hackaday-com-blog-long | 3 / 2 | same | passed | survived | nothing to judge | no title to follow |
@@ -199,15 +199,8 @@ questions and are not ranked.
 - Heal is judged only on items A and B share. Where they share none,
   which is most news pages, heal is not judged at all.
 
-Found here and not fixed, because each is a choice rather than a bug:
+Found here and not fixed, because it is a choice rather than a bug:
 
-- The `values` check is held from three rows up. Three rows that say the
-  same thing by chance fail it, as on metacpan.
-- A member that carries nothing is not a row, both when learning and when
-  replaying. So a page whose rows became empty shells, all but two,
-  passes as a short page. No capture here did that; a page of loading
-  placeholders would. Catching it means keeping, in the extractor, the
-  share of empty members learnt.
 - Compile takes the page's most promising repeated group, and on 6 of
   the 25 sites that was page furniture rather than the listing: a menu,
   a sidebar's lists, the paragraphs of one post, page sections on two
