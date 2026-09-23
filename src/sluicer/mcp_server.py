@@ -294,7 +294,15 @@ def build_server() -> Any:
         ),
     )
 
-    from mcp.types import ToolAnnotations
+    # The SDK's model for the hints, asked for the way the server class is:
+    # an import statement for an extra would fail the base install's check.
+    annotations = import_extra(
+        "mcp.types",
+        "mcp",
+        doing="Running the MCP server",
+        package="the mcp package",
+        error=McpExtraMissing,
+    ).ToolAnnotations
 
     def tool(title: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a tool under its title, saying what every one of them is.
@@ -307,7 +315,7 @@ def build_server() -> Any:
             Callable[[Callable[..., Any]], Callable[..., Any]],
             server.tool(
                 title=title,
-                annotations=ToolAnnotations(
+                annotations=annotations(
                     title=title,
                     read_only_hint=True,
                     destructive_hint=False,
