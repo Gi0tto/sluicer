@@ -7,7 +7,7 @@ scorer, on the same pages as their servers sent them, scripts intact,
 fetched from web archives. Every page is scored twice, once as served
 and once as WCXB kept it, so the difference between the two columns is
 the difference the scripts make, and nothing else.
-Regenerated on 2026-09-23 from commit `706aaf5` by
+Regenerated on 2026-09-23 from commit `f836443` by
 `uv run bench/realweb.py`, from the captures pinned in
 [`bench/realweb-manifest.json`](https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).
 
@@ -60,9 +60,9 @@ The same 360 pages, stripped (WCXB's copy) and served (the archive's):
 
 | tool | field | labelled pages | hit rate, stripped | hit rate, served | right when answering, stripped | right when answering, served | wrong, stripped | wrong, served | inventions, stripped | inventions, served |
 |---|---|---|---|---|---|---|---|---|---|---|
-| sluicer 0.3.0 | title | 360 | 0.711 | **0.700** | 0.711 | **0.700** | 104 | 108 | 0 | 0 |
-| sluicer 0.3.0 | author | 129 | 0.434 | **0.674** | 0.651 | **0.649** | 10 | 7 | 20 | 40 |
-| sluicer 0.3.0 | date | 159 | 0.553 | **0.748** | 0.936 | **0.735** | 1 | 9 | 5 | 34 |
+| sluicer 0.4.0 | title | 360 | 0.711 | **0.700** | 0.711 | **0.700** | 104 | 108 | 0 | 0 |
+| sluicer 0.4.0 | author | 129 | 0.434 | **0.674** | 0.651 | **0.649** | 10 | 7 | 20 | 40 |
+| sluicer 0.4.0 | date | 159 | 0.553 | **0.748** | 0.936 | **0.735** | 1 | 9 | 5 | 34 |
 | trafilatura 2.2.0 | title | 360 | 0.756 | **0.756** | 0.756 | **0.756** | 88 | 88 | 0 | 0 |
 | trafilatura 2.2.0 | author | 129 | 0.736 | **0.860** | 0.583 | **0.575** | 13 | 11 | 55 | 71 |
 | trafilatura 2.2.0 | date | 159 | 0.849 | **0.855** | 0.403 | **0.393** | 23 | 23 | 177 | 187 |
@@ -132,9 +132,9 @@ The 360 pages as served:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.3.0 | title | 252 | 108 | 0 | 0 | 0 | 0.700 | 0.700 |
-| sluicer 0.3.0 | author | 87 | 7 | 35 | 191 | 40 | 0.674 | 0.649 |
-| sluicer 0.3.0 | date | 119 | 9 | 31 | 167 | 34 | 0.748 | 0.735 |
+| sluicer 0.4.0 | title | 252 | 108 | 0 | 0 | 0 | 0.700 | 0.700 |
+| sluicer 0.4.0 | author | 87 | 7 | 35 | 191 | 40 | 0.674 | 0.649 |
+| sluicer 0.4.0 | date | 119 | 9 | 31 | 167 | 34 | 0.748 | 0.735 |
 | trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 | 0.756 |
 | trafilatura 2.2.0 | author | 111 | 11 | 7 | 160 | 71 | 0.860 | 0.575 |
 | trafilatura 2.2.0 | date | 136 | 23 | 0 | 14 | 187 | 0.855 | 0.393 |
@@ -149,9 +149,9 @@ The same 360 pages as WCXB kept them:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.3.0 | title | 256 | 104 | 0 | 0 | 0 | 0.711 | 0.711 |
-| sluicer 0.3.0 | author | 56 | 10 | 63 | 211 | 20 | 0.434 | 0.651 |
-| sluicer 0.3.0 | date | 88 | 1 | 70 | 196 | 5 | 0.553 | 0.936 |
+| sluicer 0.4.0 | title | 256 | 104 | 0 | 0 | 0 | 0.711 | 0.711 |
+| sluicer 0.4.0 | author | 56 | 10 | 63 | 211 | 20 | 0.434 | 0.651 |
+| sluicer 0.4.0 | date | 88 | 1 | 70 | 196 | 5 | 0.553 | 0.936 |
 | trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 | 0.756 |
 | trafilatura 2.2.0 | author | 95 | 13 | 21 | 176 | 55 | 0.736 | 0.583 |
 | trafilatura 2.2.0 | date | 135 | 23 | 1 | 24 | 177 | 0.849 | 0.403 |
