@@ -60,7 +60,14 @@ the evidence behind every move `heal` reports.
 25 sites, a scoreboard on pages as their servers sent them, and property tests
 that found eleven defects the example tests had never met.
 
-## Built for the next release
+## Shipped in 0.4.0
+
+**Where every value was declared.** Every field, record and summary answer
+carries `where`: an XPath to the element that declared it, and for JSON-LD a
+JSON pointer into the block -- through the references the page's graph
+makes, to the node that was really declared. An agent can quote the place
+behind an answer instead of describing the page, and a property test follows
+every place on every drawn page to the value.
 
 **Crawling a site, politely.** `sluicer map` reads a site's sitemaps, safely;
 `sluicer crawl` follows its links and `sluicer batch` reads a list, each page
@@ -69,7 +76,32 @@ between, resumable from its own output, and measured by the site it crawls.
 Two MCP tools, `map_site` and `crawl_site`, small and on a clock. See
 [crawling](https://github.com/Gi0tto/sluicer/blob/main/docs/crawling.md).
 
+**What a page and its server say about use.** The response's headers are
+read beside the markup: `X-Robots-Tag`, TDMRep and `Content-Usage`, a
+`Link` header's canonical and alternates. The audit reads robots.txt's
+`Content-Usage` and Cloudflare's `Content-Signal` for each AI agent, and
+`--respect tdm` refuses a page whose site reserves its text and data mining
+rights, from its `tdmrep.json`, its headers or its tags.
+
+**More than the live page.** WARC files read as the pages they hold, the
+Wayback Machine's capture nearest a date with `--at`, feeds -- RSS, Atom and
+JSON Feed -- as items, and a cache that asks the site whether a page changed
+rather than guessing. `sluicer diff` says what changed between two readings,
+question by question.
+
+**Extractors from what you can see.** `compile --want NAME=VALUE` learns the
+list, or the page's own fields, that hold the values you name; extractors
+check that a price column still reads as prices. And
+`from sluicer.compat import extruct` answers extruct's calls, in its shapes,
+from sluicer's readers.
+
 ## Next
+
+**Conflicts, stated.** When two vocabularies disagree on a question -- a
+price of 41.90 in JSON-LD and 39.90 in OpenGraph -- the summary answers by
+precedence and says nothing of the other. Stating the disagreement, with
+both places, would let an agent see that the page contradicts itself. It
+stays a rule, not a score.
 
 **The proof, made bigger.** A first drift benchmark is in
 [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md): 44 pairs of
@@ -92,9 +124,12 @@ e-commerce split.
 "recommended" rows is three listings; an extractor learns only the most
 promising one today.
 
-**Provenance down to the fragment.** Every field already names its reader and
-key; naming the element or the script block it was read from would let an
-agent show the bytes behind an answer.
+**Archives beyond the Wayback Machine.** Memento (RFC 7089) finds a capture
+in any archive that speaks it, but a TimeGate answers with the archive's
+rewritten page -- its banner, its rewritten links, its scripts -- and
+reading that would report the archive's markup as the page's. Each archive's
+form for the bytes as captured has to be known first, as the Wayback
+Machine's `id_` is.
 
 ## Considered and declined
 
