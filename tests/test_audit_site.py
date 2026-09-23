@@ -119,6 +119,132 @@ def test_verdicts_need_protego(absent):
         audit("<html></html>", url=URL, site=site())
 
 
+# -- what robots.txt says about use: aipref and Cloudflare's content signals ------
+
+# draft-ietf-aipref-attach-05, Figure 2, with GPTBot standing in for ExampleBot.
+AIPREF = """User-Agent: *
+Allow: /
+Disallow: /never/
+Content-Usage: train-ai=n
+Content-Usage: /ai-ok/ train-ai=y
+
+User-Agent: GPTBot
+Allow: /
+Content-Usage: train-ai=y
+"""
+
+
+def preferences(robots, url):
+    verdicts = by_agent(audit("<html></html>", url=url, site=site(robots)))
+    return {name: (v.content_usage, v.content_signal) for name, v in verdicts.items()}
+
+
+def test_the_drafts_own_example_reads_as_the_draft_says():
+    """The draft's own reading of it: every other crawler uses the first group,
+    so train-ai is allowed under /ai-ok/ and disallowed elsewhere, and the
+    named crawler uses its own group."""
+    assert preferences(AIPREF, "https://example.com/blog/post")["ClaudeBot"] == (
+        {"train-ai": "disallow"},
+        {},
+    )
+    assert preferences(AIPREF, "https://example.com/ai-ok/post")["ClaudeBot"] == (
+        {"train-ai": "allow"},
+        {},
+    )
+    assert preferences(AIPREF, "https://example.com/blog/post")["GPTBot"][0] == {
+        "train-ai": "allow"
+    }
+
+
+def test_a_page_the_agent_may_not_fetch_has_no_preferences():
+    """No preferences are implied, the draft says, for a disallowed page."""
+    assert preferences(AIPREF, "https://example.com/never/x")["ClaudeBot"] == ({}, {})
+
+
+def test_rules_on_the_same_path_combine_and_the_most_restrictive_wins():
+    robots = """User-agent: *
+Content-Usage: /blog/ train-ai=y, search=y
+Content-Usage: /blog/ train-ai=n
+Content-Usage: / ai-use=n
+"""
+    assert preferences(robots, URL)["ClaudeBot"][0] == {
+        "train-ai": "disallow",
+        "search": "allow",
+    }
+    first_no = "User-agent: *\nUser-agent:\nContent-Usage: train-ai=n\n"
+    first_no += "Content-Usage: train-ai=y\n"
+    assert preferences(first_no, URL)["ClaudeBot"][0] == {"train-ai": "disallow"}
+
+
+def test_path_patterns_match_as_allow_and_disallow_do():
+    robots = """User-agent: *
+Content-Usage: /*.pdf$ train-ai=n
+Content-Usage: /blog/*/draft train-ai=y
+Content-Usage: search=y
+"""
+    got = preferences(robots, "https://example.com/files/a.pdf")["ClaudeBot"][0]
+    assert got == {"train-ai": "disallow"}
+    got = preferences(robots, "https://example.com/files/a.pdf?x=1")["ClaudeBot"][0]
+    assert got == {"search": "allow"}
+    got = preferences(robots, "https://example.com/blog/2026/draft-9")["ClaudeBot"][0]
+    assert got == {"train-ai": "allow"}
+    assert preferences(robots, "https://example.com")["ClaudeBot"][0] == {
+        "search": "allow"
+    }
+
+
+def test_cloudflares_content_signal_is_read_beside_content_usage():
+    """As blog.cloudflare.com's robots.txt writes it, on 2026-09-23."""
+    robots = """User-agent: *
+Allow: /
+Disallow: /preview/
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Content-Usage: train-ai=n
+"""
+    assert preferences(robots, URL)["ClaudeBot"] == (
+        {"train-ai": "disallow"},
+        {"search": "allow", "ai-input": "allow", "ai-train": "disallow"},
+    )
+
+
+def test_a_statement_that_does_not_parse_states_nothing():
+    robots = """User-agent: *
+Content-Signal: AI-Train=no
+Content-Usage: /blog/
+Content-Usage: train-ai=maybe
+"""
+    assert preferences(robots, URL)["ClaudeBot"] == ({}, {})
+
+
+def test_groups_are_read_as_rfc_9309_groups_them():
+    robots = """Content-Usage: train-ai=y
+User-agent: GPTBot
+User-agent: ClaudeBot
+Content-Usage: train-ai=n
+Disallow:
+User-agent: *
+Content-Usage: search=n
+User-agent: gptbot
+Content-Usage: ai-use=n
+"""
+    got = preferences(robots, URL)
+    assert got["ClaudeBot"][0] == {"train-ai": "disallow"}
+    assert got["GPTBot"][0] == {"train-ai": "disallow", "ai-use": "disallow"}
+    assert got["OAI-SearchBot"][0] == {"search": "disallow"}
+
+
+def test_the_audit_says_the_preferences_under_each_agent():
+    from sluicer.cli import _agent_lines
+
+    robots = AIPREF + "User-agent: ClaudeBot\nContent-Signal: ai-train=no\n"
+    result = audit("<html></html>", url=URL, site=site(robots))
+    lines = [line.strip() for line in _agent_lines(result, result.robots_txt)]
+    assert "User-agent: gptbot states content-usage train-ai=allow" in lines
+    assert "User-agent: * states content-usage train-ai=disallow" in lines
+    assert "User-agent: claudebot states content-signal ai-train=disallow" in lines
+    assert sum("states" in line for line in lines) == 3, "once per group"
+
+
 # -- llms.txt -------------------------------------------------------------------
 
 GOOD = """\ufeff# FastHTML

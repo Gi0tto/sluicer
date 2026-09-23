@@ -283,7 +283,7 @@ def test_an_array_property_is_a_list_in_order_and_each_value_once():
 
 
 def test_a_single_valued_property_declared_twice_keeps_its_first():
-    """ "The first tag (from top to bottom) is given preference during conflicts.\""""
+    """As ogp.me says: the first tag is given preference during conflicts."""
     declared, flat = _og(("og:title", "First"), ("og:title", "Second"))
     assert declared == flat == {"title": "First"}
 

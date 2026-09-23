@@ -109,6 +109,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   leaves every preference unknown), `y` is allow and `n` disallow, anything
   else unknown and not reported. Both drafts are working-group drafts, not
   RFCs. `sluicer inspect` shows both.
+- `sluicer audit` reads what robots.txt says about use, beside what it lets
+  be fetched: the aipref drafts' `Content-Usage` rules and Cloudflare's
+  `Content-Signal`, which protego passes over, for the group that decides each
+  agent, the longest matching path winning and rules on one path combining
+  most-restrictive-first, as draft-ietf-aipref-attach-05 says. A page the agent
+  may not fetch has none. Each `CrawlerVerdict` carries `content_usage` and
+  `content_signal`, the MCP and HTTP answers too, and the text report says
+  them once per group. On blog.cloudflare.com: `search=allow, ai-input=allow,
+  ai-train=allow`.
 - The crawler honours an `X-Robots-Tag: nofollow` or `none`, for every
   crawler or for `sluicer`, as it honours the `<meta>`, and counts a `Link`
   header canonical with the head's. Its canonical was read from anywhere in

@@ -264,14 +264,26 @@ def content_usage(value: str) -> dict[str, str]:
     unknown, and an unknown one is not reported. A key given twice keeps its
     last value, as the dictionary's own rule says.
     """
+    return stated(value, _USAGE_CATEGORIES, _PREFERENCES)
+
+
+def stated(
+    value: str, categories: tuple[str, ...], meanings: dict[str, str]
+) -> dict[str, str]:
+    """The preference each of ``categories`` is given in a dictionary ``value``.
+
+    A category whose value is a token in ``meanings`` has that meaning; any
+    other value, an absent category and a value that does not parse leave it
+    unknown, and an unknown one is not reported.
+    """
     parsed = sf_dictionary(value[:_LONGEST]) if value.strip() else None
     if parsed is None:
         return {}
     found: dict[str, str] = {}
-    for category in _USAGE_CATEGORIES:
+    for category in categories:
         member = parsed.get(category)
-        if isinstance(member, _Token) and member.text in _PREFERENCES:
-            found[category] = _PREFERENCES[member.text]
+        if isinstance(member, _Token) and member.text in meanings:
+            found[category] = meanings[member.text]
     return found
 
 

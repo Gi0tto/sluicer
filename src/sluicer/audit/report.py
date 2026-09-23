@@ -88,6 +88,12 @@ class CrawlerVerdict:
     group applies and everything is allowed. ``honours_robots`` is what the
     vendor's page says of the agent: False where it says a user-requested
     fetch may ignore robots.txt, None where it does not say.
+
+    ``content_usage`` and ``content_signal`` are the preferences the deciding
+    group states for the page -- the IETF aipref drafts' ``Content-Usage`` and
+    Cloudflare's ``Content-Signal`` -- each category ``allow`` or
+    ``disallow``, an unknown one absent; empty for a page the agent may not
+    fetch, which has none.
     """
 
     agent: str
@@ -98,6 +104,8 @@ class CrawlerVerdict:
     honours_robots: bool | None
     note: str
     doc: str
+    content_usage: dict[str, str] = field(default_factory=dict)
+    content_signal: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

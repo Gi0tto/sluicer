@@ -229,6 +229,19 @@ are not what a page is being read for. Every `User-agent` a robots.txt names
 that no agent here answers to is listed as `other_agents`: a site that names
 `anthropic-ai` and not `ClaudeBot` has turned nobody away.
 
+What the deciding group says about *use* is read too, from the lines protego
+passes over. `Content-Usage` is the IETF aipref working group's rule
+(draft-ietf-aipref-attach-05, its vocabulary draft-ietf-aipref-vocab-08):
+`train-ai`, `ai-use` and `search`, each `y` or `n`, optionally for a path.
+`Content-Signal` is Cloudflare's (`search`, `ai-input`, `ai-train`, each `yes`
+or `no`), which its managed robots.txt writes -- GitHub's code search counted
+3,448 robots.txt files with a `Content-Signal` line on 2026-09-23 -- and whose
+draft, draft-romm-aipref-contentsignals-00, expired on 2026-04-04. The rule whose path matches the page longest applies, rules on the
+same path combine with the most restrictive winning, and a page the agent may
+not fetch has no preferences, as the aipref drafts say. None of them is an RFC,
+and each agent's line says only what the site stated: `allow`, `disallow`, or
+nothing when it stated nothing. The report says them once per group.
+
 A robots.txt that answered 4xx has no rules, which allows everything; one that
 could not be read decides nothing, and every verdict is unknown.
 

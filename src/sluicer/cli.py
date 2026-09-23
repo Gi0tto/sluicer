@@ -945,6 +945,21 @@ def _agent_lines(result: Audit, robots: SiteFile) -> list[str]:
             f"  {verdict.agent:{token}}  {verdict.vendor:{vendor}}  "
             f"{verdict.use:8}  {allowed:10}  {group}{caveat}"
         )
+    # A group states its preferences for every agent it decides for, so they
+    # are said once per group, not once per agent.
+    stated: dict[str, list[str]] = {}
+    for verdict in result.crawlers:
+        for label, said in (
+            ("content-usage", verdict.content_usage),
+            ("content-signal", verdict.content_signal),
+        ):
+            if said and verdict.group is not None:
+                line = f"{label} " + ", ".join(f"{k}={v}" for k, v in said.items())
+                if line not in stated.setdefault(verdict.group, []):
+                    stated[verdict.group].append(line)
+    for group, statements in stated.items():
+        for line in statements:
+            lines.append(f"          User-agent: {group} states {line}")
     if result.other_agents:
         lines.append(
             "          also named, by no agent documented here: "

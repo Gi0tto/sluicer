@@ -215,6 +215,8 @@ class CrawlerAnswer(TypedDict):
     honours_robots: bool | None
     note: str
     doc: str
+    content_usage: dict[str, str]
+    content_signal: dict[str, str]
 
 
 class SiteFileAnswer(TypedDict):

@@ -23,10 +23,13 @@ follow.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, replace
 from typing import Any
+from urllib.parse import urlsplit
 
 from sluicer.audit.report import CrawlerVerdict, SiteFile
+from sluicer.declared.headers import stated
 from sluicer.extras import import_extra
 
 _OPENAI = "https://developers.openai.com/api/docs/bots"
@@ -357,6 +360,8 @@ def verdicts(url: str, robots: SiteFile) -> tuple[list[CrawlerVerdict], list[str
     names = user_agents(text)
     parser = _parse(text) if text else None
     known = {agent.token.lower() for agent in AGENTS}
+    groups = _groups(text)
+    target = _target(url)
     found = [
         CrawlerVerdict(
             agent=agent.token,
@@ -371,11 +376,137 @@ def verdicts(url: str, robots: SiteFile) -> tuple[list[CrawlerVerdict], list[str
             honours_robots=agent.honours_robots,
             note=agent.note,
             doc=agent.doc,
+            **_preferences(groups, deciding_group(agent.token, names), target),
         )
         for agent in AGENTS
     ]
+    # No preference is stated for a page the agent may not fetch: "usage
+    # preferences apply only to those resources that can be crawled".
+    found = [
+        verdict
+        if verdict.allowed
+        else replace(verdict, content_usage={}, content_signal={})
+        for verdict in found
+    ]
     others = [name for name in names if name != "*" and name not in known]
     return found, others
+
+
+# What a site says in robots.txt about the use of what it lets be fetched.
+# Content-Usage is the IETF aipref working group's rule
+# (draft-ietf-aipref-attach-05, section 3), its statement in the vocabulary of
+# draft-ietf-aipref-vocab-08; Content-Signal is Cloudflare's, which its managed
+# robots.txt writes (draft-romm-aipref-contentsignals-00, an individual draft
+# that expired on 2026-04-04). Neither is an RFC.
+_USAGE = (
+    "content-usage",
+    ("train-ai", "ai-use", "search"),
+    {"y": "allow", "n": "disallow"},
+)
+_SIGNAL = (
+    "content-signal",
+    ("search", "ai-input", "ai-train"),
+    {"yes": "allow", "no": "disallow"},
+)
+
+
+def _groups(text: str) -> dict[str, list[tuple[str, str]]]:
+    """Each ``User-agent`` name's rules, lowercased keys, every group of it merged.
+
+    RFC 9309's grouping: consecutive ``User-agent`` lines open one group, and
+    the rules after them belong to it until a ``User-agent`` line follows a
+    rule. Rules before any group belong to none.
+    """
+    rules: dict[str, list[tuple[str, str]]] = {}
+    current: list[str] = []
+    opening = False
+    for line in text.splitlines():
+        key, colon, value = line.split("#", 1)[0].partition(":")
+        if not colon:
+            continue
+        key, value = key.strip().lower(), value.strip()
+        if key == "user-agent":
+            if not opening:
+                current = []
+            opening = True
+            name = value.lower()
+            if name:
+                current.append(name)
+                rules.setdefault(name, [])
+            continue
+        opening = False
+        for name in current:
+            rules[name].append((key, value))
+    return rules
+
+
+def _target(url: str) -> str:
+    """The part of ``url`` a robots.txt path is matched against."""
+    parts = urlsplit(url)
+    return (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+
+
+def _preferences(
+    groups: dict[str, list[tuple[str, str]]], group: str | None, target: str
+) -> dict[str, dict[str, str]]:
+    """``content_usage`` and ``content_signal``, as the deciding group states them.
+
+    Each rule's value is a path and a statement, or a statement alone, which
+    applies everywhere; the rule whose path matches ``target`` longest applies,
+    as ``Allow`` and ``Disallow`` do, and rules with that same path combine,
+    the most restrictive preference winning each category, as
+    draft-ietf-aipref-vocab-08 section 5.1 says.
+    """
+    rules = groups.get(group or "", [])
+    found: dict[str, dict[str, str]] = {}
+    for label, categories, meanings in (_USAGE, _SIGNAL):
+        best = -1
+        chosen: list[str] = []
+        for key, value in rules:
+            if key != label:
+                continue
+            path, statement = _path_and_statement(value)
+            if not _matches(path, target):
+                continue
+            if len(path) > best:
+                best, chosen = len(path), [statement]
+            elif len(path) == best:
+                chosen.append(statement)
+        combined: dict[str, str] = {}
+        for statement in chosen:
+            for category, preference in stated(statement, categories, meanings).items():
+                if combined.get(category) != "disallow":
+                    combined[category] = preference
+        found[label.replace("-", "_")] = {
+            category: combined[category]
+            for category in categories
+            if category in combined
+        }
+    return found
+
+
+def _path_and_statement(value: str) -> tuple[str, str]:
+    """A rule value's path, empty when absent, and its statement of preference.
+
+    A path starts with ``/`` and ends at the first space or tab, as
+    draft-ietf-aipref-attach-05 section 3.2 says; a value that does not start
+    with ``/`` is a statement alone.
+    """
+    if not value.startswith("/"):
+        return "", value
+    for index, char in enumerate(value):
+        if char in " \t":
+            return value[:index], value[index + 1 :].strip()
+    return value, ""
+
+
+def _matches(path: str, target: str) -> bool:
+    """Whether a robots.txt path pattern matches ``target``, RFC 9309 2.2.3."""
+    if not path:
+        return True
+    anchored = path.endswith("$")
+    pattern = ".*".join(re.escape(part) for part in path.rstrip("$").split("*"))
+    return re.match(pattern + ("$" if anchored else ""), target) is not None
 
 
 def _parse(text: str) -> Any:
