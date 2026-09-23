@@ -1,5 +1,8 @@
 # Reading web archives
 
+Two ways in: a WARC file you hold, and a page as the Wayback Machine
+captured it.
+
 A WARC file (ISO 28500) is how web archives store a crawl: the Internet
 Archive's, Common Crawl's, and whatever wget, Browsertrix or warcio writes.
 Each page is kept as its server sent it -- status, headers, body -- so
@@ -26,6 +29,52 @@ record's id, date, payload digest and truncation.
 
 Nothing is fetched. An archive is read as it stands. Download it on the terms
 its archive sets.
+
+## A page as it was
+
+Any command that reads a URL -- `extract`, `inspect`, `markdown`, `audit`,
+`diff` -- reads it from the Wayback Machine instead with `--at DATE`:
+
+```sh
+sluicer extract https://shop.example/p --at 2024-01      # the capture nearest to it
+sluicer diff https://shop.example/p https://shop.example/p --at 2024-01
+```
+
+The archive answers with its capture nearest to the date, which can be years
+away, so the answer says which capture it read, never just the date asked for:
+
+```json
+"fetch": {
+  "rung": "archive",
+  "status": 200,
+  "archived": {
+    "archive": "web.archive.org",
+    "asked": "202401",
+    "captured": "20240117093012",
+    "url": "https://shop.example/p"
+  }
+}
+```
+
+- The capture is read in the archive's `id_` form, the page as it was served,
+  without the archive's toolbar or its rewritten links. Its links resolve
+  against the address captured, as on the site.
+- The headers the site sent then come back from the archive as
+  `x-archive-orig-*`, and are read under their own names, so a `Link`
+  canonical, `X-Robots-Tag` and the charset count as for a live page.
+- It is a fetch like any other: over plain HTTP, through the archive's
+  robots.txt (absent, which allows everything), the 16 MiB bound and the
+  refusal of private addresses, and a redirect is followed only within the
+  archive. A page the archive never captured is an error that says so.
+- In `diff`, `--at` is BEFORE's date and AFTER is read live, so the command
+  above is what changed since then. `audit` of a capture reads no robots.txt
+  or llms.txt: today's files say nothing about a page of last year.
+
+From Python: `sluicer.fetch.archive.fetch_archived(url, "2024-01")` gives the
+`Fetched` page, with `archived` saying which capture it is.
+
+On python.org, `sluicer diff https://www.python.org/ https://www.python.org/
+--at 2019-01` finds the PEP feed that moved to peps.python.org since then.
 
 ## Each line
 

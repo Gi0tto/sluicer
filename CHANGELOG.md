@@ -128,6 +128,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
   picked: on Google's page-per-variant example, which prices one variant and
   links the rest, the group has no price. On Google's own example the summary
   had only title, brand and type.
+- `--at DATE` on every command that reads a URL, and
+  `sluicer.fetch.archive.fetch_archived`: the page as the Wayback Machine
+  captured it nearest to the date, in its `id_` form, so a reading is
+  reproducible across time and costs the site nothing. The answer says which
+  capture it read (`fetch.archived`: asked, captured, the address captured),
+  never passes the date asked for off as the capture's; the site's headers
+  of then, which the archive returns as `x-archive-orig-*`, are read as a live
+  page's. It is an ordinary fetch -- plain HTTP, the archive's robots.txt, the
+  size bound, private addresses refused -- that follows redirects only within
+  the archive. `sluicer diff URL URL --at 2024-01` reads BEFORE from the
+  archive and AFTER live: what changed since then.
 - `sluicer warc FILES` and `sluicer.warc`: the pages a WARC file holds, as
   Common Crawl, the Internet Archive, wget, Browsertrix and warcio write them,
   one JSON line each with the record it came from. Every page is read with

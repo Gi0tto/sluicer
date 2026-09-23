@@ -95,6 +95,7 @@ sluicer inspect https://example.com/product         # the same, for a person to 
 sluicer extract listing.html --induce               # rows of a page that declares nothing
 sluicer markdown https://example.com/article        # the readable content
 sluicer diff yesterday.html https://shop.example/p  # what changed, and where from
+sluicer diff URL URL --at 2024-01                   # since the Wayback Machine's capture
 sluicer audit https://example.com/product           # its markup against Google's documentation
 
 sluicer compile page1.html page2.html -o shop.json  # learn an extractor

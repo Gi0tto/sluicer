@@ -121,6 +121,12 @@ _fetch_options = [
         metavar="URL",
         help="The address a file or stdin came from, to resolve its links.",
     ),
+    click.option(
+        "--at",
+        metavar="DATE",
+        help="Read a URL as the Wayback Machine captured it nearest to DATE "
+        "(2025, 2025-06, 2025-06-01), not from its site.",
+    ),
 ]
 
 
@@ -135,6 +141,7 @@ def _read_source(
     stealth: bool = False,
     no_robots: bool = False,
     base_url: str | None = None,
+    at: str | None = None,
 ) -> tuple[str | bytes, str | None, Fetched | None]:
     """Return the HTML of ``source``, the URL to attribute it to, and the fetch record.
 
@@ -143,11 +150,21 @@ def _read_source(
     empty or non-file path -- exits here with a message and ``COULD_NOT_READ``,
     one place for both commands. The fetch record is None for a file or stdin.
     """
-    if source.lower().startswith(("http://", "https://")):
+    is_url = source.lower().startswith(("http://", "https://"))
+    if at is not None and not is_url:
+        _fail(f"--at reads an address from the Wayback Machine; {source} is not one.")
+    if at is not None and stealth:
+        _fail("--at reads the archive over plain HTTP; --stealth has no rung there.")
+    if is_url:
         # Only FetchExtraMissing, not ImportError: an import failure inside a
         # working scrapling install is a bug and keeps its traceback.
         try:
-            fetched = fetch_url(source, stealth=stealth, obey_robots=not no_robots)
+            if at is not None:
+                from sluicer.fetch.archive import fetch_archived
+
+                fetched = fetch_archived(source, at, obey_robots=not no_robots)
+            else:
+                fetched = fetch_url(source, stealth=stealth, obey_robots=not no_robots)
         except FetchExtraMissing as missing:
             _fail(str(missing), missing)
         except RobotsRefused as refused:
@@ -219,9 +236,10 @@ def extract(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    at: str | None,
 ) -> None:
     """Read the structured data a URL, a file or stdin declares."""
-    html, url, fetched = _read_source(source, stealth, no_robots, base_url)
+    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at)
     try:
         result = extract_html(
             html,
@@ -249,6 +267,11 @@ def extract(
             "rung": fetched.rung,
             "status": fetched.status,
             "climbs": [asdict(climb) for climb in fetched.climbs],
+            **(
+                {"archived": asdict(fetched.archived)}
+                if fetched.archived is not None
+                else {}
+            ),
         }
     click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
 
@@ -273,6 +296,7 @@ def inspect(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    at: str | None,
 ) -> None:
     """Show, for a person, what a page declares and where each answer came from.
 
@@ -281,7 +305,7 @@ def inspect(
     the source of each field, and every summary answer with its source and
     key. Exit codes are ``extract``'s.
     """
-    html, url, fetched = _read_source(source, stealth, no_robots, base_url)
+    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at)
     try:
         result = extract_html(
             html,
@@ -298,6 +322,14 @@ def inspect(
         raise SystemExit(NOTHING_FOUND)
 
 
+def _moment(stamp: str) -> str:
+    """An archive's ``YYYYMMDDhhmmss``, as far as it goes, written as ISO."""
+    parts = [stamp[:4], stamp[4:6], stamp[6:8]]
+    day = "-".join(part for part in parts if part)
+    time_ = ":".join(p for p in (stamp[8:10], stamp[10:12], stamp[12:14]) if p)
+    return f"{day} {time_}" if time_ else day
+
+
 def _inspection(
     shown: str,
     result: Extraction,
@@ -312,13 +344,24 @@ def _inspection(
             f"fetch     {fetched.rung} rung, status {fetched.status}, "
             f"{fetched.seconds:.2f} s"
         )
+        if fetched.archived is not None:
+            capture = fetched.archived
+            lines.append(
+                f"archived  {capture.archive} capture of {capture.url} at "
+                f"{_moment(capture.captured)}, asked for {_moment(capture.asked)}"
+            )
         for climb in fetched.climbs:
             lines.append(
                 f"          {climb.from_rung} -> {climb.to_rung} after "
                 f"{climb.seconds:.2f} s: {climb.reason}"
             )
+        whose = (
+            f"{fetched.archived.archive}'s"
+            if fetched.archived is not None
+            else "the site's"
+        )
         lines.append(
-            "robots    allowed by the site's robots.txt"
+            f"robots    allowed by {whose} robots.txt"
             if obeyed_robots
             else "robots    not asked (--no-robots)"
         )
@@ -456,17 +499,20 @@ def diff_command(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    at: str | None,
 ) -> None:
     """Say what changed between two readings of a page, question by question.
 
-    BEFORE and AFTER are each a URL, a file or - for stdin. Exit codes are
-    diff's: 0 when nothing differs, 1 when something does, 2 when either could
-    not be read. A value written differently with the same meaning (41.90 and
-    41.9) is reported as rewritten.
+    BEFORE and AFTER are each a URL, a file or - for stdin; --at reads
+    BEFORE as the Wayback Machine captured it, so `sluicer diff URL URL --at
+    2024-01` is what changed since then. Exit codes are diff's: 0 when
+    nothing differs, 1 when something does, 2 when either could not be read.
+    A value written differently with the same meaning (41.90 and 41.9) is
+    reported as rewritten.
     """
     readings = []
-    for source in (before, after):
-        html, url, fetched = _read_source(source, stealth, no_robots, base_url)
+    for source, when in ((before, at), (after, None)):
+        html, url, fetched = _read_source(source, stealth, no_robots, base_url, when)
         readings.append(
             extract_html(html, url=url, headers=fetched.headers if fetched else None)
         )
@@ -504,9 +550,10 @@ def markdown(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    at: str | None,
 ) -> None:
     """Print the main content of a URL, a file or stdin as markdown."""
-    html, url, _fetched = _read_source(source, stealth, no_robots, base_url)
+    html, url, _fetched = _read_source(source, stealth, no_robots, base_url, at)
     # MarkdownExtraMissing: trafilatura is not installed; the message says how.
     try:
         content = (
@@ -586,8 +633,6 @@ def compile_command(
     except NothingToLearn as nothing:
         click.echo(f"Learnt nothing: {nothing}.", err=True)
         raise SystemExit(NOTHING_FOUND) from nothing
-    except ValueError as refused:
-        _fail(f"{refused}.", refused)
     _write(output, extractor.to_json())
     learnt = []
     if extractor.fields:
@@ -783,6 +828,7 @@ def audit_command(
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
+    at: str | None,
 ) -> None:
     """Check what a page declares against what Google documents, and more.
 
@@ -800,16 +846,22 @@ def audit_command(
     there was nothing to audit, and 0. 2, as everywhere, when the page could
     not be read.
     """
-    html, url, fetched = _read_source(source, stealth, no_robots, base_url)
+    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at)
     site = None
     try:
-        if fetched is not None and not no_site:
+        if fetched is not None and not no_site and fetched.archived is None:
             from sluicer.fetch.site import read_site
 
             site = read_site(fetched.url, obey_robots=not no_robots)
         result = audit_page(html, url=url, site=site)
     except FetchExtraMissing as missing:
         _fail(str(missing), missing)
+    if fetched is not None and fetched.archived is not None and not no_site:
+        result.not_checked.insert(
+            0,
+            "The site's robots.txt and llms.txt: the page is a capture of "
+            f"{fetched.archived.captured}, and today's files say nothing of it.",
+        )
     if fetched is not None and not 200 <= fetched.status < 300:
         result.not_checked.insert(0, answered_with(fetched.status))
     if as_json:
@@ -819,6 +871,11 @@ def audit_command(
                 "rung": fetched.rung,
                 "status": fetched.status,
                 "climbs": [asdict(climb) for climb in fetched.climbs],
+                **(
+                    {"archived": asdict(fetched.archived)}
+                    if fetched.archived is not None
+                    else {}
+                ),
             }
         click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
@@ -848,8 +905,19 @@ def _audit_report(
             f"fetch     {fetched.rung} rung, status {fetched.status}, "
             f"{fetched.seconds:.2f} s"
         )
+        if fetched.archived is not None:
+            capture = fetched.archived
+            lines.append(
+                f"archived  {capture.archive} capture of {capture.url} at "
+                f"{_moment(capture.captured)}, asked for {_moment(capture.asked)}"
+            )
+        whose = (
+            f"{fetched.archived.archive}'s"
+            if fetched.archived is not None
+            else "the site's"
+        )
         lines.append(
-            "robots    allowed by the site's robots.txt"
+            f"robots    allowed by {whose} robots.txt"
             if obeyed_robots
             else "robots    not asked (--no-robots)"
         )

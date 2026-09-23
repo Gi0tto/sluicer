@@ -81,6 +81,21 @@ class Climb:
     """How long ``from_rung`` took before the ladder climbed past it."""
 
 
+@dataclass(frozen=True)
+class Capture:
+    """Which archived capture a page was read from (``sluicer.fetch.archive``).
+
+    ``asked`` is the moment asked for and ``captured`` the capture's own, both
+    as the archive writes them (``YYYYMMDDhhmmss``, the asked one as long as
+    it was given); ``url`` is the address the capture is of.
+    """
+
+    archive: str
+    asked: str
+    captured: str
+    url: str
+
+
 @dataclass
 class Fetched:
     """A page, the rung that got it, and every climb along the way.
@@ -100,6 +115,8 @@ class Fetched:
     """The response's headers, names lowercased, a repeated one's values joined
     with ", ". What the page's server said beside the page: a canonical in
     ``Link``, usage directives in ``X-Robots-Tag``, the charset."""
+    archived: Capture | None = None
+    """The capture the page was read from, when it came from an archive."""
 
 
 Rung = Callable[[str], Fetched]
