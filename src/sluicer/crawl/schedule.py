@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from functools import cached_property, partial
@@ -24,6 +24,7 @@ from typing import Generic, TypeVar
 
 from sluicer.crawl.urls import site_of
 from sluicer.fetch.identity import robots_delay
+from sluicer.fetch.result import Fetched, Rung
 
 DEFAULT_DELAY_SECONDS = 1.0
 """The least time between two requests to one site, counted from the end of the
@@ -112,6 +113,26 @@ class Politeness:
         self.ended(current)
         self.rest(target)
         return None
+
+    def paced(self, rungs: Sequence[tuple[str, Rung]]) -> list[tuple[str, Rung]]:
+        """``rungs``, each call a request that waits its turn and is counted.
+
+        The ladder calls the next rung the moment the last one came back, and
+        reads a redirect's robots.txt the moment the page landed; each is a
+        request to the site the moment before just asked.
+        """
+
+        def pace(rung: Rung) -> Rung:
+            def paced(url: str) -> Fetched:
+                self.rest(url)
+                try:
+                    return rung(url)
+                finally:
+                    self.ended(url)
+
+            return paced
+
+        return [(name, pace(rung)) for name, rung in rungs]
 
     def rest(self, url: str) -> None:
         """Sleep until ``url``'s site may be asked again, by the delay known."""

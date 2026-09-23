@@ -557,3 +557,22 @@ def test_a_sitemap_on_a_private_address_is_not_asked_when_refused():
 
     assert result.sitemaps[0].error.startswith("it is not fetched")
     assert not any("10.0.0.7" in url for url in fake.asked())
+
+
+def test_whitespace_before_the_xml_declaration_is_read_past():
+    """Measured on web-scraping.dev: its sitemap opens with a newline, which
+    libxml2 refuses and every search engine reads past."""
+    body = "\n  " + urlset("https://example.com/a")
+
+    assert parse_sitemap(body.encode()).entries == (("https://example.com/a", None),)
+    assert parse_sitemap(
+        b"\xef\xbb\xbf\n" + urlset("https://x.example/").encode()
+    ).kind == ("urlset")
+
+
+def test_a_sitemap_in_utf_16_is_read_by_its_byte_order_mark():
+    body = f"<urlset {NS}><url><loc>https://example.com/é</loc></url></urlset>"
+
+    read = parse_sitemap(body.encode("utf-16"))
+
+    assert read.entries == (("https://example.com/é", None),)

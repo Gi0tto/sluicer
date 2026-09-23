@@ -445,6 +445,7 @@ class _Visitor:
     ) -> None:
         self.web = web
         self.polite = polite
+        self.rungs = polite.paced(web.rungs)
         self.allow_private = allow_private
         self.resolve = resolve
         self.max_bytes = max_bytes
@@ -480,7 +481,7 @@ class _Visitor:
         try:
             fetched = fetch(
                 task.url,
-                rungs=self.web.rungs,
+                rungs=self.rungs,
                 robots_reader=self.polite.reader,
                 allow_private=self.allow_private,
                 resolve=self.resolve,

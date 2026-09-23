@@ -126,8 +126,14 @@ def parse_sitemap(
             its gzip is broken, or it inflates past ``max_bytes``.
     """
     data = _inflated(body, max_bytes)
-    start = data.lstrip(_BOM + b" \t\r\n")
-    if start.startswith(b"<") or data.startswith((b"\xff\xfe", b"\xfe\xff")):
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return _xml(data, max_entries)
+    # Whitespace before the XML declaration is an error libxml2 will not read
+    # past and every search engine does; measured, web-scraping.dev's sitemap
+    # opens with a newline. Nothing a document says is in it.
+    bom = _BOM if data.startswith(_BOM) else b""
+    data = bom + data[len(bom) :].lstrip(b" \t\r\n")
+    if data[len(bom) :].startswith(b"<"):
         return _xml(data, max_entries)
     return _text(data, max_entries)
 
@@ -428,7 +434,7 @@ def _links_of_start(
     try:
         fetched = fetch(
             start,
-            rungs=web.rungs,
+            rungs=polite.paced(web.rungs),
             robots_reader=polite.reader,
             allow_private=allow_private,
             resolve=resolve,

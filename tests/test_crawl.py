@@ -704,3 +704,53 @@ def test_a_redirect_into_a_private_address_is_an_answer():
     )
 
     assert pages[0].error.code == "refused_address"
+
+
+def test_a_climb_to_the_next_rung_waits_the_sites_delay():
+    """The ladder asks the browser the moment plain HTTP came back with a shell."""
+    shell = (
+        "<html><body><div id='root'></div>"
+        + "<script src='/app.js'></script>" * 80
+        + "</body></html>"
+    )
+    fake = FakeWeb({f"{ROOT}/": shell})
+    browser = FakeWeb({f"{ROOT}/": page("Rendered")}, clock=fake.clock)
+    web = Web(
+        rungs=[("http", fake.rung), ("browser", browser.rung)],
+        read=fake.web().read,
+        get=fake.get,
+    )
+
+    pages = list(
+        crawl(
+            f"{ROOT}/", min_delay=3.0, web=web, clock=fake.clock, sleep=fake.clock.sleep
+        )
+    )
+
+    assert [climb.to_rung for climb in pages[0].climbs] == ["browser"]
+    assert pages[0].extraction.summary["title"].value == "Rendered"
+    http_ended = fake.requests[-1][2]
+    browser_started = browser.requests[0][1]
+    assert browser_started - http_ended == 3.0
+
+
+def test_a_robots_file_read_after_a_redirect_waits_the_sites_delay(monkeypatch):
+    """Measured on quotes.toscrape.com: a redirect to the other scheme had the
+    ladder read that origin's robots.txt the moment the page landed."""
+    fake = FakeWeb(
+        {
+            "http://example.com/": (301, "", {"Location": "https://example.com/"}),
+            "https://example.com/": page("Home"),
+        }
+    )
+    fake.as_default(monkeypatch)
+
+    list(crawl("http://example.com/", min_delay=2.0, **paced(fake)))
+
+    assert fake.asked() == [
+        "http://example.com/robots.txt",
+        "http://example.com/",
+        "https://example.com/",
+        "https://example.com/robots.txt",
+    ]
+    assert fake.gaps("example.com") == [2.0, 2.0, 2.0]
