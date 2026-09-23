@@ -1,9 +1,9 @@
 """Sluicer as a tool an agent can call, over the Model Context Protocol.
 
-Six tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``, and
-``compile_extractor``, ``run_extractor``, ``heal_extractor`` -- expose what the
-library does and add no logic of their own. Run it with
-``sluicer-mcp``; it needs the ``mcp`` extra.
+Seven tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``,
+``compile_extractor``, ``run_extractor``, ``heal_extractor`` and
+``audit_page`` -- expose what the library does and add no logic of their own.
+Run it with ``sluicer-mcp``; it needs the ``mcp`` extra.
 
 Every answer carries ``ok``, true exactly when it can be used as it is, and has
 an output schema (``sluicer.mcp_answers``). No ``from __future__ import
@@ -22,6 +22,7 @@ from typing import Any, cast
 
 from sluicer import __version__, extractor as extractor_module
 from sluicer.api import extract
+from sluicer.audit import answered_with, audit
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
@@ -160,7 +161,7 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
 
 
 def build_server() -> Any:
-    """Build the server with its six tools registered.
+    """Build the server with its seven tools registered.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
@@ -346,6 +347,40 @@ def build_server() -> Any:
             "lost": lost,
         }
         return cast(answers.HealAnswer, answer)
+
+    @server.tool()  # type: ignore[untyped-decorator]
+    @_answers_instead_of_raising
+    def audit_page(html_or_url: str, site: bool = True) -> answers.AuditAnswer:
+        """Check a page's structured data against what Google documents for it.
+
+        html_or_url: an http(s) URL to fetch, or the HTML itself.
+        site: for a URL, also read the site's robots.txt, llms.txt and
+        llms-full.txt.
+
+        Returns {"ok", "url", "records", "page", "not_checked", "errors",
+        "warnings", "notes"}, and for a URL read with site "crawlers",
+        "robots_txt", "other_agents", "llms_txt", "llms_full_txt" and "fetch".
+        Every JSON-LD, microdata and RDFa record lists the rich-result features
+        its type is documented for, each with requirements_met and the
+        required and recommended properties it lacks, and findings that each
+        name a severity, the record's source, the property path and the URL of
+        the rule. crawlers says, per AI agent from its vendor's own page,
+        whether robots.txt admits the page. ok is true whenever the audit ran:
+        a page with errors is an answer; "not_checked" says what was not.
+        """
+        html, url, fetched = _html_of(html_or_url)
+        read = None
+        if site and url is not None:
+            from sluicer.fetch.site import read_site
+
+            read = read_site(url, allow_private=_allow_private())
+        audited = audit(html, url=url, site=read)
+        if fetched is not None and not 200 <= fetched["status"] < 300:
+            audited.not_checked.insert(0, answered_with(fetched["status"]))
+        result: dict[str, Any] = {"ok": True, **asdict(audited)}
+        if fetched is not None:
+            result["fetch"] = fetched
+        return cast(answers.AuditAnswer, result)
 
     return server
 

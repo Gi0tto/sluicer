@@ -142,3 +142,91 @@ class HealAnswer(TypedDict, total=False):
     extractor: dict[str, Any]
     changes: list[ChangeAnswer]
     lost: bool
+
+
+class FindingAnswer(TypedDict):
+    severity: Literal["error", "warning", "info"]
+    code: str
+    message: str
+    source: str | None
+    record: int | None
+    type: str | None
+    path: str
+    feature: str | None
+    value: str | None
+    rule: str | None
+
+
+class FeatureVerdictAnswer(TypedDict):
+    name: str
+    url: str
+    status: Literal["supported", "limited", "retired"]
+    note: str
+    requirements_met: bool | None
+    missing_required: list[str]
+    missing_recommended: list[str]
+    incomplete_parts: list[str]
+
+
+class RecordAuditAnswer(TypedDict):
+    source: str
+    index: int
+    types: list[str]
+    features: list[FeatureVerdictAnswer]
+    not_checked: list[str]
+    findings: list[FindingAnswer]
+
+
+class CrawlerAnswer(TypedDict):
+    """One AI agent, and whether the site's robots.txt admits the page."""
+
+    agent: str
+    vendor: str
+    use: str
+    allowed: bool | None
+    group: str | None
+    honours_robots: bool | None
+    note: str
+    doc: str
+
+
+class SiteFileAnswer(TypedDict):
+    url: str
+    status: int | None
+    text: str | None
+    error: str | None
+
+
+class LlmsSectionAnswer(TypedDict):
+    name: str
+    links: int
+
+
+class LlmsTxtAnswer(TypedDict):
+    url: str
+    status: int | None
+    present: bool
+    name: str | None
+    summary: str | None
+    sections: list[LlmsSectionAnswer]
+    links: int
+    length: int
+    findings: list[FindingAnswer]
+
+
+class AuditAnswer(TypedDict, total=False):
+    ok: Required[bool]
+    error: ErrorDetail
+    url: str | None
+    records: list[RecordAuditAnswer]
+    page: list[FindingAnswer]
+    crawlers: list[CrawlerAnswer]
+    robots_txt: SiteFileAnswer | None
+    other_agents: list[str]
+    llms_txt: LlmsTxtAnswer | None
+    llms_full_txt: LlmsTxtAnswer | None
+    not_checked: list[str]
+    errors: int
+    warnings: int
+    notes: int
+    fetch: FetchRecord

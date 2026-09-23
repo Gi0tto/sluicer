@@ -41,7 +41,7 @@ def fake_mcp(monkeypatch):
     return registered
 
 
-def test_the_server_registers_the_three_tools(monkeypatch):
+def test_the_server_registers_its_seven_tools(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
@@ -55,6 +55,7 @@ def test_the_server_registers_the_three_tools(monkeypatch):
         "compile_extractor",
         "run_extractor",
         "heal_extractor",
+        "audit_page",
     }
 
 
@@ -768,8 +769,117 @@ def test_every_answer_type_requires_ok_and_nothing_else():
         mcp_answers.CompileAnswer,
         mcp_answers.RunAnswer,
         mcp_answers.HealAnswer,
+        mcp_answers.AuditAnswer,
     ]
     for answer in answers:
         assert answer.__required_keys__ == {"ok"}, answer.__name__
         assert "error" in answer.__optional_keys__, answer.__name__
     assert mcp_answers.ErrorDetail.__required_keys__ == {"code", "message", "retryable"}
+
+
+def test_audit_page_audits_html_handed_in_without_reading_any_site(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    answer = registered["audit_page"](
+        '<script type="application/ld+json">'
+        '{"@type":"Product","name":"Pad","offers":{"price":"41,90"}}</script>'
+    )
+
+    assert answer["ok"] is True
+    assert answer["url"] is None
+    assert "fetch" not in answer
+    record = answer["records"][0]
+    assert (record["source"], record["types"]) == ("jsonld", ["Product"])
+    bad = [f for f in record["findings"] if f["path"] == "offers.price"]
+    assert bad[0]["severity"] == "error"
+    assert answer["errors"] >= 1
+    assert answer["crawlers"] == []
+    assert any("site was not read" in note for note in answer["not_checked"])
+
+
+def test_audit_page_reads_the_site_of_a_url_under_the_servers_address_rule(
+    monkeypatch,
+):
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, html="<html><head><title>T</title></head></html>")
+    from sluicer.audit import Site, SiteFile
+    from sluicer.mcp_server import build_server
+
+    asked = {}
+
+    def read_site(url, **kwargs):
+        asked.update(url=url, **kwargs)
+        return Site(
+            SiteFile(
+                "https://example.com/robots.txt",
+                200,
+                "User-agent: GPTBot\nDisallow: /\n",
+            ),
+            SiteFile("https://example.com/llms.txt", 200, "# Example\n> Summary\n"),
+            SiteFile("https://example.com/llms-full.txt", 404),
+        )
+
+    monkeypatch.setattr("sluicer.fetch.site.read_site", read_site)
+    build_server()
+    answer = registered["audit_page"]("https://example.com/p")
+
+    assert asked == {"url": "https://example.com/final", "allow_private": False}
+    assert answer["ok"] is True
+    assert answer["fetch"]["rung"] == "http"
+    verdicts = {v["agent"]: v["allowed"] for v in answer["crawlers"]}
+    assert verdicts["GPTBot"] is False
+    assert verdicts["ClaudeBot"] is True
+    assert answer["llms_txt"]["name"] == "Example"
+    assert answer["robots_txt"]["text"] is None
+
+
+def test_audit_page_can_leave_the_site_alone(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    def read_site(url, **kwargs):
+        raise AssertionError("the site was read")
+
+    monkeypatch.setattr("sluicer.fetch.site.read_site", read_site)
+    build_server()
+
+    answer = registered["audit_page"]("https://example.com/p", site=False)
+
+    assert answer["ok"] is True
+    assert answer["llms_txt"] is None
+
+
+def test_audit_page_reports_a_refusal_as_an_answer(monkeypatch):
+    from sluicer.fetch import RobotsRefused
+
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, raises=RobotsRefused("https://example.com/p"))
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    answer = registered["audit_page"]("https://example.com/p")
+
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "refused_by_robots"
+
+
+def test_audit_page_says_when_it_audited_an_error_page(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.fetch.result import Fetched
+    from sluicer.mcp_server import build_server
+
+    def fetch(url, **kwargs):
+        return Fetched(url=url, html="<html>Not found</html>", status=404, rung="http")
+
+    monkeypatch.setattr("sluicer.fetch.fetch", fetch)
+    build_server()
+
+    answer = registered["audit_page"]("https://example.com/gone", site=False)
+
+    assert answer["ok"] is True
+    assert answer["not_checked"][0].startswith(
+        "The page asked for: the site answered status 404"
+    )

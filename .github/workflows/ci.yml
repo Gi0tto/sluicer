@@ -228,7 +228,7 @@ jobs:
           from sluicer.mcp_server import build_server
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
-          assert tools == ['compile_extractor', 'extract_declared', 'fetch_page', 'heal_extractor', 'page_markdown', 'run_extractor'], tools
+          assert tools == ['audit_page', 'compile_extractor', 'extract_declared', 'fetch_page', 'heal_extractor', 'page_markdown', 'run_extractor'], tools
 
           # Registration is not use. The SDK's dispatch is where a future release
           # can break us while every import still resolves, so call a tool for real.
@@ -240,7 +240,12 @@ jobs:
 
           markdown_answer = asyncio.run(server.call_tool('page_markdown', {'html_or_url': '<html><body><article><h1>Title</h1><p>' + ('Real sentences. ' * 30) + '</p></article></body></html>'}))
           assert 'Title' in str(markdown_answer), str(markdown_answer)[:200]
-          print('mcp: three tools listed, and two of them answered through the SDK dispatch')
+
+          # The audit's answer is the deepest output schema the server publishes;
+          # the SDK validates it on the way out.
+          audit_answer = str(asyncio.run(server.call_tool('audit_page', {'html_or_url': page})))
+          assert 'Merchant listing' in audit_answer and 'missing_required' in audit_answer, audit_answer[:300]
+          print('mcp: seven tools listed, and three of them answered through the SDK dispatch')
 
           # The HTTP door is built from that server, so it is held to the list
           # pinned above rather than to a second one: a tool added there is
@@ -387,7 +392,7 @@ jobs:
           from sluicer.mcp_server import build_server
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
-          assert tools == ['compile_extractor', 'extract_declared', 'fetch_page', 'heal_extractor', 'page_markdown', 'run_extractor'], tools
+          assert tools == ['audit_page', 'compile_extractor', 'extract_declared', 'fetch_page', 'heal_extractor', 'page_markdown', 'run_extractor'], tools
           from starlette.testclient import TestClient
           from sluicer.http_api import build_app
           http = TestClient(build_app(), base_url='http://127.0.0.1')
