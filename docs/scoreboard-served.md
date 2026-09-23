@@ -7,7 +7,7 @@ scorer, on the same pages as their servers sent them, scripts intact,
 fetched from web archives. Every page is scored twice, once as served
 and once as WCXB kept it, so the difference between the two columns is
 the difference the scripts make, and nothing else.
-Regenerated on 2026-09-23 from commit `65cafca` by
+Regenerated on 2026-09-23 from commit `706aaf5` by
 `uv run bench/realweb.py`, from the captures pinned in
 [`bench/realweb-manifest.json`](https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).
 
@@ -60,7 +60,7 @@ The same 360 pages, stripped (WCXB's copy) and served (the archive's):
 
 | tool | field | labelled pages | hit rate, stripped | hit rate, served | right when answering, stripped | right when answering, served | wrong, stripped | wrong, served | inventions, stripped | inventions, served |
 |---|---|---|---|---|---|---|---|---|---|---|
-| sluicer 0.3.0 | title | 360 | 0.711 | **0.706** | 0.711 | **0.706** | 104 | 106 | 0 | 0 |
+| sluicer 0.3.0 | title | 360 | 0.711 | **0.700** | 0.711 | **0.700** | 104 | 108 | 0 | 0 |
 | sluicer 0.3.0 | author | 129 | 0.434 | **0.674** | 0.651 | **0.649** | 10 | 7 | 20 | 40 |
 | sluicer 0.3.0 | date | 159 | 0.553 | **0.748** | 0.936 | **0.735** | 1 | 9 | 5 | 34 |
 | trafilatura 2.2.0 | title | 360 | 0.756 | **0.756** | 0.756 | **0.756** | 88 | 88 | 0 | 0 |
@@ -75,7 +75,7 @@ The same 360 pages, stripped (WCXB's copy) and served (the archive's):
 
 In plain words, as served:
 
-- **Title.** Hit rate served 0.706, against 0.711 on the WCXB copy of the same pages. Sluicer is third of 4, behind newspaper4k 0.767, trafilatura 0.756. Right when answering: newspaper4k 0.767, trafilatura 0.756, sluicer 0.706, metascraper 0.667. Inventions: newspaper4k 0, trafilatura 0, sluicer 0, metascraper 0.
+- **Title.** Hit rate served 0.700, against 0.711 on the WCXB copy of the same pages. Sluicer is third of 4, behind newspaper4k 0.767, trafilatura 0.756. Right when answering: newspaper4k 0.767, trafilatura 0.756, sluicer 0.700, metascraper 0.667. Inventions: newspaper4k 0, trafilatura 0, sluicer 0, metascraper 0.
 - **Author.** Hit rate served 0.674, against 0.434 on the WCXB copy of the same pages. Sluicer is fourth of 4, behind trafilatura 0.860, metascraper 0.845, newspaper4k 0.705. Right when answering: sluicer 0.649, trafilatura 0.575, newspaper4k 0.569, metascraper 0.482. Inventions: sluicer 40, trafilatura 71, newspaper4k 57, metascraper 101.
 - **Date.** Hit rate served 0.748, against 0.553 on the WCXB copy of the same pages. Sluicer is third of 4, behind trafilatura 0.855, newspaper4k 0.786. Right when answering: sluicer 0.735, newspaper4k 0.658, trafilatura 0.393, metascraper 0.271. Inventions: sluicer 34, newspaper4k 54, trafilatura 187, metascraper 80.
 
@@ -106,8 +106,8 @@ Out of 360 pages, as Sluicer's readers see them.
 
 | field | source | answers | hit | wrong | invention |
 |---|---|---|---|---|---|
-| title | jsonld | 184 | 136 | 48 | 0 |
-| title | opengraph | 117 | 90 | 27 | 0 |
+| title | jsonld | 186 | 136 | 50 | 0 |
+| title | opengraph | 115 | 88 | 27 | 0 |
 | title | html | 41 | 15 | 26 | 0 |
 | title | microdata | 16 | 12 | 4 | 0 |
 | title | twitter | 2 | 1 | 1 | 0 |
@@ -124,7 +124,7 @@ Out of 360 pages, as Sluicer's readers see them.
 
 - **Author.** Sluicer misses 42 labelled pages, and on 29 of them another tool finds the author.
 - **Date.** Sluicer misses 40 labelled pages, and on 28 of them another tool finds the date.
-- **Title.** Of 106 wrong titles, 45 contain the label whole: the page declares a longer title than the heading the labels use.
+- **Title.** Of 108 wrong titles, 45 contain the label whole: the page declares a longer title than the heading the labels use.
 
 ## Every outcome
 
@@ -132,7 +132,7 @@ The 360 pages as served:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.3.0 | title | 254 | 106 | 0 | 0 | 0 | 0.706 | 0.706 |
+| sluicer 0.3.0 | title | 252 | 108 | 0 | 0 | 0 | 0.700 | 0.700 |
 | sluicer 0.3.0 | author | 87 | 7 | 35 | 191 | 40 | 0.674 | 0.649 |
 | sluicer 0.3.0 | date | 119 | 9 | 31 | 167 | 34 | 0.748 | 0.735 |
 | trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 | 0.756 |
