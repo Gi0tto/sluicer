@@ -88,8 +88,6 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     left = [max(_PAGE_FLOOR, 10 * len(doc.html))]
     found: list[dict[str, Any]] = []
     for subject in doc.tree.xpath("//*[@typeof]"):
-        if left[0] <= 0:
-            break
         is_a_property = subject.get("property") is not None
         if is_a_property and _nearest_subject(subject) is not None:
             continue
@@ -117,8 +115,6 @@ def _subject(
         item["@type"] = types[0] if len(types) == 1 else types
     repeated: set[str] = set()
     for prop in _properties(subject):
-        if left[0] <= 0:
-            break
         names = _names(prop, prop.get("property"))
         if not names:
             continue
