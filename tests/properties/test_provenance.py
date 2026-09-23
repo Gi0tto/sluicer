@@ -85,16 +85,20 @@ def _declared_by_a_record(records, answer) -> bool:
             record.type == answer.value and record.source == answer.source
             for record in records
         )
-    type_, _, path = answer.key.partition(".")
-    steps = path.split(".")
-    first = steps[0].split("[")[0]
-    return any(
-        record.type == type_
-        and first in record.fields
-        and record.fields[first].source == answer.source
-        and _reaches(record.fields[first].value, steps, first)
-        for record in records
-    )
+    for record in records:
+        # A type can hold dots of its own -- https://example.org/ns#Widget --
+        # so the record's type is matched as the key's prefix, not split out.
+        if not record.type or not answer.key.startswith(record.type + "."):
+            continue
+        steps = answer.key[len(record.type) + 1 :].split(".")
+        first = steps[0].split("[")[0]
+        if (
+            first in record.fields
+            and record.fields[first].source == answer.source
+            and _reaches(record.fields[first].value, steps, first)
+        ):
+            return True
+    return False
 
 
 def _reaches(value, steps, first) -> bool:
