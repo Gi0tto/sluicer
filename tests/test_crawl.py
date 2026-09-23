@@ -731,7 +731,9 @@ def test_a_climb_to_the_next_rung_waits_the_sites_delay():
     assert pages[0].extraction.summary["title"].value == "Rendered"
     http_ended = fake.requests[-1][2]
     browser_started = browser.requests[0][1]
-    assert browser_started - http_ended == 3.0
+    # Rounded as ``gaps`` rounds: the fake clock starts at the real monotonic
+    # time, where a difference of two floats is not exactly 3.0.
+    assert round(browser_started - http_ended, 6) == 3.0
 
 
 def test_a_robots_file_read_after_a_redirect_waits_the_sites_delay(monkeypatch):
