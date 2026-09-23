@@ -368,7 +368,14 @@ def heal_command(
         if change.kind == "kept":
             continue
         if change.before and change.after:
-            click.echo(f"{change.kind}: {change.before} -> {change.after}", err=True)
+            said = f"{change.kind}: {change.before} -> {change.after}"
+            if change.evidence and change.evidence["samples"]:
+                e = change.evidence
+                said += (
+                    f" ({e['seen']} of {e['samples']} learnt values found there;"
+                    f" the next best place had {e['runner_up']})"
+                )
+            click.echo(said, err=True)
         else:
             click.echo(f"{change.kind}: {change.before or change.after}", err=True)
     lost = any(c.kind in LOSSES for c in changes)

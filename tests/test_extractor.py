@@ -272,7 +272,12 @@ def test_heal_prints_what_moved_and_writes_only_when_asked(tmp_path):
     assert dry.exit_code == 0, dry.stderr
     assert not healed.exists() or written.exit_code == 0
     moved = [c for c in json.loads(dry.stdout)["changes"] if c["kind"] == "moved"]
-    assert {"before": "span.price", "after": "div.cost", "kind": "moved"} in moved
+    assert {
+        "before": "span.price",
+        "after": "div.cost",
+        "kind": "moved",
+        "evidence": {"seen": 5, "samples": 5, "runner_up": 0},
+    } in moved
     assert "span.price -> div.cost" in dry.stderr
     assert Extractor.from_json(healed.read_text()).listing.container.endswith(
         "section.grid"
@@ -407,3 +412,14 @@ def test_a_free_text_answer_keeps_no_shape():
     )
 
     assert extractor.summary == {"title": None}
+
+
+def test_a_moved_field_says_what_its_move_rests_on():
+    """Reported, never used to decide: a close runner-up is for a person."""
+    _healed, changes = heal(shop(), [page("shop_redesigned.html")])
+
+    price = next(c for c in changes if c.before == "span.price")
+
+    assert price.kind == "moved"
+    assert price.evidence == {"seen": 5, "samples": 5, "runner_up": 0}
+    assert all(c.evidence is None for c in changes if c.kind in ("new", "vanished"))

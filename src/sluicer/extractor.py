@@ -248,6 +248,11 @@ class Change:
     kind: str
     before: str | None
     after: str | None
+    evidence: dict[str, int] | None = None
+    """For a field kept or moved, what the match rests on: ``seen`` of the
+    ``samples`` it was learnt with were found in the new place, and the next
+    best place held ``runner_up`` of them. Reported, never used to decide: a
+    close runner-up is a reason for a person to look, not for heal to guess."""
 
 
 def shape(text: str) -> str:
@@ -726,12 +731,17 @@ def _heal_listing(
                 values.setdefault(path, []).append(_comparable(path, value))
     fresh = {f.path: f for f in new.fields}
 
+    def seen_in(old_field: ListingField, path: str) -> int:
+        """How many of the old field's samples ``path`` holds on the new pages."""
+        samples = {_comparable(old_field.path, v) for v in old_field.samples}
+        if _is_address(path) != _is_address(old_field.path):
+            return 0
+        held = set(values.get(path, []))
+        return sum(1 for v in samples if v in held)
+
     def overlap(old_field: ListingField, path: str) -> float:
         samples = {_comparable(old_field.path, v) for v in old_field.samples}
-        if not samples or _is_address(path) != _is_address(old_field.path):
-            return 0.0
-        held = set(values.get(path, []))
-        return sum(1 for v in samples if v in held) / len(samples)
+        return seen_in(old_field, path) / len(samples) if samples else 0.0
 
     # Every candidate pairing, best first: the values an old field held, seen
     # again in a new place. The same place counts only as one candidate among
@@ -754,7 +764,13 @@ def _heal_listing(
         if f.name not in matched:
             continue
         kind_ = "kept" if matched[f.name] == f.path else "moved"
-        changes.append(Change(kind_, f.name, matched[f.name]))
+        others = [seen_in(f, path) for path in fresh if path != matched[f.name]]
+        evidence = {
+            "seen": seen_in(f, matched[f.name]),
+            "samples": len({_comparable(f.path, v) for v in f.samples}),
+            "runner_up": max(others, default=0),
+        }
+        changes.append(Change(kind_, f.name, matched[f.name], evidence))
     for f in old.fields:
         if f.name not in matched:
             changes.append(Change("vanished", f.name, None))
