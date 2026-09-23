@@ -109,24 +109,26 @@ jobs:
   properties:
     # Every job above runs tests/properties too, under the default profile:
     # fifteen examples each from a fixed seed, so a push costs seconds and a
-    # red build replays. This job is the search: thousands of examples each, a
-    # fresh seed every run, and the blob that replays a failure printed beside
-    # it. The first such run found a dozen bugs the example tests had never
-    # met -- tracebacks, and answers growing with the square of the page.
+    # red build replays. This job is the search: hundreds of examples each on a
+    # push, thousands on the weekly run, a fresh seed every time, and the blob
+    # that replays a failure printed beside it. The first such run found a
+    # dozen bugs the example tests had never met -- tracebacks, and answers
+    # growing with the square of the page -- and the second a wrong oracle.
+    # Thousands take about half an hour here, too long to wait for on a push.
     #
     # With the microformats extra, so mf2py is searched too; it is the one
     # reader whose parser is not ours.
-    name: The properties hold on thousands of drawn pages
+    name: The properties hold on hundreds, weekly thousands, of drawn pages
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
-      - name: Run the properties under the fuzz profile
+      - name: Run the properties under the search or the fuzz profile
         env:
-          HYPOTHESIS_PROFILE: fuzz
+          HYPOTHESIS_PROFILE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'fuzz' || 'search' }}
         run: uv run --python 3.13 --extra microformats pytest -q tests/properties
 
   build:

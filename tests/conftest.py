@@ -24,12 +24,13 @@ from urllib import robotparser
 import pytest
 from hypothesis import HealthCheck, settings
 
-# The properties in tests/properties run under one of two profiles, chosen by
+# The properties in tests/properties run under one of three profiles, chosen by
 # HYPOTHESIS_PROFILE. ``default`` is what every run of the suite gets: few
 # examples, drawn from a fixed seed, so the suite stays a few seconds long and a
 # red build on an unrelated change can be reproduced by running it again.
-# ``fuzz`` is the search, run by its own CI job: thousands of examples, a fresh
-# seed every time, and the blob that replays a failure printed with it.
+# ``search`` is what CI adds on every push: hundreds of examples from a fresh
+# seed, a few minutes. ``fuzz`` is the weekly search: thousands, about half an
+# hour on a CI runner, which is too long to wait for on every push.
 #
 # No deadline in either: a property that parses a page is timed by the machine
 # it runs on, and a slow CI runner is not a bug. What each property must cost is
@@ -43,6 +44,13 @@ settings.register_profile(
     max_examples=15,
     deadline=None,
     derandomize=True,
+    suppress_health_check=_UNHURRIED,
+)
+settings.register_profile(
+    "search",
+    max_examples=300,
+    deadline=None,
+    print_blob=True,
     suppress_health_check=_UNHURRIED,
 )
 settings.register_profile(
