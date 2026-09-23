@@ -28,6 +28,9 @@ Sluicer reads first, is therefore invisible here, and Sluicer is measured
 without its strongest reader. The scoreboard says so above its numbers and
 counts it on every run.
 
+The same labels are also scored on the pages **as their servers sent them**,
+scripts intact, fetched from web archives: see below.
+
 ## How it is scored
 
 `score.py`, four outcomes per field. With a label: **hit**, **wrong**, or
@@ -57,3 +60,35 @@ call is timed.
 
 Changing a pin, the corpus commit or a matching rule changes the scoreboard,
 and belongs in the same commit as the regenerated `docs/scoreboard.md`.
+
+## The same labels, on pages as served
+
+[`docs/scoreboard-served.md`](../docs/scoreboard-served.md) scores the same
+tools, with `score.py` and the same WCXB labels, on the test pages as they
+were served, fetched from the Wayback Machine and Common Crawl, and on WCXB's
+own copy of exactly the same pages beside it.
+
+```bash
+uv run bench/realweb.py                   # the pinned captures, then docs/scoreboard-served.md
+uv run bench/realweb.py --tools sluicer   # rerun one tool, reuse the others' results
+uv run bench/realweb.py --discover        # search the archives anew, rewrite the pins
+```
+
+The default run reads `realweb-manifest.json`, which pins, per page, the
+archive, the capture's timestamp and address, and the SHA-256 of its body (and
+for Common Crawl the WARC file, offset and length). It fetches exactly those
+captures, once, into `bench/cache/realweb/`, and stops if any body no longer
+hashes to its pin; after that it runs offline. Every excluded page is in the
+manifest too, with the reason and the best capture tried.
+
+`--discover` is what chose the pins, and rerunning it is a change to the
+scoreboard. For each page it asks the Wayback Machine's timemap, then Common
+Crawl's six crawls nearest the target, for captures that answered 200 with
+HTML within 183 days of 14 March 2026, when WCXB saved its pages (WCXB records
+no date; the latest dates inside its pages cluster there). It reads them
+nearest first, at most three distinct bodies per archive, and keeps the first
+whose visible text contains the page's labelled main text, measured in 5-word
+shingles, at or above the threshold the scoreboard states and justifies. It is
+polite: one request per second per archive host, four pages in flight, retries
+with backoff on 429 and 5xx; a request that still fails is counted as not
+fetched, never as an empty page. A full discovery takes about an hour.
