@@ -374,8 +374,9 @@ def build_app(
                 "internal_error", f"{name} failed; the server's log has the traceback"
             )
         except web.tool_errors.ToolError as refused:
-            # Anticipated by the SDK, and the only one it raises before a tool
-            # runs: arguments that do not fit the tool's input schema.
+            # Anticipated: arguments that do not fit the tool's input schema,
+            # which the SDK refuses before the tool runs, or a tool refusing on
+            # purpose. Ours never do the second; they answer ok false instead.
             return refuse("bad_input", _unfit(name, refused))
         answer = getattr(result, "structured_content", None)
         if not isinstance(answer, dict):
