@@ -56,3 +56,33 @@ def test_a_queue_serves_no_further_than_it_is_told():
 
     assert queue.take(lambda site: site != "site0.example", below=1) is None
     assert queue.take(lambda site: site != "site0.example", below=3).seq == 1
+
+
+def test_a_full_schedule_waits_for_a_request_to_end_rather_than_spinning(
+    monkeypatch,
+):
+    """With every worker busy and another site due, a timeout would only spin."""
+    import time
+    from concurrent.futures import wait as real_wait
+
+    waits = []
+
+    def counting(futures, timeout=None, return_when=None):
+        waits.append(timeout)
+        return real_wait(futures, timeout=timeout, return_when=return_when)
+
+    monkeypatch.setattr("sluicer.crawl.schedule.wait", counting)
+    polite = Politeness(lambda url: None, min_delay=0.0)
+    queue = Queue()
+    for n in range(6):
+        queue.add(f"https://site{n % 3}.example/{n}")
+
+    def visit(task):
+        time.sleep(0.05)
+        polite.ended(task.url)
+        return task.url
+
+    done = list(Schedule(visit, polite, concurrency=2).run(queue, lambda t, r: None))
+
+    assert len(done) == 6
+    assert len(waits) < 20, f"{len(waits)} waits for six requests"

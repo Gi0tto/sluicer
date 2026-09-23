@@ -308,9 +308,12 @@ class Schedule(Generic[_Result]):
                         return
                     self._rest(queue, busy, below)
                     continue
+                # Full, or out of time, nothing can start until something ends;
+                # a timeout then would only spin.
+                full = self.out_of_time or len(running) >= self.concurrency
                 soonest = (
                     None
-                    if self.out_of_time
+                    if full
                     else queue.soonest(self.politeness.ready_at, busy, below)
                 )
                 timeout = None if soonest is None else max(0.0, soonest - clock())
