@@ -56,18 +56,25 @@ makes judged before it is made, and every MCP answer carrying `ok`, an error
 code and an output schema. `sluicer inspect` for a person debugging a page, and
 the evidence behind every move `heal` reports.
 
+**Measured where it matters.** A drift benchmark on Wayback Machine captures of
+25 sites, a scoreboard on pages as their servers sent them, and property tests
+that found eleven defects the example tests had never met.
+
 ## Next
 
 **The proof, made bigger.** A first drift benchmark is in
 [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md): 44 pairs of
 Wayback Machine captures on 25 sites, judged by an oracle that does not use the
-extractor's code, with Scrapling's adaptive selectors beside it. It found five
-defects, now fixed. Next: more pairs, pairs chosen so that A and B share items
-and heal can be judged, and a compile that picks the listing rather than page
-furniture, which it did on 6 of the 25 sites.
+extractor's code, with Scrapling's adaptive selectors beside it. It found seven
+defects, all fixed, and now shows no silent failure and no false alarm. Next:
+more pairs, pairs chosen so that A and B share items and heal can be judged,
+and a compile that picks the listing rather than page furniture, which it did
+on 6 of the 25 sites.
 
-**A better ruler.** Pages as they are served, scripts intact, so JSON-LD is
-measured; more fields, starting with price and currency; a multilingual
+**A better ruler.** The WCXB labels are now also scored on the pages as served,
+scripts intact ([scoreboard, as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md)),
+on the 360 an archive holds. Next: the pages Common Crawl's index could not be
+asked for, more fields, starting with price and currency, and a multilingual
 e-commerce split.
 
 ## After that

@@ -132,17 +132,36 @@ that carry a label; an invention is an answer on a page whose label is empty.
 
 | | title | author | date | dates invented | seconds | packages |
 |---|---|---|---|---|---|---|
-| **sluicer 0.2.0** | 0.725 | 0.521 | 0.536 | **8** | **1.6** | **3** |
+| **sluicer 0.3.0** | 0.725 | 0.521 | 0.536 | **8** | **1.5** | **3** |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.2 | 17 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.5 | 125 |
 
-Sluicer loses on authors and dates, which the others also read from the visible
-text. It invents least: when it answers a date it is right 92% of the time,
-against 46% for trafilatura. And WCXB strips every `<script>`, so JSON-LD, the
-vocabulary Sluicer reads first, is not measured here at all. The method, every
-outcome and the command that regenerates the table are in
-[the scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md).
+WCXB strips every `<script>`, so JSON-LD, the vocabulary Sluicer reads first, is
+not measured there. The same labels on the 360 of those pages that a web archive
+holds as their servers sent them, scripts intact:
+
+| as served | title | author | date | right when it answers a date | dates invented |
+|---|---|---|---|---|---|
+| **sluicer 0.3.0** | 0.706 | 0.674 | 0.748 | **0.735** | **34** |
+| trafilatura 2.2.0 | 0.756 | 0.860 | 0.855 | 0.393 | 187 |
+| newspaper4k 0.9.6 | 0.767 | 0.705 | 0.786 | 0.658 | 54 |
+| metascraper 5.58.1 | 0.667 | 0.845 | 0.384 | 0.271 | 80 |
+
+With the scripts back, JSON-LD appears on 236 of the 360 pages, and Sluicer's
+author and date hit rates rise from 0.434 and 0.553 on WCXB's copies of the same
+pages to 0.674 and 0.748. It still finds fewer authors and dates than
+trafilatura, which also reads them from the visible text, and it is still the
+most often right when it answers a date. 31 of its 34 invented dates are dates
+the page declares in its own JSON-LD and does not show a reader, which is what
+the labels describe. The method, every outcome and the commands that regenerate
+both tables are in
+[the scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md)
+and [the scoreboard on pages as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md).
+
+Extractors are measured too: learnt on Wayback Machine captures of 25 sites and
+replayed on later ones, 44 pairs, none failed silently and none raised a false
+alarm. See [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md).
 
 ## Principles
 
@@ -160,6 +179,8 @@ At <https://gi0tto.github.io/sluicer/>, or in the repository:
 [Why Sluicer](https://github.com/Gi0tto/sluicer/blob/main/docs/why.md) ·
 [Extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md) ·
 [Scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md) ·
+[Scoreboard, as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md) ·
+[Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md) ·
 [Known limits](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md) ·
 [Design notes](https://github.com/Gi0tto/sluicer/blob/main/docs/design-notes.md) ·
 [Examples](https://github.com/Gi0tto/sluicer/tree/main/examples) ·
