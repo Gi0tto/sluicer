@@ -35,6 +35,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `docs/http-api.md` says all of it; `tests/live/api_check.py` asks a real
   server over a real socket; the image serves it.
 
+- `sluicer markdown --front-matter` (and `to_markdown(front_matter=True)`, and
+  the MCP tool's `front_matter`): the markdown opens with a YAML block of the
+  page's summary, normalised where it can be, and each answer's source, the
+  way static-site generators and retrieval pipelines read a document's
+  metadata. Every value is written as a JSON string, so nothing a page
+  declares can break the block.
 - `Extraction.links`: what the page's `<link>` elements declare about where
   else it lives -- its canonical address, every `hreflang` alternate, its RSS,
   Atom and JSON feeds, `next` and `prev` (from `<a>` too, where pagination

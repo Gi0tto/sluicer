@@ -1,3 +1,4 @@
+import json
 import sys
 import types
 
@@ -95,3 +96,46 @@ def test_a_missing_extra_says_how_to_install_it(monkeypatch):
         markdown_module.to_markdown("<html><body>hi</body></html>")
 
     assert "sluicer[markdown]" in str(raised.value)
+
+
+def test_front_matter_opens_the_markdown_with_what_the_page_declares(monkeypatch):
+    fake_trafilatura(monkeypatch, output="The article.")
+    from sluicer.markdown import to_markdown
+
+    page = (
+        '<html lang="en"><head>'
+        '<meta property="og:title" content="A: title, &quot;quoted&quot;">'
+        '<meta property="article:published_time" content="Jun 16, 2025"></head></html>'
+    )
+
+    out = to_markdown(page, front_matter=True)
+
+    head, _, body = out.partition("\n---\n\n")
+    lines = head.splitlines()
+    assert lines[0] == "---"
+    fields = dict(
+        line.split(": ", 1)
+        for line in lines[1:]
+        if not line.startswith(" ") and ": " in line
+    )
+    # Every value is a JSON string, so a colon or a quote cannot break the YAML.
+    assert json.loads(fields["title"]) == 'A: title, "quoted"'
+    assert json.loads(fields["published"]) == "2025-06-16"
+    assert '  title: "opengraph og:title"' in lines
+    assert body == "The article."
+
+
+def test_no_front_matter_unless_asked(monkeypatch):
+    fake_trafilatura(monkeypatch, output="The article.")
+    from sluicer.markdown import to_markdown
+
+    page = '<meta property="og:title" content="T">'
+
+    assert to_markdown(page) == "The article."
+
+
+def test_a_page_that_declares_nothing_gets_no_front_matter(monkeypatch):
+    fake_trafilatura(monkeypatch, output="The article.")
+    from sluicer.markdown import to_markdown
+
+    assert to_markdown("<p>plain</p>", front_matter=True) == "The article."

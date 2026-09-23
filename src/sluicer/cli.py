@@ -378,13 +378,28 @@ def _brief(value: object, limit: int = 72) -> str:
 
 @main.command()
 @click.argument("source")
+@click.option(
+    "--front-matter",
+    is_flag=True,
+    help="Open with a YAML block of what the page declares, and where from.",
+)
 @_with_fetch_options
-def markdown(source: str, stealth: bool, no_robots: bool, base_url: str | None) -> None:
+def markdown(
+    source: str,
+    front_matter: bool,
+    stealth: bool,
+    no_robots: bool,
+    base_url: str | None,
+) -> None:
     """Print the main content of a URL, a file or stdin as markdown."""
     html, url, _fetched = _read_source(source, stealth, no_robots, base_url)
     # MarkdownExtraMissing: trafilatura is not installed; the message says how.
     try:
-        content = to_markdown(html, url=url)
+        content = (
+            to_markdown(html, url=url, front_matter=True)
+            if front_matter
+            else to_markdown(html, url=url)
+        )
     except MarkdownExtraMissing as missing:
         _fail(str(missing), missing)
     if not content:

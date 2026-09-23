@@ -211,10 +211,15 @@ def build_server() -> Any:
 
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def page_markdown(html_or_url: str) -> answers.MarkdownAnswer:
+    def page_markdown(
+        html_or_url: str, front_matter: bool = False
+    ) -> answers.MarkdownAnswer:
         """Return a page's main content as markdown, without navigation or footer.
 
         html_or_url: an http(s) URL to fetch, or the HTML itself.
+        front_matter: open the markdown with a YAML block of what the page
+        declares about itself (title, author, dates, url...) and each
+        answer's source.
 
         Returns {"ok", "markdown", "url"}, and "fetch" for a URL. The markdown
         is always the page's own content: a failure is ok false with "error",
@@ -223,7 +228,7 @@ def build_server() -> Any:
         html, url, fetched = _html_of(html_or_url)
         result: dict[str, Any] = {
             "ok": True,
-            "markdown": to_markdown(html, url=url),
+            "markdown": to_markdown(html, url=url, front_matter=front_matter),
             "url": url,
         }
         if fetched is not None:
