@@ -184,7 +184,7 @@ jobs:
       - name: Install every extra
         run: |
           uv venv
-          uv pip install '.[fetch,markdown,mcp]'
+          uv pip install '.[fetch,markdown,mcp,api]'
       - name: Use each one against the package that was really installed
         run: |
           .venv/bin/python -c "
@@ -230,6 +230,18 @@ jobs:
           markdown_answer = asyncio.run(server.call_tool('page_markdown', {'html_or_url': '<html><body><article><h1>Title</h1><p>' + ('Real sentences. ' * 30) + '</p></article></body></html>'}))
           assert 'Title' in str(markdown_answer), str(markdown_answer)[:200]
           print('mcp: three tools listed, and two of them answered through the SDK dispatch')
+
+          # The HTTP door is built from that server, so it is held to the list
+          # pinned above rather than to a second one: a tool added there is
+          # served here with nothing else to change.
+          from starlette.testclient import TestClient
+          from sluicer.http_api import build_app
+          http = TestClient(build_app(), base_url='http://127.0.0.1')
+          served = sorted(t['name'] for t in http.get('/v1/tools').json()['tools'])
+          assert served == tools, served
+          answer = http.post('/v1/tools/extract_declared', json={'html_or_url': page}).json()
+          assert answer['records'][0]['fields']['name']['value'] == 'Brake pad set', answer
+          print('http: the same tools, one answered through the same dispatch')
           "
 
   live:
@@ -238,10 +250,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
-      - name: Install the fetch extra and a browser
+      - name: Install the fetch and api extras and a browser
         run: |
           uv venv
-          uv pip install '.[fetch]'
+          uv pip install '.[fetch,api]'
           .venv/bin/python -m playwright install --with-deps chromium
       # The suite fakes curl_cffi and Chromium, and a fake obeys whatever it is
       # told. Two local servers stand in for the web and for a private address,
@@ -253,6 +265,14 @@ jobs:
         run: .venv/bin/python tests/live/http_check.py
       - name: The browser guard
         run: .venv/bin/python tests/live/guard_check.py
+      # The suite reaches the HTTP door through starlette's TestClient, with
+      # no socket. This starts sluicer serve three times -- as a user runs it,
+      # allowed a local stand-in for the web, and without trafilatura -- and
+      # asks it over a real socket: every tool it lists, one error of every
+      # kind a request can provoke, each answer against the schema the server
+      # publishes for it.
+      - name: The HTTP door
+        run: .venv/bin/python tests/live/api_check.py
 
   licences:
     name: Every licence in the installed tree has been read
@@ -263,7 +283,7 @@ jobs:
       - name: Install sluicer with every extra, and nothing else
         run: |
           uv venv
-          uv pip install '.[fetch,markdown,mcp,microformats]'
+          uv pip install '.[fetch,markdown,mcp,microformats,api]'
       # The README names the non-permissive licences the extras bring in. A new
       # dependency under one nobody has read fails here, not in a user's audit.
       - name: List them, and fail on one nobody has read
@@ -348,15 +368,19 @@ jobs:
       - name: Install the extras unpinned and use them
         run: |
           uv venv
-          uv pip install '.[fetch,markdown,mcp]' --upgrade
+          uv pip install '.[fetch,markdown,mcp,api]' --upgrade
           .venv/bin/python -c "
           import asyncio, importlib.metadata as md
-          for name in ('scrapling', 'trafilatura', 'mcp'):
+          for name in ('scrapling', 'trafilatura', 'mcp', 'starlette', 'uvicorn'):
               print(name, md.version(name))
           from sluicer.mcp_server import build_server
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
           assert tools == ['compile_extractor', 'extract_declared', 'fetch_page', 'heal_extractor', 'page_markdown', 'run_extractor'], tools
+          from starlette.testclient import TestClient
+          from sluicer.http_api import build_app
+          http = TestClient(build_app(), base_url='http://127.0.0.1')
+          assert sorted(t['name'] for t in http.get('/v1/tools').json()['tools']) == tools
           print('still building against the newest published extras')
           "
 
@@ -377,6 +401,27 @@ jobs:
           docker run --rm -v "$PWD/page.html:/tmp/page.html:ro" sluicer:ci \
             sluicer extract /tmp/page.html | tee out.json
           grep -q '"Pad"' out.json
+      - name: Serve the tools over HTTP from it
+        # Published on the runner's loopback only, with a token, as the docs
+        # say to run it; and the image refuses to listen beyond loopback
+        # without one.
+        run: |
+          docker run -d --name api -p 127.0.0.1:8000:8000 -e SLUICER_API_TOKEN=ci-token \
+            sluicer:ci sluicer serve --host 0.0.0.0
+          for attempt in $(seq 30); do
+            curl -fsS http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/v1/tools)
+          test "$code" = 401 || { echo "answered $code without the token"; exit 1; }
+          printf '%s' '{"html_or_url": "<script type=\"application/ld+json\">{\"@type\":\"Product\",\"name\":\"Pad\"}</script>"}' > args.json
+          curl -fsS -H 'Authorization: Bearer ci-token' -H 'Content-Type: application/json' \
+            --data @args.json http://127.0.0.1:8000/v1/tools/extract_declared | tee answer.json
+          grep -q '"Pad"' answer.json
+          docker rm -f api
+          status=0
+          docker run --rm sluicer:ci sluicer serve --host 0.0.0.0 || status=$?
+          test "$status" = 2 || { echo "without a token it exited $status, not 2"; exit 1; }
 
   docker-browser:
     # The browser variant is most of a gigabyte and minutes to build, so it is

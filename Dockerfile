@@ -1,4 +1,5 @@
-# A Sluicer that can fetch, read and serve an agent, in one image.
+# A Sluicer that can fetch, read, and serve an agent or any HTTP client, in one
+# image.
 #
 # The base install is only lxml and click; this image takes the extras because
 # an image nobody can fetch with is an image nobody wants.
@@ -22,7 +23,7 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 
-RUN pip install --no-cache-dir '.[fetch,markdown,mcp]' \
+RUN pip install --no-cache-dir '.[fetch,markdown,mcp,api]' \
     && python -c "import sluicer; print('sluicer', sluicer.__version__)"
 
 # Chromium's system libraries arrive through apt, so this runs as root, before
@@ -39,5 +40,10 @@ USER sluicer
 # The MCP server speaks over stdio, so this is the useful default: an agent runs
 # the container and talks to it. Override the command for the CLI:
 #   docker run --rm sluicer sluicer extract https://example.com
+# or for the HTTP API, which inside a container has to listen on every
+# interface, and so will not start without a token:
+#   docker run --rm -p 127.0.0.1:8000:8000 -e SLUICER_API_TOKEN="$token" \
+#     sluicer sluicer serve --host 0.0.0.0
+EXPOSE 8000
 ENTRYPOINT []
 CMD ["sluicer-mcp"]
