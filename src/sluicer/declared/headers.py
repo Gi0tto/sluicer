@@ -11,6 +11,10 @@ Three headers carry things Sluicer already reads from markup:
   Google documents it.
 * ``TDM-Reservation`` and ``TDM-Policy`` are TDMRep's text and data mining
   reservation, the same as its ``<meta>`` tags.
+* ``Content-Usage`` is the IETF aipref working group's preference for AI
+  training, AI use and search (draft-ietf-aipref-attach-05 and
+  draft-ietf-aipref-vocab-08, drafts and not RFCs): a Structured Fields
+  dictionary, ``train-ai=n, search=y``.
 
 Header names are matched without regard to case. A header sent several times
 arrives as one value, its repeats joined with ", " as RFC 9110 lets any
@@ -63,6 +67,7 @@ class HeaderRights(TypedDict, total=False):
     agents: dict[str, list[str]]
     tdm_reservation: str
     tdm_policy: str
+    content_usage: dict[str, str]
 
 
 def lowered(headers: Mapping[str, str] | None) -> dict[str, str]:
@@ -220,6 +225,9 @@ def read_header_rights(headers: Mapping[str, str]) -> HeaderRights:
     agents = {name: rules for name, rules in agents.items() if rules}
     if agents:
         found["agents"] = agents
+    usage = content_usage(headers.get("content-usage", ""))
+    if usage:
+        found["content_usage"] = usage
     reservation = _first(headers.get("tdm-reservation", ""))
     if reservation:
         found["tdm_reservation"] = reservation
@@ -237,3 +245,245 @@ def _first(value: str) -> str:
 def _a_name(text: str) -> bool:
     """Whether ``text`` could be a crawler's name: one token, no spaces."""
     return bool(text) and all(c.isalnum() or c in "-_." for c in text)
+
+
+# The aipref vocabulary's categories, by their labels, and what its two
+# preference tokens mean (draft-ietf-aipref-vocab-08, sections 6.1 and 6.2).
+_USAGE_CATEGORIES = ("train-ai", "ai-use", "search")
+_PREFERENCES = {"y": "allow", "n": "disallow"}
+
+
+def content_usage(value: str) -> dict[str, str]:
+    """The preferences a ``Content-Usage`` header states, category by category.
+
+    Processed as draft-ietf-aipref-vocab-08 section 6.5 says: the value is
+    parsed as a Structured Fields dictionary (RFC 9651); a category whose value
+    is the token ``y`` is ``allow`` and ``n`` is ``disallow``; any other value,
+    an absent key, and a value that does not parse -- uppercase keys
+    included, since the format is case sensitive -- leave the preference
+    unknown, and an unknown one is not reported. A key given twice keeps its
+    last value, as the dictionary's own rule says.
+    """
+    parsed = sf_dictionary(value[:_LONGEST]) if value.strip() else None
+    if parsed is None:
+        return {}
+    found: dict[str, str] = {}
+    for category in _USAGE_CATEGORIES:
+        member = parsed.get(category)
+        if isinstance(member, _Token) and member.text in _PREFERENCES:
+            found[category] = _PREFERENCES[member.text]
+    return found
+
+
+class _Token(str):
+    """A Structured Fields token, told apart from a string that spells the same."""
+
+    @property
+    def text(self) -> str:
+        return str(self)
+
+
+_LCALPHA = frozenset("abcdefghijklmnopqrstuvwxyz")
+_KEY_REST = _LCALPHA | frozenset("0123456789_-.*")
+_ALPHA = _LCALPHA | frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+_TCHAR = _ALPHA | frozenset("0123456789!#$%&'*+-.^_`|~")
+_BASE64 = _ALPHA | frozenset("0123456789+/=")
+
+
+class _Unparsable(ValueError):
+    pass
+
+
+def sf_dictionary(value: str) -> dict[str, object] | None:
+    """A Structured Fields dictionary's members, bare values only, or None.
+
+    RFC 9651 section 4.2.2, followed closely enough that what it refuses is
+    refused here: a member's value is its bare item -- a ``_Token``, a string,
+    a number, a boolean, bytes as text, a date -- or a tuple for an inner list;
+    parameters are parsed and dropped. A key given twice keeps its last value.
+    """
+    parser = _Fields(value.strip(" \t"))
+    try:
+        return parser.dictionary()
+    except (_Unparsable, IndexError):
+        return None
+
+
+class _Fields:
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.at = 0
+
+    def _peek(self) -> str:
+        return self.text[self.at] if self.at < len(self.text) else ""
+
+    def _take(self) -> str:
+        char = self.text[self.at]
+        self.at += 1
+        return char
+
+    def dictionary(self) -> dict[str, object]:
+        members: dict[str, object] = {}
+        while self.at < len(self.text):
+            key = self._key()
+            if self._peek() == "=":
+                self.at += 1
+                members[key] = self._item_or_inner_list()
+            else:
+                self._parameters()
+                members[key] = True
+            while self._peek() in (" ", "\t") and self._peek():
+                self.at += 1
+            if self.at >= len(self.text):
+                return members
+            if self._take() != ",":
+                raise _Unparsable("members are separated by commas")
+            while self._peek() in (" ", "\t") and self._peek():
+                self.at += 1
+            if self.at >= len(self.text):
+                raise _Unparsable("a trailing comma")
+        return members
+
+    def _key(self) -> str:
+        first = self._peek()
+        if not first or (first not in _LCALPHA and first != "*"):
+            raise _Unparsable("a key opens with a lowercase letter or *")
+        start = self.at
+        while self._peek() and self._peek() in _KEY_REST:
+            self.at += 1
+        return self.text[start : self.at]
+
+    def _item_or_inner_list(self) -> object:
+        if self._peek() == "(":
+            self.at += 1
+            items: list[object] = []
+            while True:
+                while self._peek() == " ":
+                    self.at += 1
+                if self._peek() == ")":
+                    self.at += 1
+                    self._parameters()
+                    return tuple(items)
+                items.append(self._bare_item())
+                self._parameters()
+                if self._peek() not in (" ", ")"):
+                    raise _Unparsable("inner list items are separated by spaces")
+        value = self._bare_item()
+        self._parameters()
+        return value
+
+    def _parameters(self) -> None:
+        while self._peek() == ";":
+            self.at += 1
+            while self._peek() == " ":
+                self.at += 1
+            self._key()
+            if self._peek() == "=":
+                self.at += 1
+                self._bare_item()
+
+    def _bare_item(self) -> object:
+        first = self._peek()
+        if first == "-" or (first.isdigit() and first.isascii()):
+            return self._number()
+        if first == '"':
+            return self._string()
+        if first in _ALPHA or first == "*":
+            return self._token()
+        if first == ":":
+            return self._bytes()
+        if first == "?":
+            self.at += 1
+            flag = self._take()
+            if flag not in ("0", "1"):
+                raise _Unparsable("a boolean is ?0 or ?1")
+            return flag == "1"
+        if first == "@":
+            self.at += 1
+            number = self._number()
+            if not isinstance(number, int):
+                raise _Unparsable("a date is an integer")
+            return number
+        if first == "%":
+            return self._display_string()
+        raise _Unparsable("no item starts with this")
+
+    def _number(self) -> int | float:
+        start = self.at
+        if self._peek() == "-":
+            self.at += 1
+        digits = self.at
+        while self._peek().isdigit() and self._peek().isascii():
+            self.at += 1
+        whole = self.at - digits
+        if whole == 0:
+            raise _Unparsable("a number has digits")
+        if self._peek() != ".":
+            if whole > 15:
+                raise _Unparsable("an integer has at most 15 digits")
+            return int(self.text[start : self.at])
+        if whole > 12:
+            raise _Unparsable("a decimal has at most 12 integer digits")
+        self.at += 1
+        fraction = self.at
+        while self._peek().isdigit() and self._peek().isascii():
+            self.at += 1
+        if not 1 <= self.at - fraction <= 3:
+            raise _Unparsable("a decimal has one to three fractional digits")
+        return float(self.text[start : self.at])
+
+    def _string(self) -> str:
+        self.at += 1
+        out: list[str] = []
+        while True:
+            char = self._take()
+            if char == "\\":
+                escaped = self._take()
+                if escaped not in ('"', "\\"):
+                    raise _Unparsable("only a quote or a backslash is escaped")
+                out.append(escaped)
+            elif char == '"':
+                return "".join(out)
+            elif not " " <= char <= "~":
+                raise _Unparsable("a string is printable ASCII")
+            else:
+                out.append(char)
+
+    def _token(self) -> _Token:
+        start = self.at
+        self.at += 1
+        while self._peek() and (self._peek() in _TCHAR or self._peek() in ":/"):
+            self.at += 1
+        return _Token(self.text[start : self.at])
+
+    def _bytes(self) -> str:
+        self.at += 1
+        start = self.at
+        while self._peek() and self._peek() in _BASE64:
+            self.at += 1
+        if self._take() != ":":
+            raise _Unparsable("a byte sequence ends with a colon")
+        return self.text[start : self.at - 1]
+
+    def _display_string(self) -> str:
+        self.at += 1
+        if self._take() != '"':
+            raise _Unparsable('a display string opens with %"')
+        out = bytearray()
+        while True:
+            char = self._take()
+            if char == '"':
+                try:
+                    return out.decode("utf-8")
+                except UnicodeDecodeError:
+                    raise _Unparsable("a display string is UTF-8") from None
+            if char == "%":
+                pair = self.text[self.at : self.at + 2]
+                if len(pair) != 2 or any(c not in "0123456789abcdef" for c in pair):
+                    raise _Unparsable("a percent escape is two lowercase hex digits")
+                out.append(int(pair, 16))
+                self.at += 2
+            elif not " " <= char <= "~":
+                raise _Unparsable("a display string is printable ASCII")
+            else:
+                out.extend(char.encode("ascii"))

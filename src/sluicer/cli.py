@@ -423,6 +423,10 @@ def _directives(rights: Mapping[str, Any]) -> list[str]:
         said.append(f"tdm-reservation {rights['tdm_reservation']}")
     if "tdm_policy" in rights:
         said.append(f"tdm-policy {rights['tdm_policy']}")
+    for category, preference in rights.get("content_usage", {}).items():
+        said.append(f"content-usage {category}={preference}")
+    for licence in rights.get("license", []):
+        said.append(f"license {licence}")
     return said
 
 

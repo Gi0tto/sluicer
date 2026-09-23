@@ -531,8 +531,8 @@ class _Visitor:
                 induce=self.induce,
                 headers=fetched.headers,
             ),
-            canonical=canonical_of(doc) if answered else None,
-            links=tuple(links_on(doc)) if answered else (),
+            canonical=canonical_of(doc, fetched.headers) if answered else None,
+            links=tuple(links_on(doc, fetched.headers)) if answered else (),
         )
 
 

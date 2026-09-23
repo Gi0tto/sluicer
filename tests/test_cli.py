@@ -641,10 +641,15 @@ def test_extract_reads_the_fetched_pages_headers(monkeypatch):
     def fake_fetch(url, rungs=None, **kwargs):
         return Fetched(
             url="https://example.com/p",
-            html="<html><head><title>T</title></head></html>",
+            html="<html><head><title>T</title>"
+            '<link rel="license" href="/licence"></head></html>',
             status=200,
             rung="http",
-            headers={"link": "</c>; rel=canonical", "x-robots-tag": "noindex"},
+            headers={
+                "link": "</c>; rel=canonical",
+                "x-robots-tag": "noindex",
+                "content-usage": "train-ai=n",
+            },
         )
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
@@ -654,8 +659,13 @@ def test_extract_reads_the_fetched_pages_headers(monkeypatch):
 
     payload = json.loads(extracted.stdout)
     assert payload["links"]["canonical"] == "https://example.com/c"
-    assert payload["rights"]["http"] == {"robots": ["noindex"]}
-    assert "rights    robots noindex  [http header]" in inspected.stdout
+    assert payload["rights"]["http"] == {
+        "robots": ["noindex"],
+        "content_usage": {"train-ai": "disallow"},
+    }
+    assert "rights    license https://example.com/licence" in inspected.stdout
+    assert "robots noindex  [http header]" in inspected.stdout
+    assert "content-usage train-ai=disallow  [http header]" in inspected.stdout
 
 
 # -- audit --------------------------------------------------------------------

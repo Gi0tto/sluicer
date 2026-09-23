@@ -11,6 +11,10 @@ Three mechanisms live in a page's own markup, each with its own standing:
   a W3C Community Group final report of 2024-05-10, written for the text and
   data mining opt-out of the EU's DSM Directive, Article 4. A Community Group
   report is not a W3C standard.
+* ``rel=license``, on a ``<link>``, an ``<a>`` or an ``<area>``: the HTML
+  standard's way to say "the main content of the current document is covered
+  by the copyright license described by the referenced document". Reported
+  as the licences' addresses, resolved; which licence they are is theirs to say.
 
 What is reported is what the page says, verbatim and lowercased, never what it
 therefore permits: a page that declares nothing is reported as declaring
@@ -27,7 +31,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from sluicer.declared.headers import HeaderRights
-from sluicer.document import Document
+from sluicer.document import Document, base_url, join
 
 # Crawler names a page may put in place of ``robots``, as the engines document
 # them. A name outside this list is some other meta tag, not a directive.
@@ -59,6 +63,7 @@ class Rights(TypedDict, total=False):
     agents: dict[str, list[str]]
     tdm_reservation: str
     tdm_policy: str
+    license: list[str]
     http: HeaderRights
 
 
@@ -93,6 +98,27 @@ def read_rights(doc: Document, header: HeaderRights | None = None) -> Rights:
         found["robots"] = general
     if agents:
         found["agents"] = {name: rules for name, rules in agents.items() if rules}
+    licences = _licences(doc)
+    if licences:
+        found["license"] = licences
     if header:
         found["http"] = header
+    return found
+
+
+def _licences(doc: Document) -> list[str]:
+    """Every address a ``rel=license`` names, resolved, each once, in order."""
+    base = base_url(doc)
+    found: list[str] = []
+    for element in doc.tree.xpath(
+        "//link[@rel][@href] | //a[@rel][@href] | //area[@rel][@href]"
+    ):
+        if "license" not in (element.get("rel") or "").lower().split():
+            continue
+        href = (element.get("href") or "").strip()
+        if not href or href.startswith(("#", "javascript:")):
+            continue
+        address = join(base, href)
+        if address not in found and len(found) < _MOST:
+            found.append(address)
     return found

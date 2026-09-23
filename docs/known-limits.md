@@ -294,8 +294,11 @@ fetched, up to 16 MiB, and read as a page that declares nothing.
 form, an `<iframe>` or a `<link rel="next">` is not followed. A page that
 climbs to the browser is read for links in the HTML the browser rendered.
 
-**Headers are not read.** The ladder hands a page over without its headers, so
-an `X-Robots-Tag: nofollow` is not seen; the `<meta>` is.
+**Headers are read for `nofollow` and the canonical, and for nothing else.**
+An `X-Robots-Tag` saying `nofollow` or `none`, for every crawler or for
+`sluicer`, stops the walk from that page as the `<meta>` does, and a canonical
+in the `Link` header counts with the head's. `noindex` is reported in the
+page's `rights` and not acted on: a crawl that reads a page is not an index.
 
 **`Request-rate` is read as a rate, all day.** A rate given for hours of the
 day (`1/5s 0900-1700`) is kept at every hour.

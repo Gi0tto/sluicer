@@ -485,5 +485,5 @@ def _links_of_start(
         )
     finally:
         polite.ended(start)
-    links = links_on(load(fetched.html, url=fetched.url))
+    links = links_on(load(fetched.html, url=fetched.url), fetched.headers)
     return tuple(SiteUrl(link) for link in links if site_of(link) == site)[:limit]

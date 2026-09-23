@@ -167,3 +167,39 @@ def test_only_the_links_and_metas_that_say_so_count():
 
     assert canonical_of(doc) == "https://example.com/c"
     assert links_on(doc) == ["https://example.com/a"]
+
+
+def test_a_canonical_in_the_body_names_nothing_and_two_name_none():
+    """As the summary reads it: Google takes rel=canonical only from the head,
+    and a head naming two addresses names neither."""
+    body = _doc('<link rel="canonical" href="/elsewhere">')
+    assert canonical_of(body) is None
+    two = _doc(
+        "", head='<link rel="canonical" href="/a"><link rel="canonical" href="/b">'
+    )
+    assert canonical_of(two) is None
+    same = _doc(
+        "", head='<link rel="canonical" href="/a"><link rel="canonical" href="/a#x">'
+    )
+    assert canonical_of(same) == "https://example.com/a"
+
+
+def test_a_canonical_in_the_link_header_counts_with_the_heads():
+    header = {"Link": "</c>; rel=canonical"}
+    assert canonical_of(_doc(""), header) == "https://example.com/c"
+    agreeing = _doc("", head='<link rel="canonical" href="https://example.com/c">')
+    assert canonical_of(agreeing, header) == "https://example.com/c"
+    disagreeing = _doc("", head='<link rel="canonical" href="/d">')
+    assert canonical_of(disagreeing, header) is None
+
+
+def test_an_x_robots_tag_nofollow_for_everyone_or_for_sluicer_stops_the_walk():
+    doc = _doc('<a href="/a">a</a>')
+    assert links_on(doc, {"X-Robots-Tag": "nofollow"}) == []
+    assert links_on(doc, {"x-robots-tag": "none"}) == []
+    assert links_on(doc, {"x-robots-tag": "sluicer: nofollow"}) == []
+    assert links_on(doc, {"x-robots-tag": "googlebot: nofollow"}) == [
+        "https://example.com/a"
+    ]
+    assert links_on(doc, {"x-robots-tag": "noindex"}) == ["https://example.com/a"]
+    assert links_on(doc, {}) == ["https://example.com/a"]

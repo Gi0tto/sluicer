@@ -286,3 +286,137 @@ def test_an_alternate_named_twice_is_listed_once():
 
 def test_charset_passes_over_other_parameters():
     assert charset({"content-type": "text/html; q=1; charset=utf-8"}) == "utf-8"
+
+
+# -- Content-Usage, the aipref working group's draft ----------------------------
+
+
+def test_content_usage_states_a_preference_per_category():
+    from sluicer.declared.headers import content_usage
+
+    assert content_usage("train-ai=n") == {"train-ai": "disallow"}
+    assert content_usage("train-ai=y, search=n, ai-use=y") == {
+        "train-ai": "allow",
+        "ai-use": "allow",
+        "search": "disallow",
+    }
+
+
+def test_a_value_that_is_not_the_token_y_or_n_is_unknown():
+    """draft-ietf-aipref-vocab-08, 6.5.1, word for word: all four unknown."""
+    from sluicer.declared.headers import content_usage
+
+    assert content_usage('train-ai=y, train-ai, search=n, search="n"') == {}
+    assert content_usage("train-ai=yes, search=?0") == {}
+
+
+def test_a_key_given_twice_keeps_its_last_value():
+    from sluicer.declared.headers import content_usage
+
+    assert content_usage("train-ai=y, train-ai=n") == {"train-ai": "disallow"}
+
+
+def test_a_value_that_does_not_parse_leaves_every_preference_unknown():
+    from sluicer.declared.headers import content_usage
+
+    for broken in (
+        "Train-AI=n",
+        "train-ai=n,",
+        "train-ai=n search=y",
+        "train-ai=n, , search=y",
+        '"train-ai"=n',
+        "train-ai=n;",
+        "train-ai=(y",
+    ):
+        assert content_usage(broken) == {}, broken
+    assert content_usage("") == content_usage("   ") == {}
+
+
+def test_unknown_labels_and_parameters_are_ignored():
+    from sluicer.declared.headers import content_usage
+
+    assert content_usage('future-use=n;why=1, train-ai=n;note="x"') == {
+        "train-ai": "disallow"
+    }
+
+
+def test_the_dictionary_reads_every_kind_of_structured_value():
+    from sluicer.declared.headers import sf_dictionary
+
+    parsed = sf_dictionary(
+        'a=1, b=-2.5, c="q\\"x\\\\", d=tok/en:1, e=:aGk=:, f=?1, g=@1700000000, '
+        'h=%"caf%c3%a9", i=(y n;p), j, k=*star'
+    )
+    assert parsed == {
+        "a": 1,
+        "b": -2.5,
+        "c": 'q"x\\',
+        "d": "tok/en:1",
+        "e": "aGk=",
+        "f": True,
+        "g": 1700000000,
+        "h": "café",
+        "i": ("y", "n"),
+        "j": True,
+        "k": "*star",
+    }
+
+
+def test_the_dictionary_refuses_what_rfc_9651_refuses():
+    from sluicer.declared.headers import sf_dictionary
+
+    for broken in (
+        "a=1234567890123456",
+        "a=1234567890123.5",
+        "a=1.2345",
+        "a=-",
+        "a=1.",
+        'a="\\q"',
+        'a="é"',
+        'a="open',
+        "a=:aGk=",
+        "a=?2",
+        "a=@1.5",
+        'a=%"%C3"',
+        'a=%"%c3"',
+        "a=%x",
+        'a=%"é"',
+        "a=(1,2)",
+        "a=!",
+        "a=:ab!:",
+    ):
+        assert sf_dictionary(broken) is None, broken
+    assert sf_dictionary("") == {}
+    assert sf_dictionary("a=1; p=2;  q") == {"a": 1}
+
+
+def test_content_usage_is_reported_with_the_servers_other_directives():
+    import sluicer
+
+    result = sluicer.extract(
+        PAGE,
+        url=URL,
+        headers={"Content-Usage": "train-ai=n, search=y", "X-Robots-Tag": "noai"},
+    )
+    assert result.rights["http"] == {
+        "robots": ["noai"],
+        "content_usage": {"train-ai": "disallow", "search": "allow"},
+    }
+
+
+def test_a_licence_the_page_links_to_is_among_its_rights():
+    import sluicer
+
+    page = PAGE.replace(
+        "</head>",
+        '<link rel="license" href="https://creativecommons.org/licenses/by-sa/4.0/">'
+        "</head>",
+    ).replace(
+        "<p>text</p>",
+        '<a rel="License" href="/terms">terms</a><a rel="license" href="#x">x</a>'
+        '<a rel="license" href="https://creativecommons.org/licenses/by-sa/4.0/">cc</a>',
+    )
+    assert sluicer.extract(page, url=URL).rights["license"] == [
+        "https://creativecommons.org/licenses/by-sa/4.0/",
+        "https://shop.example/terms",
+    ]

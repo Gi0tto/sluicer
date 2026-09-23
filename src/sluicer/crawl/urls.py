@@ -27,8 +27,11 @@ https, is not one a crawl takes.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from urllib.parse import quote, urlsplit, urlunsplit
 
+from sluicer.declared.headers import lowered, read_header_links, read_header_rights
+from sluicer.declared.links import canonicals
 from sluicer.document import Document, absolute
 
 MAX_LINKS_PER_PAGE = 5000
@@ -110,16 +113,18 @@ def names_a_file(url: str) -> bool:
     return "." in last and last[last.rindex(".") :] in _FILES
 
 
-def links_on(doc: Document) -> list[str]:
+def links_on(doc: Document, headers: Mapping[str, str] | None = None) -> list[str]:
     """Every address the page lets a crawl follow, normalised, each once, in
     document order: ``<a href>`` and ``<area href>``, resolved against the
     page's ``<base>``.
 
     A page whose ``<meta name="robots">`` (or ``name="sluicer"``) says
-    ``nofollow`` or ``none`` gives none, and a link marked ``rel="nofollow"``
-    is left out: both are the site asking not to be walked from there.
+    ``nofollow`` or ``none`` gives none, and so does one whose response's
+    ``X-Robots-Tag`` says so, for every crawler or for ``sluicer``; a link
+    marked ``rel="nofollow"`` is left out. Each is the site asking not to be
+    walked from there.
     """
-    if _says_nofollow(doc):
+    if _says_nofollow(doc) or _header_says_nofollow(headers):
         return []
     found: dict[str, None] = {}
     for element in doc.tree.xpath("//a[@href] | //area[@href]"):
@@ -134,14 +139,27 @@ def links_on(doc: Document) -> list[str]:
     return list(found)
 
 
-def canonical_of(doc: Document) -> str | None:
-    """The page's ``<link rel="canonical">``, resolved and normalised, or None."""
-    for element in doc.tree.xpath("//link[@rel][@href]"):
-        if "canonical" in (element.get("rel") or "").lower().split():
-            href = (element.get("href") or "").strip()
-            if href:
-                return normalise(absolute(doc, href))
-    return None
+def canonical_of(doc: Document, headers: Mapping[str, str] | None = None) -> str | None:
+    """The page's one canonical address, resolved and normalised, or None.
+
+    Read as the page's summary reads it: from the ``<head>`` only, since a
+    ``rel=canonical`` in the body -- which the page's own content can put
+    there -- names nothing, and from the response's ``Link`` header. Two
+    different addresses are a conflict, and name none.
+    """
+    declared = [absolute(doc, href) for href in canonicals(doc)]
+    if headers:
+        declared += read_header_links(lowered(headers), doc.url)["canonicals"]
+    found = {normalise(address) for address in declared} - {None}
+    return found.pop() if len(found) == 1 else None
+
+
+def _header_says_nofollow(headers: Mapping[str, str] | None) -> bool:
+    if not headers:
+        return False
+    said = read_header_rights(lowered(headers))
+    directives = [*said.get("robots", []), *said.get("agents", {}).get("sluicer", [])]
+    return "nofollow" in directives or "none" in directives
 
 
 def _says_nofollow(doc: Document) -> bool:

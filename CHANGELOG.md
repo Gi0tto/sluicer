@@ -99,6 +99,22 @@ Dates are the day the work landed. Anything not listed here did not happen.
   next record. On warcio's own eleven sample files it agrees with warcio on
   nine and reads the two warcio refuses or empties. See
   `docs/warc.md`. No new dependency.
+- More of what a page and its server say about use. `rights["license"]`
+  holds the addresses a `rel=license` names -- the HTML standard's "the main
+  content is covered by the license described by the referenced document",
+  on 12 of 1,234 cached pages, all Creative Commons. `rights["http"]
+  ["content_usage"]` holds the IETF aipref drafts' `Content-Usage` header
+  (`train-ai=n, search=y`), read as their vocabulary says: a Structured
+  Fields dictionary (RFC 9651, parsed in full, since one that does not parse
+  leaves every preference unknown), `y` is allow and `n` disallow, anything
+  else unknown and not reported. Both drafts are working-group drafts, not
+  RFCs. `sluicer inspect` shows both.
+- The crawler honours an `X-Robots-Tag: nofollow` or `none`, for every
+  crawler or for `sluicer`, as it honours the `<meta>`, and counts a `Link`
+  header canonical with the head's. Its canonical was read from anywhere in
+  the page, the body included, where the page's own content can put one; it
+  is now the head's only, and a head naming two addresses names none, as
+  the summary already read it.
 - The response's headers, kept and read. `Fetched.headers` holds them, names
   lowercased; `extract(headers=...)` reads them, and the CLI, the MCP server
   and the crawler pass them for every page they fetch. A canonical, `hreflang`
