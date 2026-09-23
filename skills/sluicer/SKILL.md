@@ -1,7 +1,7 @@
 ---
 name: sluicer
 description: Read the structured data a web page already declares (JSON-LD, microdata, RDFa, Dublin Core, OpenGraph, Twitter cards, HTML's own meta names, and microformats2 on request) and get back a summary -- title, author, date, price, currency, availability, brand, SKU -- plus full records, every value naming the vocabulary, the key and the place on the page it came from, with no model and no API key. Use when asked for a product's price, an article's author or date, a recipe's ingredients, a book's metadata, or any field a page states about itself; when a scrape must be reproducible or auditable; when you need a page as clean markdown; or when fetching should announce itself and obey robots.txt.
-version: "0.3.0"
+version: "0.4.0"
 license: MIT
 metadata:
   homepage: "https://github.com/Gi0tto/sluicer"

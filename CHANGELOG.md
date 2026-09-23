@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
+## 0.4.0 - 2026-09-23
 
 ### Changed
 - The licence is `MIT AND CC-BY-SA-3.0`: `sluicer/audit/schema_org.py`, which
