@@ -94,9 +94,11 @@ learnt from: a title and a brand keep their shapes, and neither reads as an
 amount or a date. A swap is caught when one side read as an amount or a date
 (the `reads` check), or became the same in every row (the `values` check).
 
-**How often extractors survive real redesigns is not measured.** The fixtures
-are written by hand; the benchmark on real before-and-after pages is next on the
-roadmap.
+**Extractors are measured on 44 pairs of captures from 25 sites.** The drift
+benchmark (docs/drift.md) shows no silent failure and no false alarm there, and
+that is a small sample: mostly news and link aggregators, no real shop, and
+heal judged only where the two captures share items, which on news pages they
+rarely do.
 
 ## In announcing ourselves
 
