@@ -18,7 +18,7 @@ from itertools import pairwise
 from urllib.parse import urljoin
 
 from sluicer.crawl.web import Web
-from sluicer.fetch import robots_reader_from
+from sluicer.fetch import RedirectRefused, robots_reader_from
 from sluicer.fetch.http_rung import Response
 from sluicer.fetch.result import Fetched
 
@@ -65,29 +65,46 @@ class FakeWeb:
             body = body.encode("utf-8")
         return status, body, {k.lower(): v for k, v in headers.items()}
 
-    def get(self, url: str) -> Response:
+    def get(self, url: str, redirects=None) -> Response:
+        """Follow redirects hop by hop, asking ``redirects`` before each one, as
+        the real transport does."""
         current = url
         for _ in range(11):
             status, body, headers = self._answer(current)
             if status in (301, 302, 303, 307, 308) and "location" in headers:
-                current = urljoin(current, headers["location"])
+                target = urljoin(current, headers["location"])
+                refused = redirects(current, target) if redirects else None
+                if refused is not None:
+                    raise RedirectRefused(current, target, refused)
+                current = target
                 continue
             return Response(current, status, headers.get("content-type", ""), body)
         raise RuntimeError(f"{url} redirected too often")
 
-    def rung(self, url: str) -> Fetched:
-        response = self.get(url)
+    def rung(self, url: str, redirects=None) -> Fetched:
+        response = self.get(url, redirects)
         html = response.body.decode("utf-8", errors="replace")
         if not html:
             raise ValueError(f"no HTML for {url!r}")
         return Fetched(url=response.url, html=html, status=response.status, rung="http")
 
-    def web(self) -> Web:
+    def web(self, redirects=None) -> Web:
+        """The three ways in; ``redirects`` goes to the page rung only, as
+        ``default_web`` sends it."""
         return Web(
-            rungs=[("http", self.rung)],
+            rungs=[("http", lambda url: self.rung(url, redirects))],
             read=robots_reader_from(self.rung),
             get=self.get,
         )
+
+    def as_default(self, monkeypatch) -> None:
+        """Stand in for ``default_web``, so a crawl wires its own redirect rule
+        into this web exactly as it does into the real one."""
+
+        def default_web(allow_private=True, resolve=None, max_bytes=0, redirects=None):
+            return self.web(redirects)
+
+        monkeypatch.setattr("sluicer.crawl.pages.default_web", default_web)
 
     def asked(self) -> list[str]:
         return [url for url, _, _ in self.requests]

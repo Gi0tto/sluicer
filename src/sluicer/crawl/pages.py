@@ -242,22 +242,19 @@ def crawl(
         first, max_pages, max_depth, same_site, _patterns(include), _patterns(exclude)
     )
 
-    def stays(current: str, target: str) -> str | None:
-        if site_of(target) == site_of(current):
+    def kept(landed: str) -> str | None:
+        if not same_site or site_of(landed) == frontier.site:
             return None
-        return f"it leads off {site_of(current)}, to {site_of(target) or target}"
+        return f"it is off {frontier.site}"
 
     replayed: list[dict[str, Any]] = []
     if state is not None:
         replayed = _replay(Path(state), frontier)
-    web = (
-        web
-        if web is not None
-        else default_web(allow_private, resolve, max_bytes, stays)
+    polite, web = _reach(
+        web, min_delay, clock, sleep, allow_private, resolve, max_bytes
     )
-    polite = Politeness(web.read, min_delay, clock, sleep)
     visitor = _Visitor(
-        web, polite, allow_private, resolve, max_bytes, max_delay, induce, stays
+        web, polite, allow_private, resolve, max_bytes, max_delay, induce, kept
     )
     deadline = None if time_budget is None else clock() + time_budget
     schedule: Schedule[Page] = Schedule(visitor.visit, polite, concurrency, deadline)
@@ -298,24 +295,42 @@ def extract_many(
     order the addresses were given.
 
     The same scheduler as ``crawl``: one request at a time per site, its delay
-    between, ``concurrency`` sites at once. No link is followed, and a redirect
-    goes wherever it leads, as for one fetch. An address given twice is read
-    once; one that is not an http(s) address comes back as a ``bad_input``
-    page. With ``state``, an address the file already holds is skipped, and
-    every new page is appended. The other arguments are ``crawl``'s.
+    between, ``concurrency`` sites at once. No link is followed. A redirect to
+    another site is not followed inside the fetch: that page says
+    ``redirected_off_site``, and its target is read in its own turn, at the
+    end of the list, so every site is asked one request at a time however the
+    list's addresses redirect. An address given twice is read once; one that
+    is not an http(s) address comes back as a ``bad_input`` page. With
+    ``state``, an address the file already holds is skipped, and every new
+    page is appended. The other arguments are ``crawl``'s.
     """
-    done: set[str] = set()
-    if state is not None:
-        done = {line["url"] for line in _lines(Path(state))}
     queue = Queue()
-    queued: set[str] = set(done)
-    for given in urls:
-        address = normalise(given) or given.strip()
+    queued: set[str] = set()
+    targets: list[str] = []
+    if state is not None:
+        for line in _lines(Path(state)):
+            queued.add(line["url"])
+            error = line.get("error")
+            if isinstance(error, dict) and isinstance(error.get("target"), str):
+                targets.append(error["target"])
+
+    def add(address: str, found_on: str | None = None) -> None:
         if address and address not in queued:
             queued.add(address)
-            queue.add(address)
-    web = web if web is not None else default_web(allow_private, resolve, max_bytes)
-    polite = Politeness(web.read, min_delay, clock, sleep)
+            queue.add(address, found_on=found_on)
+
+    for given in urls:
+        add(normalise(given) or given.strip())
+    for target in targets:
+        add(normalise(target) or target)
+
+    def commit(task: Task, page: Page) -> None:
+        if page.error is not None and page.error.target is not None:
+            add(normalise(page.error.target) or page.error.target, page.url)
+
+    polite, web = _reach(
+        web, min_delay, clock, sleep, allow_private, resolve, max_bytes
+    )
     visitor = _Visitor(
         web, polite, allow_private, resolve, max_bytes, max_delay, induce, None
     )
@@ -324,12 +339,37 @@ def extract_many(
 
     def pages(run: Crawl) -> Iterator[Page]:
         with _appending(state) as out:
-            for page in schedule.run(queue, lambda task, page: None):
+            for page in schedule.run(queue, commit):
                 _write(out, page)
                 yield page
         run.stopped = "time_budget" if schedule.out_of_time else "done"
 
-    return Crawl(pages, resumed=len(done))
+    return Crawl(pages, resumed=len(queued) - queue.added)
+
+
+def _reach(
+    web: Web | None,
+    min_delay: float,
+    clock: Callable[[], float],
+    sleep: Callable[[float], None],
+    allow_private: bool,
+    resolve: Callable[[str], Iterable[str]],
+    max_bytes: int,
+) -> tuple[Politeness, Web]:
+    """The pacing and the web it paces, each built with the other.
+
+    The real web asks the pacing about every redirect hop, and the pacing
+    reads robots.txt through the web; the reader is looked up when first
+    called, by which time both exist.
+    """
+    reached: list[Web] = []
+    polite = Politeness(lambda url: reached[0].read(url), min_delay, clock, sleep)
+    reached.append(
+        web
+        if web is not None
+        else default_web(allow_private, resolve, max_bytes, polite.hop)
+    )
+    return polite, reached[0]
 
 
 class _Frontier:
@@ -401,7 +441,7 @@ class _Visitor:
         max_bytes: int,
         max_delay: float,
         induce: bool,
-        stays: Callable[[str, str], str | None] | None,
+        kept: Callable[[str], str | None] | None,
     ) -> None:
         self.web = web
         self.polite = polite
@@ -410,7 +450,7 @@ class _Visitor:
         self.max_bytes = max_bytes
         self.max_delay = max_delay
         self.induce = induce
-        self.stays = stays
+        self.kept = kept
 
     def visit(self, task: Task) -> Page:
         def failed(
@@ -459,10 +499,10 @@ class _Visitor:
         finally:
             self.polite.ended(task.url)
         landed = normalise(fetched.url) or fetched.url
-        # A browser follows a redirect itself when nothing guards it, so the
-        # rule is asked again of where the page landed. Too late to spare the
-        # other site its request; not too late to keep its page out.
-        reason = self.stays(task.url, landed) if self.stays else None
+        # A browser follows a redirect itself when nothing guards it, so where
+        # the page landed is judged again. Too late to spare the other site its
+        # request; not too late to keep its page out of a crawl of this one.
+        reason = self.kept(landed) if self.kept else None
         if reason is not None:
             return failed(
                 "redirected_off_site",

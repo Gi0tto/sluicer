@@ -495,21 +495,107 @@ def test_a_batch_keeps_its_order_reads_each_address_once_and_answers_bad_ones():
     assert fake.gaps("example.com") == [1.0, 1.0]
 
 
-def test_a_batch_follows_a_redirect_wherever_it_leads_as_one_fetch_does():
+def paced(fake, **options):
+    """Options that pace a crawl or a batch by ``fake``'s clock, its web left to
+    ``as_default`` so the redirect rule is wired as in production."""
+    return {"clock": fake.clock, "sleep": fake.clock.sleep, **options}
+
+
+def test_a_batch_reads_a_redirect_to_another_site_in_that_sites_own_turn(
+    monkeypatch,
+):
     fake = FakeWeb(
         {
             f"{ROOT}/moved": (301, "", {"Location": "https://other.example/"}),
+            f"{ROOT}/p/1": page("Pad 1"),
             "https://other.example/": page("Elsewhere"),
         }
     )
+    fake.as_default(monkeypatch)
 
     pages = list(
-        extract_many(
-            [f"{ROOT}/moved"], web=fake.web(), clock=fake.clock, sleep=fake.clock.sleep
-        )
+        extract_many([f"{ROOT}/moved", f"{ROOT}/p/1"], concurrency=1, **paced(fake))
     )
 
-    assert pages[0].ok and pages[0].landed == "https://other.example/"
+    assert urls(pages) == [f"{ROOT}/moved", f"{ROOT}/p/1", "https://other.example/"]
+    assert pages[0].error.code == "redirected_off_site"
+    assert pages[0].error.target == "https://other.example/"
+    assert pages[2].ok and pages[2].found_on == f"{ROOT}/moved"
+    # Its own turn begins with its own robots.txt; followed inside /moved's
+    # fetch, the page would have come first and the robots.txt after.
+    asked = fake.asked()
+    assert asked.index("https://other.example/robots.txt") < asked.index(
+        "https://other.example/"
+    )
+    assert asked.index(f"{ROOT}/moved") + 1 == asked.index(
+        "https://other.example/robots.txt"
+    )
+
+
+def test_every_hop_of_a_redirect_waits_the_sites_delay(monkeypatch):
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": page("Home", "/old"),
+            f"{ROOT}/old": (301, "", {"Location": "/mid"}),
+            f"{ROOT}/mid": (302, "", {"Location": "/new"}),
+            f"{ROOT}/new": page("New"),
+            f"{ROOT}/robots.txt": "User-agent: *\nCrawl-delay: 2\n",
+        }
+    )
+    fake.as_default(monkeypatch)
+
+    pages = list(crawl(f"{ROOT}/", **paced(fake)))
+
+    assert pages[1].landed == f"{ROOT}/new"
+    assert fake.asked()[-3:] == [f"{ROOT}/old", f"{ROOT}/mid", f"{ROOT}/new"]
+    assert fake.gaps("example.com") == [2.0, 2.0, 2.0, 2.0]
+
+
+def test_a_redirect_off_the_site_is_refused_before_the_other_site_is_asked(
+    monkeypatch,
+):
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": page("Home", "/away"),
+            f"{ROOT}/away": (302, "", {"Location": "https://other.example/landing"}),
+            "https://other.example/landing": page("Landing"),
+        }
+    )
+    fake.as_default(monkeypatch)
+
+    pages = list(crawl(f"{ROOT}/", **paced(fake)))
+
+    assert pages[1].error.code == "redirected_off_site"
+    assert not any("other.example" in url for url in fake.asked())
+
+
+def test_a_batch_resumed_reads_a_redirects_target_it_had_not_reached(tmp_path):
+    state = tmp_path / "batch.jsonl"
+    line = {
+        "url": f"{ROOT}/moved",
+        "ok": False,
+        "depth": 0,
+        "found_on": None,
+        "error": {
+            "code": "redirected_off_site",
+            "message": "moved",
+            "retryable": False,
+            "target": "https://other.example/",
+        },
+    }
+    state.write_text(json.dumps(line) + "\n")
+    fake = FakeWeb(shop())
+
+    rest = extract_many(
+        [f"{ROOT}/moved"],
+        state=state,
+        web=fake.web(),
+        clock=fake.clock,
+        sleep=fake.clock.sleep,
+    )
+
+    assert urls(rest) == ["https://other.example/"]
+    assert rest.resumed == 1
 
 
 def test_a_batch_resumed_skips_what_its_file_holds(tmp_path):

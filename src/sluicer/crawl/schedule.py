@@ -92,11 +92,32 @@ class Politeness:
         self._lock = threading.Lock()
 
     def reader(self, url: str) -> str | None:
-        """Read the robots.txt at ``url``, as a request to its site."""
+        """Read the robots.txt at ``url`` as a request to its site: after the
+        site's delay, and counted when it ends."""
+        self.rest(url)
         try:
             return self._read(url)
         finally:
             self.ended(url)
+
+    def hop(self, current: str, target: str) -> str | None:
+        """The rule each hop of a page's redirect is asked before it is requested.
+
+        A hop to another site is refused, with the reason: that site is asked
+        in its own turn, never inside another's. A hop that stays is a request
+        like any other, and waits the site's delay after the one before it.
+        """
+        if site_of(target) != site_of(current):
+            return f"it leads off {site_of(current)}, to {site_of(target) or target}"
+        self.ended(current)
+        self.rest(target)
+        return None
+
+    def rest(self, url: str) -> None:
+        """Sleep until ``url``'s site may be asked again, by the delay known."""
+        with self._lock:
+            delay = self._delays.get(site_of(url), self.min_delay)
+        self.wait(url, delay)
 
     def delay_for(self, url: str) -> float:
         """The seconds ``url``'s site wants between requests: ours, or its
