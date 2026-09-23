@@ -86,9 +86,13 @@ any page failed any check. A run that broke its contract never exits 0.
 `heal` learns the new pages from scratch, then matches each old field to its new
 place: the new field that holds most of the sample values the old one held. Two
 columns that swapped are two moves, not two fields kept in place. A field whose
-values appear nowhere on the new page is reported as `vanished`, even if a new
-field has the same shape, because a guess would put the wrong column under the
-old name. A field that moved keeps its old name, so rows read with the healed
+old values appear nowhere, but whose own place is still there holding values of
+the shape it was learnt with, is kept: a listing's items change between two
+visits. A numbered slot -- the third tag, the second author -- whose own place
+is still there never moves to another slot of its group, because one tag
+turning up in another slot moved nothing. A field found in none of these ways
+is reported as `vanished`, even if a new field has the same shape, because a
+guess would put the wrong column under the old name. A field that moved keeps its old name, so rows read with the healed
 extractor have the columns downstream code expects.
 
 Every field kept or moved carries its evidence: how many of the values it was

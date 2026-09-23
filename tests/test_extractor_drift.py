@@ -331,6 +331,72 @@ def test_healing_learns_hrefs_against_their_own_page():
     assert href.samples[0].startswith("https://b/")
 
 
+STOCK = '<span class="stock">In stock</span>'
+
+
+def test_a_field_where_it_was_with_new_items_in_it_is_kept():
+    # Found by the drift benchmark: Hacker News, Lobsters and arXiv a month
+    # apart, same markup, and heal called every title and link vanished.
+    extractor = learn(shop_page(books(6)), shop_page(books(6)))
+    today = [
+        li(title, f"/book/{100 + i}", f"£{40 + i}.50", STOCK)
+        for i, title in enumerate(["Dune", "Emma", "Beloved", "Ulysses", "Rebecca"])
+    ]
+
+    _healed, changes = heal(extractor, [(shop_page(today), "https://shop.example/")])
+
+    assert {c.kind for c in changes} == {"kept"}, changes
+
+
+def test_a_place_that_now_holds_another_kind_of_value_is_not_kept():
+    extractor = learn(shop_page(books(6)), shop_page(books(6)))
+    today = [li(TITLES[i], f"/book/{i}", "Call us", STOCK) for i in range(6)]
+
+    _healed, changes = heal(extractor, [(shop_page(today), "https://shop.example/")])
+
+    assert ("vanished", "span.price") in {(c.kind, c.before) for c in changes}
+
+
+def test_tags_from_one_vocabulary_that_change_rows_are_not_moves():
+    # Found by the drift benchmark: Pinboard a month apart, same markup, and
+    # heal moved its first tag to the fourth place and its fourth to the fifth.
+    words = ["python", "rust", "web", "data", "security", "design", "career"]
+
+    def tagged(offset):
+        def tags(i):
+            picked = [words[(i + n + offset) % len(words)] for n in range(3)]
+            return "".join(f'<a class="tag" href="/t/{w}">{w}</a>' for w in picked)
+
+        return shop_page(books(6, stock=tags))
+
+    extractor = learn(tagged(0))
+
+    _healed, changes = heal(extractor, [(tagged(1), "https://shop.example/")])
+
+    assert [c for c in changes if c.kind == "moved"] == []
+
+
+def test_an_author_who_turns_up_first_does_not_move_the_first_author():
+    # Found by the drift benchmark: arXiv a month apart, same markup; one ninth
+    # author of January was a first author in February, and heal moved the
+    # ninth-author column onto the first and called the first vanished.
+    def by(names):
+        return "".join(f'<a class="by" href="/a/{n}">{n}</a>' for n in names)
+
+    january = [["Ada", "Bo", "Cy"], ["Di", "Ed"], ["Flo", "Gus"], ["Hal", "Ivy"]]
+    february = [["Cy", "Jo"], ["Kit", "Lu"], ["Mo", "Ned", "Oz"], ["Pia", "Quin"]]
+
+    def page(rows):
+        return shop_page(books(len(rows), stock=lambda i: by(rows[i])))
+
+    extractor = learn(page(january))
+
+    _healed, changes = heal(extractor, [(page(february), "https://shop.example/")])
+
+    kinds = {c.before: c.kind for c in changes if c.before and "a.by" in c.before}
+    assert set(kinds.values()) == {"kept"}, kinds
+
+
 # -- the file -------------------------------------------------------------------
 
 

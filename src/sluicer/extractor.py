@@ -396,10 +396,14 @@ def heal(
     """Learn ``pages`` again and match what moved to what ``extractor`` knew.
 
     Every old field is matched to at most one new place: the one holding most of
-    the values it used to hold. A field whose values appear nowhere is vanished,
-    even if some new field has the same shape, because a guess would move the
-    wrong column under the old name. A field that moved keeps its old name, so
-    a row read with the healed extractor has the columns it always had.
+    the values it used to hold, else its own, when that still holds values of
+    the old shape -- a listing's items change between visits. A numbered slot
+    whose own place is still there never moves to another slot of its group:
+    the third tag of a row is a count, and one tag turning up in another slot
+    moved nothing. A field found in none of these ways is vanished, even if
+    some new field has the same shape, because a guess would move the wrong
+    column under the old name. A field that moved keeps its old name, so a row
+    read with the healed extractor has the columns it always had.
 
     Returns:
         The healed extractor, and every change found, in a stable order. Any
@@ -624,6 +628,13 @@ def _a_later_repeat(path: str, paths: set[str]) -> bool:
     return first in paths
 
 
+def _slot_of(path: str) -> str:
+    """The group a numbered slot belongs to: ``div.tags>a.tag`` for
+    ``div.tags>a.tag3``, and ``path`` itself when it is not numbered."""
+    head, at, attribute = path.partition("@")
+    return head.rstrip("0123456789") + at + attribute
+
+
 def _aliases(path: str) -> tuple[str, ...]:
     """``path`` and the spelling it takes when the group's numbering shifts.
 
@@ -743,15 +754,31 @@ def _heal_listing(
         samples = {_comparable(old_field.path, v) for v in old_field.samples}
         return seen_in(old_field, path) / len(samples) if samples else 0.0
 
+    def still_there(old_field: ListingField) -> bool:
+        # Its own place, holding values of the shape it was learnt with: a
+        # listing's items change between two visits, and that is no move.
+        held = [v for v in values.get(old_field.path, []) if v]
+        if not held or old_field.shape is None:
+            return bool(held)
+        fitting = sum(1 for v in held if _fits(v, old_field.shape))
+        return fitting / len(held) >= SHAPE_KEPT
+
     # Every candidate pairing, best first: the values an old field held, seen
     # again in a new place. The same place counts only as one candidate among
-    # the others, so two columns that swapped are two moves, not two keeps.
+    # the others, so two columns that swapped are two moves, not two keeps; and
+    # it is the last candidate when it holds new values of the old shape.
     scored = []
     for order, f in enumerate(old.fields):
         for path in fresh:
+            numbered = _slot_of(f.path) != f.path
+            sibling = path != f.path and _slot_of(path) == _slot_of(f.path)
+            if numbered and sibling and still_there(f):
+                # The third tag or author of a row is a count, not a column:
+                # one tag or author turning up in another slot moved nothing.
+                continue
             seen = overlap(f, path)
             same_place = path == f.path
-            if seen > 0 or (same_place and not f.samples):
+            if seen > 0 or (same_place and (not f.samples or still_there(f))):
                 scored.append((-seen, not same_place, order, path, f))
     claimed: dict[str, str] = {}
     matched: dict[str, str] = {}
