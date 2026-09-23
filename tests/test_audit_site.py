@@ -482,3 +482,21 @@ def test_an_empty_llms_txt_has_no_name():
         "llms-no-summary",
         "llms-no-file-list",
     ]
+
+
+@pytest.mark.parametrize(
+    ("pattern", "target", "matches"),
+    [
+        ("/*.pdf$", "/files/a.pdf", True),
+        ("/*.pdf$", "/files/a.pdf?x=1", False),
+        ("/blog/*/draft", "/blog/2026/draft-9", True),
+        ("", "/x", True),
+        ("/x", "/", False),
+        ("/a*b", "/axxb/c", True),
+        ("/a$", "/ab", False),
+        # A backtracking regular expression took 13 s on this one.
+        ("/" + "*a" * 64 + "*b$", "/" + "a" * 2000, False),
+    ],
+)
+def test_a_robots_path_pattern_matches_as_rfc_9309_says(pattern, target, matches):
+    assert crawlers._matches(pattern, target) is matches

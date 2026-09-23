@@ -252,6 +252,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Crawl-delay` and `Sitemap` reading in the `with-extras` job.
 
 ### Fixed
+- The audit matched a robots.txt path pattern with a regular expression that
+  backtracked: `Content-Usage: /*a*a*a*a*b$ ...` took 13 seconds against a
+  300-character path, and any site's robots.txt could stall an audit or an
+  agent's `audit_page`. It is matched with two pointers now, in no time at
+  64 wildcards and 2,000 characters. protego, which decides what may be
+  fetched, was never affected.
 - Reading a text as an amount lowercased it once for every currency symbol
   there is, whatever its length, and a page's wrapper was read as an amount
   with the whole page's text in it: pointing at a price on a 1.5 MB page with
