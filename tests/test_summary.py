@@ -471,3 +471,78 @@ def test_facebook_s_product_tags_answer_a_page_with_no_offer():
     assert summary["price"] == ("24.95", "opengraph", "product:price:amount")
     assert summary["currency"][0] == "EUR"
     assert summary["sku"] == ("BP-1187", "opengraph", "product:retailer_item_id")
+
+
+def test_identifiers_and_the_rating_are_answered_as_declared():
+    summary = _summary(
+        _page(
+            {
+                "@type": "Product",
+                "name": "Pads",
+                "gtin13": "4001234567891",
+                "mpn": "BP-2210",
+                "aggregateRating": {
+                    "@type": "AggregateRating",
+                    "ratingValue": "8",
+                    "bestRating": "10",
+                    "reviewCount": "112",
+                },
+            }
+        )
+    )
+
+    assert summary["gtin"] == ("4001234567891", "jsonld", "Product.gtin13")
+    assert summary["mpn"][0] == "BP-2210"
+    # Never rescaled: 8 of 10 is 8, with the best beside it.
+    assert summary["rating"] == ("8", "jsonld", "Product.aggregateRating.ratingValue")
+    assert summary["rating_best"][0] == "10"
+    assert summary["rating_count"] == (
+        "112",
+        "jsonld",
+        "Product.aggregateRating.reviewCount",
+    )
+
+
+def test_the_breadcrumb_is_the_last_list_in_the_order_of_its_positions():
+    html = (
+        _page(
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 1, "name": "Elsewhere"}
+                ],
+            }
+        )
+        + _page(
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 3, "name": "Brake pads"},
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "item": {"@id": "/", "name": "Home"},
+                    },
+                    {"@type": "ListItem", "position": 2, "name": "Brakes"},
+                ],
+            }
+        )
+        + _page({"@type": "Product", "name": "Pads"})
+    )
+
+    assert _summary(html)["breadcrumb"] == (
+        "Home > Brakes > Brake pads",
+        "jsonld",
+        "BreadcrumbList.itemListElement",
+    )
+
+
+def test_a_gtin_with_a_wrong_check_digit_is_answered_but_not_normalised():
+    """The page's value is kept; the normalised one would name another product."""
+    from sluicer import extract
+
+    page = _page({"@type": "Product", "name": "Pads", "gtin13": "4001234567890"})
+    result = extract(page)
+
+    assert result.summary["gtin"].value == "4001234567890"
+    assert "gtin" not in result.normalised

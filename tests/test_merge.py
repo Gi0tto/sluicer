@@ -202,7 +202,7 @@ def test_a_json_null_is_an_absence_not_the_text_none():
 def test_a_null_does_not_shadow_a_real_value_from_a_later_reader():
     records = merge(
         jsonld=[{"@type": "Product", "gtin": None}],
-        microdata=[{"@type": "Product", "gtin": "4001234567890"}],
+        microdata=[{"@type": "Product", "gtin": "4001234567891"}],
         microformats=[],
         rdfa=[],
         dublincore={},
@@ -211,7 +211,7 @@ def test_a_null_does_not_shadow_a_real_value_from_a_later_reader():
         html={},
     )
 
-    assert records[0].fields["gtin"].value == "4001234567890"
+    assert records[0].fields["gtin"].value == "4001234567891"
     assert records[0].fields["gtin"].source == "microdata"
 
 
@@ -266,7 +266,7 @@ def test_six_readers_disagreeing_resolve_in_the_stated_order():
         jsonld=[{"@type": "Product", "name": "From JSON-LD"}],
         microdata=[{"@type": "Product", "name": "From microdata", "mpn": "GDB1330"}],
         microformats=[],
-        rdfa=[{"@type": "Product", "mpn": "From RDFa", "gtin": "4001234567890"}],
+        rdfa=[{"@type": "Product", "mpn": "From RDFa", "gtin": "4001234567891"}],
         dublincore={"title": "From Dublin Core", "creator": "A cataloguer"},
         opengraph={"title": "From OpenGraph", "image": "https://example.com/i.jpg"},
         twitter={"title": "From the Twitter card", "card": "summary"},
@@ -277,7 +277,7 @@ def test_six_readers_disagreeing_resolve_in_the_stated_order():
     fields = records[0].fields
     assert fields["name"] == Field(value="From JSON-LD", source="jsonld")
     assert fields["mpn"] == Field(value="GDB1330", source="microdata")
-    assert fields["gtin"] == Field(value="4001234567890", source="rdfa")
+    assert fields["gtin"] == Field(value="4001234567891", source="rdfa")
     assert fields["title"] == Field(value="From Dublin Core", source="dublincore")
     assert fields["creator"] == Field(value="A cataloguer", source="dublincore")
     assert fields["image"] == Field(
@@ -291,7 +291,7 @@ def test_rdfa_folds_into_a_record_of_its_type_and_keeps_its_source():
         jsonld=[{"@type": "Product", "name": "From JSON-LD"}],
         microdata=[],
         microformats=[],
-        rdfa=[{"@type": "Product", "gtin": "4001234567890"}],
+        rdfa=[{"@type": "Product", "gtin": "4001234567891"}],
         dublincore={},
         opengraph={},
         twitter={},
@@ -299,7 +299,7 @@ def test_rdfa_folds_into_a_record_of_its_type_and_keeps_its_source():
     )
 
     assert len(records) == 1
-    assert records[0].fields["gtin"] == Field(value="4001234567890", source="rdfa")
+    assert records[0].fields["gtin"] == Field(value="4001234567891", source="rdfa")
 
 
 def test_an_rdfa_subject_of_another_type_stays_its_own_record():

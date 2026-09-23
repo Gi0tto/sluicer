@@ -41,6 +41,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `03/04/2025`, `1,299` and `$` are each two things somewhere, so they have no
   normalised value. A date keeps its offset and is never moved to UTC. Also in
   the MCP answer and beside each answer in `sluicer inspect`.
+- Six summary questions: `gtin` (from `gtin14`, `gtin13`, `gtin12`, `gtin8`,
+  `gtin` or `isbn`, the key naming which), `mpn`, `rating`, `rating_best` and
+  `rating_count` from the subject's `aggregateRating` -- never rescaled, so 8 of
+  10 is 8 with 10 beside it -- and `breadcrumb`, the names of the page's last
+  `BreadcrumbList` in the order of their `position`, joined with " > ".
+- `normalised.gtin`, only when the check digit is right: 12 of the 17 GTINs on
+  the scoreboard's pages as served are wrong, and a wrong one names another
+  product. The GTIN the suite used for years was one of them.
 - Facebook's `product:` Open Graph type (`product:price:amount`,
   `product:price:currency`, `product:availability`, `product:brand`,
   `product:retailer_item_id`), which Meta's catalogues read, answers price,

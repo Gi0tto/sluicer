@@ -108,3 +108,26 @@ def test_extract_says_what_the_summary_s_dates_and_price_mean():
 
 def test_nothing_is_normalised_that_the_summary_does_not_answer():
     assert extract("<p>nothing declared</p>").normalised == {}
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("4001234567891", "4001234567891"),
+        ("036000291452", "036000291452"),
+        ("96385074", "96385074"),
+        ("978-0-306-40615-7", "9780306406157"),
+        ("00012345600012", "00012345600012"),
+    ],
+)
+def test_a_gtin_with_a_right_check_digit_is_normalised(written, meant):
+    from sluicer.normalise import gtin
+
+    assert gtin(written) == meant
+
+
+@pytest.mark.parametrize("written", ["4001234567890", "12345", "BP-2210", ""])
+def test_a_gtin_with_a_wrong_check_digit_or_length_is_not(written):
+    from sluicer.normalise import gtin
+
+    assert gtin(written) is None

@@ -108,6 +108,7 @@ def normalised(summary: dict[str, SummaryField]) -> dict[str, str]:
         "price_low": amount,
         "price_high": amount,
         "currency": currency,
+        "gtin": gtin,
     }
     found = {}
     for question, read in readers.items():
@@ -239,6 +240,26 @@ def _grouped(number: str, separator: str) -> bool:
         and 1 <= len(groups[0]) <= 3
         and all(len(group) == 3 for group in groups[1:])
     )
+
+
+def gtin(text: str) -> str | None:
+    """``text`` as a GTIN whose check digit is right, or None.
+
+    GTIN-8, -12, -13 and -14, and an ISBN-13, which is a GTIN-13; spaces and
+    hyphens dropped. A wrong check digit is a typo or an invention, and the
+    number it would normalise to identifies some other product, or none.
+    Measured on the pages as served that the scoreboard holds: 12 of 17 GTINs
+    were wrong.
+    """
+    digits = re.sub(r"[\s-]", "", text)
+    if not digits.isdigit() or len(digits) not in (8, 12, 13, 14):
+        return None
+    body, check = digits[:-1], int(digits[-1])
+    total = sum(
+        int(digit) * (3 if position % 2 == 0 else 1)
+        for position, digit in enumerate(reversed(body))
+    )
+    return digits if (10 - total % 10) % 10 == check else None
 
 
 def currency(text: str) -> str | None:

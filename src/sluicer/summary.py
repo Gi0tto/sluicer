@@ -65,6 +65,12 @@ FIELDS = (
     "availability",
     "brand",
     "sku",
+    "gtin",
+    "mpn",
+    "rating",
+    "rating_best",
+    "rating_count",
+    "breadcrumb",
 )
 """Every question the summary answers, in the order it reports them."""
 
@@ -269,6 +275,12 @@ def summarise(
         ],
         "brand": [own("brand", _names), og("brand"), og("product:brand")],
         "sku": [own("sku"), og("product:retailer_item_id")],
+        "gtin": [own(key) for key in _GTIN_KEYS],
+        "mpn": [own("mpn")],
+        "rating": [_rating(subject, ("ratingValue",))],
+        "rating_best": [_rating(subject, ("bestRating",))],
+        "rating_count": [_rating(subject, ("ratingCount", "reviewCount"))],
+        "breadcrumb": [_breadcrumb(records)],
     }
 
     # The site, by every name the page gives it: a site that signs its own
@@ -534,6 +546,80 @@ def _price_kind(spec: dict[str, JsonValue]) -> str:
     if not kind:
         return "active"
     return "regular" if kind.lower() in _REGULAR else "other"
+
+
+# The identifiers schema.org names for a trade item, most specific first. A
+# book's ISBN is its GTIN-13, and is read after the GTINs a page states as such.
+_GTIN_KEYS = ("gtin14", "gtin13", "gtin12", "gtin8", "gtin", "isbn")
+
+
+def _rating(record: Record | None, keys: tuple[str, ...]) -> SummaryField | None:
+    """One number of the subject's ``aggregateRating``, as the page wrote it.
+
+    ``rating`` is never rescaled: 4 of 5 and 8 of 10 are answered as 4 and 8,
+    with ``rating_best`` beside them when the page says what the best is.
+    """
+    if record is None or "aggregateRating" not in record.fields:
+        return None
+    rating = record.fields["aggregateRating"]
+    declared = rating.value
+    items = declared if isinstance(declared, list) else [declared]
+    index, value = next(
+        ((n, item) for n, item in enumerate(items) if isinstance(item, dict)),
+        (0, None),
+    )
+    if value is None:
+        return None
+    where = (
+        f"aggregateRating[{index}]" if isinstance(declared, list) else "aggregateRating"
+    )
+    for key in keys:
+        text = _text(value[key]) if key in value else None
+        if text:
+            return SummaryField(text, rating.source, f"{record.type}.{where}.{key}")
+    return None
+
+
+def _breadcrumb(records: list[Record]) -> SummaryField | None:
+    """The page's place in its site, as the names of its ``BreadcrumbList``.
+
+    The last list declared, since a page that declares two usually puts its own
+    last; its items ordered by ``position``, never by document order, joined
+    with " > ". Items with no name are left out.
+    """
+    lists = [r for r in records if "BreadcrumbList" in r.types]
+    if not lists or "itemListElement" not in lists[-1].fields:
+        return None
+    crumbs = lists[-1].fields["itemListElement"]
+    items = crumbs.value if isinstance(crumbs.value, list) else [crumbs.value]
+    named: list[tuple[float, int, str]] = []
+    for order, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        name = _crumb_name(item)
+        if name:
+            named.append((_position(item.get("position"), order), order, name))
+    if not named:
+        return None
+    path = " > ".join(name for _, _, name in sorted(named))
+    return SummaryField(path, crumbs.source, "BreadcrumbList.itemListElement")
+
+
+def _crumb_name(item: dict[str, JsonValue]) -> str | None:
+    for value in (item.get("name"), item.get("item")):
+        if isinstance(value, dict):
+            value = value.get("name")
+        text = _text(value) if isinstance(value, str) else None
+        if text and not _is_address(text):
+            return text
+    return None
+
+
+def _position(value: JsonValue | None, order: int) -> float:
+    try:
+        return float(str(value)) if value is not None else float(order)
+    except ValueError:
+        return float(order)
 
 
 def _type(record: Record | None) -> SummaryField | None:
