@@ -16,14 +16,15 @@ from __future__ import annotations
 import math
 import threading
 import time
-from collections.abc import Callable, Iterator, Sequence
+from collections import OrderedDict
+from collections.abc import Callable, Iterator, MutableMapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from functools import cached_property, partial
 from typing import Generic, TypeVar
 
 from sluicer.crawl.urls import site_of
-from sluicer.fetch.identity import robots_delay
+from sluicer.fetch.identity import ROBOTS_CACHE_HOSTS, robots_delay
 from sluicer.fetch.result import Fetched, Rung
 
 DEFAULT_DELAY_SECONDS = 1.0
@@ -48,6 +49,27 @@ this bounds how many are.
 """
 
 _Result = TypeVar("_Result")
+
+
+class _Recent(OrderedDict[str, float]):
+    """A mapping that forgets its least recently written site past ``limit``."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__()
+        self.limit = limit
+
+    def __setitem__(self, key: str, value: float) -> None:
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+        while len(self) > self.limit:
+            self.popitem(last=False)
+
+
+_ENDED = _Recent(ROBOTS_CACHE_HOSTS)
+"""When each site's last request ended, for the whole process, on the
+monotonic clock; bounded like the robots.txt answers, and for the same reason."""
+
+_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -75,6 +97,12 @@ class Politeness:
     ``reader`` is ``read`` with every call counted as a request to the site it
     asked, so a robots.txt fetched in passing -- by the ladder, after a
     redirect -- paces the next request like any other.
+
+    When a site's last request ended is remembered for the whole process, as
+    the robots.txt answers are: a map and then a crawl of one site, or an agent
+    calling the crawl tool twice, keep the delay between them too. Measured on
+    scrapeme.live before, the first request of a batch followed the map's last
+    by 0.00 s.
     """
 
     def __init__(
@@ -83,14 +111,15 @@ class Politeness:
         min_delay: float = DEFAULT_DELAY_SECONDS,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
+        ended: MutableMapping[str, float] | None = None,
     ) -> None:
         self.min_delay = min_delay
         self.clock = clock
         self.sleep = sleep
         self._read = read
-        self._ended: dict[str, float] = {}
+        self._ended = _ENDED if ended is None else ended
         self._delays: dict[str, float] = {}
-        self._lock = threading.Lock()
+        self._lock = _LOCK
 
     def reader(self, url: str) -> str | None:
         """Read the robots.txt at ``url`` as a request to its site: after the

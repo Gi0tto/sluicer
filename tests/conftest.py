@@ -102,12 +102,20 @@ def _fake_protego(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _reset_the_default_cache():
-    """Give each test its own answer, not whatever the last test left behind."""
+    """Give each test its own answer, not whatever the last test left behind.
+
+    The crawler's record of when each site was last asked is process-wide for
+    the same reason the robots answers are, and is cleared with them: a fake
+    clock's hours would otherwise have the next test wait them out.
+    """
+    from sluicer.crawl.schedule import _ENDED
     from sluicer.fetch.identity import _CACHE
 
     _CACHE.clear()
+    _ENDED.clear()
     yield
     _CACHE.clear()
+    _ENDED.clear()
 
 
 @pytest.fixture

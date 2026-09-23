@@ -754,3 +754,14 @@ def test_a_robots_file_read_after_a_redirect_waits_the_sites_delay(monkeypatch):
         "https://example.com/robots.txt",
     ]
     assert fake.gaps("example.com") == [2.0, 2.0, 2.0]
+
+
+def test_a_second_crawl_of_a_site_in_one_process_waits_for_the_first():
+    """Measured on scrapeme.live: a batch began 0.00 s after the map before it."""
+    fake = FakeWeb(shop())
+
+    list(run(fake, max_pages=2))
+    list(run(fake, start=f"{ROOT}/about", max_pages=1))
+    list(extract_many([f"{ROOT}/p/1"], **paced(fake, web=fake.web())))
+
+    assert fake.gaps("example.com") == [1.0, 1.0, 1.0, 1.0]
