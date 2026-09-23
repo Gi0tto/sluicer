@@ -22,6 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import TypeAlias
+from urllib.parse import urlsplit
 
 from lxml.html import HtmlElement
 
@@ -130,8 +131,12 @@ _FURNITURE = frozenset(
 )
 # The site and whoever runs it are what a page belongs to, not what it is
 # about: a homepage declaring only its Organization is titled by og:title and
-# <title>, not by the company's name.
-_ABOUT_THE_SITE = frozenset({"WebSite", "Organization", "Person", "Corporation"})
+# <title>, not by the company's name. So is the journal or newspaper a page
+# is published in: Nature declares its Periodical in the footer of every
+# article, and "Nature" was every article's title.
+_ABOUT_THE_SITE = frozenset(
+    {"WebSite", "Organization", "Person", "Corporation", "Periodical", "Newspaper"}
+)
 
 # How many records of one type make a listing rather than a subject.
 _A_LISTING = 3
@@ -182,7 +187,6 @@ def summarise(
     for every answer's ``where``, as for the records'.
     """
     header_canonicals = header_canonicals or []
-    subject = _subject(records)
     site = next((r for r in records if "WebSite" in r.types), None)
     organisation = next(
         (r for r in records if set(r.types) & {"Organization", "Corporation"}), None
@@ -197,6 +201,31 @@ def summarise(
         return meta(
             opengraph, "opengraph", key, "" if key.startswith(NAMESPACES) else "og:"
         )
+
+    site_name_answers = [
+        og("site_name"),
+        _from(site, "name", _text),
+        meta(htmlmeta, "html", "application-name", "meta name="),
+    ]
+    # The site, by every name the page gives it, its address's host among
+    # them: a site that signs its own articles has not named an author, a
+    # title ending in the site's name carries a suffix, and a record bearing
+    # the site's name -- the site's own app, its journal -- is not what one of
+    # its pages is about. Not the publisher: on a personal blog the publisher
+    # is the author, and rightly so.
+    site_names = {
+        answer.value.casefold() for answer in site_name_answers if answer
+    } | _hosts(doc.url)
+    # For choosing the subject the publisher counts too: a record named as the
+    # paper that publishes the page -- its app -- is the paper's, not the page's.
+    publishers = {
+        text.casefold()
+        for record in records
+        if _about_the_site(record.types)
+        and "name" in record.fields
+        and (text := _text(record.fields["name"].value))
+    }
+    subject = _subject(records, site_names | publishers)
 
     # The other descriptions of the subject when the page declares it several
     # times over, one per colour or size: an answer they do not all agree on
@@ -299,11 +328,7 @@ def summarise(
             _locale(og("locale")),
             meta(dublincore, "dublincore", "language", "dc."),
         ],
-        "site_name": [
-            og("site_name"),
-            _from(site, "name", _text),
-            meta(htmlmeta, "html", "application-name", "meta name="),
-        ],
+        "site_name": site_name_answers,
         "publisher": [
             own("publisher", _names),
             meta(dublincore, "dublincore", "publisher", "dc."),
@@ -344,17 +369,14 @@ def summarise(
         "breadcrumb": [_breadcrumb(records)],
     }
 
-    # The site, by every name the page gives it: a site that signs its own
-    # articles has not named an author, and a title ending in the site's name
-    # carries a suffix, not a word of the title. Not the publisher: on a
-    # personal blog the publisher is the author, and rightly so.
-    site_names = {
-        answer.value.casefold() for answer in questions["site_name"] if answer
-    }
+    # An author is a name: not the site, and not a number -- People's Daily
+    # writes an id, 105092, where the author goes.
     questions["author"] = [
         answer
         for answer in questions["author"]
-        if answer and answer.value.casefold() not in site_names
+        if answer
+        and answer.value.casefold() not in site_names
+        and any(c.isalpha() for c in answer.value)
     ]
     questions["title"] = [
         _without_site(answer, site_names)
@@ -377,7 +399,9 @@ def summarise(
     return summary
 
 
-def _subject(records: list[Record]) -> Record | None:
+def _subject(
+    records: list[Record], site_names: frozenset[str] | set[str] = frozenset()
+) -> Record | None:
     """The record the page is about, or None when no declared record is.
 
     A type declared on three or more records is a listing -- the comments of a
@@ -385,9 +409,17 @@ def _subject(records: list[Record]) -> Record | None:
     page is about. Measured on WCXB, taking the first of them made a forum
     thread's title "Post #16" and a category page's title its first product.
     Two are allowed: a product and the one related product beside it.
+
+    On a page that declares an article, a record bearing one of
+    ``site_names`` comes after the article: Dainik Bhaskar declares its own
+    app, named as the paper is, ahead of the story, and the app was the
+    page's title. Only beside an article: a landscaper's page declares the
+    business, named as its site, and reviews of it, and the business is what
+    that page is about. It is never left out, so a page whose only record is
+    named as its site still has a subject.
     """
     counts = Counter(name for record in records for name in set(record.types))
-    ranked = [
+    candidates = [
         (rank, index, record)
         for index, record in enumerate(records)
         if (rank := _rank(record)) is not None
@@ -396,7 +428,37 @@ def _subject(records: list[Record]) -> Record | None:
             for name in record.types
         )
     ]
-    return min(ranked, key=lambda entry: entry[:2])[2] if ranked else None
+    beside_an_article = any(_an_article(record.types) for _, _, record in candidates)
+    ranked = [
+        (rank, beside_an_article and _named_as(record, site_names), index, record)
+        for rank, index, record in candidates
+    ]
+    return min(ranked, key=lambda entry: entry[:3])[3] if ranked else None
+
+
+def _an_article(types: tuple[str, ...]) -> bool:
+    return any(
+        name.endswith(("Article", "Posting")) or name == "Report" for name in types
+    )
+
+
+def _named_as(record: Record, site_names: frozenset[str] | set[str]) -> bool:
+    """Whether ``record`` bears the site's own name."""
+    name = record.fields.get("name")
+    text = _text(name.value) if name is not None else None
+    return text is not None and text.casefold() in site_names
+
+
+def _hosts(url: str | None) -> set[str]:
+    """A page's host, with and without its ``www.``, as a site may name itself."""
+    try:
+        host = (urlsplit(url).hostname or "") if url else ""
+    except ValueError:
+        # "http://[::1": a malformed address names no host, and never raises.
+        return set()
+    if not host:
+        return set()
+    return {host, host.removeprefix("www.")}
 
 
 def _variants(records: list[Record], subject: Record | None) -> list[Record]:
@@ -594,12 +656,23 @@ def _one_of_many(records: list[Record], name: str) -> Record | None:
 def _rank(record: Record) -> int | None:
     if not record.types or any(f.source == "induced" for f in record.fields.values()):
         return None
-    if set(record.types) & _ABOUT_THE_SITE:
+    if _about_the_site(record.types):
         # Yoast writes ["Organization", "Brand"]: one site type is enough.
         return None
     ranks = [_rank_of(name) for name in record.types]
     found = [rank for rank in ranks if rank is not None]
     return min(found) if found else None
+
+
+def _about_the_site(types: tuple[str, ...]) -> bool:
+    """Whether a record with ``types`` describes the site or who publishes it.
+
+    Every kind of organisation counts, as ``Organization`` does: a news page's
+    ``NewsMediaOrganization`` is its publisher, not its story.
+    """
+    return any(
+        name in _ABOUT_THE_SITE or name.endswith("Organization") for name in types
+    )
 
 
 def _rank_of(name: str) -> int | None:

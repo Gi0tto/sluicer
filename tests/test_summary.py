@@ -801,3 +801,74 @@ def test_an_address_that_cleans_to_nothing_lets_the_next_declaration_answer():
     )
     url = extract(page, url="https://shop.example/").summary["url"]
     assert (url.value, url.source) == ("https://shop.example/p", "opengraph")
+
+
+def _ld(*nodes: object) -> str:
+    return "".join(
+        '<script type="application/ld+json">'
+        f"{json.dumps(node, ensure_ascii=False)}</script>"
+        for node in nodes
+    )
+
+
+def test_the_journal_a_page_is_published_in_is_not_what_it_is_about():
+    """Found on the news scoreboard: Nature declares its Periodical in the
+    footer of every article, and "Nature" was every article's title."""
+    page = (
+        '<html><head><meta property="og:title" content="How to fight climate change">'
+        "</head><body><footer><div itemscope itemtype='https://schema.org/Periodical'>"
+        "<span itemprop='name'>Nature</span></div></footer></body></html>"
+    )
+    summary = extract(page).summary
+    assert summary["title"].value == "How to fight climate change"
+    assert "type" not in summary or summary["type"].value != "Periodical"
+
+
+def test_beside_an_article_a_record_named_as_the_publisher_is_not_the_subject():
+    """Found on the news scoreboard: Dainik Bhaskar declares its own app, named
+    as the paper is, ahead of the story, and the app was the page's title."""
+    page = _ld(
+        {"@type": "NewsMediaOrganization", "name": "Daily Paper"},
+        {"@type": "MobileApplication", "name": "Daily Paper", "offers": {"price": "0"}},
+        {"@type": "NewsArticle", "headline": "Police arrest two", "author": "Ada"},
+    )
+    summary = extract(page).summary
+    assert summary["title"].value == "Police arrest two"
+    assert summary["type"].value == "NewsArticle"
+    assert "price" not in summary, "the app's price is not the story's"
+
+
+def test_a_business_named_as_its_site_stays_the_subject_beside_its_reviews():
+    """The rule above is for pages with an article: a landscaper's page declares
+    the business, named as the site, and a review of it."""
+    page = (
+        '<html><head><meta property="og:site_name" content="Alonso Landscaping">'
+        + _ld(
+            {"@type": "LocalBusiness", "name": "Alonso Landscaping"},
+            {"@type": "Review", "name": "Lawn Maintenance", "author": "Lisette"},
+        )
+        + "</head></html>"
+    )
+    summary = extract(page).summary
+    assert summary["type"].value == "LocalBusiness"
+    assert "author" not in summary, "a review's author is not the page's"
+
+
+def test_an_author_is_a_name_not_a_number_nor_the_site_s_own_address():
+    """Found on the news scoreboard: People's Daily writes an id, 105092, where
+    the author goes, and MDR writes its domain."""
+    numbered = '<html><head><meta name="author" content="105092"></head></html>'
+    assert "author" not in extract(numbered).summary
+    domain = '<html><head><meta name="author" content="mdr.de"></head></html>'
+    assert "author" not in extract(domain, url="https://www.mdr.de/news/p").summary
+    person = '<html><head><meta name="author" content="David Straub"></head></html>'
+    assert extract(person, url="https://www.mdr.de/news/p").summary["author"].value == (
+        "David Straub"
+    )
+
+
+def test_a_title_ending_in_the_page_s_own_host_has_it_cut():
+    """WCXB: "VolunteerNC | nc.gov", on nc.gov, is VolunteerNC."""
+    page = "<html><head><title>VolunteerNC | nc.gov</title></head></html>"
+    title = extract(page, url="https://www.nc.gov/volunteer").summary["title"]
+    assert title.value == "VolunteerNC"
