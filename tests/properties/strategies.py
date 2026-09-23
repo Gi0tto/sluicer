@@ -34,6 +34,10 @@ from typing import Any
 
 from hypothesis import strategies as st
 
+from sluicer.declared.opengraph import (
+    ARRAYS as OPENGRAPH_ARRAYS,
+    STRUCTURED as OPENGRAPH_STRUCTURED,
+)
 from sluicer.declared.rights import _CRAWLERS
 
 # -- running what they draw -----------------------------------------------------
@@ -403,6 +407,27 @@ JOINED_META_KEYS = frozenset(
     {"citation_author", "parsely-author", "sailthru.author", "byl", "robots"}
     | _CRAWLERS
 )
+
+
+def joined_meta(meta: Element) -> bool:
+    """Whether a later copy of ``meta`` is a new value rather than a repeat.
+
+    ``JOINED_META_KEYS``, and OpenGraph's arrays and structured properties,
+    which ogp.me reads by position: another ``og:image`` is another image,
+    and an ``og:image:width`` after it is that image's.
+    """
+    terms: set[str] = set()
+    for name, value in meta.attributes:
+        if name in ("name", "property"):
+            text = " ".join(value) if isinstance(value, tuple) else str(value)
+            terms |= {*text.lower().split(), text.strip().lower()}
+    for term in terms:
+        if term in JOINED_META_KEYS:
+            return True
+        key = term.removeprefix("og:")
+        if key in OPENGRAPH_ARRAYS or key.rpartition(":")[0] in OPENGRAPH_STRUCTURED:
+            return True
+    return False
 
 
 def recased(text: str) -> st.SearchStrategy[str]:

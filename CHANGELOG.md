@@ -5,6 +5,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Changed
+- OpenGraph's arrays and structured properties are read as ogp.me reads
+  them. A record's OpenGraph field is a list when the page repeats one of the
+  protocol's arrays -- several `og:image` are a list of `{url, width, height,
+  alt...}`, several `article:tag` a list of tags -- and each `og:image:width`
+  belongs to the image above it. It was the first width anywhere, so a page
+  with two images could answer the second one's size for the first. A
+  single-valued property declared twice still keeps its first. ogp.me's own
+  three-image example is a test. The summary is unchanged: it answers each
+  property's first value.
 - A price's key is the path it was read at -- `Product.offers.price`,
   `Product.offers[1].priceSpecification[0].price` -- rather than
   `Product.offers` for every offer answer.

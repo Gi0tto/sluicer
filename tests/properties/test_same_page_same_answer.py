@@ -28,12 +28,12 @@ from typing import Any
 
 from hypothesis import assume, given, settings, strategies as st
 from strategies import (
-    JOINED_META_KEYS,
     Element,
     Page,
     Style,
     broken_pages,
     declaration,
+    joined_meta,
     jsonld_documents,
     jsonld_script,
     pages,
@@ -155,18 +155,14 @@ def test_a_later_duplicate_of_a_meta_changes_nothing(page, data):
     """The first declaration of a name wins, in every reader that reads one.
 
     Except the names whose every tag is read -- a paper lists each author in
-    one ``citation_author`` -- which are left out.
+    one ``citation_author``, and OpenGraph's arrays and structured properties
+    are read by position -- which are left out.
     """
     metas = [
         meta
         for meta in _metas_in_the_head(page)
         if (dict(meta.attributes).get("content") or "").strip()
-        and not {
-            str(value).strip().lower()
-            for name, value in meta.attributes
-            if name in ("name", "property")
-        }
-        & JOINED_META_KEYS
+        and not joined_meta(meta)
     ]
     assume(metas)
     before = answer(page.html(), page.url)

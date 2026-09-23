@@ -8,12 +8,12 @@ vocabulary, and one scan, so they can never disagree about which tags exist.
 specification says ``property`` and the card's says ``name``, and the web
 writes each for both.
 
-Three questions are asked of the scan. ``read_prefixed_meta`` strips a prefix
-that only names the vocabulary (``og:title`` is a title);
-``read_namespaced_meta`` keeps a prefix that names a type within it
-(``article:published_time``); ``read_named_meta`` matches a closed list of
-bare names (HTML's own). Dublin Core keeps its own scan, since it matches two
-prefixes case-insensitively on ``name`` only.
+The scan is ``meta_tags``. ``read_prefixed_meta`` asks it for the tags whose
+name begins with a prefix that only names the vocabulary, and strips it
+(``twitter:title`` is a title); ``read_named_meta`` matches a closed list of
+bare names (HTML's own). OpenGraph reads the scan itself, since it keeps its
+tags' order to group its arrays. Dublin Core keeps its own scan, since it
+matches two prefixes case-insensitively on ``name`` only.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from collections.abc import Iterator
 from sluicer.document import Document
 
 
-def _meta_tags(doc: Document) -> Iterator[tuple[list[str], str, str]]:
+def meta_tags(doc: Document) -> Iterator[tuple[list[str], str, str]]:
     """Yield ``(keys, name, content)`` for every ``<meta>`` carrying a value.
 
     ``keys`` holds the terms of the ``property`` attribute and then the ``name``
@@ -54,30 +54,11 @@ def read_prefixed_meta(doc: Document, prefix: str) -> dict[str, str]:
     The first declaration of a key wins.
     """
     found: dict[str, str] = {}
-    for keys, _name, content in _meta_tags(doc):
+    for keys, _name, content in meta_tags(doc):
         for key in keys:
             if key.startswith(prefix):
                 found.setdefault(key[len(prefix) :], content)
                 break
-    return found
-
-
-def read_namespaced_meta(doc: Document, prefixes: tuple[str, ...]) -> dict[str, str]:
-    """Return the meta tags under one of ``prefixes``, the prefix kept in the key.
-
-    For a prefix that names a type inside the vocabulary, as OpenGraph's
-    verticals do: ``article:published_time`` stripped to ``published_time``
-    would be a weaker statement, and collide with ``book:published_time``.
-    The first declaration of a key wins.
-    """
-    found: dict[str, str] = {}
-    for keys, _name, content in _meta_tags(doc):
-        match = next(
-            (key for key in keys for prefix in prefixes if key.startswith(prefix)),
-            None,
-        )
-        if match is not None:
-            found.setdefault(match, content)
     return found
 
 
@@ -90,7 +71,7 @@ def read_named_meta(doc: Document, names: frozenset[str]) -> dict[str, str]:
     ``property="author"`` is using some other vocabulary.
     """
     found: dict[str, str] = {}
-    for _keys, name, content in _meta_tags(doc):
+    for _keys, name, content in meta_tags(doc):
         key = name.strip().lower()
         if key in names:
             found.setdefault(key, content)

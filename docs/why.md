@@ -36,8 +36,10 @@ vocabularies, never inside one: two products on a listing stay two products,
 because folding them would splice one's name onto the other's price.
 
 **A summary that answers the usual questions, and says how.** Title,
-description, author, dates, image, language, site name, publisher, type, price,
-currency, availability, brand and SKU, one value each, chosen by fixed rules --
+description, author, dates, image, language, site name, publisher, type,
+prices as Google reads them (the active one, the regular one, a range),
+currency, availability, brand, SKU, GTIN, MPN, rating and breadcrumb, one value
+each, chosen by fixed rules --
 the article's `headline` before the site's name, `og:title` before `<title>`,
 the price from inside `offers` -- and each naming its reader and key, so it can
 be checked against the records.

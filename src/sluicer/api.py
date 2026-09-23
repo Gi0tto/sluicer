@@ -13,6 +13,7 @@ from sluicer.declared.headers import (
 )
 from sluicer.declared.links import Links, read_links
 from sluicer.declared.merge import ABOUT_A_THING, Record, merge
+from sluicer.declared.opengraph import read_opengraph
 from sluicer.declared.readers import READERS
 from sluicer.declared.rights import Rights, read_rights
 from sluicer.document import load
@@ -110,7 +111,9 @@ def extract(
         doc,
         records,
         found["dublincore"] or {},
-        found["opengraph"] or {},
+        # One value per property, as the protocol prefers it; the records
+        # keep the arrays.
+        read_opengraph(doc) if found["opengraph"] else {},
         found["twitter"] or {},
         found["html"] or {},
         header_links["canonicals"] if header_links else None,

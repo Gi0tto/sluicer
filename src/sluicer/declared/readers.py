@@ -23,7 +23,7 @@ from sluicer.declared.htmlmeta import read_htmlmeta
 from sluicer.declared.jsonld import read_jsonld
 from sluicer.declared.microdata import read_microdata
 from sluicer.declared.microformats import read_microformats
-from sluicer.declared.opengraph import read_opengraph
+from sluicer.declared.opengraph import read_opengraph_declared
 from sluicer.declared.rdfa import read_rdfa
 from sluicer.declared.twitter import read_twitter
 from sluicer.document import Document
@@ -34,8 +34,9 @@ class Reader:
     """One vocabulary sluicer reads.
 
     ``read`` returns a list of items, each a mapping with an optional
-    ``@type``, for a reader ``about_things``; and one mapping of names to text
-    for a reader about the document. ``optional`` names the ``extract``
+    ``@type``, for a reader ``about_things``; and one mapping of names to
+    values for a reader about the document -- text, or for OpenGraph's arrays
+    a list. ``optional`` names the ``extract``
     argument that turns the reader on, when it is off by default.
     """
 
@@ -55,7 +56,7 @@ READERS: tuple[Reader, ...] = (
     ),
     Reader("rdfa", read_rdfa, about_things=True),
     Reader("dublincore", read_dublincore, about_things=False),
-    Reader("opengraph", read_opengraph, about_things=False),
+    Reader("opengraph", read_opengraph_declared, about_things=False),
     Reader("twitter", read_twitter, about_things=False),
     Reader("html", read_htmlmeta, about_things=False),
 )

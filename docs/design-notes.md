@@ -69,12 +69,36 @@ a hostile page costs a bounded amount: without them, four microdata items
 naming each other with `itemref` were estimated at half an hour, and four
 thousand JSON-LD references to one node were four gigabytes from a 119 KB page.
 
+## OpenGraph's arrays are read by position
+
+OpenGraph writes a list by repeating a tag, and describes an image by the tags
+that follow it: an `og:image:width` is the width of the `og:image` above it,
+and the next `og:image` starts another image. That is ogp.me's own rule, and
+its own example -- three images, the first 300 by 300, the second unsized, the
+third 1000 tall -- is a test here. Read by index instead, as openGraphScraper
+does, the third image's height lands on the second.
+
+So a record's OpenGraph fields are the page's arrays: several `og:image` are a
+list of `{url, width, height, alt...}`, and `article:tag` or
+`og:locale:alternate` declared several times is a list of their values. Only
+the properties the protocol calls arrays are lists; any other declared twice
+is a conflict, and "the first tag is given preference". The summary asks each
+property's preferred value, the first, so `image` answers the first image and
+never a size that belongs to another. Of the 1,012 cached benchmark pages
+with OpenGraph tags, 841 name an image, a video or a sound, 384 describe one
+with structured properties and 47 declare more than one `og:image`. Two write
+a property ahead of the image it describes, and it is read as that image's.
+
 ## The summary answers by rule
 
-`summary` asks sixteen fixed questions and takes, for each, the first candidate
-in a stated list (`sluicer/summary.py`). Its subject is the first declared
-record about a thing, ahead of pages, sites and furniture; a type declared on
-three or more records is a listing and none of its items is the subject. A
+`summary` asks a fixed list of questions (`sluicer.summary.FIELDS`, 25 of
+them) and takes, for each, the first candidate in a stated list
+(`sluicer/summary.py`). Its subject is the first declared record about a thing,
+ahead of pages, sites and furniture; a type declared on three or more records
+is a listing and none of its items is the subject, unless exactly one of them
+carries an offer -- the product among its related products -- or all of them
+bear one name, as a product declared once per colour does, and then only the
+answers every variant agrees on are given. A
 page that misuses a term is answered by that misuse, which is why every answer
 names the key it was read from.
 

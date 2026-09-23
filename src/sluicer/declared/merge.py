@@ -131,10 +131,10 @@ def merge(**found: Any) -> list[Record]:
         target = records[0] if records else Record()
         for source, declared_by_it in about_the_document:
             for key, declared in declared_by_it.items():
-                text = _scalar(declared)
-                if text is None:
+                held = _json(declared, 0)
+                if held is None:
                     continue
-                target.fields.setdefault(key, Field(value=text, source=source))
+                target.fields.setdefault(key, Field(value=held, source=source))
         if not records:
             records.append(target)
     return records
