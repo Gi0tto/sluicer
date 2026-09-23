@@ -10,10 +10,10 @@ who knows a test was generated reads that test differently, and should.
 
 ## Our own disclosure
 
-Most of this repository was written by Claude, working from plans and reviews
-that were themselves largely written by Claude, under a human who ruled on the
-decisions and verified the measurements. The commit history says so: the
-co-author trailers name the models.
+Most of this repository was written with Claude, Anthropic's model, working
+from plans and reviews that were themselves largely written by Claude, under a
+maintainer who ruled on the decisions and verified the measurements. This file
+is where that is said, once, for the whole history.
 
 That produced code with a particular failure mode, and it is worth naming
 because it will shape yours too. Twice on this project a generated report
