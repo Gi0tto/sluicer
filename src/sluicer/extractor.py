@@ -55,7 +55,9 @@ _SHAPE_EVIDENCE = 5
 # A field learnt in at least this share of rows must not vanish from all of them.
 _COMMON = 0.5
 
-# A field learnt with this many different values must not collapse to one.
+# A field learnt with this many different values must not collapse to one,
+# checked on pages of at least _SHAPE_EVIDENCE rows: three rows that say the
+# same thing by chance -- three day-tables headed alike -- are no placeholder.
 _VARIED = 3
 
 # The summary questions whose answers have a shape worth holding a page to. A
@@ -92,12 +94,18 @@ class ListingField:
 
 @dataclass(frozen=True)
 class Listing:
-    """Where a page's repeated rows are, what one looks like, and what it holds."""
+    """Where a page's repeated rows are, what one looks like, and what it holds.
+
+    ``empty`` is the largest share of a learnt page's members that carried
+    nothing -- a spacer, an ad slot of the same class -- so a page whose rows
+    turned into empty shells is told from one that always had a few.
+    """
 
     container: str
     member: str
     rows: tuple[int, int]
     fields: tuple[ListingField, ...]
+    empty: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -132,6 +140,7 @@ class Extractor:
                 "container": self.listing.container,
                 "member": self.listing.member,
                 "rows": list(self.listing.rows),
+                "empty": self.listing.empty,
                 "fields": [
                     {
                         "name": f.name,
@@ -177,6 +186,8 @@ def _extractor_of(body: Any) -> Extractor:
             container=_text(raw["container"]),
             member=_text(raw["member"]),
             rows=(rows[0], rows[1]),
+            # Absent from a 0.2 file, which learnt nothing about empty rows.
+            empty=float(raw.get("empty", 0.0)),
             fields=tuple(
                 ListingField(
                     name=_text(f["name"]),
@@ -408,6 +419,10 @@ def heal(
     Returns:
         The healed extractor, and every change found, in a stable order. Any
         change in ``LOSSES`` is data the page no longer has.
+
+    Raises:
+        NothingToLearn: the new pages hold nothing an extractor could be
+            learnt from -- no declared answer, no type, no listing.
     """
     fresh = compile_extractor(
         pages, listing=True if extractor.listing else None, names=names
@@ -486,17 +501,24 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
         )
     rows: list[dict[str, str]] = []
     counts: list[int] = []
+    empty = 0.0
     for c, m, members, doc in found:
         if (c, m) != (container, member):
             continue
         page_rows = _rows_of(members, doc)
         counts.append(len(page_rows))
         rows.extend(page_rows)
+        # Counted as a replay counts: every child of the learnt kind.
+        replayed = _members(members[0].getparent(), member)
+        if replayed:
+            carried = len(_rows_of(replayed, doc))
+            empty = max(empty, round(1 - carried / len(replayed), 4))
     paths = list(dict.fromkeys(path for row in rows for path in row))
     fields = tuple(
         _profile(path, path, [row.get(path) for row in rows]) for path in paths
     )
-    return Listing(container, member, (min(counts), max(counts)), fields), notes
+    rows_range = (min(counts), max(counts))
+    return Listing(container, member, rows_range, fields, empty), notes
 
 
 def _first_index(
@@ -678,6 +700,19 @@ def _replay_listing(
     checks.append(Check("rows", "at least 1 row", str(len(rows)), bool(rows)))
     if not rows:
         return rows
+    if len(members) >= _SHAPE_EVIDENCE:
+        # Skeletons waiting for a script are members with nothing in them: a
+        # short page that is not short.
+        empty = 1 - len(rows) / len(members)
+        allowed = listing.empty + REQUIRED_MISSING
+        checks.append(
+            Check(
+                "rows",
+                f"at most {allowed:.0%} of the listing's members empty",
+                f"{len(members) - len(rows)} of {len(members)} empty",
+                empty <= allowed,
+            )
+        )
     paths = {f.path for f in listing.fields}
     for f in listing.fields:
         present = [row[f.name] for row in rows if row.get(f.name)]
@@ -714,7 +749,7 @@ def _replay_listing(
                     kept_shape >= SHAPE_KEPT,
                 )
             )
-        if len(f.samples) >= _VARIED and len(present) >= _VARIED:
+        if len(f.samples) >= _VARIED and len(present) >= _SHAPE_EVIDENCE:
             distinct = len(set(present))
             checks.append(
                 Check(

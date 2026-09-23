@@ -124,6 +124,52 @@ def test_placeholder_rows_that_all_say_the_same_thing_fail():
     assert "values" in failed(run)
 
 
+SHELL = '<li class="product"><div class="skeleton"></div></li>'
+
+
+def test_rows_that_became_empty_shells_fail():
+    """Found by the drift benchmark's review: skeletons waiting for a script
+    are members with nothing in them, and passed as a short page."""
+    extractor = learn(shop_page(books(10)), shop_page(books(8)))
+
+    run = run_extractor(extractor, shop_page(books(2) + [SHELL] * 8), "https://s/x")
+
+    assert not run.ok
+    assert "rows" in failed(run)
+    shells = next(c for c in run.checks if c.name == "rows" and not c.ok)
+    assert shells.got == "8 of 10 empty"
+
+
+def test_a_listing_that_always_had_a_spacer_row_passes_with_it():
+    with_spacer = [*books(9), SHELL]
+    extractor = learn(shop_page(with_spacer), shop_page(with_spacer))
+
+    run = run_extractor(extractor, shop_page([*books(7), SHELL]), "https://s/x")
+
+    assert extractor.listing is not None and extractor.listing.empty == 0.1
+    assert run.ok, failed(run)
+
+
+def test_three_rows_that_say_the_same_thing_by_chance_are_no_placeholder():
+    """The drift benchmark's one false alarm: three day-tables headed alike."""
+    extractor = learn(shop_page(books(10)), shop_page(books(8)))
+    alike = [li("River stage zero", f"/book/{i}", f"£1{i}.99") for i in range(3)]
+
+    run = run_extractor(extractor, shop_page(alike), "https://s/x")
+
+    assert "values" not in failed(run)
+
+
+def test_an_extractor_file_from_0_2_without_the_empty_share_still_loads():
+    extractor = learn(shop_page(books(10)))
+    body = json.loads(extractor.to_json())
+    del body["listing"]["empty"]
+
+    loaded = Extractor.from_json(json.dumps(body))
+
+    assert loaded.listing is not None and loaded.listing.empty == 0.0
+
+
 def test_a_listing_page_with_a_breadcrumb_still_learns_its_listing():
     breadcrumb = (
         '<script type="application/ld+json">{"@type":"BreadcrumbList",'

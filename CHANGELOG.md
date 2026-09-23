@@ -79,6 +79,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   after IMDb's 2023 redesign every film's link carries `?ref_=chttp_t_1`. A
   link with the same path, whose parameters are all among the other's, is now
   the same link; `?id=2` is still another item than `?id=1`.
+- A page whose rows had become empty shells -- skeletons waiting for a script
+  -- passed as a short page, since a member that carries nothing is not a row.
+  An extractor now learns the largest share of empty members its pages had
+  (`Listing.empty`, read as 0 from a 0.2 file) and fails a page of five
+  members or more with 20% more than that.
+- The `values` check fired on three rows that said the same thing by chance:
+  the drift benchmark's one false alarm, three day-tables headed alike. It is
+  held from five rows up, as shapes are.
 - `heal` broke a tie between two new places holding a field's old values by
   their paths' alphabetical order. After SourceForge's redesign a project's
   name is its heading in every row and its icon's alt text in the rows that

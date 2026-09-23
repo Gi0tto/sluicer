@@ -66,10 +66,10 @@ The file is plain JSON, meant to be read and, if you need to, edited.
 | check | fails when |
 |---|---|
 | `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it |
-| `rows` | there are no rows |
+| `rows` | there are no rows, or on a listing of five members or more, more of them are empty shells than the learnt pages had, plus 20% -- skeletons waiting for a script |
 | `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row |
 | `shape` | fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket" -- or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
-| `values` | a field that held different values in every row now says the same thing in all of them: a page of placeholders, "Loading" |
+| `values` | on a page of five rows or more, a field that held different values in every row now says the same thing in all of them: a page of placeholders, "Loading" |
 | `summary` | a summary question every learnt page answered goes unanswered |
 | `type` | a declared record type every learnt page carried is gone |
 | `extractor` | the extractor checks nothing at all, so a pass would mean nothing |
@@ -143,9 +143,5 @@ moved: span.stock -> span.availability (2 of 2 learnt values found there; the ne
 - Two text fields of the same shape that swap values on a page the extractor was
   not learnt from pass the shape checks; the `values` check catches a swap only
   when one side becomes the same in every row.
-- A member that carries nothing is not a row. A page whose rows became empty
-  shells, all but two, passes as a short page.
-- The `values` check is held from three rows up, and three rows that say the
-  same thing by chance fail it.
 - How extractors behave across real changes, and how often healing is right, is
   measured on Wayback Machine captures in [drift](drift.md), losses first.
