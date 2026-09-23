@@ -48,8 +48,11 @@ dependencies = ["lxml>=5.3", "click>=8.2"]
 # the suite fakes the library.
 #
 # protego parses robots.txt and sluicer.fetch.identity imports it directly, so
-# it is declared here rather than trusted to stay a transitive of scrapling.
-fetch = ["scrapling[fetchers]>=0.4", "protego>=0.3"]
+# it is declared here rather than trusted to stay a transitive of scrapling;
+# curl_cffi likewise, since the HTTP rung is built on it directly. scrapling
+# 0.4.6 is the first whose browsers take ``page_setup``, where the guard that
+# keeps them off private addresses is installed.
+fetch = ["scrapling[fetchers]>=0.4.6", "curl_cffi>=0.15", "protego>=0.3"]
 markdown = ["trafilatura>=2.0"]
 # The only reader behind an extra: microformats2 has a reference parser, and an
 # environment holding mf2py alone holds twelve packages (measured 2026-09-22)

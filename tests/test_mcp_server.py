@@ -183,6 +183,7 @@ def fake_fetch(
         robots_reader=None,
         allow_private=True,
         resolve=None,
+        max_bytes=None,
     ):
         fetch.calls.append({"url": url, "allow_private": allow_private})
         if raises is not None:

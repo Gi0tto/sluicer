@@ -5,6 +5,28 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+"""The most a page may weigh, in bytes of HTML, before the fetch gives up on it.
+
+Sixteen mebibytes is several times the heaviest ordinary page; past it, a
+response is a file, a mistake or an attack, and parsing it is what costs the
+memory. The HTTP rung stops reading at the bound, compressed or not, so a
+small gzip that inflates to gigabytes costs sixteen mebibytes.
+"""
+
+
+class ResponseTooLarge(Exception):
+    """The page is heavier than the fetch was allowed to read.
+
+    Never a reason to climb: a browser asking for the same page gets the same
+    bytes, and more of them.
+    """
+
+    def __init__(self, url: str, limit: int) -> None:
+        super().__init__(f"{url} is larger than {limit} bytes; it was not read")
+        self.url = url
+        self.limit = limit
+
 
 @dataclass(frozen=True)
 class Climb:
@@ -18,6 +40,8 @@ class Climb:
     from_rung: str
     to_rung: str
     reason: str
+    seconds: float = 0.0
+    """How long ``from_rung`` took before the ladder climbed past it."""
 
 
 @dataclass
@@ -25,7 +49,8 @@ class Fetched:
     """A page, the rung that got it, and every climb along the way.
 
     ``url`` is where the fetch landed, after redirects, and is what the page's
-    relative links resolve against; ``status`` is the HTTP status.
+    relative links resolve against; ``status`` is the HTTP status; ``seconds``
+    is how long the rung that got it took.
     """
 
     url: str
@@ -33,6 +58,7 @@ class Fetched:
     status: int
     rung: str
     climbs: list[Climb] = field(default_factory=list)
+    seconds: float = 0.0
 
 
 Rung = Callable[[str], Fetched]

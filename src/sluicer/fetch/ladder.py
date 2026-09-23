@@ -15,6 +15,7 @@ no" and "the site had nothing" must never look alike.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Iterable, Sequence
 from urllib.parse import urlsplit
 
@@ -28,10 +29,22 @@ from sluicer.fetch.identity import (
     RobotsUnreachable,
     robots_refusal,
 )
-from sluicer.fetch.result import Climb, Fetched, Rung
+from sluicer.fetch.result import (
+    MAX_RESPONSE_BYTES,
+    Climb,
+    Fetched,
+    ResponseTooLarge,
+    Rung,
+)
 from sluicer.fetch.rules import why_climb
 
-__all__ = ["AddressRefused", "FetchFailed", "RobotsRefused", "fetch"]
+__all__ = [
+    "AddressRefused",
+    "FetchFailed",
+    "ResponseTooLarge",
+    "RobotsRefused",
+    "fetch",
+]
 
 
 class RobotsRefused(Exception):
@@ -114,6 +127,7 @@ def fetch(
     robots_reader: Callable[[str], str | None] | None = None,
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
+    max_bytes: int = MAX_RESPONSE_BYTES,
 ) -> Fetched:
     """Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 
@@ -127,16 +141,23 @@ def fetch(
             Never automatic.
         robots_reader: how robots.txt is read; built from the cheapest rung
             by default.
-        allow_private: when false, refuse addresses off the public internet
-            before any request and after redirects. The MCP server sets it.
+        allow_private: when false, refuse addresses off the public internet:
+            the one asked for before any request, and every one a redirect or
+            the page itself names before it is requested. The MCP server sets
+            it.
         resolve: the name lookup ``allow_private`` decides with.
+        max_bytes: the most a page may weigh; heavier is ``ResponseTooLarge``,
+            and never a reason to climb.
 
     Returns:
-        The ``Fetched`` page, with every climb and the final URL.
+        The ``Fetched`` page, with every climb, the final URL, and how long
+        each rung took.
 
     Raises:
         RobotsRefused: the site's robots.txt disallows the URL.
-        AddressRefused: ``allow_private`` is false and the address is private.
+        AddressRefused: ``allow_private`` is false and the address, or one a
+            redirect led to, is private.
+        ResponseTooLarge: the page is heavier than ``max_bytes``.
         FetchFailed: every rung failed, the URL is invalid, or its robots.txt
             could not be read.
         FetchExtraMissing: the ``fetch`` extra is not installed.
@@ -144,11 +165,11 @@ def fetch(
     if rungs is None:
         from sluicer.fetch.scrapling_rungs import default_rungs
 
-        rungs = default_rungs()
+        rungs = default_rungs(allow_private, resolve, max_bytes)
     if stealth:
         from sluicer.fetch.scrapling_rungs import stealth_rung
 
-        rungs = [*rungs, stealth_rung()]
+        rungs = [*rungs, stealth_rung(allow_private, resolve, max_bytes)]
     if not rungs:
         raise ValueError("A ladder needs at least one rung.")
     try:
@@ -177,23 +198,30 @@ def fetch(
     best: Fetched | None = None
     last = len(rungs) - 1
     for index, (name, rung) in enumerate(rungs):
+        started = time.monotonic()
         try:
             result = rung(url)
+            if len(result.html) > max_bytes:
+                raise ResponseTooLarge(result.url, max_bytes)
         except Exception as e:
+            seconds = time.monotonic() - started
             failure = f"the rung raised {type(e).__name__}: {e}"
-            if index < last:
+            # A refusal or a page too heavy is the page's answer, not the
+            # rung's: the next rung would be told the same, at a higher cost.
+            final = isinstance(e, (AddressRefused, ResponseTooLarge))
+            if index < last and not final:
                 climbs.append(
-                    Climb(from_rung=name, to_rung=rungs[index + 1][0], reason=failure)
+                    Climb(name, rungs[index + 1][0], failure, seconds=seconds)
                 )
                 continue
             if best is None:
+                if final:
+                    raise
                 raise FetchFailed(url, climbs, failure) from e
-            best.climbs = [
-                *climbs,
-                Climb(from_rung=name, to_rung=best.rung, reason=failure),
-            ]
+            best.climbs = [*climbs, Climb(name, best.rung, failure, seconds=seconds)]
             return _checked(best, url, allow_private, resolve, obey_robots, read)
 
+        result.seconds = time.monotonic() - started
         result.climbs = list(climbs)
         # What counts as having delivered is a field about a thing, the rule
         # induction uses: a theme-color in the head of an empty React shell is
@@ -208,7 +236,7 @@ def fetch(
         if reason is None or index == last:
             return _checked(result, url, allow_private, resolve, obey_robots, read)
         best = result
-        climbs.append(Climb(from_rung=name, to_rung=rungs[index + 1][0], reason=reason))
+        climbs.append(Climb(name, rungs[index + 1][0], reason, seconds=result.seconds))
 
     raise AssertionError("the ladder ran out of rungs without returning a page")
 

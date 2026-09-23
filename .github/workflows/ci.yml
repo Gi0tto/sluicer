@@ -196,6 +196,43 @@ jobs:
           print('mcp: three tools listed, and two of them answered through the SDK dispatch')
           "
 
+  live:
+    name: The fetch limits hold against a real curl and a real browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Install the fetch extra and a browser
+        run: |
+          uv venv
+          uv pip install '.[fetch]'
+          .venv/bin/python -m playwright install --with-deps chromium
+      # The suite fakes curl_cffi and Chromium, and a fake obeys whatever it is
+      # told. Two local servers stand in for the web and for a private address,
+      # and these ask the real libraries: where does curl stop reading, does a
+      # pinned name go where it was pinned, and can a page make the browser
+      # reach the private one by any route. Without the guard, measured, it
+      # reaches it by six.
+      - name: The HTTP rung
+        run: .venv/bin/python tests/live/http_check.py
+      - name: The browser guard
+        run: .venv/bin/python tests/live/guard_check.py
+
+  licences:
+    name: Every licence in the installed tree has been read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Install sluicer with every extra, and nothing else
+        run: |
+          uv venv
+          uv pip install '.[fetch,markdown,mcp,microformats]'
+      # The README names the non-permissive licences the extras bring in. A new
+      # dependency under one nobody has read fails here, not in a user's audit.
+      - name: List them, and fail on one nobody has read
+        run: .venv/bin/python tests/live/licence_check.py
+
   floors:
     name: The declared minimum versions actually work
     runs-on: ubuntu-latest
@@ -246,6 +283,8 @@ jobs:
           uv pip install --resolution lowest-direct '.[fetch,markdown,mcp,microformats]'
           uv pip list
           .venv/bin/python -m pytest -q
+      - name: And the HTTP rung against a real curl at its floor
+        run: .venv/bin/python tests/live/http_check.py
 
   latest-extras:
     name: The extras still work at their newest versions

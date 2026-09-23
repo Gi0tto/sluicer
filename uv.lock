@@ -2347,6 +2347,7 @@ dependencies = [
 
 [package.optional-dependencies]
 fetch = [
+    { name = "curl-cffi" },
     { name = "protego" },
     { name = "scrapling", extra = ["fetchers"] },
 ]
@@ -2354,6 +2355,7 @@ markdown = [
     { name = "trafilatura" },
 ]
 mcp = [
+    { name = "curl-cffi" },
     { name = "mcp" },
     { name = "protego" },
     { name = "scrapling", extra = ["fetchers"] },
@@ -2374,11 +2376,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.2" },
+    { name = "curl-cffi", marker = "extra == 'fetch'", specifier = ">=0.15" },
     { name = "lxml", specifier = ">=5.3" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2" },
     { name = "mf2py", marker = "extra == 'microformats'", specifier = ">=2.0" },
     { name = "protego", marker = "extra == 'fetch'", specifier = ">=0.3" },
-    { name = "scrapling", extras = ["fetchers"], marker = "extra == 'fetch'", specifier = ">=0.4" },
+    { name = "scrapling", extras = ["fetchers"], marker = "extra == 'fetch'", specifier = ">=0.4.6" },
     { name = "sluicer", extras = ["fetch"], marker = "extra == 'mcp'" },
     { name = "sluicer", extras = ["markdown"], marker = "extra == 'mcp'" },
     { name = "trafilatura", marker = "extra == 'markdown'", specifier = ">=2.0" },

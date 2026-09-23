@@ -1,7 +1,7 @@
-"""The real rungs, each a thin adapter over scrapling.
+"""The real rungs: plain HTTP on curl_cffi, and the browsers over scrapling.
 
-scrapling is optional -- the base install reads HTML you already have -- so it
-is imported when a rung is built, never when this module is.
+Both libraries are optional -- the base install reads HTML you already have --
+so they are imported when a rung is built, never when this module is.
 
 What each rung sends is checked on the wire, not by the suite: a faked library
 accepts whatever keyword it is handed. If you change how a rung is built, ask a
@@ -10,14 +10,23 @@ real server what it saw.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from sluicer.extras import MissingExtra, import_extra
+from sluicer.fetch.address import AddressRefused, _resolve
+from sluicer.fetch.browser_guard import MAX_REDIRECTS, Guard
+from sluicer.fetch.http_rung import HTTP_TIMEOUT_SECONDS, http_rung
 from sluicer.fetch.identity import USER_AGENT
-from sluicer.fetch.result import Fetched, Rung
+from sluicer.fetch.result import MAX_RESPONSE_BYTES, Fetched, ResponseTooLarge, Rung
 
-HTTP_TIMEOUT_SECONDS = 20
-"""How long the plain HTTP rung waits for one response."""
+__all__ = [
+    "BROWSER_TIMEOUT_MS",
+    "HTTP_TIMEOUT_SECONDS",
+    "FetchExtraMissing",
+    "default_rungs",
+    "stealth_rung",
+]
 
 BROWSER_TIMEOUT_MS = 30_000
 """How long the browser rung waits for one page, in scrapling's milliseconds.
@@ -67,55 +76,50 @@ def _as_fetched(response: Any, rung: str, requested_url: str) -> Fetched:
     )
 
 
-def default_rungs() -> list[tuple[str, Rung]]:
+def default_rungs(
+    allow_private: bool = True,
+    resolve: Callable[[str], Iterable[str]] = _resolve,
+    max_bytes: int = MAX_RESPONSE_BYTES,
+) -> list[tuple[str, Rung]]:
     """Return the rungs a caller gets without asking for anything more.
 
     Plain HTTP, then a browser, in the order they cost. Both announce
     ``USER_AGENT``, so a site that does not want us can refuse us: a browser is
     a change of cost, not of who we are.
 
+    With ``allow_private`` false, both keep off addresses that are not on the
+    public web, redirects included: see ``http_rung`` and ``browser_guard``.
+
     The browser rung passes ``useragent``, not ``extra_headers``: measured
     against a live server, the browser context silently overrides a
     ``User-Agent`` in ``extra_headers`` with its own, and the site saw Chrome.
     """
-    fetcher, dynamic, _ = _fetchers()
-
-    def http(url: str) -> Fetched:
-        return _as_fetched(
-            fetcher.get(
-                url,
-                timeout=HTTP_TIMEOUT_SECONDS,
-                retries=1,
-                headers={"User-Agent": USER_AGENT},
-                # scrapling's defaults add ``Referer: https://www.google.com/``
-                # and a Chrome TLS fingerprint, dressing up as a browser that
-                # came from a search. Measured on the wire on 2026-09-22.
-                stealthy_headers=False,
-                impersonate=None,
-            ),
-            "http",
-            url,
-        )
-
-    def browser(url: str) -> Fetched:
-        return _as_fetched(
-            dynamic.fetch(
-                url,
-                network_idle=True,
-                useragent=USER_AGENT,
-                timeout=BROWSER_TIMEOUT_MS,
-                retries=1,
-                # The browser's own Google referer, off for the same reason.
-                google_search=False,
-            ),
-            "browser",
-            url,
-        )
-
+    _, dynamic, _ = _fetchers()
+    http = http_rung(allow_private, resolve, max_bytes, error=FetchExtraMissing)
+    browser = _browser(
+        "browser",
+        dynamic.fetch,
+        {
+            "network_idle": True,
+            "useragent": USER_AGENT,
+            "timeout": BROWSER_TIMEOUT_MS,
+            "retries": 1,
+            # scrapling's default adds a Google referer, dressing us up as a
+            # visitor who came from a search. Measured on the wire, 2026-09-22.
+            "google_search": False,
+        },
+        allow_private,
+        resolve,
+        max_bytes,
+    )
     return [("http", http), ("browser", browser)]
 
 
-def stealth_rung() -> tuple[str, Rung]:
+def stealth_rung(
+    allow_private: bool = True,
+    resolve: Callable[[str], Iterable[str]] = _resolve,
+    max_bytes: int = MAX_RESPONSE_BYTES,
+) -> tuple[str, Rung]:
     """Return the third rung, for a caller who has decided they want it.
 
     Going from announcing ourselves to disguising ourselves is a change of
@@ -124,8 +128,62 @@ def stealth_rung() -> tuple[str, Rung]:
     announcing an identity while evading detection would be incoherent.
     """
     _, _, stealthy = _fetchers()
+    return (
+        "stealth",
+        _browser(
+            "stealth",
+            stealthy.fetch,
+            {"network_idle": True},
+            allow_private,
+            resolve,
+            max_bytes,
+        ),
+    )
 
-    def stealth(url: str) -> Fetched:
-        return _as_fetched(stealthy.fetch(url, network_idle=True), "stealth", url)
 
-    return ("stealth", stealth)
+def _browser(
+    name: str,
+    load: Callable[..., Any],
+    options: dict[str, Any],
+    allow_private: bool,
+    resolve: Callable[[str], Iterable[str]],
+    max_bytes: int,
+) -> Rung:
+    """A rung that loads a page in a browser, guarded when it has to be."""
+
+    def rung(url: str) -> Fetched:
+        if allow_private:
+            return _bounded(_as_fetched(load(url, **options), name, url), max_bytes)
+        current = url
+        for _ in range(MAX_REDIRECTS + 1):
+            guard = Guard(resolve)
+            try:
+                response = load(current, **options, page_setup=guard.setup)
+            except Exception:
+                if guard.redirect is None:
+                    raise
+                response = None
+            if not guard.installed:
+                raise RuntimeError(
+                    f"the {name} rung could not guard the page's requests, so it "
+                    "made none it could vouch for; is scrapling older than 0.4.6?"
+                )
+            if guard.redirect is not None:
+                # The document was sent elsewhere: ask for it as a new fetch.
+                target, guard.redirect = guard.redirect, None
+                refused = guard.why_refused(target)
+                if refused is not None:
+                    raise AddressRefused(target, refused)
+                current = target
+                continue
+            return _bounded(_as_fetched(response, name, current), max_bytes)
+        raise RuntimeError(f"{url} redirected more than {MAX_REDIRECTS} times")
+
+    return rung
+
+
+def _bounded(fetched: Fetched, max_bytes: int) -> Fetched:
+    """``fetched``, once its HTML is within the bound the HTTP rung keeps."""
+    if len(fetched.html) > max_bytes or len(fetched.html.encode()) > max_bytes:
+        raise ResponseTooLarge(fetched.url, max_bytes)
+    return fetched

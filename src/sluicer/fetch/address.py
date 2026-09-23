@@ -7,9 +7,11 @@ A caller who asks for it -- the MCP server does, by default -- gets those
 refused before any request is made, and a redirect into them refused before
 the page is handed back.
 
-It is a filter, not a wall: a name that resolves differently at connect time
-(DNS rebinding) and a redirect the browser rung follows are requested before
-anything here can refuse them. Egress control belongs in the network.
+The HTTP rung connects only to the addresses checked here (``public_addresses``),
+so a name that resolves differently the second time reaches nothing new. The
+browser resolves names itself, in its own network stack: there a name that
+answers differently between the check and the connection (DNS rebinding) is
+still reached. Egress control belongs in the network.
 """
 
 from __future__ import annotations
@@ -55,38 +57,72 @@ def why_not_public(
     public, since a client may connect to any of them. A name that does not
     resolve is left to the fetch to fail on: it reaches nothing.
     """
+    return _judge(url, resolve)[0]
+
+
+def public_addresses(
+    url: str, resolve: Callable[[str], Iterable[str]] = _resolve
+) -> list[str]:
+    """The addresses a connection to ``url`` may use, every one of them public.
+
+    What ``why_not_public`` checked, kept, so a client can be told to connect
+    there and nowhere else. A host written as an address gives that address.
+
+    Raises:
+        AddressRefused: ``why_not_public`` refuses ``url``.
+        OSError: the name resolves to nothing. Left to the client, it would
+            look the name up again, and that second answer is the one DNS
+            rebinding controls.
+    """
+    reason, addresses = _judge(url, resolve)
+    if reason is not None:
+        raise AddressRefused(url, reason)
+    if not addresses:
+        raise OSError(f"{urlsplit(url).hostname} does not resolve to any address")
+    return [str(address) for address in addresses]
+
+
+_Address = ipaddress.IPv4Address | ipaddress.IPv6Address
+
+
+def _judge(
+    url: str, resolve: Callable[[str], Iterable[str]]
+) -> tuple[str | None, list[_Address]]:
+    """Why ``url`` is refused, or None, and the addresses the verdict is about."""
     try:
         parts = urlsplit(url)
         host = (parts.hostname or "").rstrip(".").lower()
     except ValueError:
-        return "the address is not a valid URL"
+        return "the address is not a valid URL", []
     if parts.scheme.lower() not in ("http", "https"):
-        return f"only http and https are fetched, not {parts.scheme or 'no scheme'}"
+        return f"only http and https are fetched, not {parts.scheme or 'no scheme'}", []
     if "%" in parts.netloc or "\\" in parts.netloc:
-        return "the address writes its host in a way clients read differently"
+        return "the address writes its host in a way clients read differently", []
     if not host:
-        return "the address names no host"
+        return "the address names no host", []
     if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
-        return f"{host} is a name for this machine or its network"
+        return f"{host} is a name for this machine or its network", []
     literal = _numeric(host)
     if literal is not None:
-        return None if _public(literal) else f"{host} is not on the public internet"
+        if _public(literal):
+            return None, [literal]
+        return f"{host} is not on the public internet", []
     try:
         ascii_host = host.encode("idna").decode("ascii")
     except UnicodeError:
-        return f"{host} is not a host name"
+        return f"{host} is not a host name", []
     if not _NAME.fullmatch(ascii_host):
-        return f"{host} is not a host name"
+        return f"{host} is not a host name", []
     try:
         addresses = [
             ipaddress.ip_address(found.split("%")[0]) for found in resolve(ascii_host)
         ]
     except (OSError, ValueError):
-        return None
+        return None, []
     for address in addresses:
         if not _public(address):
-            return f"{host} is {address}, which is not on the public internet"
-    return None
+            return f"{host} is {address}, which is not on the public internet", []
+    return None, list(dict.fromkeys(addresses))
 
 
 _NAME = re.compile(r"[a-z0-9_.-]+")
@@ -94,7 +130,7 @@ _NUMERIC = re.compile(r"[0-9a-fx.]+")
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
 
 
-def _numeric(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+def _numeric(host: str) -> _Address | None:
     """``host`` as an address, the way ``inet_aton`` and IPv6 parsing read it."""
     try:
         return ipaddress.ip_address(host)
@@ -108,7 +144,7 @@ def _numeric(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
     return None
 
 
-def _public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+def _public(address: _Address) -> bool:
     if isinstance(address, ipaddress.IPv6Address):
         embedded = address.ipv4_mapped
         if embedded is None and address in _NAT64:

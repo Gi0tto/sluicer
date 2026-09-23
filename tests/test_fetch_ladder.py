@@ -446,7 +446,8 @@ def test_stealth_appends_the_stealth_rung_when_a_caller_asks(monkeypatch):
     http = rung("http", REFUSED, status=403)
     stealth = rung("stealth", RICH)
     monkeypatch.setattr(
-        "sluicer.fetch.scrapling_rungs.stealth_rung", lambda: ("stealth", stealth)
+        "sluicer.fetch.scrapling_rungs.stealth_rung",
+        lambda *guarded: ("stealth", stealth),
     )
 
     result = fetch(

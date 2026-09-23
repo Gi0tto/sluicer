@@ -221,3 +221,15 @@ def test_content_nested_deeper_than_libxml2_s_default_limit_is_kept():
         )
         == "here"
     )
+
+
+def test_the_charset_a_response_was_sent_with_comes_before_the_page_declaration():
+    """The HTML standard's order: byte order mark, transport, then declaration."""
+    from sluicer.document import sniff_encoding
+
+    page = b'<meta charset="utf-8"><p>Caf\xe9</p>'
+
+    assert sniff_encoding(page, "windows-1252") == "cp1252"
+    assert sniff_encoding(page) == "utf-8"
+    assert sniff_encoding(b"\xef\xbb\xbf" + page, "windows-1252") == "utf-8"
+    assert sniff_encoding(page, "no-such-charset") == "utf-8"

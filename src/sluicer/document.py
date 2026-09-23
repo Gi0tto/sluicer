@@ -63,19 +63,24 @@ _BODY = re.compile(rb"<body\b", re.IGNORECASE)
 _SNIFF_LIMIT = 64 * 1024
 
 
-def sniff_encoding(data: bytes) -> str:
+def sniff_encoding(data: bytes, transport: str | None = None) -> str:
     """The encoding a browser would decode ``data`` with, as a codec name.
 
-    The order is the HTML standard's: a byte order mark, then a declaration,
-    then the bytes themselves. The declaration is an XML one at the very start
-    or a ``<meta charset>`` or ``http-equiv`` anywhere in the head, since real
-    pages put it past the standard's first 1,024 bytes and a browser finds it
-    there by re-parsing. With no declaration, bytes that are valid UTF-8 are
-    UTF-8, and anything else is windows-1252, the web's legacy default.
+    The order is the HTML standard's: a byte order mark, then the charset the
+    response was sent with (``transport``, from its ``Content-Type``, when the
+    bytes came over HTTP), then a declaration, then the bytes themselves. The
+    declaration is an XML one at the very start or a ``<meta charset>`` or
+    ``http-equiv`` anywhere in the head, since real pages put it past the
+    standard's first 1,024 bytes and a browser finds it there by re-parsing.
+    With no declaration, bytes that are valid UTF-8 are UTF-8, and anything
+    else is windows-1252, the web's legacy default.
     """
     for bom, name in _BOMS:
         if data.startswith(bom):
             return name
+    sent = _codec(transport.encode("ascii", "replace")) if transport else None
+    if sent is not None:
+        return sent
     declared = _declared_encoding(data)
     if declared is not None:
         return declared

@@ -13,13 +13,15 @@ def fake_scrapling(
     html="<html><body>hi</body></html>",
     response_url=None,
     include_url=True,
+    http_redirect=None,
 ):
-    """Stand in for scrapling so no test ever opens a socket.
+    """Stand in for scrapling and curl_cffi so no test ever opens a socket.
 
-    ``response_url``, when given, is what the fake Response reports as its own
-    URL, standing in for a redirect. ``include_url=False`` drops the ``url``
-    attribute from the Response entirely, standing in for a client that never
-    set one.
+    ``response_url``, when given, is what a fake browser Response reports as
+    its own URL, standing in for a redirect the browser followed.
+    ``include_url=False`` drops the ``url`` attribute from it entirely,
+    standing in for a client that never set one. ``http_redirect``, when given,
+    is where the HTTP rung's first answer sends it, with a 302.
     """
     seen = {}
 
@@ -32,10 +34,6 @@ def fake_scrapling(
             if include_url:
                 self.url = response_url if response_url is not None else url
 
-    def get(url, **kwargs):
-        seen["http"] = (url, kwargs)
-        return Response(url)
-
     def dynamic(url, **kwargs):
         seen["browser"] = (url, kwargs)
         return Response(url)
@@ -45,11 +43,51 @@ def fake_scrapling(
         return Response(url)
 
     module = types.ModuleType("scrapling.fetchers")
-    module.Fetcher = types.SimpleNamespace(get=get)
+    module.Fetcher = types.SimpleNamespace()
     module.DynamicFetcher = types.SimpleNamespace(fetch=dynamic)
     module.StealthyFetcher = types.SimpleNamespace(fetch=stealthy)
     monkeypatch.setitem(sys.modules, "scrapling", types.ModuleType("scrapling"))
     monkeypatch.setitem(sys.modules, "scrapling.fetchers", module)
+
+    replies = []
+    if http_redirect is not None:
+        replies.append((302, b"", {"location": http_redirect}))
+
+    class CurlResponse:
+        def __init__(self, reply):
+            self.status_code, self._body, self.headers = reply
+
+        def iter_content(self):
+            yield self._body
+
+        def close(self):
+            seen["closed"] = seen.get("closed", 0) + 1
+
+    class Session:
+        def __init__(self, **options):
+            seen.setdefault("http_sessions", []).append(options)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get(self, url, **kwargs):
+            seen["http"] = (url, kwargs)
+            seen.setdefault("http_urls", []).append(url)
+            body = html.encode() if isinstance(html, str) else b""
+            reply = replies.pop(0) if replies else (status, body, {})
+            return CurlResponse(reply)
+
+    curl = types.ModuleType("curl_cffi")
+    curl.CurlOpt = types.SimpleNamespace(
+        MAXFILESIZE_LARGE="maxfilesize", RESOLVE="resolve"
+    )
+    requests = types.ModuleType("curl_cffi.requests")
+    requests.Session = Session
+    monkeypatch.setitem(sys.modules, "curl_cffi", curl)
+    monkeypatch.setitem(sys.modules, "curl_cffi.requests", requests)
     return seen
 
 
@@ -211,13 +249,29 @@ def test_a_response_without_html_is_a_failed_rung(monkeypatch):
 
 
 def test_the_response_url_is_preferred_over_the_requested_one(monkeypatch):
-    """A response can report a different URL than the one requested: a redirect."""
+    """A browser response can report a different URL: a redirect it followed."""
     fake_scrapling(monkeypatch, response_url="https://example.com/final")
     from sluicer.fetch.scrapling_rungs import default_rungs, stealth_rung
 
-    for _, rung in [*default_rungs(), stealth_rung()]:
+    for _, rung in [default_rungs()[1], stealth_rung()]:
         result = rung("https://example.com/start")
         assert result.url == "https://example.com/final"
+
+
+def test_the_http_rung_follows_a_redirect_itself_and_reports_where_it_landed(
+    monkeypatch,
+):
+    seen = fake_scrapling(monkeypatch, http_redirect="/final")
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    result = dict(default_rungs())["http"]("https://example.com/start")
+
+    assert result.url == "https://example.com/final"
+    assert seen["http_urls"] == [
+        "https://example.com/start",
+        "https://example.com/final",
+    ]
+    assert seen["http"][1]["allow_redirects"] is False
 
 
 def test_a_response_without_a_url_falls_back_to_the_one_we_asked_for(monkeypatch):
@@ -274,16 +328,19 @@ def test_the_http_rung_does_not_dress_up_as_a_browser(monkeypatch):
     """Measured on 2026-09-22 against a local server: scrapling's defaults sent
     ``Referer: https://www.google.com/`` and a Chrome TLS fingerprint under our
     own user agent. A fake Google referral is not arriving under our own name.
+    The rung is now curl_cffi with no impersonation, and on the wire it sends
+    what the scrapling rung sent once those were off: ``Host``,
+    ``Accept-Encoding`` and our ``User-Agent``.
     """
     seen = fake_scrapling(monkeypatch)
     from sluicer.fetch.scrapling_rungs import default_rungs
 
     dict(default_rungs())["http"]("https://example.com/p")
 
-    kwargs = seen["http"][1]
-    assert kwargs.get("stealthy_headers") is False
-    assert kwargs.get("impersonate") is None
-    assert "referer" not in {key.lower() for key in kwargs.get("headers") or {}}
+    assert seen["http_sessions"][0].get("impersonate") is None
+    headers = seen["http"][1].get("headers") or {}
+    assert "referer" not in {key.lower() for key in headers}
+    assert "referer" not in seen["http"][1]
 
 
 def test_the_browser_rung_does_not_claim_to_come_from_google(monkeypatch):
@@ -305,7 +362,7 @@ def test_a_rung_tries_once_and_gives_up_in_bounded_time(monkeypatch):
     rungs["http"]("https://example.com/p")
     rungs["browser"]("https://example.com/p")
 
-    assert seen["http"][1].get("retries") == 1
+    assert "retry" not in seen["http_sessions"][0]  # curl_cffi: one try
     assert seen["http"][1].get("timeout") <= 20
     assert seen["browser"][1].get("retries") == 1
     assert seen["browser"][1].get("timeout") <= 30_000
