@@ -9,7 +9,7 @@ predictions are added beside theirs and that evaluator runs unchanged, so
 every rule below is Zyte's: a price matches as a decimal, several values
 can be right, and a page with no availability counts as in stock.
 
-Regenerated on 2026-09-23 from commit `7876710` by `uv run bench/products.py`, against the benchmark at `cba97d7a8d42`. Sluicer read the 140 pages in 1.1 s.
+Regenerated on 2026-09-23 from commit `9548a35` by `uv run bench/products.py`, against the benchmark at `cba97d7a8d42`. Sluicer read the 140 pages in 1.2 s.
 
 !!! warning "Read this before the numbers"
     Zyte and Diffbot are commercial services built on trained models,
@@ -23,7 +23,7 @@ Regenerated on 2026-09-23 from commit `7876710` by `uv run bench/products.py`, a
 | price | extruct + price-parser | 0.685 ± 0.039 | 0.864 | 0.567 | 134 |
 | price | Diffbot (paid API, 2021) | 0.824 ± 0.031 | 0.844 | 0.806 | 134 |
 | price | Zyte Automatic Extraction (paid API, 2021) | 0.918 ± 0.023 | 0.918 | 0.918 | 134 |
-| sku | **sluicer 0.3.0** | 0.527 ± 0.046 | 0.771 | 0.400 | 135 |
+| sku | **sluicer 0.3.0** | 0.541 ± 0.046 | 0.778 | 0.415 | 135 |
 | sku | extruct + price-parser | 0.537 ± 0.045 | 0.786 | 0.407 | 135 |
 | sku | Diffbot (paid API, 2021) | 0.765 ± 0.035 | 0.828 | 0.711 | 135 |
 | sku | Zyte Automatic Extraction (paid API, 2021) | 0.841 ± 0.031 | 0.860 | 0.822 | 135 |
