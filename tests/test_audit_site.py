@@ -157,8 +157,17 @@ def test_the_drafts_own_example_reads_as_the_draft_says():
 
 
 def test_a_page_the_agent_may_not_fetch_has_no_preferences():
-    """No preferences are implied, the draft says, for a disallowed page."""
-    assert preferences(AIPREF, "https://example.com/never/x")["ClaudeBot"] == ({}, {})
+    """No preferences are implied, the draft says, for a disallowed page.
+
+    The Disallow comes first: the suite's stand-in for protego is the standard
+    library's parser, which takes the first rule that matches rather than the
+    longest, and on Python 3.12 and before let the draft's ``Allow: /`` win.
+    """
+    robots = "User-Agent: *\nDisallow: /never/\nAllow: /\nContent-Usage: train-ai=n\n"
+    assert preferences(robots, "https://example.com/never/x")["ClaudeBot"] == ({}, {})
+    assert preferences(robots, "https://example.com/ok")["ClaudeBot"][0] == {
+        "train-ai": "disallow"
+    }
 
 
 def test_rules_on_the_same_path_combine_and_the_most_restrictive_wins():
