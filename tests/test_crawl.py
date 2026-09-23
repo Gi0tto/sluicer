@@ -1,0 +1,594 @@
+"""A polite crawl: in order, bounded, on its site, paced, and resumable."""
+
+import json
+import threading
+import time
+
+import pytest
+
+from fake_site import FakeWeb, page
+from sluicer.crawl import StateMismatch, crawl, extract_many
+from sluicer.crawl.web import Web
+from sluicer.fetch import RedirectRefused
+from sluicer.fetch.result import Fetched
+
+ROOT = "https://example.com"
+
+
+def shop():
+    """A small shop: a home page, two categories, products, and a loop."""
+    return {
+        f"{ROOT}/": page("Home", "/c/1", "/c/2", "/about", "https://other.example/"),
+        f"{ROOT}/c/1": page("Cat 1", "/p/1", "/p/2", "/"),
+        f"{ROOT}/c/2": page("Cat 2", "/p/3", "/p/1", "/c/1"),
+        f"{ROOT}/about": page("About", "/"),
+        f"{ROOT}/p/1": page("Pad 1", "/c/1"),
+        f"{ROOT}/p/2": page("Pad 2", "/c/1"),
+        f"{ROOT}/p/3": page("Pad 3", "/c/2"),
+        "https://other.example/": page("Elsewhere"),
+    }
+
+
+def run(fake, start=f"{ROOT}/", **options):
+    options.setdefault("min_delay", 1.0)
+    options.setdefault("concurrency", 1)
+    return crawl(
+        start, web=fake.web(), clock=fake.clock, sleep=fake.clock.sleep, **options
+    )
+
+
+def urls(pages):
+    return [p.url for p in pages]
+
+
+def test_a_crawl_goes_breadth_first_and_keeps_to_its_site():
+    fake = FakeWeb(shop())
+
+    pages = list(run(fake))
+
+    assert urls(pages) == [
+        f"{ROOT}/",
+        f"{ROOT}/c/1",
+        f"{ROOT}/c/2",
+        f"{ROOT}/about",
+        f"{ROOT}/p/1",
+        f"{ROOT}/p/2",
+        f"{ROOT}/p/3",
+    ]
+    assert [p.depth for p in pages] == [0, 1, 1, 1, 2, 2, 2]
+    assert pages[4].found_on == f"{ROOT}/c/1"
+    assert all(p.ok and p.found for p in pages)
+    assert "https://other.example/" not in fake.asked()
+    assert pages[0].extraction.summary["title"].value == "Home"
+
+
+def test_the_same_site_crawled_twice_gives_the_same_pages_in_the_same_order():
+    first = [p.to_json() for p in run(FakeWeb(shop()))]
+    second = [p.to_json() for p in run(FakeWeb(shop()), concurrency=4)]
+
+    assert first == second
+
+
+def test_every_page_is_asked_once_a_loop_included():
+    fake = FakeWeb(shop())
+
+    list(run(fake))
+
+    pages = [url for url in fake.asked() if not url.endswith("robots.txt")]
+    assert len(pages) == len(set(pages)) == 7
+
+
+def test_requests_to_a_site_are_spaced_by_its_delay_from_the_end_of_the_last():
+    fake = FakeWeb(shop(), cost=0.4)
+
+    list(run(fake, min_delay=1.5))
+
+    assert fake.asked()[0] == f"{ROOT}/robots.txt"
+    assert fake.gaps("example.com") == [1.5] * 7
+
+
+def test_a_crawl_delay_longer_than_ours_is_honoured():
+    pages = shop()
+    pages[f"{ROOT}/robots.txt"] = "User-agent: *\nCrawl-delay: 4\n"
+    fake = FakeWeb(pages)
+
+    list(run(fake, max_pages=3))
+
+    assert fake.gaps("example.com") == [4.0, 4.0, 4.0]
+
+
+def test_a_delay_longer_than_the_crawl_waits_is_an_answer_not_a_week():
+    pages = shop()
+    pages[f"{ROOT}/robots.txt"] = "User-agent: *\nCrawl-delay: 86400\n"
+    fake = FakeWeb(pages)
+
+    result = list(run(fake, max_delay=60))
+
+    assert [p.error.code for p in result] == ["crawl_delay_too_long"]
+    assert "86400 s" in result[0].error.message
+    assert fake.asked() == [f"{ROOT}/robots.txt"]
+
+
+def test_a_page_robots_disallows_is_answered_and_never_asked():
+    pages = shop()
+    pages[f"{ROOT}/robots.txt"] = "User-agent: *\nDisallow: /p/\n"
+    fake = FakeWeb(pages)
+
+    result = {p.url: p for p in run(fake)}
+
+    assert result[f"{ROOT}/p/1"].error.code == "refused_by_robots"
+    assert not any("/p/" in url for url in fake.asked())
+    assert result[f"{ROOT}/c/1"].ok
+
+
+def test_a_robots_file_nobody_can_read_is_a_failure_worth_retrying():
+    pages = shop()
+    pages[f"{ROOT}/robots.txt"] = (503, "busy", {})
+    fake = FakeWeb(pages)
+
+    result = list(run(fake))
+
+    assert result[0].error.code == "fetch_failed"
+    assert result[0].error.retryable is True
+    assert f"{ROOT}/" not in fake.asked()
+
+
+def test_the_page_budget_is_a_bound_and_says_it_cut():
+    crawled = run(FakeWeb(shop()), max_pages=3)
+
+    assert urls(crawled) == [f"{ROOT}/", f"{ROOT}/c/1", f"{ROOT}/c/2"]
+    assert crawled.stopped == "max_pages"
+
+
+def test_a_crawl_that_ran_out_of_links_says_it_is_done():
+    crawled = run(FakeWeb(shop()))
+    list(crawled)
+
+    assert crawled.stopped == "done"
+
+
+def test_depth_zero_takes_the_start_alone():
+    assert urls(run(FakeWeb(shop()), max_depth=0)) == [f"{ROOT}/"]
+    assert len(list(run(FakeWeb(shop()), max_depth=1))) == 4
+
+
+def test_leaving_the_site_is_allowed_when_asked_for():
+    pages = list(run(FakeWeb(shop()), same_site=False, max_depth=1))
+
+    assert "https://other.example/" in urls(pages)
+
+
+def test_include_and_exclude_choose_which_links_are_followed():
+    only_products = run(FakeWeb(shop()), include=[r"/p/", r"/c/1$"])
+    no_categories = run(FakeWeb(shop()), exclude=[r"/c/"])
+
+    assert urls(only_products) == [
+        f"{ROOT}/",
+        f"{ROOT}/c/1",
+        f"{ROOT}/p/1",
+        f"{ROOT}/p/2",
+    ]
+    assert urls(no_categories) == [f"{ROOT}/", f"{ROOT}/about"]
+
+
+def test_a_pattern_that_is_not_one_says_so():
+    with pytest.raises(ValueError, match="not a regular expression"):
+        run(FakeWeb(shop()), include=["(unclosed"])
+
+
+def test_a_start_that_is_not_an_address_says_so():
+    with pytest.raises(ValueError, match="not an http"):
+        run(FakeWeb({}), start="mailto:x@example.com")
+
+
+def test_a_link_to_a_file_is_not_fetched():
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": page("Home", "/manual.pdf", "/photo.JPG", "/next"),
+            f"{ROOT}/next": page("Next"),
+        }
+    )
+
+    assert urls(run(fake)) == [f"{ROOT}/", f"{ROOT}/next"]
+
+
+def test_where_a_redirect_landed_is_not_fetched_again():
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": page("Home", "/old"),
+            f"{ROOT}/old": (301, "", {"Location": "/new"}),
+            f"{ROOT}/new": page("New", "/new", "/old"),
+        }
+    )
+
+    pages = list(run(fake))
+
+    assert urls(pages) == [f"{ROOT}/", f"{ROOT}/old"]
+    assert pages[1].landed == f"{ROOT}/new"
+    assert fake.asked().count(f"{ROOT}/new") == 1
+
+
+def test_a_canonical_on_the_site_is_marked_seen_and_one_elsewhere_is_not():
+    canon = f'<link rel="canonical" href="{ROOT}/the-product">'
+    away = '<link rel="canonical" href="https://mirror.example/p">'
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": page("Home", "/p?ref=home", "/b"),
+            f"{ROOT}/p?ref=home": page("P", "/the-product", extra=canon),
+            f"{ROOT}/b": page("B", "https://mirror.example/p", extra=away),
+            "https://mirror.example/p": page("Mirror"),
+        }
+    )
+
+    pages = list(run(fake, same_site=False))
+
+    assert urls(pages) == [
+        f"{ROOT}/",
+        f"{ROOT}/p?ref=home",
+        f"{ROOT}/b",
+        "https://mirror.example/p",
+    ]
+    assert pages[1].canonical == f"{ROOT}/the-product"
+    assert f"{ROOT}/the-product" not in fake.asked()
+
+
+def test_a_page_that_says_nofollow_ends_the_walk_there():
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": page(
+                "Home", "/a", extra='<meta name="robots" content="nofollow">'
+            ),
+            f"{ROOT}/a": page("A"),
+        }
+    )
+
+    assert urls(run(fake)) == [f"{ROOT}/"]
+
+
+def test_a_redirect_off_the_site_is_answered_and_its_page_not_kept():
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": page("Home", "/away"),
+            f"{ROOT}/away": (302, "", {"Location": "https://other.example/landing"}),
+            "https://other.example/landing": page("Landing", "/deeper"),
+        }
+    )
+
+    pages = list(run(fake))
+
+    assert pages[1].error.code == "redirected_off_site"
+    assert pages[1].error.target == "https://other.example/landing"
+    assert "other.example/deeper" not in " ".join(fake.asked())
+
+
+def test_a_redirect_the_rung_refused_is_followed_as_a_link_when_sites_may_change():
+    def refusing(url):
+        if url == f"{ROOT}/away":
+            raise RedirectRefused(url, "https://other.example/", "it leads off")
+        return fake.rung(url)
+
+    fake = FakeWeb({**shop(), f"{ROOT}/": page("Home", "/away")})
+    web = Web(rungs=[("http", refusing)], read=fake.web().read, get=fake.get)
+
+    kept = list(crawl(f"{ROOT}/", web=web, clock=fake.clock, sleep=fake.clock.sleep))
+    left = list(
+        crawl(
+            f"{ROOT}/",
+            same_site=False,
+            max_depth=1,
+            web=web,
+            clock=fake.clock,
+            sleep=fake.clock.sleep,
+        )
+    )
+
+    assert kept[1].error.code == "redirected_off_site"
+    assert "https://other.example/" not in urls(kept)
+    assert urls(left)[-1] == "https://other.example/"
+    assert left[-1].depth == 1 and left[-1].found_on == f"{ROOT}/away"
+
+
+def test_a_failed_page_is_an_answer_and_the_crawl_goes_on():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = ConnectionError("connection reset")
+    fake = FakeWeb(pages)
+
+    result = list(run(fake))
+
+    failed = [p for p in result if not p.ok]
+    assert [p.url for p in failed] == [f"{ROOT}/c/1"]
+    assert failed[0].error.code == "fetch_failed" and failed[0].error.retryable
+    assert f"{ROOT}/p/3" in urls(result)
+
+
+def test_the_time_budget_stops_the_crawl_and_says_so():
+    crawled = run(FakeWeb(shop()), time_budget=2.0)
+    taken = list(crawled)
+
+    assert crawled.stopped == "time_budget"
+    assert 1 <= len(taken) < 7
+    assert urls(taken) == urls(run(FakeWeb(shop())))[: len(taken)]
+
+
+def test_a_page_as_a_line_says_what_it_is_and_where_it_came_from():
+    pages = list(run(FakeWeb(shop()), max_pages=2))
+
+    line = pages[1].to_json()
+
+    assert line["url"] == f"{ROOT}/c/1" and line["ok"] is True
+    assert line["depth"] == 1 and line["found_on"] == f"{ROOT}/"
+    assert line["landed"] == f"{ROOT}/c/1"
+    assert line["fetch"]["rung"] == "http" and line["fetch"]["status"] == 200
+    assert line["records"][0]["fields"]["name"]["value"] == "Cat 1"
+    assert line["sources"] == ["jsonld"]
+    assert line["links"] == [f"{ROOT}/p/1", f"{ROOT}/p/2", f"{ROOT}/"]
+    json.dumps(line)
+
+
+def test_a_failed_page_as_a_line_carries_its_error_and_nothing_else():
+    pages = shop()
+    pages[f"{ROOT}/robots.txt"] = "User-agent: *\nDisallow: /\n"
+
+    line = next(iter(run(FakeWeb(pages)))).to_json()
+
+    assert line == {
+        "url": f"{ROOT}/",
+        "ok": False,
+        "depth": 0,
+        "found_on": None,
+        "error": {
+            "code": "refused_by_robots",
+            "message": f"{ROOT}/ is refused: its robots.txt disallows it",
+            "retryable": False,
+        },
+    }
+
+
+# -- resuming ------------------------------------------------------------------
+
+
+def test_a_stopped_crawl_resumes_without_asking_again_and_ends_the_same(tmp_path):
+    whole = tmp_path / "whole.jsonl"
+    list(run(FakeWeb(shop()), state=whole))
+
+    part = tmp_path / "part.jsonl"
+    first = FakeWeb(shop())
+    stopped = iter(run(first, state=part))
+    for _ in range(3):
+        next(stopped)
+    stopped.close()
+    second = FakeWeb(shop())
+    resumed = run(second, state=part)
+    rest = list(resumed)
+
+    assert resumed.resumed == 3
+    assert len(rest) == 4
+    fetched_twice = set(first.asked()) & set(second.asked()) - {f"{ROOT}/robots.txt"}
+    assert fetched_twice == set()
+    assert _without_seconds(part) == _without_seconds(whole)
+
+
+def test_a_finished_crawl_resumed_has_nothing_left_to_take(tmp_path):
+    state = tmp_path / "crawl.jsonl"
+    list(run(FakeWeb(shop()), state=state))
+    fake = FakeWeb(shop())
+
+    again = run(fake, state=state)
+
+    assert list(again) == []
+    assert again.stopped == "done"
+    assert fake.requests == []
+
+
+def test_a_bigger_budget_resumed_continues_where_the_smaller_stopped(tmp_path):
+    state = tmp_path / "crawl.jsonl"
+    list(run(FakeWeb(shop()), state=state, max_pages=3))
+
+    more = list(run(FakeWeb(shop()), state=state, max_pages=5))
+
+    assert urls(more) == [f"{ROOT}/about", f"{ROOT}/p/1"]
+
+
+def test_a_line_cut_off_by_a_stop_mid_write_is_dropped_and_redone(tmp_path):
+    state = tmp_path / "crawl.jsonl"
+    list(run(FakeWeb(shop()), state=state, max_pages=2))
+    with state.open("a") as out:
+        out.write('{"url": "https://example.com/c/2", "ok": tr')
+
+    rest = list(run(FakeWeb(shop()), state=state))
+
+    assert urls(rest)[0] == f"{ROOT}/c/2"
+    assert all(json.loads(line) for line in state.read_text().splitlines())
+
+
+def test_a_file_from_another_crawl_is_refused_not_mixed(tmp_path):
+    state = tmp_path / "crawl.jsonl"
+    list(run(FakeWeb(shop()), state=state, max_pages=2))
+
+    with pytest.raises(StateMismatch, match="line 1"):
+        run(FakeWeb(shop()), start=f"{ROOT}/about", state=state)
+    with pytest.raises(StateMismatch, match="line 2"):
+        run(FakeWeb(shop()), state=state, exclude=["/c/1"])
+
+
+def test_a_file_that_is_not_a_crawls_output_is_refused(tmp_path):
+    state = tmp_path / "notes.jsonl"
+    state.write_text("these are my notes\n")
+
+    with pytest.raises(StateMismatch, match="not a page's JSON"):
+        run(FakeWeb(shop()), state=state)
+
+
+def _without_seconds(path):
+    lines = [json.loads(line) for line in path.read_text().splitlines()]
+    for line in lines:
+        if "fetch" in line:
+            line["fetch"]["seconds"] = 0
+    return lines
+
+
+# -- many sites at once ---------------------------------------------------------
+
+
+class Slow:
+    """A web whose every request takes real time, counting how many are in
+    flight per site, so "one at a time per site" is measured, not assumed."""
+
+    def __init__(self, seconds=0.03):
+        self.seconds = seconds
+        self.lock = threading.Lock()
+        self.in_flight: dict[str, int] = {}
+        self.most: dict[str, int] = {}
+        self.most_at_once = 0
+
+    def rung(self, url):
+        from sluicer.crawl.urls import site_of
+
+        site = site_of(url)
+        with self.lock:
+            self.in_flight[site] = self.in_flight.get(site, 0) + 1
+            self.most[site] = max(self.most.get(site, 0), self.in_flight[site])
+            self.most_at_once = max(self.most_at_once, sum(self.in_flight.values()))
+        time.sleep(self.seconds)
+        with self.lock:
+            self.in_flight[site] -= 1
+        if url.endswith("/robots.txt"):
+            return Fetched(url=url, html="", status=404, rung="http")
+        return Fetched(url=url, html=page(url), status=200, rung="http")
+
+    def web(self):
+        from sluicer.fetch import robots_reader_from
+
+        return Web(
+            rungs=[("http", self.rung)], read=robots_reader_from(self.rung), get=None
+        )
+
+
+def test_many_sites_are_asked_at_once_and_each_one_at_a_time():
+    slow = Slow()
+    listed = [f"https://site{n}.example/p{k}" for k in range(3) for n in range(4)]
+
+    pages = list(extract_many(listed, web=slow.web(), min_delay=0.01, concurrency=4))
+
+    assert [p.url for p in pages] == listed
+    assert all(p.ok for p in pages)
+    assert max(slow.most.values()) == 1
+    assert slow.most_at_once > 1
+
+
+def test_a_batch_keeps_its_order_reads_each_address_once_and_answers_bad_ones():
+    fake = FakeWeb(shop())
+
+    pages = list(
+        extract_many(
+            [f"{ROOT}/p/2", "not an address", f"{ROOT}/p/1", f"{ROOT}/p/2#again"],
+            web=fake.web(),
+            clock=fake.clock,
+            sleep=fake.clock.sleep,
+            concurrency=1,
+        )
+    )
+
+    assert urls(pages) == [f"{ROOT}/p/2", "not an address", f"{ROOT}/p/1"]
+    assert pages[1].error.code == "bad_input"
+    assert pages[2].links == (f"{ROOT}/c/1",)
+    assert fake.gaps("example.com") == [1.0, 1.0]
+
+
+def test_a_batch_follows_a_redirect_wherever_it_leads_as_one_fetch_does():
+    fake = FakeWeb(
+        {
+            f"{ROOT}/moved": (301, "", {"Location": "https://other.example/"}),
+            "https://other.example/": page("Elsewhere"),
+        }
+    )
+
+    pages = list(
+        extract_many(
+            [f"{ROOT}/moved"], web=fake.web(), clock=fake.clock, sleep=fake.clock.sleep
+        )
+    )
+
+    assert pages[0].ok and pages[0].landed == "https://other.example/"
+
+
+def test_a_batch_resumed_skips_what_its_file_holds(tmp_path):
+    state = tmp_path / "batch.jsonl"
+    listed = [f"{ROOT}/p/1", f"{ROOT}/p/2", f"{ROOT}/p/3"]
+    first = extract_many(
+        listed[:2], state=state, web=FakeWeb(shop()).web(), sleep=lambda s: None
+    )
+    list(first)
+    fake = FakeWeb(shop())
+
+    rest = extract_many(
+        listed, state=state, web=fake.web(), clock=fake.clock, sleep=fake.clock.sleep
+    )
+
+    assert urls(rest) == [f"{ROOT}/p/3"]
+    assert rest.resumed == 2
+    assert len(state.read_text().splitlines()) == 3
+
+
+def test_a_batch_out_of_time_hands_back_an_unbroken_prefix():
+    fake = FakeWeb(shop())
+    listed = [f"{ROOT}/p/1", f"{ROOT}/p/2", f"{ROOT}/p/3", f"{ROOT}/about"]
+
+    batch = extract_many(
+        listed,
+        web=fake.web(),
+        clock=fake.clock,
+        sleep=fake.clock.sleep,
+        time_budget=2.5,
+        concurrency=1,
+    )
+    taken = urls(batch)
+
+    assert batch.stopped == "time_budget"
+    assert taken == listed[: len(taken)] and 1 <= len(taken) < 4
+
+
+def test_a_crawl_can_be_stepped_one_page_at_a_time():
+    crawled = run(FakeWeb(shop()))
+
+    assert next(crawled).url == f"{ROOT}/"
+    assert next(crawled).url == f"{ROOT}/c/1"
+
+
+def test_a_budget_of_nothing_takes_nothing():
+    fake = FakeWeb(shop())
+
+    assert list(run(fake, max_pages=0)) == []
+    assert fake.requests == []
+
+
+def test_a_private_address_and_a_page_too_heavy_are_answers():
+    heavy = FakeWeb({f"{ROOT}/": "<p>" + "x" * 5000 + "</p>"})
+
+    private = list(run(FakeWeb({}), start="http://127.0.0.1/", allow_private=False))
+    big = list(run(heavy, max_bytes=1000))
+
+    assert private[0].error.code == "refused_address"
+    assert big[0].error.code == "too_large"
+
+
+def test_an_off_site_redirect_as_a_line_names_where_it_pointed():
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": page("Home", "/away"),
+            f"{ROOT}/away": (302, "", {"Location": "https://other.example/"}),
+        }
+    )
+
+    line = list(run(fake))[1].to_json()
+
+    assert line["error"]["code"] == "redirected_off_site"
+    assert line["error"]["target"] == "https://other.example/"
+
+
+def test_blank_lines_in_a_state_file_are_nothing(tmp_path):
+    state = tmp_path / "crawl.jsonl"
+    list(run(FakeWeb(shop()), state=state, max_pages=2))
+    state.write_text(state.read_text().replace("\n", "\n\n", 1))
+
+    assert urls(run(FakeWeb(shop()), state=state, max_pages=3)) == [f"{ROOT}/c/2"]

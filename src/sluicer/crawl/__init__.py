@@ -1,20 +1,35 @@
-"""Many pages, politely: a site's map, read from its sitemaps.
+"""Many pages, politely: a site's map, a crawl of its links, a list read in turn.
 
-``map_site`` lists a site's addresses from its sitemaps, and from the links on
-its start page when it has none. Every request goes through robots.txt and the
-address guard, is held to the byte bound, and waits its site's delay. Fetching
+``map_site`` lists a site's addresses from its sitemaps, ``crawl`` follows its
+links breadth first, and ``extract_many`` reads a list of addresses. Every page
+goes through the fetch ladder -- robots.txt, the address guard, the byte bound
+-- and every site is asked one request at a time, its delay between. Fetching
 needs the ``fetch`` extra.
 """
 
+from sluicer.crawl.pages import (
+    Crawl,
+    Page,
+    PageError,
+    StateMismatch,
+    crawl,
+    extract_many,
+)
 from sluicer.crawl.sitemaps import SiteMap, SitemapRead, SiteUrl, map_site
 from sluicer.crawl.urls import normalise, site_of
 from sluicer.crawl.web import Web
 
 __all__ = [
+    "Crawl",
+    "Page",
+    "PageError",
     "SiteMap",
     "SiteUrl",
     "SitemapRead",
+    "StateMismatch",
     "Web",
+    "crawl",
+    "extract_many",
     "map_site",
     "normalise",
     "site_of",
