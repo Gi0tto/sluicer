@@ -616,3 +616,20 @@ def test_inspect_shows_the_link_relations(tmp_path):
 
     assert "links     canonical https://s.example/p" in out
     assert "1 alternates: de" in out
+
+
+def test_inspect_says_whether_the_page_declares_how_it_may_be_used(tmp_path):
+    page = tmp_path / "reserved.html"
+    page.write_text(
+        '<html><head><meta name="robots" content="noai">'
+        '<meta name="tdm-reservation" content="1"><title>T</title></head></html>'
+    )
+    bare = tmp_path / "bare.html"
+    bare.write_text("<html><head><title>T</title></head></html>")
+
+    reserved = CliRunner().invoke(main, ["inspect", str(page)]).stdout
+    silent = CliRunner().invoke(main, ["inspect", str(bare)]).stdout
+
+    assert "rights    robots noai" in reserved
+    assert "tdm-reservation 1" in reserved
+    assert "rights    none declared in the page" in silent

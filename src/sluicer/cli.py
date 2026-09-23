@@ -313,6 +313,7 @@ def _inspection(
     if not microformats:
         lines.append("          not read: microformats (--microformats)")
     lines.extend(_link_lines(result.links))
+    lines.extend(_rights_lines(result.rights))
     lines.append("")
     records = len(result.records)
     lines.append(f"records   {records}" + ("" if records else ", nothing declared"))
@@ -359,6 +360,24 @@ def _link_lines(links: Mapping[str, Any]) -> list[str]:
         said.append(f"oembed {endpoint}")
     return [
         ("links     " if n == 0 else "          ") + line for n, line in enumerate(said)
+    ]
+
+
+def _rights_lines(rights: Mapping[str, Any]) -> list[str]:
+    """What the page's tags declare about its use; one line saying so if nothing."""
+    said = []
+    if rights.get("robots"):
+        said.append("robots " + ", ".join(rights["robots"]))
+    for agent, rules in rights.get("agents", {}).items():
+        said.append(f"{agent} " + ", ".join(rules))
+    if "tdm_reservation" in rights:
+        said.append(f"tdm-reservation {rights['tdm_reservation']}")
+    if "tdm_policy" in rights:
+        said.append(f"tdm-policy {rights['tdm_policy']}")
+    if not said:
+        return ["rights    none declared in the page"]
+    return [
+        ("rights    " if n == 0 else "          ") + line for n, line in enumerate(said)
     ]
 
 

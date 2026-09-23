@@ -41,6 +41,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   way static-site generators and retrieval pipelines read a document's
   metadata. Every value is written as a JSON string, so nothing a page
   declares can break the block.
+- `Extraction.rights`: what the page's own tags declare about how it may be
+  used -- `<meta name="robots">` and its per-crawler forms (`googlebot`...),
+  the unofficial `noai` and `noimageai`, and TDMRep's `tdm-reservation` and
+  `tdm-policy` (a W3C Community Group report, not a standard) -- verbatim, and
+  nothing when the page declares nothing, which is not the same as allowing
+  everything. `sluicer inspect` says which.
 - `Extraction.links`: what the page's `<link>` elements declare about where
   else it lives -- its canonical address, every `hreflang` alternate, its RSS,
   Atom and JSON feeds, `next` and `prev` (from `<a>` too, where pagination

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from sluicer.declared.links import Links, read_links
 from sluicer.declared.merge import ABOUT_A_THING, Record, merge
 from sluicer.declared.readers import READERS
+from sluicer.declared.rights import Rights, read_rights
 from sluicer.document import load
 from sluicer.normalise import normalised
 from sluicer.structure import induce as induce_records
@@ -23,7 +24,10 @@ class Extraction:
     ``sluicer.summary.FIELDS``). ``records`` is everything the page declared.
     ``links`` is what the page's ``<link>`` elements declare about where else
     it lives: its canonical address, its other languages, its feeds, the pages
-    before and after it (see ``sluicer.declared.links``). ``sources`` names every
+    before and after it (see ``sluicer.declared.links``). ``rights`` is what the
+    page's own tags declare about how it may be used -- robots directives,
+    TDMRep's reservation -- and nothing when it declares nothing (see
+    ``sluicer.declared.rights``). ``sources`` names every
     reader that found something. ``normalised`` reads
     the summary's dates, price and currency into ISO 8601, a decimal and an ISO
     4217 code, where the page's text leaves no doubt (see ``sluicer.normalise``).
@@ -35,6 +39,7 @@ class Extraction:
     records: list[Record] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     links: Links = field(default_factory=lambda: Links())
+    rights: Rights = field(default_factory=lambda: Rights())
 
 
 def extract(
@@ -104,6 +109,7 @@ def extract(
         records=records,
         sources=sources,
         links=read_links(doc),
+        rights=read_rights(doc),
     )
 
 
