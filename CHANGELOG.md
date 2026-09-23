@@ -157,6 +157,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Crawl-delay` and `Sitemap` reading in the `with-extras` job.
 
 ### Fixed
+- An address resolves alike on every Python. 3.14's `urljoin` keeps a bare
+  `?` or `#` that 3.13's drops, so `href="/p?"` answered `https://site/p?` on
+  one and `https://site/p` on the other; the empty query and fragment are now
+  dropped on both. Found by the 3.14 job.
 - An address is read as the URL standard reads it out of an attribute: its
   ends stripped, every tab and newline inside dropped, any other white space
   percent-encoded. `href="0<CR>?"` was answered as `https://shop.example/c/0 `,

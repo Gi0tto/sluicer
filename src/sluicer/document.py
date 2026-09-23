@@ -335,6 +335,24 @@ def clean_address(address: str) -> str:
 def _join(base: str, address: str) -> str:
     address = clean_address(address)
     try:
-        return urljoin(base, address)
+        return _without_empty_parts(urljoin(base, address))
     except ValueError:
         return address
+
+
+def _without_empty_parts(url: str) -> str:
+    """``url`` without an empty query or an empty fragment, on every Python.
+
+    Python 3.14's ``urljoin`` keeps a bare ``?`` or ``#`` that earlier ones
+    drop, so ``/p?`` would answer ``https://site/p?`` on one and
+    ``https://site/p`` on the other: the same page, two answers. Both mean
+    the same address; the one without is kept.
+    """
+    head, hash_sign, fragment = url.partition("#")
+    if hash_sign and not fragment:
+        url = head
+    elif hash_sign:
+        return _without_empty_parts(head) + "#" + fragment
+    if url.endswith("?") and url.index("?") == len(url) - 1:
+        return url[:-1]
+    return url

@@ -317,3 +317,23 @@ def test_an_address_is_read_as_the_url_standard_reads_an_attribute():
     assert clean_address("/café") == "/café"
     assert join("https://shop.example/c/brakes", "0\r?") == "https://shop.example/c/0"
     assert join(None, " /x ") == "/x"
+
+
+@pytest.mark.parametrize(
+    ("address", "resolved"),
+    [
+        ("0?", "https://shop.example/c/0"),
+        ("0#", "https://shop.example/c/0"),
+        ("0?#", "https://shop.example/c/0"),
+        ("0?#top", "https://shop.example/c/0#top"),
+        ("0#top?", "https://shop.example/c/0#top?"),
+        ("0?a=1?", "https://shop.example/c/0?a=1?"),
+        ("https://other.example/p?", "https://other.example/p"),
+        ("?", "https://shop.example/c/brakes"),
+    ],
+)
+def test_an_empty_query_or_fragment_resolves_alike_on_every_python(address, resolved):
+    """Python 3.14's urljoin keeps them and 3.13's drops them, as CI found."""
+    from sluicer.document import join
+
+    assert join("https://shop.example/c/brakes", address) == resolved
