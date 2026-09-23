@@ -1,6 +1,6 @@
 {
   "name": "sluicer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Read the structured data a web page already declares, with the provenance of every field, and no model in the loop. Fetches at the lowest price that works, announces itself, and obeys robots.txt. Learns extractors that fail loudly when a site changes layout, and heals them. Ships an MCP server with six tools and a skill that says when to use them.",
   "author": { "name": "Nichita Briculschi", "url": "https://github.com/Gi0tto" },
   "license": "MIT",

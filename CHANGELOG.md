@@ -4,6 +4,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-23
+
 ### Changed
 - **MCP answers, breaking for 0.2.0 clients.** Every answer carries `ok`, true
   exactly when it can be used as it is. An error is `{"ok": false, "error":
@@ -49,6 +51,21 @@ Dates are the day the work landed. Anything not listed here did not happen.
   a licence nobody has read.
 - `docs/why.md`: where Sluicer sits among the tools people reach for, and when
   another is the better choice.
+- A drift benchmark (`bench/drift/`, `docs/drift.md`): extractors learnt on
+  Wayback Machine captures of 25 sites and replayed on later captures, judged
+  by an oracle that does not use the extractor's code, with Scrapling's
+  adaptive selectors beside them. 44 pairs: no silent failure, no false alarm.
+- A scoreboard on pages as served (`bench/realweb.py`,
+  `docs/scoreboard-served.md`): WCXB's labels scored on the same pages as their
+  servers sent them, scripts intact, found in web archives and proved to be the
+  page WCXB labelled, every capture pinned by digest. On the 360 matched
+  pages, JSON-LD appears on 236, and Sluicer's author and date hit rates rise
+  from 0.434 and 0.553 on WCXB's copies to 0.674 and 0.748.
+- Property-based tests with Hypothesis (`tests/properties/`): any input never
+  raises, the same page gives the same answer, the answer is bounded by the
+  page, every summary answer names a reader and a key the page has, and the
+  extractor file round-trips. Fifteen examples each on every run, and a CI job
+  that searches thousands.
 
 ### Fixed
 - An article quoting "just a moment", or any page carrying Cloudflare's
@@ -87,6 +104,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The `values` check fired on three rows that said the same thing by chance:
   the drift benchmark's one false alarm, three day-tables headed alike. It is
   held from five rows up, as shapes are.
+- Found by the property tests, each with the smallest page that shows it:
+  `extract()` raised on a charset label naming a codec that is not text, and on
+  a row nested deeper than Python's recursion limit; a JSON-LD page could still
+  expand past its budget with long strings, microdata and RDFa per item rather
+  than per page, and induced records with the square of their rows; a `>`
+  inside a quoted meta value hid the charset after it; an availability that is
+  only the schema.org address was an answer; a meta's `property` was read as
+  one name rather than a list of terms, so two pages that differed only in
+  spacing gave two answers; and a page mf2py refuses to read raised instead of
+  declaring no microformats.
 - `heal` broke a tie between two new places holding a field's old values by
   their paths' alphabetical order. After SourceForge's redesign a project's
   name is its heading in every row and its icon's alt text in the rows that
