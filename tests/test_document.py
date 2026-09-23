@@ -177,6 +177,23 @@ def test_a_label_nobody_knows_falls_back_to_the_bytes():
     assert _title(page.encode("utf-8")) == "Bremsöl"
 
 
+@pytest.mark.parametrize(
+    "label", ["hex_codec", "base64", "rot13", "zlib", "idna", "a\x00", "cp037"]
+)
+def test_a_label_python_knows_and_no_page_can_be_in_is_passed_over(label):
+    """Found by the property that ``extract`` never raises on encoded pages.
+
+    ``hex``, ``base64``, ``rot13`` and ``zlib`` are in Python's codec registry
+    and are not text encodings, ``idna`` refuses the ``replace`` a page is
+    decoded with, and a NUL makes the lookup itself refuse: each of those was
+    a traceback out of ``load``. EBCDIC is text, and reads the ASCII the
+    declaration was written in as something else.
+    """
+    page = f'<html><head><meta charset="{label}"><title>Bremsöl</title></head>'
+
+    assert _title(page.encode("utf-8")) == "Bremsöl"
+
+
 def test_a_charset_inside_a_comment_is_not_a_declaration():
     page = (
         '<html><head><!-- <meta charset="windows-1251"> -->'

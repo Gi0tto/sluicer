@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import codecs
+import functools
 import re
 from dataclasses import dataclass
 from urllib.parse import urljoin
@@ -126,15 +127,45 @@ def _charset_of(attributes: bytes) -> bytes | None:
 
 
 def _codec(label: bytes) -> str | None:
-    """The codec a declared label names, or None when nobody knows it."""
+    """The codec a declared label names, or None when nobody knows it.
+
+    Python's registry answers to more names than a browser does, and some of
+    what it holds is not a text encoding at all: ``hex``, ``base64`` and
+    ``zlib`` refuse to decode a page, ``idna`` refuses to decode one with
+    ``replace``, and a label holding a NUL is refused by the lookup itself.
+    Each of those was a traceback from a page that declared it.
+    """
     name = label.decode("ascii", "replace").strip().lower()
     if name in _REFUSED_LABELS:
         return None
     name = _BROWSER_LABELS.get(name, name)
     try:
-        return codecs.lookup(name).name
-    except LookupError:
+        codec = codecs.lookup(name).name
+    except (LookupError, ValueError):
         return None
+    return codec if _reads_ascii_as_ascii(codec) else None
+
+
+# The bytes a declaration is written in. ESC is left out: ISO-2022-JP, which
+# every browser reads, spends it on switching character sets.
+_ASCII_TEXT = (0x09, 0x0A, 0x0D, *range(0x20, 0x7F))
+
+
+@functools.cache
+def _reads_ascii_as_ascii(codec: str) -> bool:
+    """Whether ``codec`` decodes every printable ASCII byte as itself.
+
+    A page had to be ASCII enough for its declaration to be read, which is the
+    standard's reason for reading a UTF-16 label as UTF-8; a codec that reads
+    those bytes as anything else -- EBCDIC, UTF-32, or not text at all -- cannot
+    be what the page is written in, and is not believed.
+    """
+    try:
+        return all(
+            bytes([byte]).decode(codec, "replace") == chr(byte) for byte in _ASCII_TEXT
+        )
+    except (LookupError, ValueError):
+        return False
 
 
 # ``huge_tree``, because libxml2 otherwise stops at 256 levels of nesting and
