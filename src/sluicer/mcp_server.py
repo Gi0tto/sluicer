@@ -4,9 +4,12 @@ Six tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``, and
 ``compile_extractor``, ``run_extractor``, ``heal_extractor`` -- expose what the
 library does and add no logic of their own. Run it with
 ``sluicer-mcp``; it needs the ``mcp`` extra.
-"""
 
-from __future__ import annotations
+Every answer carries ``ok``, true exactly when it can be used as it is, and has
+an output schema (``sluicer.mcp_answers``). No ``from __future__ import
+annotations`` here: the tools are defined inside ``build_server``, and the SDK
+reads their return types as objects to build those schemas.
+"""
 
 import functools
 import json
@@ -15,12 +18,13 @@ import os
 import sys
 from collections.abc import Callable
 from dataclasses import asdict
-from typing import Any
+from typing import Any, cast
 
 from sluicer import __version__, extractor as extractor_module
 from sluicer.api import extract
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused
+from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
 from sluicer.markdown import to_markdown
 
 MAX_HTML_CHARS = 200_000
@@ -68,17 +72,17 @@ def _server_class() -> Any:
 def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
     """Return the answerable failures as the tool's result, never as its content.
 
-    Each is a mapping with ``error`` and a key saying which kind, because they
-    call for different responses: ``missing_extra`` (install what the message
-    says), ``refused_by_robots`` (do not work around it), ``refused_address``
-    (a private address, refused by default), ``fetch_failed`` (worth trying
-    later) and ``bad_input``. Raised instead, each reached the agent as the
-    SDK's bare "Error executing tool".
+    Each is ``{"ok": false, "error": {"code", "message", "retryable"}}``, with
+    ``url`` or ``extra`` when there is one, because the codes call for different
+    responses: ``missing_extra`` (install what the message says),
+    ``refused_by_robots`` (do not work around it), ``refused_address`` (a
+    private address, refused by default), ``fetch_failed`` (worth trying
+    later: the only retryable one), ``too_large`` and ``bad_input``. Raised
+    instead, each reached the agent as the SDK's bare "Error executing tool".
 
-    The shape is deliberately not the shape of any tool's content: returned as
-    a ``str``, "Turning a page into markdown needs trafilatura" sat exactly
-    where a page's words go, and an agent would summarise it as the page. So
-    ``page_markdown`` returns ``str | dict``. A real bug inside a tool still
+    An error is never where a tool's content goes: returned as text, "Turning a
+    page into markdown needs trafilatura" sat exactly where a page's words go,
+    and an agent would summarise it as the page. A real bug inside a tool still
     raises.
     """
 
@@ -87,17 +91,35 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
         try:
             return tool(*args, **kwargs)
         except MissingExtra as missing:
-            return {"error": str(missing), "missing_extra": missing.extra}
+            return _error("missing_extra", missing, extra=missing.extra)
         except RobotsRefused as refused:
-            return {"error": str(refused), "refused_by_robots": refused.url}
+            return _error("refused_by_robots", refused, url=refused.url)
         except AddressRefused as refused:
-            return {"error": str(refused), "refused_address": refused.url}
+            return _error("refused_address", refused, url=refused.url)
+        except ResponseTooLarge as heavy:
+            fetched = heavy.url.startswith(("http://", "https://"))
+            return _error("too_large", heavy, url=heavy.url if fetched else None)
         except FetchFailed as failed:
-            return {"error": str(failed), "fetch_failed": failed.url}
+            return _error("fetch_failed", failed, retryable=True, url=failed.url)
         except _BadInput as bad:
-            return {"error": str(bad), "bad_input": True}
+            return _error("bad_input", bad)
 
     return guarded
+
+
+def _error(
+    code: str, failure: Exception, retryable: bool = False, **detail: str | None
+) -> dict[str, Any]:
+    known = {key: value for key, value in detail.items() if value is not None}
+    return {
+        "ok": False,
+        "error": {
+            "code": code,
+            "message": str(failure),
+            "retryable": retryable,
+            **known,
+        },
+    }
 
 
 class _BadInput(ValueError):
@@ -112,7 +134,8 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
     """Return the page's HTML, the URL to attribute it to, and the fetch record.
 
     The URL is where the fetch landed, after redirects, since that is what the
-    page's relative links resolve against; for literal HTML it is None.
+    page's relative links resolve against; for literal HTML it is None. Literal
+    HTML is held to the bound a fetched page is.
     """
     if html_or_url.strip().lower().startswith(("http://", "https://")):
         from sluicer.fetch import fetch
@@ -124,9 +147,15 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
             {
                 "rung": fetched.rung,
                 "status": fetched.status,
-                "climbs": [asdict(climb) for climb in fetched.climbs],
+                "seconds": round(fetched.seconds, 3),
+                "climbs": [
+                    {**asdict(climb), "seconds": round(climb.seconds, 3)}
+                    for climb in fetched.climbs
+                ],
             },
         )
+    if len(html_or_url) > MAX_RESPONSE_BYTES:
+        raise ResponseTooLarge("the HTML handed in", MAX_RESPONSE_BYTES)
     return html_or_url, None, None
 
 
@@ -136,13 +165,19 @@ def build_server() -> Any:
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
     """
-    server = _server_class()(
+    server_class = _server_class()
+    # After the SDK: typing_extensions arrives with it, and the answers need it.
+    from sluicer import mcp_answers as answers
+
+    server = server_class(
         "sluicer",
         version=__version__,
         instructions=(
             "Deterministic extraction of the structured data a web page already "
             "declares, with no model in the loop. Every field names the vocabulary "
-            "it came from. Fetching obeys robots.txt and refuses private addresses."
+            "it came from. Every answer has ok: false means do not use it as it "
+            "is, and says why. Fetching obeys robots.txt and refuses private "
+            "addresses."
         ),
     )
 
@@ -151,67 +186,82 @@ def build_server() -> Any:
     # ships types, which a module-wide relaxation would not.
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def extract_declared(html_or_url: str, induce: bool = False) -> dict[str, Any]:
+    def extract_declared(
+        html_or_url: str, induce: bool = False
+    ) -> answers.ExtractAnswer:
         """Read the structured data a page declares, with where each value came from.
 
         html_or_url: an http(s) URL to fetch, or the HTML itself.
         induce: also read repeated rows (a listing, a feed) from a page that
         declares nothing about them; those fields say source "induced".
 
-        Returns records of typed fields, each {"value", "source"}, where source
-        is the vocabulary that declared it (jsonld, microdata, opengraph, html,
-        ...). A nested value such as a price inside "offers" arrives whole.
-        On failure returns {"error": ...} and never a record.
+        Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
+        for a URL. records are typed fields, each {"value", "source"}, where
+        source is the vocabulary that declared it (jsonld, microdata,
+        opengraph, html, ...); a nested value such as a price inside "offers"
+        arrives whole. summary answers title, author, date, price and the rest,
+        one value each, naming its source and key. On failure ok is false and
+        "error" says why; there is never a record.
         """
         html, url, fetched = _html_of(html_or_url)
-        result = asdict(extract(html, url=url, induce=induce))
+        result = {"ok": True, **asdict(extract(html, url=url, induce=induce))}
         if fetched is not None:
             result["fetch"] = fetched
-        return result
+        return cast(answers.ExtractAnswer, result)
 
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def page_markdown(html_or_url: str) -> str | dict[str, Any]:
+    def page_markdown(html_or_url: str) -> answers.MarkdownAnswer:
         """Return a page's main content as markdown, without navigation or footer.
 
         html_or_url: an http(s) URL to fetch, or the HTML itself.
 
-        Text is always the page's own content. A failure is never text: it
-        comes back as {"error": ...}, so it cannot be mistaken for the page.
+        Returns {"ok", "markdown", "url"}, and "fetch" for a URL. The markdown
+        is always the page's own content: a failure is ok false with "error",
+        never text that could be mistaken for the page.
         """
-        html, url, _fetched = _html_of(html_or_url)
-        return to_markdown(html, url=url)
+        html, url, fetched = _html_of(html_or_url)
+        result: dict[str, Any] = {
+            "ok": True,
+            "markdown": to_markdown(html, url=url),
+            "url": url,
+        }
+        if fetched is not None:
+            result["fetch"] = fetched
+        return cast(answers.MarkdownAnswer, result)
 
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def fetch_page(url: str) -> dict[str, Any]:
+    def fetch_page(url: str) -> answers.PageAnswer:
         """Fetch a page's HTML, and say what it cost: plain HTTP or a browser.
 
         url: an http(s) URL. Literal HTML is refused, since nothing would be
         fetched.
 
-        Returns {"html", "url", "fetch", "truncated", "length"}. The HTML is
-        cut at 200,000 characters; prefer extract_declared or page_markdown,
-        which return what is in the page rather than all of it.
+        Returns {"ok", "html", "url", "fetch", "truncated", "length"}. The
+        HTML is cut at 200,000 characters; prefer extract_declared or
+        page_markdown, which return what is in the page rather than all of it.
         """
         if not url.strip().lower().startswith(("http://", "https://")):
             # Refused rather than echoed back: a caller handed the string it
             # sent, with no way to tell nothing was fetched, is worse off.
             raise _BadInput(f"fetch_page needs an http:// or https:// URL, got {url!r}")
         html, landed, fetched = _html_of(url)
-        return {
+        page = {
+            "ok": True,
             "html": html[:MAX_HTML_CHARS],
             "url": landed,
             "fetch": fetched,
             "truncated": len(html) > MAX_HTML_CHARS,
             "length": len(html),
         }
+        return cast(answers.PageAnswer, page)
 
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
     def compile_extractor(
         pages: list[str], listing: bool | None = None
-    ) -> dict[str, Any]:
+    ) -> answers.CompileAnswer:
         """Learn an extractor from pages of one template, to replay later for free.
 
         pages: http(s) URLs, or the HTML itself, of pages built from one
@@ -220,7 +270,7 @@ def build_server() -> Any:
         listing: learn the rows the pages repeat; by default only where they
         declare nothing about a thing.
 
-        Returns {"extractor": {...}}: keep that object and hand it to
+        Returns {"ok", "extractor"}: keep that object and hand it to
         run_extractor. It holds what the pages declared, the listing's place,
         its fields, and what every field looked like.
         """
@@ -231,11 +281,11 @@ def build_server() -> Any:
             learnt = extractor_module.compile_extractor(read, listing=listing)
         except extractor_module.NothingToLearn as nothing:
             raise _BadInput(str(nothing)) from nothing
-        return {"extractor": json.loads(learnt.to_json())}
+        return {"ok": True, "extractor": json.loads(learnt.to_json())}
 
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def run_extractor(extractor: dict[str, Any], html_or_url: str) -> dict[str, Any]:
+    def run_extractor(extractor: dict[str, Any], html_or_url: str) -> answers.RunAnswer:
         """Replay an extractor on one page, and check the page still keeps to it.
 
         extractor: the object compile_extractor returned.
@@ -244,31 +294,36 @@ def build_server() -> Any:
         Returns {"ok", "rows", "summary", "failed"}. ok is false when the page
         drifted -- the listing moved, rows or a field vanished, a price no
         longer looks like a price -- and "failed" says which expectation broke.
-        Never read rows from a run whose ok is false as if nothing happened.
+        Never read rows from an answer whose ok is false as if nothing happened.
         """
         loaded = _extractor_from(extractor)
         html, url, _fetched = _html_of(html_or_url)
         run = extractor_module.run_extractor(loaded, html, url=url)
-        return {
+        answer = {
             "ok": run.ok,
             "rows": run.rows,
             "summary": run.summary,
             "failed": [asdict(check) for check in run.checks if not check.ok],
         }
+        return cast(answers.RunAnswer, answer)
 
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
-    def heal_extractor(extractor: dict[str, Any], pages: list[str]) -> dict[str, Any]:
+    def heal_extractor(
+        extractor: dict[str, Any], pages: list[str]
+    ) -> answers.HealAnswer:
         """Learn pages again after a redesign, and say what moved where.
 
         extractor: the object compile_extractor returned.
         pages: http(s) URLs, or the HTML itself, of the redesigned pages.
 
-        Returns {"extractor", "changes", "lost"}. A field that moved keeps its
-        old name, so rows read with the healed extractor keep their columns.
-        "lost" is true when a change is data the page no longer has -- vanished,
-        summary-lost, type-lost, listing-lost -- and then the old extractor,
-        which keeps failing, is the safer one to keep.
+        Returns {"ok", "extractor", "changes", "lost"}. A field that moved
+        keeps its old name, so rows read with the healed extractor keep their
+        columns, and its change carries the evidence: how many of the values it
+        was learnt with were found in the new place. "lost" is true when a
+        change is data the page no longer has -- vanished, summary-lost,
+        type-lost, listing-lost -- and then ok is false: the old extractor,
+        which keeps failing, is the safer one to keep until a person looks.
         """
         loaded = _extractor_from(extractor)
         if not pages:
@@ -278,13 +333,25 @@ def build_server() -> Any:
             healed, changes = extractor_module.heal(loaded, read)
         except extractor_module.NothingToLearn as nothing:
             raise _BadInput(str(nothing)) from nothing
-        return {
+        lost = any(c.kind in extractor_module.LOSSES for c in changes)
+        answer = {
+            "ok": not lost,
             "extractor": json.loads(healed.to_json()),
-            "changes": [asdict(change) for change in changes],
-            "lost": any(c.kind in extractor_module.LOSSES for c in changes),
+            "changes": [_change(change) for change in changes],
+            "lost": lost,
         }
+        return cast(answers.HealAnswer, answer)
 
     return server
+
+
+def _change(change: extractor_module.Change) -> Any:
+    answer = asdict(change)
+    return {
+        key: value
+        for key, value in answer.items()
+        if value is not None or key in ("before", "after")
+    }
 
 
 def _extractor_from(given: dict[str, Any]) -> extractor_module.Extractor:

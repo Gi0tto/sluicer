@@ -102,8 +102,8 @@ def test_fetch_page_refuses_something_that_is_not_a_url(monkeypatch):
     literal_html = "<html><body>hi</body></html>"
     result = registered["fetch_page"](literal_html)
 
-    assert result["bad_input"] is True
-    assert literal_html in result["error"]
+    assert result["error"]["code"] == "bad_input"
+    assert literal_html in result["error"]["message"]
 
 
 def test_fetch_page_still_accepts_a_url(monkeypatch):
@@ -249,7 +249,7 @@ def test_page_markdown_hands_trafilatura_no_url_for_literal_html(monkeypatch):
     result = registered["page_markdown"]("<html><body>hi</body></html>")
 
     assert seen["called_with"][1]["url"] is None
-    assert result == "# Brake pad set\n\nReal content."
+    assert result["markdown"] == "# Brake pad set\n\nReal content."
 
 
 def test_an_mcp_that_is_installed_but_wrong_keeps_its_traceback(monkeypatch):
@@ -310,8 +310,13 @@ def test_extract_declared_without_the_fetch_extra_returns_the_sentence(monkeypat
 
     result = registered["extract_declared"]("https://example.com/p")
 
-    assert "uv pip install 'sluicer[fetch]'" in result["error"]
-    assert result["missing_extra"] == "fetch"
+    assert "uv pip install 'sluicer[fetch]'" in result["error"]["message"]
+    assert result["error"] | {"message": ""} == {
+        "code": "missing_extra",
+        "message": "",
+        "retryable": False,
+        "extra": "fetch",
+    }
 
 
 def test_fetch_page_without_the_fetch_extra_returns_the_sentence(monkeypatch):
@@ -323,8 +328,13 @@ def test_fetch_page_without_the_fetch_extra_returns_the_sentence(monkeypatch):
 
     result = registered["fetch_page"]("https://example.com/p")
 
-    assert "uv pip install 'sluicer[fetch]'" in result["error"]
-    assert result["missing_extra"] == "fetch"
+    assert "uv pip install 'sluicer[fetch]'" in result["error"]["message"]
+    assert result["error"] | {"message": ""} == {
+        "code": "missing_extra",
+        "message": "",
+        "retryable": False,
+        "extra": "fetch",
+    }
 
 
 def test_page_markdown_without_the_markdown_extra_reports_it_as_an_error(monkeypatch):
@@ -343,8 +353,13 @@ def test_page_markdown_without_the_markdown_extra_reports_it_as_an_error(monkeyp
 
     result = registered["page_markdown"]("<html><body>hi</body></html>")
 
-    assert "uv pip install 'sluicer[markdown]'" in result["error"]
-    assert result["missing_extra"] == "markdown"
+    assert "uv pip install 'sluicer[markdown]'" in result["error"]["message"]
+    assert result["error"] | {"message": ""} == {
+        "code": "missing_extra",
+        "message": "",
+        "retryable": False,
+        "extra": "markdown",
+    }
 
 
 def test_a_tool_that_works_is_left_alone_by_the_guard(monkeypatch):
@@ -386,7 +401,7 @@ def test_page_markdown_returns_the_markdown_of_a_page_it_fetched(monkeypatch):
 
     build_server()
 
-    assert registered["page_markdown"]("https://example.com/p") == (
+    assert registered["page_markdown"]("https://example.com/p")["markdown"] == (
         "# Brake pad set\n\nReal content."
     )
 
@@ -431,7 +446,7 @@ def test_a_missing_extra_is_never_mistakable_for_content(monkeypatch):
     for name, result in results.items():
         assert isinstance(result, Mapping), f"{name} returned {type(result).__name__}"
         assert "error" in result, f"{name} carries no error key: {result!r}"
-        assert "uv pip install 'sluicer[" in result["error"], name
+        assert "uv pip install 'sluicer[" in result["error"]["message"], name
 
 
 def test_the_fetch_fake_matches_the_real_fetch_signature(monkeypatch):
@@ -482,8 +497,11 @@ def test_a_refusal_reaches_every_tool_as_an_answer_it_can_read(monkeypatch):
 
     for name, result in results.items():
         assert isinstance(result, Mapping), f"{name} returned {type(result).__name__}"
-        assert "robots.txt" in result["error"], f"{name}: {result!r}"
-        assert result["refused_by_robots"] == url, f"{name}: {result!r}"
+        assert "robots.txt" in result["error"]["message"], f"{name}: {result!r}"
+        assert (
+            result["error"]["url"] == url
+            and result["error"]["code"] == "refused_by_robots"
+        ), f"{name}: {result!r}"
 
 
 def test_a_refusal_and_a_missing_extra_can_be_told_apart(monkeypatch):
@@ -510,8 +528,8 @@ def test_a_refusal_and_a_missing_extra_can_be_told_apart(monkeypatch):
     fake_fetch(monkeypatch, raises=RobotsRefused("https://example.com/private/p"))
     refused = registered["fetch_page"]("https://example.com/private/p")
 
-    assert "refused_by_robots" in refused and "missing_extra" not in refused
-    assert "missing_extra" in missing and "refused_by_robots" not in missing
+    assert refused["error"]["code"] == "refused_by_robots"
+    assert missing["error"]["code"] == "missing_extra"
 
 
 def test_a_refusal_is_never_mistakable_for_a_page_s_own_words(monkeypatch):
@@ -547,8 +565,10 @@ def test_a_fetch_that_failed_says_what_failed_rather_than_raising(monkeypatch):
     build_server()
     result = registered["fetch_page"]("https://example.com/p")
 
-    assert result["fetch_failed"] == "https://example.com/p"
-    assert "connection refused" in result["error"]
+    assert result["error"]["url"] == "https://example.com/p"
+    assert result["error"]["code"] == "fetch_failed"
+    assert result["error"]["retryable"] is True
+    assert "connection refused" in result["error"]["message"]
 
 
 def test_a_real_bug_below_the_fetch_is_still_not_swallowed(monkeypatch):
@@ -657,9 +677,99 @@ def test_a_bad_extractor_or_no_page_is_a_bad_input(monkeypatch):
 
     build_server()
 
-    assert registered["run_extractor"]({"format": 99}, "<p>x</p>")["bad_input"] is True
-    assert registered["compile_extractor"]([])["bad_input"] is True
-    assert registered["compile_extractor"](["<p>x</p>"])["bad_input"] is True
+    assert (
+        registered["run_extractor"]({"format": 99}, "<p>x</p>")["error"]["code"]
+        == "bad_input"
+    )
+    assert registered["compile_extractor"]([])["error"]["code"] == "bad_input"
+    assert registered["compile_extractor"](["<p>x</p>"])["error"]["code"] == "bad_input"
     learnt = registered["compile_extractor"]([_drift("shop_v1.html")])
-    assert registered["heal_extractor"](learnt["extractor"], [])["bad_input"] is True
-    assert registered["heal_extractor"](learnt["extractor"], ["<p>x</p>"])["bad_input"]
+    assert (
+        registered["heal_extractor"](learnt["extractor"], [])["error"]["code"]
+        == "bad_input"
+    )
+    assert (
+        registered["heal_extractor"](learnt["extractor"], ["<p>x</p>"])["error"]["code"]
+        == "bad_input"
+    )
+
+
+def test_every_answer_can_be_checked_on_ok_alone(monkeypatch):
+    """``ok`` is true exactly when the answer can be used as it is."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    page = (
+        '<script type="application/ld+json">{"@type":"Product","name":"Pad"}</script>'
+    )
+    learnt = registered["compile_extractor"]([_drift("shop_v1.html")])
+
+    assert registered["extract_declared"](page)["ok"] is True
+    assert learnt["ok"] is True
+    assert registered["compile_extractor"]([])["ok"] is False
+
+
+def test_a_heal_that_lost_data_is_not_ok(monkeypatch):
+    """The CLI exits 3 and writes nothing; the tool says ok false and why."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    learnt = registered["compile_extractor"]([_drift("shop_v1.html")])
+    healed = registered["heal_extractor"](
+        learnt["extractor"], [_drift("shop_prices_gone.html")]
+    )
+
+    assert healed["lost"] is True
+    assert healed["ok"] is False
+    assert "error" not in healed
+    assert any(change["kind"] == "vanished" for change in healed["changes"])
+
+
+def test_html_handed_in_is_held_to_the_bound_a_fetched_page_is(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    monkeypatch.setattr(server_module, "MAX_RESPONSE_BYTES", 100)
+    server_module.build_server()
+
+    answer = registered["extract_declared"]("<p>" + "x" * 200 + "</p>")
+
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "too_large"
+    assert answer["error"]["retryable"] is False
+    assert "url" not in answer["error"]
+
+
+def test_only_a_failed_fetch_is_worth_retrying(monkeypatch):
+    from sluicer.fetch import FetchFailed, RobotsRefused
+    from sluicer.mcp_server import _answers_instead_of_raising
+
+    def failing(error):
+        return _answers_instead_of_raising(lambda: (_ for _ in ()).throw(error))()
+
+    failed = failing(FetchFailed("https://example.com/p", [], "timed out"))
+    refused = failing(RobotsRefused("https://example.com/p"))
+
+    assert failed["error"]["retryable"] is True
+    assert refused["error"]["retryable"] is False
+
+
+def test_every_answer_type_requires_ok_and_nothing_else():
+    """The output schemas say what an agent may rely on: ``ok``, always."""
+    pytest.importorskip("typing_extensions")
+    from sluicer import mcp_answers
+
+    answers = [
+        mcp_answers.ExtractAnswer,
+        mcp_answers.MarkdownAnswer,
+        mcp_answers.PageAnswer,
+        mcp_answers.CompileAnswer,
+        mcp_answers.RunAnswer,
+        mcp_answers.HealAnswer,
+    ]
+    for answer in answers:
+        assert answer.__required_keys__ == {"ok"}, answer.__name__
+        assert "error" in answer.__optional_keys__, answer.__name__
+    assert mcp_answers.ErrorDetail.__required_keys__ == {"code", "message", "retryable"}

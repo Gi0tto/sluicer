@@ -350,7 +350,8 @@ def test_an_address_the_server_refuses_is_an_answer(monkeypatch):
     build_server()
     result = registered["fetch_page"]("http://127.0.0.1:8080/admin")
 
-    assert result["refused_address"] == "http://127.0.0.1:8080/admin"
+    assert result["error"]["url"] == "http://127.0.0.1:8080/admin"
+    assert result["error"]["code"] == "refused_address"
 
 
 def _timed(html: str) -> float:
