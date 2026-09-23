@@ -181,6 +181,11 @@ def _day(year: int, month: int, day: int) -> str | None:
 
 
 _AMOUNT = re.compile(r"[\d.,\s']+")
+# Longer than any price written with its symbol and grouping: past it, a text
+# is a sentence or a page, and reading it as one would cost its length for
+# every currency symbol there is.
+_LONGEST_AMOUNT = 64
+_BY_LENGTH = sorted(_SYMBOLS, key=len, reverse=True)
 
 
 def amount(text: str) -> str | None:
@@ -193,10 +198,13 @@ def amount(text: str) -> str | None:
     and a little over one somewhere else (``0.999`` is not ambiguous).
     """
     stripped = text.strip()
-    for symbol in sorted(_SYMBOLS, key=len, reverse=True):
-        if stripped.lower().startswith(symbol):
+    if len(stripped) > _LONGEST_AMOUNT:
+        return None
+    for symbol in _BY_LENGTH:
+        lowered = stripped.lower()
+        if lowered.startswith(symbol):
             stripped = stripped[len(symbol) :]
-        elif stripped.lower().endswith(symbol):
+        elif lowered.endswith(symbol):
             stripped = stripped[: -len(symbol)]
     stripped = re.sub(r"^[A-Za-z]{3}\s*|\s*[A-Za-z]{3}$", "", stripped.strip())
     stripped = stripped.strip().lstrip("$¥").rstrip("$¥").strip()

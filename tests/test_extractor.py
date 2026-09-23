@@ -787,3 +787,34 @@ def test_a_value_split_across_elements_is_found_and_one_in_a_sentence_is_not():
     assert learnt.fields[0].path.endswith("p>span.p")
     with pytest.raises(NothingToLearn):
         compile_extractor([(said, None)], listing=False, want={"price": "41.90"})
+
+
+def test_the_search_never_reads_a_wrapper_holding_the_whole_page(monkeypatch):
+    """Measured on a 1.5 MB page: every ancestor of the price is the page's text,
+    and reading each as an amount took minutes. Now none longer than the
+    example could be is read at all."""
+    import sluicer.extractor as extractor_module
+
+    seen: list[int] = []
+    real = extractor_module.amount
+
+    def counted(text):
+        seen.append(len(text))
+        return real(text)
+
+    monkeypatch.setattr(extractor_module, "amount", counted)
+    filler = "<p>" + "word " * 20_000 + "</p>"
+    page_ = (
+        f"<html><body><div><div>{filler}<span class='p'>£41.90</span></div></div>"
+        "</body></html>"
+    )
+    learnt = compile_extractor([(page_, None)], listing=False, want={"price": "41.90"})
+    assert learnt.fields[0].path.endswith("span.p")
+    assert max(seen) <= 4 * len("41.90") + 256
+
+
+def test_an_amount_is_never_a_page():
+    from sluicer.normalise import amount
+
+    assert amount("£41.90") == "41.90"
+    assert amount("£" + "1" * 70) is None

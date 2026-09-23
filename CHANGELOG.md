@@ -252,6 +252,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Crawl-delay` and `Sitemap` reading in the `with-extras` job.
 
 ### Fixed
+- Reading a text as an amount lowercased it once for every currency symbol
+  there is, whatever its length, and a page's wrapper was read as an amount
+  with the whole page's text in it: pointing at a price on a 1.5 MB page with
+  `--want` did not finish in ten minutes, and takes 0.06 s. An amount is now
+  refused past 64 characters, and the search reads no element whose child's
+  text is already longer than the example could be.
 - A healed listing forgot the share of empty rows its pages always had, so a
   page with the spacer rows the extractor was learnt with failed the healed
   extractor's empty-rows check.

@@ -20,6 +20,7 @@ extractor, and the same page always gives the same verdict.
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 import unicodedata
@@ -816,15 +817,36 @@ def _places(doc: Document, example: str) -> list[str]:
         said = " ".join(text.split())
         return said == wanted or (worth is not None and amount(said) == worth)
 
+    # Children before their parents, so a parent whose child's text is already
+    # longer than the example -- the body, every wrapper up to it -- is passed
+    # over without reading its text, which is the whole page's.
+    elements = list(itertools.islice(doc.tree.iter(), _MOST_ELEMENTS))
+    order = {element: n for n, element in enumerate(elements)}
+    # Decided from the parent's answer, in one pass: climbing to the root for
+    # every element is the depth times the size of a page nested deep.
+    no_text: set[HtmlElement] = set()
+    for element in elements:
+        if element.tag in _NOT_TEXT or element.getparent() in no_text:
+            no_text.add(element)
+    room = 4 * len(wanted) + 256
+    too_long: set[HtmlElement] = set()
     texts: list[HtmlElement] = []
-    attributes: list[str] = []
-    for count, element in enumerate(doc.tree.iter()):
-        if count >= _MOST_ELEMENTS:
-            break
-        if not isinstance(element.tag, str) or _in_no_text(element):
+    for element in reversed(elements):
+        if not isinstance(element.tag, str):
             continue
-        if same(element.text_content()):
+        if any(child in too_long for child in element):
+            too_long.add(element)
+            continue
+        text = element.text_content()
+        if len(text) > room:
+            too_long.add(element)
+        elif element not in no_text and same(text):
             texts.append(element)
+    texts.sort(key=order.__getitem__)
+    attributes: list[str] = []
+    for element in elements:
+        if not isinstance(element.tag, str) or element in no_text:
+            continue
         for attribute in _VALUE_ATTRIBUTES:
             value = element.get(attribute)
             if value is None:
@@ -867,12 +889,6 @@ def _a_trail(element: HtmlElement) -> bool:
         element.get(attribute) or "" for attribute in ("class", "id", "aria-label")
     )
     return "breadcrumb" in named.lower()
-
-
-def _in_no_text(element: HtmlElement) -> bool:
-    if element.tag in _NOT_TEXT:
-        return True
-    return any(node.tag in _NOT_TEXT for node in element.iterancestors())
 
 
 def _value_at(doc: Document, path: str) -> str | None:
