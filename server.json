@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Gi0tto/sluicer",
+  "title": "Sluicer",
+  "description": "The data a web page declares, with where each value came from. No model, no API key.",
+  "repository": {
+    "url": "https://github.com/Gi0tto/sluicer",
+    "source": "github"
+  },
+  "websiteUrl": "https://gi0tto.github.io/sluicer/",
+  "version": "0.4.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "sluicer",
+      "version": "0.4.0",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--with",
+          "value": "sluicer[mcp]==0.4.0",
+          "description": "The MCP extra, which brings fetching and markdown, at this version."
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SLUICER_ALLOW_PRIVATE",
+          "description": "Set to 1 to let the server fetch localhost and private networks, which it refuses by default.",
+          "isRequired": false,
+          "default": "0"
+        }
+      ]
+    }
+  ]
+}

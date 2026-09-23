@@ -931,6 +931,18 @@ def serve(host: str, port: int, timeout: float, allow_unauthenticated: bool) -> 
         _fail(str(refused), refused)
 
 
+@main.command("mcp")
+def mcp_command() -> None:
+    """Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
+
+    For a client that starts a package's own command, as the MCP Registry's
+    entry does: uvx --with 'sluicer[mcp]' sluicer mcp.
+    """
+    from sluicer.mcp_server import main as run
+
+    run()
+
+
 @main.command("audit")
 @click.argument("source")
 @click.option("--json", "as_json", is_flag=True, help="Print the audit as JSON.")

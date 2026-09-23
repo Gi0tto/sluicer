@@ -181,7 +181,8 @@ def test_every_file_that_states_the_version_or_the_licence_agrees():
     version = sluicer.__version__
     assert stated(r'^version = "(.+)"$', pyproject) == version
     assert plugin["version"] == version
-    assert stated(r'^version: "(.+)"$', skill) == version
+    # Under metadata: the Agent Skills standard allows no top-level version.
+    assert stated(r'^metadata:\n(?:  .+\n)*?  version: "(.+)"$', skill) == version
     assert stated(r"^version: (.+)$", citation) == version
 
     licence = stated(r'^license = "(.+)"$', pyproject)
@@ -207,3 +208,60 @@ def test_the_plugin_counts_the_tools_the_server_registers():
     )
     assert counted, "the server's docstring counts its tools"
     assert f"with {counted[1].lower()} tools" in plugin["description"]
+
+
+def test_the_skill_keeps_to_the_agent_skills_standard():
+    """Codex and the other clients that read agentskills.io skills refuse a
+    field the standard does not name: 0.4.0's skill had a top-level version,
+    and the standard's own validator refused it."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    skill = root / "skills" / "sluicer" / "SKILL.md"
+    front = skill.read_text().split("---\n", 2)[1]
+    fields = dict(
+        line.split(":", 1)
+        for line in front.splitlines()
+        if line and not line.startswith(" ")
+    )
+    allowed = {"name", "description", "license", "compatibility", "metadata"}
+    assert set(fields) <= allowed | {"allowed-tools"}, set(fields) - allowed
+    name = fields["name"].strip()
+    assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name) and len(name) <= 64
+    assert name == skill.parent.name, "the standard wants the directory's name"
+    assert 0 < len(fields["description"].strip()) <= 1024
+    assert 0 < len(fields["compatibility"].strip()) <= 500
+
+
+def test_the_mcp_registry_entry_is_the_package_it_names():
+    """The MCP Registry lists server.json, and verifies it owns the package by
+    reading ``mcp-name`` in the README PyPI serves; a release that bumps the
+    package and not the entry lists the old one."""
+    import json
+    import re
+    from pathlib import Path
+
+    import sluicer
+
+    root = Path(__file__).resolve().parent.parent
+    entry = json.loads((root / "server.json").read_text())
+    readme = (root / "README.md").read_text()
+    marker = re.search(r"<!-- mcp-name: (\S+) -->", readme)
+    assert marker and marker[1] == entry["name"] == "io.github.Gi0tto/sluicer"
+    assert len(entry["description"]) <= 100, "the registry refuses a longer one"
+    [package] = entry["packages"]
+    version = sluicer.__version__
+    assert entry["version"] == package["version"] == version
+    assert package["identifier"] == "sluicer" and package["runtimeHint"] == "uvx"
+    # uvx --with 'sluicer[mcp]==VERSION' sluicer mcp: the command this suite
+    # tests, with the extra it needs, at the version listed.
+    assert package["runtimeArguments"] == [
+        {
+            "type": "named",
+            "name": "--with",
+            "value": f"sluicer[mcp]=={version}",
+            "description": package["runtimeArguments"][0]["description"],
+        }
+    ]
+    assert package["packageArguments"] == [{"type": "positional", "value": "mcp"}]

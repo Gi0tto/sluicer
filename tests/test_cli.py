@@ -947,3 +947,33 @@ def test_audit_folds_what_every_item_of_a_list_lacks_into_one_entry(tmp_path):
 
     assert "optional parts unusable, missing: review[].reviewRating (3)" in out
     assert "review[0].reviewRating" not in out
+
+
+def test_sluicer_mcp_runs_the_mcp_server_as_sluicer_mcp_does(monkeypatch):
+    """The MCP Registry starts a package's own command: uvx --with
+    'sluicer[mcp]' sluicer mcp."""
+    ran = []
+    monkeypatch.setattr("sluicer.mcp_server.main", lambda: ran.append(True))
+    result = CliRunner().invoke(main, ["mcp"])
+    assert result.exit_code == 0, result.output
+    assert ran == [True]
+
+
+def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):
+    import importlib
+    import sys
+
+    class _NoMcp:
+        def find_spec(self, name, path=None, target=None):
+            if name == "mcp" or name.startswith("mcp."):
+                raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+
+    for name in [n for n in list(sys.modules) if n == "mcp" or n.startswith("mcp.")]:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    monkeypatch.setattr(sys, "meta_path", [_NoMcp(), *sys.meta_path])
+    import sluicer.mcp_server as server_module
+
+    importlib.reload(server_module)
+    result = CliRunner().invoke(main, ["mcp"])
+    assert result.exit_code == 1
+    assert "sluicer[mcp]" in result.stderr and "Traceback" not in result.stderr

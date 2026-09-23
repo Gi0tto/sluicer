@@ -87,3 +87,42 @@ jobs:
       # token is stored anywhere. Configure it once at
       # https://pypi.org/manage/project/sluicer/settings/publishing/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  registry:
+    name: List the server in the MCP Registry
+    needs: publish
+    runs-on: ubuntu-latest
+    # Off until the repository variable PUBLISH_TO_MCP_REGISTRY is true, as the
+    # publish job waits for PUBLISH_TO_PYPI. The registry lists server.json and
+    # proves it owns the package by the mcp-name line in the README PyPI serves,
+    # so this runs only after that release is on PyPI.
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_TO_MCP_REGISTRY == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      # A pinned release, checked against the checksum it was published with:
+      # this job holds a token that can publish in the owner's name.
+      - name: Install mcp-publisher 1.8.1, its checksum checked
+        run: |
+          curl -sSfL -o mcp-publisher.tar.gz \
+            https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz
+          echo "a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+      - name: Wait until PyPI serves this version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for attempt in $(seq 1 30); do
+            if curl -sSf -o /dev/null "https://pypi.org/pypi/sluicer/${version}/json"; then
+              echo "PyPI serves sluicer ${version}"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "PyPI still does not serve sluicer ${version} after five minutes" >&2
+          exit 1
+      - name: Log in with the workflow's own identity, and publish
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
