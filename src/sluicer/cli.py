@@ -12,9 +12,10 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import click
 
@@ -302,6 +303,7 @@ def _inspection(
         lines.append("          silent: " + ", ".join(silent))
     if not microformats:
         lines.append("          not read: microformats (--microformats)")
+    lines.extend(_link_lines(result.links))
     lines.append("")
     records = len(result.records)
     lines.append(f"records   {records}" + ("" if records else ", nothing declared"))
@@ -331,6 +333,24 @@ def _inspection(
     ]
     lines.extend(_columns(rows, indent="  "))
     return "\n".join(lines)
+
+
+def _link_lines(links: Mapping[str, Any]) -> list[str]:
+    """What the page's ``<link>`` elements declare, one relation a line."""
+    said = []
+    for relation in ("canonical", "next", "prev", "amphtml", "manifest"):
+        if relation in links:
+            said.append(f"{relation} {links[relation]}")
+    if links.get("alternates"):
+        languages = ", ".join(a["hreflang"] for a in links["alternates"])
+        said.append(f"{len(links['alternates'])} alternates: {_brief(languages)}")
+    for feed in links.get("feeds", []):
+        said.append(f"{feed['format']} feed {feed['href']}")
+    for endpoint in links.get("oembed", []):
+        said.append(f"oembed {endpoint}")
+    return [
+        ("links     " if n == 0 else "          ") + line for n, line in enumerate(said)
+    ]
 
 
 def _columns(rows: list[tuple[str, str, str]], indent: str) -> list[str]:

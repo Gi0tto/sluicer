@@ -85,6 +85,7 @@ class ExtractAnswer(TypedDict, total=False):
     normalised: dict[str, str]
     records: list[RecordAnswer]
     sources: list[str]
+    links: dict[str, Any]
     fetch: FetchRecord
 
 

@@ -602,3 +602,17 @@ def test_inspect_shows_what_a_date_means_beside_what_the_page_wrote(tmp_path):
     result = CliRunner().invoke(main, ["inspect", str(page)])
 
     assert "Jun 16, 2025 = 2025-06-16" in result.stdout
+
+
+def test_inspect_shows_the_link_relations(tmp_path):
+    page = tmp_path / "linked.html"
+    page.write_text(
+        '<html><head><link rel="canonical" href="https://s.example/p">'
+        '<link rel="alternate" hreflang="de" href="https://s.example/de/p">'
+        "<title>P</title></head></html>"
+    )
+
+    out = CliRunner().invoke(main, ["inspect", str(page)]).stdout
+
+    assert "links     canonical https://s.example/p" in out
+    assert "1 alternates: de" in out

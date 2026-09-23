@@ -22,6 +22,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   row.
 
 ### Added
+- `Extraction.links`: what the page's `<link>` elements declare about where
+  else it lives -- its canonical address, every `hreflang` alternate, its RSS,
+  Atom and JSON feeds, `next` and `prev` (from `<a>` too, where pagination
+  usually is), AMP, the web app manifest and oEmbed endpoints -- each address
+  resolved against the page's base. WordPress's REST API, which every
+  WordPress page declares as `rel=alternate type=application/json`, is not
+  taken for a feed. Shown in `sluicer inspect` and in the MCP answer.
 - `Extraction.normalised`: the summary's `published`, `modified`, `price` and
   `currency` read into ISO 8601, a decimal with a point and an ISO 4217 code,
   where the page's text leaves no doubt. The summary keeps what the page wrote.

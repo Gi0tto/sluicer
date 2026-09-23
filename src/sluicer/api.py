@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from sluicer.declared.links import Links, read_links
 from sluicer.declared.merge import ABOUT_A_THING, Record, merge
 from sluicer.declared.readers import READERS
 from sluicer.document import load
@@ -20,7 +21,10 @@ class Extraction:
     questions most callers ask -- title, author, date, price -- one value each,
     chosen from the records by fixed rules, each naming its reader and key (see
     ``sluicer.summary.FIELDS``). ``records`` is everything the page declared.
-    ``sources`` names every reader that found something. ``normalised`` reads
+    ``links`` is what the page's ``<link>`` elements declare about where else
+    it lives: its canonical address, its other languages, its feeds, the pages
+    before and after it (see ``sluicer.declared.links``). ``sources`` names every
+    reader that found something. ``normalised`` reads
     the summary's dates, price and currency into ISO 8601, a decimal and an ISO
     4217 code, where the page's text leaves no doubt (see ``sluicer.normalise``).
     """
@@ -30,6 +34,7 @@ class Extraction:
     normalised: dict[str, str] = field(default_factory=dict)
     records: list[Record] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
+    links: Links = field(default_factory=lambda: Links())
 
 
 def extract(
@@ -98,6 +103,7 @@ def extract(
         normalised=normalised(summary),
         records=records,
         sources=sources,
+        links=read_links(doc),
     )
 
 
