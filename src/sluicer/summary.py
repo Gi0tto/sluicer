@@ -20,12 +20,14 @@ import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TypeAlias
 
 from sluicer.declared.links import canonicals
-from sluicer.declared.merge import ABOUT_A_THING, JsonValue, Record
+from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Record
 from sluicer.declared.opengraph import NAMESPACES
 from sluicer.document import Document, base_url, join
+from sluicer.normalise import amount
 
 
 @dataclass(frozen=True)
@@ -191,9 +193,14 @@ def summarise(
     # times over, one per colour or size: an answer they do not all agree on
     # belongs to one variant, not to the thing the page is about.
     variants = _variants(records, subject)
+    # The variants a ProductGroup declares: what the group does not say itself
+    # is answered only when every variant says the same.
+    members = _members(subject, records)
 
     def own(prop: str, read: Callable[[JsonValue], str | None] = _text) -> Answer:
         found = _from(subject, prop, read)
+        if found is None and members:
+            return _shared(members, prop, read)
         if found is None or not variants:
             return found
         agreed = all(
@@ -205,6 +212,15 @@ def summarise(
 
     offers = subject.fields.get("offers") if subject is not None else None
     pricing = _pricing(subject, offers.value) if subject and offers else _Pricing()
+    if members and offers is None:
+        pricing = _across(
+            [
+                _pricing(member, member.fields["offers"].value)
+                if "offers" in member.fields
+                else _Pricing()
+                for member in members
+            ]
+        )
     if variants and subject is not None:
         pricing = _agreed(
             pricing,
@@ -409,6 +425,136 @@ def _agreed(pricing: _Pricing, others: list[_Pricing]) -> _Pricing:
             kept(name)
             for name in ("price", "regular", "low", "high", "currency", "availability")
         )
+    )
+
+
+def _members(subject: Record | None, records: list[Record]) -> list[Record]:
+    """The variants a ``ProductGroup`` declares, each as a record of its own.
+
+    Google documents two shapes for product variants: the group lists them in
+    ``hasVariant``, or each is a node of its own pointing at the group with
+    ``isVariantOf`` or naming its ``inProductGroupWithID``. A nested variant's
+    record is named by its path, ``ProductGroup.hasVariant[1]``, so an answer
+    read from it keeps the key it was read at.
+    """
+    if subject is None:
+        return []
+    declared = subject.fields.get("hasVariant")
+    if declared is not None and declared.source in ABOUT_A_THING:
+        items = declared.value if isinstance(declared.value, list) else [declared.value]
+        name = subject.type or "Thing"
+        found: list[Record] = []
+        for index, item in enumerate(items[:_MOST_OFFERS]):
+            if not isinstance(item, dict):
+                continue
+            where = (
+                f"{name}.hasVariant[{index}]"
+                if isinstance(declared.value, list)
+                else f"{name}.hasVariant"
+            )
+            kind = item.get("@type")
+            found.append(
+                Record(
+                    type=where,
+                    types=tuple(
+                        k
+                        for k in (kind if isinstance(kind, list) else [kind])
+                        if isinstance(k, str)
+                    ),
+                    fields={
+                        key: Field(value, declared.source)
+                        for key, value in item.items()
+                        if not key.startswith("@")
+                    },
+                    source=declared.source,
+                )
+            )
+        return found
+    if "ProductGroup" not in subject.types:
+        return []
+    group = _from(subject, "productGroupID", _text)
+    called = _from(subject, "name", _text)
+    return [
+        record
+        for record in records
+        if record is not subject
+        and _points_at(
+            record, group.value if group else None, called.value if called else None
+        )
+    ][:_MOST_OFFERS]
+
+
+def _points_at(record: Record, group: str | None, name: str | None) -> bool:
+    """Whether ``record`` says it is a variant of the group with this ID or name."""
+    named = _from(record, "inProductGroupWithID", _text)
+    if group is not None and named is not None:
+        return named.value == group
+    parent = record.fields.get("isVariantOf")
+    if parent is None or parent.source not in ABOUT_A_THING:
+        return False
+    if isinstance(parent.value, dict):
+        declared_id = parent.value.get("productGroupID")
+        if group is not None and declared_id is not None:
+            return _text(declared_id) == group
+        declared_name = parent.value.get("name")
+        return (
+            name is not None
+            and declared_name is not None
+            and _text(declared_name) == name
+        )
+    return group is not None and _text(parent.value) == group
+
+
+def _shared(
+    members: list[Record], prop: str, read: Callable[[JsonValue], str | None]
+) -> SummaryField | None:
+    """The first variant's answer, when every variant gives the same one."""
+    answers = [_from(member, prop, read) for member in members]
+    first = answers[0]
+    if first is None or any(a is None or a.value != first.value for a in answers):
+        return None
+    return first
+
+
+def _across(pricings: list[_Pricing]) -> _Pricing:
+    """What a group's variants say about price, without picking one of them.
+
+    A price, regular price, currency or availability every variant gives the
+    same is the group's, with the first variant's key. Prices that differ are a
+    range: ``price_low`` and ``price_high`` are the lowest and highest a variant
+    declares, each with the key it was read at, when at least two variants
+    have one, every one of them reads as an amount, and all are in one currency.
+    """
+
+    def same(name: str) -> SummaryField | None:
+        found: list[SummaryField | None] = [getattr(p, name) for p in pricings]
+        first = found[0]
+        if first is None or any(f is None or f.value != first.value for f in found):
+            return None
+        return first
+
+    price = same("price")
+    priced = [p for p in pricings if p.price is not None]
+    currencies = {p.currency.value if p.currency else None for p in priced}
+    currency = same("currency") or (
+        priced[0].currency if priced and len(currencies) == 1 else None
+    )
+    low = high = None
+    if price is None and len(priced) >= 2 and len(currencies) == 1:
+        amounts = [amount(p.price.value) if p.price else None for p in priced]
+        if all(a is not None for a in amounts):
+            ranked = [
+                (Decimal(a), p.price) for a, p in zip(amounts, priced, strict=True) if a
+            ]
+            low = min(ranked, key=lambda entry: entry[0])[1]
+            high = max(ranked, key=lambda entry: entry[0])[1]
+    return _Pricing(
+        price,
+        same("regular") if price is not None else None,
+        low,
+        high,
+        currency if price is not None or low is not None else None,
+        same("availability"),
     )
 
 

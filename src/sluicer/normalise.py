@@ -16,8 +16,11 @@ from __future__ import annotations
 import datetime
 import email.utils
 import re
+from typing import TYPE_CHECKING
 
-from sluicer.summary import SummaryField
+if TYPE_CHECKING:
+    # For its annotation only: the summary reads amounts with this module.
+    from sluicer.summary import SummaryField
 
 ISO_4217 = frozenset(
     """

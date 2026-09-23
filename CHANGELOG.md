@@ -77,6 +77,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   resolved against the page's base. WordPress's REST API, which every
   WordPress page declares as `rel=alternate type=application/json`, is not
   taken for a feed. Shown in `sluicer inspect` and in the MCP answer.
+- A `ProductGroup`'s summary reads its variants, in both shapes Google
+  documents: listed in `hasVariant`, or each its own node pointing at the
+  group with `isVariantOf` or `inProductGroupWithID`. What the group leaves to
+  its variants is answered only when every variant says the same -- a price,
+  a currency, an availability, an MPN -- with the first variant's key. Prices
+  that differ are a range: `price_low` and `price_high` are the lowest and
+  highest a variant declares, each with its own key
+  (`ProductGroup.hasVariant[2].offers.price`), when two or more variants have
+  one, all read as amounts and all are in one currency. No variant is ever
+  picked: on Google's page-per-variant example, which prices one variant and
+  links the rest, the group has no price. On Google's own example the summary
+  had only title, brand and type.
 - `sluicer warc FILES` and `sluicer.warc`: the pages a WARC file holds, as
   Common Crawl, the Internet Archive, wget, Browsertrix and warcio write them,
   one JSON line each with the record it came from. Every page is read with

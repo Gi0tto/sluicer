@@ -615,3 +615,175 @@ def test_a_product_id_answers_the_sku_when_no_sku_is_declared():
     summary = _summary(_page({"@type": "Product", "name": "Pads", "productID": "BP-9"}))
 
     assert summary["sku"] == ("BP-9", "jsonld", "Product.productID")
+
+
+# -- a ProductGroup and its variants, as Google documents them ------------------
+
+
+def _group(*variants, group_offers=None, extra=None, nested=True):
+    import json
+
+    group = {
+        "@context": "https://schema.org/",
+        "@type": "ProductGroup",
+        "@id": "#coat",
+        "name": "Wool winter coat",
+        "brand": {"@type": "Brand", "name": "Good brand"},
+        "productGroupID": "44E01",
+        **(extra or {}),
+    }
+    if group_offers is not None:
+        group["offers"] = group_offers
+    if nested:
+        group["hasVariant"] = list(variants) if len(variants) != 1 else variants[0]
+        nodes = [group]
+    else:
+        nodes = [group, *variants]
+    script = f'<script type="application/ld+json">{json.dumps(nodes)}</script>'
+    return f"<html><head>{script}</head></html>"
+
+
+def _variant(
+    sku, price, currency="USD", availability="https://schema.org/InStock", **more
+):
+    offers = {"@type": "Offer", "price": price, "priceCurrency": currency}
+    if availability:
+        offers["availability"] = availability
+    return {
+        "@type": "Product",
+        "sku": sku,
+        "name": f"Coat {sku}",
+        "offers": offers,
+        **more,
+    }
+
+
+def _answers(html):
+    from sluicer import extract
+
+    summary = extract(html).summary
+    return {name: (field.value, field.key) for name, field in summary.items()}
+
+
+def test_variants_priced_apart_are_a_range_with_each_ends_own_key():
+    """Google's own example: the summary gave only title, brand and type."""
+    got = _answers(
+        _group(_variant("S", 39.99), _variant("M", 39.99), _variant("L", 49.99))
+    )
+    assert got["price_low"] == ("39.99", "ProductGroup.hasVariant[0].offers.price")
+    assert got["price_high"] == ("49.99", "ProductGroup.hasVariant[2].offers.price")
+    assert got["currency"] == ("USD", "ProductGroup.hasVariant[0].offers.priceCurrency")
+    assert got["availability"][0] == "InStock"
+    assert got["brand"] == ("Good brand", "ProductGroup.brand")
+    assert "price" not in got
+    assert "sku" not in got, "a variant's SKU is not the group's"
+
+
+def test_variants_priced_alike_answer_the_price():
+    got = _answers(_group(_variant("S", 10), _variant("M", 10)))
+    assert got["price"] == ("10", "ProductGroup.hasVariant[0].offers.price")
+    assert "price_low" not in got and "price_high" not in got
+
+
+def test_a_range_needs_one_currency_and_amounts_that_read():
+    apart = _answers(_group(_variant("S", 10, "USD"), _variant("M", 12, "EUR")))
+    assert not {"price", "price_low", "price_high", "currency"} & set(apart)
+    unsure = _answers(_group(_variant("S", "1.299"), _variant("M", "12")))
+    assert not {"price_low", "price_high"} & set(unsure)
+
+
+def test_a_range_needs_two_variants_that_declare_a_price():
+    """Google's page-per-variant shape: one variant described, the others
+    only linked. The group's price is not known here, and no variant is picked."""
+    got = _answers(_group(_variant("S", 39.99), {"url": "https://example.com/coat/l"}))
+    assert not {"price", "price_low", "price_high", "currency"} & set(got)
+
+
+def test_an_availability_the_variants_do_not_share_is_not_answered():
+    got = _answers(
+        _group(
+            _variant("S", 10),
+            _variant("M", 10, availability="https://schema.org/OutOfStock"),
+        )
+    )
+    assert got["price"][0] == "10"
+    assert "availability" not in got
+
+
+def test_the_groups_own_offers_come_before_its_variants():
+    got = _answers(
+        _group(
+            _variant("S", 10),
+            _variant("M", 20),
+            group_offers={
+                "@type": "AggregateOffer",
+                "lowPrice": 9,
+                "highPrice": 25,
+                "priceCurrency": "GBP",
+            },
+        )
+    )
+    assert got["price_low"] == ("9", "ProductGroup.offers.lowPrice")
+    assert got["currency"][0] == "GBP"
+
+
+def test_a_field_the_group_leaves_to_its_variants_is_answered_when_all_agree():
+    same = _answers(_group(_variant("S", 10, mpn="C-1"), _variant("M", 10, mpn="C-1")))
+    assert same["mpn"] == ("C-1", "ProductGroup.hasVariant[0].mpn")
+    apart = _answers(_group(_variant("S", 10, mpn="C-1"), _variant("M", 10, mpn="C-2")))
+    assert "mpn" not in apart
+
+
+def test_one_variant_nested_alone_is_read_at_its_own_path():
+    got = _answers(_group(_variant("S", 10)))
+    assert got["price"] == ("10", "ProductGroup.hasVariant.offers.price")
+
+
+def test_variants_declared_apart_are_found_by_what_they_point_at():
+    """Google's second shape: each variant its own node, isVariantOf the group."""
+    by_reference = [
+        {**_variant("S", 39.99), "isVariantOf": {"@id": "#coat"}},
+        {**_variant("M", 49.99), "isVariantOf": {"@id": "#coat"}},
+    ]
+    got = _answers(_group(*by_reference, nested=False))
+    assert got["price_low"] == ("39.99", "Product.offers.price")
+    assert got["price_high"] == ("49.99", "Product.offers.price")
+    by_id = [
+        {**_variant("S", 5), "inProductGroupWithID": "44E01"},
+        {**_variant("M", 5), "inProductGroupWithID": "44E01"},
+        {**_variant("X", 99), "inProductGroupWithID": "OTHER"},
+    ]
+    assert _answers(_group(*by_id, nested=False))["price"][0] == "5"
+
+
+def test_a_variant_may_name_its_group_by_id_or_by_name():
+    by_text = [
+        {**_variant("S", 7), "isVariantOf": "44E01"},
+        {**_variant("M", 7), "isVariantOf": "44E01"},
+    ]
+    assert _answers(_group(*by_text, nested=False))["price"][0] == "7"
+    by_name = [
+        {**_variant("S", 3), "isVariantOf": {"name": "Wool winter coat"}},
+        {**_variant("M", 3), "isVariantOf": {"name": "Wool winter coat"}},
+    ]
+    html = _group(*by_name, nested=False).replace('"productGroupID": "44E01", ', "")
+    assert _answers(html)["price"][0] == "3"
+    stranger = [
+        {**_variant("S", 3), "isVariantOf": {"name": "Another coat"}},
+        {**_variant("M", 3), "isVariantOf": {"name": "Another coat"}},
+    ]
+    html = _group(*stranger, nested=False).replace('"productGroupID": "44E01", ', "")
+    assert "price" not in _answers(html)
+
+
+def test_a_hostile_group_of_variants_is_read_only_so_far():
+    many = [_variant(str(i), 10) for i in range(500)] + [_variant("last", 99)]
+    got = _answers(_group(*many))
+    assert got["price"][0] == "10", "only the first hundred variants are read"
+
+
+def test_a_variant_written_as_an_address_alone_is_no_variant_to_read():
+    got = _answers(
+        _group(_variant("S", 10), "https://example.com/coat/m", _variant("L", 10))
+    )
+    assert got["price"] == ("10", "ProductGroup.hasVariant[0].offers.price")

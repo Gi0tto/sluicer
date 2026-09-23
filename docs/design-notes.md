@@ -98,7 +98,10 @@ ahead of pages, sites and furniture; a type declared on three or more records
 is a listing and none of its items is the subject, unless exactly one of them
 carries an offer -- the product among its related products -- or all of them
 bear one name, as a product declared once per colour does, and then only the
-answers every variant agrees on are given. A
+answers every variant agrees on are given. A `ProductGroup`'s own variants,
+in `hasVariant` or pointing at it with `isVariantOf`, are read the same way:
+what they all say is the group's, prices that differ are a range from the
+lowest to the highest a variant declares, and no variant is picked. A
 page that misuses a term is answered by that misuse, which is why every answer
 names the key it was read from.
 
