@@ -13,6 +13,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is not a price of 19.
 
 ### Added
+- A `reads` check in extractors: a listing field whose every learnt value read
+  as an amount or a date must still read so in half its values. The shape
+  check could not tell `12.99` from `2025-01-02`, both digits and
+  punctuation, so a price column and a date column that swapped passed it.
+  A 0.3 extractor file, which learnt no reading, still loads. The drift
+  benchmark still shows no false alarm.
 - A scoreboard on product pages (`bench/products.py`,
   `docs/scoreboard-products.md`): Zyte's product-extraction benchmark, 140
   pages as served with price, SKU and availability labelled by hand, scored by

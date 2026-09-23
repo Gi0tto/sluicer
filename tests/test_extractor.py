@@ -109,7 +109,7 @@ def test_a_price_slot_that_now_holds_a_button_fails_loudly():
 
     assert not run.ok
     assert "shape" in failed(run)
-    assert set(failed(run)) <= {"shape", "values"}
+    assert set(failed(run)) <= {"shape", "values", "reads"}
 
 
 def test_a_redesign_breaks_the_old_extractor():

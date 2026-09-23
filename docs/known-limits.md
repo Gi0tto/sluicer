@@ -89,9 +89,10 @@ to match and says so.
 field's values must keep its shape, and a shape needs five values to be learnt
 or checked. Editing the JSON changes what was learnt, not the thresholds.
 
-**Two same-shaped text columns can swap unnoticed** on a page the extractor was
-not learnt from: a title and a stock line are both letters. The `values` check
-catches a swap only when one side becomes the same in every row.
+**Two free-text columns can swap unnoticed** on a page the extractor was not
+learnt from: a title and a brand keep their shapes, and neither reads as an
+amount or a date. A swap is caught when one side read as an amount or a date
+(the `reads` check), or became the same in every row (the `values` check).
 
 **How often extractors survive real redesigns is not measured.** The fixtures
 are written by hand; the benchmark on real before-and-after pages is next on the

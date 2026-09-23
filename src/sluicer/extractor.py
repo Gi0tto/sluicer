@@ -24,7 +24,7 @@ import json
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
@@ -35,6 +35,7 @@ from sluicer import __version__
 from sluicer.api import extract
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import Document, base_url, join, load
+from sluicer.normalise import amount, iso_date
 from sluicer.structure.groups import repeating_groups
 from sluicer.structure.records import _label, records_from
 from sluicer.structure.shape import kind
@@ -91,6 +92,11 @@ class ListingField:
     missing: float
     shape: str | None
     samples: tuple[str, ...]
+    reads: str | None = None
+    """``amount`` or ``date`` when every learnt value read as one (see
+    ``sluicer.normalise``), which the shape alone cannot say: ``12.99`` and
+    ``2025-01-02`` are both digits and punctuation, and two columns that swap
+    them keep their shapes."""
 
 
 @dataclass(frozen=True)
@@ -148,6 +154,7 @@ class Extractor:
                         "path": f.path,
                         "missing": f.missing,
                         "shape": f.shape,
+                        "reads": f.reads,
                         "samples": list(f.samples),
                     }
                     for f in self.listing.fields
@@ -195,6 +202,8 @@ def _extractor_of(body: Any) -> Extractor:
                     path=_text(f["path"]),
                     missing=float(f["missing"]),
                     shape=None if f["shape"] is None else _text(f["shape"]),
+                    # Absent from a 0.3 file, which learnt no reading.
+                    reads=_reading(f.get("reads")),
                     samples=tuple(_text(v) for v in f["samples"]),
                 )
                 for f in raw["fields"]
@@ -547,7 +556,32 @@ def _profile(name: str, path: str, values: list[str | None]) -> ListingField:
         missing=round(1 - len(present) / len(values), 4) if values else 1.0,
         shape=shapes.pop() if shaped and not _is_address(path) else None,
         samples=tuple(dict.fromkeys(present))[:_SAMPLES],
+        reads=_reads(present) if not _is_address(path) else None,
     )
+
+
+_READERS: dict[str, Callable[[str], str | None]] = {
+    "amount": amount,
+    "date": iso_date,
+}
+
+
+def _reads(values: list[str]) -> str | None:
+    """What every one of ``values`` reads as, when there are enough to say."""
+    if len(values) < _SHAPE_EVIDENCE:
+        return None
+    for reading, read in _READERS.items():
+        if all(read(value) is not None for value in values):
+            return reading
+    return None
+
+
+def _reading(declared: Any) -> str | None:
+    if declared is None:
+        return None
+    if declared not in _READERS:
+        raise ValueError(f"a field reads as amount or date, not {declared!r}")
+    return str(declared)
 
 
 # -- replaying ----------------------------------------------------------------
@@ -785,6 +819,19 @@ def _replay_listing(
             checks.append(
                 Check("field", f"{f.name} in some rows", f"in {share:.0%}", share > 0)
             )
+        if f.reads and len(present) >= _SHAPE_EVIDENCE:
+            read = _READERS[f.reads]
+            readable = sum(1 for v in present if read(v) is not None) / len(present)
+            unread = next((v for v in present if read(v) is None), present[0])
+            checks.append(
+                Check(
+                    "reads",
+                    f"{f.name} to read as {'an' if f.reads == 'amount' else 'a'} "
+                    f"{f.reads} in at least {SHAPE_KEPT:.0%} of rows",
+                    f"{readable:.0%}, e.g. {unread!r}",
+                    readable >= SHAPE_KEPT,
+                )
+            )
         if f.shape and len(present) >= _SHAPE_EVIDENCE:
             kept_shape = sum(1 for v in present if _fits(v, f.shape)) / len(present)
             example = next((v for v in present if not _fits(v, f.shape)), present[0])
@@ -910,6 +957,7 @@ def _heal_listing(
             missing=f.missing,
             shape=f.shape,
             samples=f.samples,
+            reads=f.reads,
         )
         for f in new.fields
         # A new column keeps its path as its name, unless a moved one took it.

@@ -689,3 +689,36 @@ def test_a_numbered_group_that_vanished_from_every_row_still_fails():
 
     assert not run.ok
     assert "field" in failed(run)
+
+
+def test_a_price_column_that_now_holds_dates_fails_though_its_shape_is_kept():
+    """12.99 and 2025-01-02 are both digits and punctuation: the shape check
+    cannot tell a price from a date, and two columns that swap them kept their
+    shapes. What each learnt value read as can."""
+
+    def row(i, price, date):
+        return (
+            f"<li class='item'><a href='/p{i}'>Item {i}</a>"
+            f"<span class='price'>{price}</span><span class='date'>{date}</span></li>"
+        )
+
+    learnt = learn(
+        shop_page([row(i, f"{10 + i}.99", f"2025-01-0{i + 1}") for i in range(8)])
+    )
+    swapped = shop_page([row(i, f"2025-02-0{i + 1}", f"{20 + i}.50") for i in range(8)])
+
+    run = run_extractor(learnt, swapped, "https://s/x")
+
+    fields = {f.name: f.reads for f in learnt.listing.fields}
+    assert fields["span.price"] == "amount" and fields["span.date"] == "date"
+    assert not run.ok
+    assert "reads" in failed(run)
+
+
+def test_a_file_from_0_3_that_learnt_no_reading_still_loads():
+    extractor = learn(shop_page(books(10)))
+    body = json.loads(extractor.to_json())
+    for f in body["listing"]["fields"]:
+        del f["reads"]
+
+    assert Extractor.from_json(json.dumps(body)).listing is not None
