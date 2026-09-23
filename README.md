@@ -77,6 +77,10 @@ value. `sluicer inspect` prints the same reading laid out for a person.
 - **From a scraper of CSS selectors**: an extractor checks every page it reads
   against what it learnt, and a page that drifted fails with exit code 3
   instead of returning nulls for weeks.
+- **From autoscraper**, which learns where values are from examples of them:
+  so does `compile --want`, on listings and on product pages that declare
+  nothing, and what it learns is still checked on every page, so a price
+  slot that starts saying "Add to basket" fails instead of being returned.
 - **From an LLM scraper**: no model, no key, no bill, and the same answer
   every time.
 
@@ -94,13 +98,14 @@ sluicer diff yesterday.html https://shop.example/p  # what changed, and where fr
 sluicer audit https://example.com/product           # its markup against Google's documentation
 
 sluicer compile page1.html page2.html -o shop.json  # learn an extractor
+sluicer compile p1.html p2.html -o shop.json --want price=41.90 --want title="Brake pads"
 sluicer run shop.json https://shop.example/c?p=7    # replay it, checked
 sluicer heal shop.json https://shop.example/c -o shop.json  # after a redesign
 
 sluicer map https://shop.example/                   # a site's addresses, from its sitemaps
 sluicer crawl https://shop.example/ -o shop.jsonl   # follow its links, politely; --resume
 sluicer batch urls.txt -o pages.jsonl               # read a list, one JSON line per page
-sluicer warc crawl.warc.gz > pages.jsonl           # the pages a web archive holds
+sluicer warc crawl.warc.gz > pages.jsonl            # the pages a web archive holds
 ```
 
 Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
