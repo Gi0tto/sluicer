@@ -48,6 +48,7 @@ __all__ = [
     "RecordAudit",
     "Site",
     "SiteFile",
+    "answered_with",
     "audit",
 ]
 
@@ -128,6 +129,19 @@ def audit(
     result.warnings = sum(1 for finding in findings if finding.severity == "warning")
     result.notes = sum(1 for finding in findings if finding.severity == "info")
     return result
+
+
+def answered_with(status: int) -> str:
+    """The sentence an audit of a page that answered ``status`` carries.
+
+    A fetch that climbed as far as it could returns what the site answered, a
+    403 or a 404 included; the audit of that answer is not the audit of the
+    page asked for, and says so first.
+    """
+    return (
+        f"The page asked for: the site answered status {status}, and what is "
+        "audited is that answer."
+    )
 
 
 def _url_of(page: str | bytes | Extraction) -> str | None:

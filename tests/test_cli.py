@@ -633,3 +633,284 @@ def test_inspect_says_whether_the_page_declares_how_it_may_be_used(tmp_path):
     assert "rights    robots noai" in reserved
     assert "tdm-reservation 1" in reserved
     assert "rights    none declared in the page" in silent
+
+
+# -- audit --------------------------------------------------------------------
+
+AUDITED_WELL = (
+    "<html><head><title>Example</title>"
+    '<meta name="description" content="An example site.">'
+    '<link rel="canonical" href="https://example.com/">'
+    '<meta property="og:title" content="Example"><meta property="og:type" '
+    'content="website"><meta property="og:image" content="https://example.com/i.png">'
+    '<meta property="og:url" content="https://example.com/">'
+    '<script type="application/ld+json">{"@type":"WebSite","name":"Example",'
+    '"alternateName":"EX","url":"https://example.com/"}</script>'
+    "</head><body></body></html>"
+)
+
+
+def test_audit_of_a_page_that_keeps_to_the_rules_exits_zero(tmp_path):
+    page = tmp_path / "home.html"
+    page.write_text(AUDITED_WELL)
+
+    result = CliRunner().invoke(main, ["audit", str(page)])
+
+    assert result.exit_code == 0, result.output
+    assert "WebSite  (jsonld record 0)" in result.stdout
+    assert "Site name  requirements met" in result.stdout
+    assert "page      0 findings" in result.stdout
+    assert "the site is read only for a URL" in result.stdout
+    assert result.stdout.rstrip().endswith("summary   0 errors, 0 warnings, 0 notes")
+
+
+def test_audit_of_a_page_that_breaks_a_documented_rule_exits_three():
+    result = CliRunner().invoke(
+        main, ["audit", str(FIXTURES / "product_all_three.html")]
+    )
+
+    assert result.exit_code == 3
+    assert "Product  (jsonld record 0)" in result.stdout
+    assert "Product  (microdata record 0)" in result.stdout
+    assert "Merchant listing  2 required missing: image, offers" in result.stdout
+    assert "review|aggregateRating|offers" in result.stdout
+    assert "og:type is absent" in result.stdout
+
+
+def test_audit_names_each_refused_value_with_its_rule(tmp_path):
+    page = tmp_path / "p.html"
+    page.write_text(
+        '<script type="application/ld+json">{"@type":"Product","name":"Pad",'
+        '"offers":{"price":"41,90","priceCurrency":"EUR"}}</script>'
+    )
+
+    result = CliRunner().invoke(main, ["audit", str(page)])
+
+    assert result.exit_code == 3
+    line = next(
+        line for line in result.stdout.splitlines() if "offers.price is" in line
+    )
+    assert line.split()[0] == "error"
+    assert "[https://schema.org/price]" in line
+
+
+def test_audit_of_a_page_that_declares_nothing_exits_one(tmp_path):
+    page = tmp_path / "bare.html"
+    page.write_text(AUDITED_WELL.split("<script")[0] + "</head></html>")
+
+    result = CliRunner().invoke(main, ["audit", str(page)])
+
+    assert result.exit_code == 1
+    assert "records   0 audited, none declared" in result.stdout
+
+
+def test_audit_json_is_the_audit_itself(tmp_path):
+    page = tmp_path / "home.html"
+    page.write_text(AUDITED_WELL)
+
+    result = CliRunner().invoke(main, ["audit", str(page), "--json"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["records"][0]["features"][0]["name"] == "Site name"
+    assert payload["errors"] == 0
+    assert "fetch" not in payload
+
+
+def test_audit_of_a_file_that_cannot_be_read_exits_two(tmp_path):
+    result = CliRunner().invoke(main, ["audit", str(tmp_path / "nope.html")])
+
+    assert result.exit_code == 2
+    assert "does not exist" in result.stderr
+
+
+def _fetched_well(monkeypatch):
+    from sluicer.fetch.result import Fetched
+
+    def fake_fetch(url, rungs=None, **kwargs):
+        return Fetched(
+            url="https://example.com/", html=AUDITED_WELL, status=200, rung="http"
+        )
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+
+def test_audit_of_a_url_reads_the_site_beside_it(monkeypatch):
+    from sluicer.audit import Site, SiteFile
+
+    _fetched_well(monkeypatch)
+    asked = {}
+
+    def read_site(url, **kwargs):
+        asked.update(url=url, **kwargs)
+        return Site(
+            SiteFile(
+                "https://example.com/robots.txt",
+                200,
+                "User-agent: GPTBot\nDisallow: /\n\nUser-agent: anthropic-ai\n"
+                "Disallow: /\n",
+            ),
+            SiteFile("https://example.com/llms.txt", 200, "No heading here\n"),
+            SiteFile("https://example.com/llms-full.txt", 200, "x" * 1500),
+        )
+
+    monkeypatch.setattr("sluicer.fetch.site.read_site", read_site)
+
+    result = CliRunner().invoke(main, ["audit", "https://example.com/", "--no-robots"])
+
+    assert asked == {"url": "https://example.com/", "obey_robots": False}
+    assert result.exit_code == 3, "an llms.txt with no name is an error"
+    out = result.stdout
+    assert "agents    robots.txt https://example.com/robots.txt, status 200" in out
+    gpt = next(line for line in out.splitlines() if line.strip().startswith("GPTBot"))
+    assert "disallowed" in gpt and "User-agent: gptbot" in gpt
+    user = next(line for line in out.splitlines() if "ChatGPT-User" in line)
+    assert "(may ignore robots.txt)" in user
+    assert "also named, by no agent documented here: anthropic-ai" in out
+    assert "llms.txt  https://example.com/llms.txt: no name, 0 sections" in out
+    assert "llms-full https://example.com/llms-full.txt: 1,500 characters" in out
+    assert "robots    not asked (--no-robots)" in out
+
+
+def test_audit_of_a_url_can_leave_the_site_alone(monkeypatch):
+    _fetched_well(monkeypatch)
+
+    def read_site(url, **kwargs):
+        raise AssertionError("the site was read")
+
+    monkeypatch.setattr("sluicer.fetch.site.read_site", read_site)
+
+    result = CliRunner().invoke(main, ["audit", "https://example.com/", "--no-site"])
+
+    assert result.exit_code == 0
+    assert "not asked (--no-site)" in result.stdout
+
+
+def test_audit_says_how_to_install_what_reading_a_site_needs(monkeypatch):
+    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+
+    _fetched_well(monkeypatch)
+
+    def read_site(url, **kwargs):
+        raise FetchExtraMissing("Reading a site needs curl_cffi, sluicer[fetch]")
+
+    monkeypatch.setattr("sluicer.fetch.site.read_site", read_site)
+
+    result = CliRunner().invoke(main, ["audit", "https://example.com/"])
+
+    assert result.exit_code == 2
+    assert "sluicer[fetch]" in result.stderr
+
+
+def test_audit_of_a_site_whose_robots_txt_could_not_be_read_says_so(monkeypatch):
+    from sluicer.audit import Site, SiteFile
+
+    _fetched_well(monkeypatch)
+
+    def read_site(url, **kwargs):
+        return Site(
+            SiteFile("https://example.com/robots.txt", error="OSError: timed out"),
+            SiteFile("https://example.com/llms.txt", error="not fetched"),
+            SiteFile("https://example.com/llms-full.txt", 404),
+        )
+
+    monkeypatch.setattr("sluicer.fetch.site.read_site", read_site)
+
+    result = CliRunner().invoke(main, ["audit", "https://example.com/"])
+
+    out = result.stdout
+    assert "not read: OSError: timed out" in out
+    assert "unknown" in next(line for line in out.splitlines() if "GPTBot" in line)
+    assert "llms.txt  https://example.com/llms.txt: not served (no answer)" in out
+    assert "not served (status 404)" in out
+
+
+def test_audit_of_a_site_without_robots_txt_says_everything_is_allowed(monkeypatch):
+    from sluicer.audit import Site, SiteFile
+
+    _fetched_well(monkeypatch)
+    monkeypatch.setattr(
+        "sluicer.fetch.site.read_site",
+        lambda url, **kwargs: Site(
+            SiteFile("https://example.com/robots.txt", 404),
+            SiteFile("https://example.com/llms.txt", 404),
+            SiteFile("https://example.com/llms-full.txt", 404),
+        ),
+    )
+
+    result = CliRunner().invoke(main, ["audit", "https://example.com/", "--json"])
+
+    payload = json.loads(result.stdout)
+    assert payload["fetch"]["rung"] == "http"
+    assert {v["allowed"] for v in payload["crawlers"]} == {True}
+    human = CliRunner().invoke(main, ["audit", "https://example.com/"]).stdout
+    assert "status 404, none published: everything is allowed" in human
+
+
+def test_audit_reports_retired_limited_unchecked_and_featureless_records(tmp_path):
+    nodes = [
+        {"@type": "WebPage", "name": "Home"},
+        {"@type": "FAQPage", "mainEntity": []},
+        {"@type": "Dataset", "name": "D", "description": "d" * 60},
+        {"@type": "Movie", "name": "Up"},
+        {
+            "@type": "Product",
+            "name": "P",
+            "image": "https://e.com/p.jpg",
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
+        },
+    ]
+    page = tmp_path / "many.html"
+    page.write_text(
+        "".join(
+            f'<script type="application/ld+json">{json.dumps(node)}</script>'
+            for node in nodes
+        )
+    )
+
+    out = CliRunner().invoke(main, ["audit", str(page)]).stdout
+
+    assert "no rich-result feature is documented for this type" in out
+    assert "FAQ  retired: Not shown in Google Search since 2026-05-07" in out
+    assert "(limited: see the note in --json)" in out
+    assert "not checked here: Movie carousel" in out
+    assert "Merchant listing  a value this feature refuses" in out
+
+
+def test_audit_of_a_page_the_site_refused_says_what_it_audited(monkeypatch):
+    from sluicer.fetch.result import Fetched
+
+    def fake_fetch(url, rungs=None, **kwargs):
+        return Fetched(url=url, html="<html>Forbidden</html>", status=403, rung="http")
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    result = CliRunner().invoke(main, ["audit", "https://example.com/p", "--no-site"])
+
+    assert result.exit_code == 1
+    notes = result.stdout.split("not checked\n", 1)[1].splitlines()
+    assert notes[0] == (
+        "  The page asked for: the site answered status 403, and what is audited "
+        "is that answer."
+    )
+
+
+def test_audit_folds_what_every_item_of_a_list_lacks_into_one_entry(tmp_path):
+    reviews = [
+        {"@type": "Review", "author": {"@type": "Person", "name": f"R{n}"}}
+        for n in range(3)
+    ]
+    node = {
+        "@type": "Product",
+        "name": "Pad",
+        "image": "https://e.com/p.jpg",
+        "offers": {"@type": "Offer", "price": "1", "priceCurrency": "EUR"},
+        "review": reviews,
+    }
+    page = tmp_path / "p.html"
+    page.write_text(f'<script type="application/ld+json">{json.dumps(node)}</script>')
+
+    out = CliRunner().invoke(main, ["audit", str(page)]).stdout
+
+    assert "optional parts unusable, missing: review[].reviewRating (3)" in out
+    assert "review[0].reviewRating" not in out
