@@ -609,3 +609,9 @@ def test_a_price_that_holds_two_numbers_gives_way_to_the_next_declaration():
     )
 
     assert _summary(page)["price"] == ("71.91", "opengraph", "product:price:amount")
+
+
+def test_a_product_id_answers_the_sku_when_no_sku_is_declared():
+    summary = _summary(_page({"@type": "Product", "name": "Pads", "productID": "BP-9"}))
+
+    assert summary["sku"] == ("BP-9", "jsonld", "Product.productID")

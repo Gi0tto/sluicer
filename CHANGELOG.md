@@ -30,8 +30,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   pages as served with price, SKU and availability labelled by hand, scored by
   Zyte's own evaluator beside Zyte's and Diffbot's paid APIs and an extruct
   baseline. Price F1 0.750 against extruct's 0.685, availability 0.907 against
-  0.626, SKU 0.527 against 0.537; the paid services, reading the visible page
+  0.626, SKU 0.541 against 0.537; the paid services, reading the visible page
   with trained models, are ahead on all three.
+- `sku` falls back to `productID`, then Facebook's `product:retailer_item_id`,
+  `og:sku` and `product:sku`: identifiers the page declares under other names.
 - `sluicer serve`, the MCP server's tools over HTTP, behind a new `api` extra
   (`starlette>=1.2`, `uvicorn>=0.31.1`, and the `mcp` extra). `POST
   /v1/tools/<name>` takes a tool's arguments as a JSON object and answers what
