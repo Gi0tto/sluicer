@@ -273,7 +273,7 @@ jobs:
           "
 
   live:
-    name: The fetch limits hold against a real curl and a real browser
+    name: The fetch limits and the crawler hold against a real curl and a real browser
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -301,6 +301,12 @@ jobs:
       # publishes for it.
       - name: The HTTP door
         run: .venv/bin/python tests/live/api_check.py
+      # The suite paces its crawls by a fake clock, which keeps whatever
+      # schedule it is handed. Here a local site writes down when each request
+      # arrived and when its answer went out, and every gap is read from that:
+      # sitemaps, robots.txt, redirect hops and a slow page included.
+      - name: The crawler
+        run: .venv/bin/python tests/live/crawl_check.py
 
   licences:
     name: Every licence in the installed tree has been read
