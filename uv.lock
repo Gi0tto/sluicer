@@ -2475,7 +2475,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.2" },
     { name = "curl-cffi", marker = "extra == 'fetch'", specifier = ">=0.15" },
     { name = "lxml", specifier = ">=5.3" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.1" },
     { name = "mf2py", marker = "extra == 'microformats'", specifier = ">=2.0" },
     { name = "protego", marker = "extra == 'fetch'", specifier = ">=0.3" },
     { name = "scrapling", extras = ["fetchers"], marker = "extra == 'fetch'", specifier = ">=0.4.6" },

@@ -61,7 +61,11 @@ microformats = ["mf2py>=2.0"]
 # The server brings the other two extras: extract_declared and page_markdown
 # fetch when handed a URL, and page_markdown needs trafilatura for any input.
 # Pinned >=2: mcp 2.x renamed FastMCP to MCPServer and removed the old name.
-mcp = ["mcp>=2", "sluicer[fetch]", "sluicer[markdown]"]
+# 2.1 is the first that can build this server on Python 3.10: 2.0.0 and 2.0.1
+# refuse the Required[...] keys of its output schemas there (measured on
+# 2026-09-23; 3.11 and later build on 2.0.0). The suite fakes the SDK, so the
+# floors job had never built it for real.
+mcp = ["mcp>=2.1", "sluicer[fetch]", "sluicer[markdown]"]
 
 [project.urls]
 Homepage = "https://github.com/Gi0tto/sluicer"

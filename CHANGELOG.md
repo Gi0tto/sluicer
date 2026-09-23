@@ -20,6 +20,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   failed a page of the same template. A numbered slot at any step is now a
   count, and the first slot of a group is held to some rows rather than every
   row.
+- The `mcp` extra needs `mcp>=2.1`. On Python 3.10, mcp 2.0.0 and 2.0.1 cannot
+  build the server at all: they refuse the `Required[...]` keys of its output
+  schemas. The suite fakes the SDK, so the floors job, which installs 2.0.0 on
+  3.10, had never built it for real.
 
 ### Added
 - `Extraction.links`: what the page's `<link>` elements declare about where
