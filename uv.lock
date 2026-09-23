@@ -2442,6 +2442,15 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+api = [
+    { name = "curl-cffi" },
+    { name = "mcp" },
+    { name = "protego" },
+    { name = "scrapling", extra = ["fetchers"] },
+    { name = "starlette" },
+    { name = "trafilatura" },
+    { name = "uvicorn" },
+]
 fetch = [
     { name = "curl-cffi" },
     { name = "protego" },
@@ -2481,9 +2490,12 @@ requires-dist = [
     { name = "scrapling", extras = ["fetchers"], marker = "extra == 'fetch'", specifier = ">=0.4.6" },
     { name = "sluicer", extras = ["fetch"], marker = "extra == 'mcp'" },
     { name = "sluicer", extras = ["markdown"], marker = "extra == 'mcp'" },
+    { name = "sluicer", extras = ["mcp"], marker = "extra == 'api'" },
+    { name = "starlette", marker = "extra == 'api'", specifier = ">=1.2" },
     { name = "trafilatura", marker = "extra == 'markdown'", specifier = ">=2.0" },
+    { name = "uvicorn", marker = "extra == 'api'", specifier = ">=0.31.1" },
 ]
-provides-extras = ["fetch", "markdown", "microformats", "mcp"]
+provides-extras = ["fetch", "markdown", "microformats", "mcp", "api"]
 
 [package.metadata.requires-dev]
 dev = [

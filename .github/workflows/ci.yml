@@ -34,8 +34,12 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
+      # With the api extra, which brings every other but microformats: the HTTP
+      # door's tests build the real MCP server and call it through starlette's
+      # TestClient, and without it they skip. The suite with no extra at all
+      # runs in the floors job below, and those tests skip there.
       - name: Run the suite
-        run: uv run --python ${{ matrix.python }} pytest -q
+        run: uv run --python ${{ matrix.python }} --extra api pytest -q
 
   quality:
     # Separate from the matrix above on purpose: a red cross here names which
@@ -54,12 +58,16 @@ jobs:
       - name: Types
         # Reads its own settings from pyproject: strict, against src, at the
         # 3.10 floor this package declares whatever interpreter is running it.
+        # In the base install, before the step below brings the api extra: a
+        # module with an import statement for an extra fails here, as it would
+        # for a user without it.
         run: uv run --python 3.13 mypy
       - name: Coverage
         # One interpreter, so the floor is measured against the same thing
         # every time. The matrix above is what proves the suite passes on all
-        # four versions.
-        run: uv run --python 3.13 pytest -q --cov --cov-report=term-missing
+        # five versions. With the api extra, or the HTTP door's module is
+        # measured with its tests skipped: 96% on 2026-09-23, under the floor.
+        run: uv run --python 3.13 --extra api pytest -q --cov --cov-report=term-missing
 
   offline:
     name: The suite opens no socket
@@ -104,7 +112,10 @@ jobs:
 
           sys.exit(pytest.main(["-q"]))
           PY
-          uv run python /tmp/no_network.py
+          # With the api extra, so the HTTP door's tests run here too: its
+          # client is starlette's TestClient, which must reach the app without
+          # a socket, and here that is enforced rather than believed.
+          uv run --extra api python /tmp/no_network.py
 
   properties:
     # Every job above runs tests/properties too, under the default profile:
@@ -308,8 +319,21 @@ jobs:
         run: .venv/bin/python -m pytest -q
       - name: And again with every extra at its own lowest version
         run: |
-          uv pip install --resolution lowest-direct '.[fetch,markdown,mcp,microformats]'
+          uv pip install --resolution lowest-direct '.[fetch,markdown,mcp,microformats,api]'
           uv pip list
+          # The HTTP door's tests build the real MCP server, so this is where
+          # the SDK's floor is used and not only installed: on 3.10, mcp 2.0.x
+          # could not build the server at all, and nothing noticed.
+          .venv/bin/python -c "
+          import importlib.metadata as md
+          for name, floor in {'mcp': '2.1.0', 'starlette': '1.2.0', 'uvicorn': '0.31.1'}.items():
+              got = md.version(name)
+              assert got == floor, (
+                  name + ' resolved to ' + got + ', not the declared floor '
+                  + floor + ': this job is not testing what it claims to test'
+              )
+              print(name, got, '-- the declared floor')
+          "
           .venv/bin/python -m pytest -q
       - name: And the HTTP rung against a real curl at its floor
         run: .venv/bin/python tests/live/http_check.py

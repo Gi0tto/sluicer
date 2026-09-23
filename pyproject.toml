@@ -66,6 +66,15 @@ microformats = ["mf2py>=2.0"]
 # 2026-09-23; 3.11 and later build on 2.0.0). The suite fakes the SDK, so the
 # floors job had never built it for real.
 mcp = ["mcp>=2.1", "sluicer[fetch]", "sluicer[markdown]"]
+# The HTTP door serves the MCP server's own tools, so it brings that extra.
+# starlette and uvicorn arrive with mcp today and are declared anyway: a
+# transitive dependency is not a declared one. Both floors are measured, and the
+# `floors` CI job installs exactly these.
+#   starlette 1.2 is the first whose TestClient speaks httpx2, the client mcp
+#   brings. 1.1 wants httpx, which nothing here installs, and on 1.1.0 the 23
+#   tests that use it cannot start.
+#   uvicorn 0.31.1 is mcp's own floor, so nothing older installs beside it.
+api = ["sluicer[mcp]", "starlette>=1.2", "uvicorn>=0.31.1"]
 
 [project.urls]
 Homepage = "https://github.com/Gi0tto/sluicer"

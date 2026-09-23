@@ -33,6 +33,15 @@ from sluicer.extractor import (
 from sluicer.fetch import FetchFailed, RobotsRefused, fetch as fetch_url
 from sluicer.fetch.result import Fetched, ResponseTooLarge
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+from sluicer.http_api import (
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    TIME_BUDGET_SECONDS,
+    TOKEN_ENV,
+    ApiExtraMissing,
+    Unprotected,
+    serve as serve_http,
+)
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
 
 NOTHING_FOUND = 1
@@ -551,3 +560,43 @@ def heal_command(
     )
     if lost:
         raise SystemExit(CONTRACT_BROKEN)
+
+
+@main.command()
+@click.option(
+    "--host",
+    default=DEFAULT_HOST,
+    show_default=True,
+    help=f"Where to listen. Anything but loopback needs {TOKEN_ENV}.",
+)
+@click.option(
+    "--port", default=DEFAULT_PORT, show_default=True, type=click.IntRange(0, 65535)
+)
+@click.option(
+    "--timeout",
+    default=TIME_BUDGET_SECONDS,
+    show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+    help="Seconds a request may take before it is answered 504.",
+)
+@click.option(
+    "--allow-unauthenticated",
+    is_flag=True,
+    help="Listen beyond loopback with no token, behind something that already "
+    "decides who may call.",
+)
+def serve(host: str, port: int, timeout: float, allow_unauthenticated: bool) -> None:
+    """Serve the MCP server's tools over HTTP (needs sluicer[api]).
+
+    POST /v1/tools/<name> with the tool's arguments as a JSON object answers
+    what the tool answers; GET /v1/tools and /openapi.json describe them. The
+    token, when SLUICER_API_TOKEN is set, goes in "Authorization: Bearer".
+    Private addresses are refused unless SLUICER_ALLOW_PRIVATE=1, as for the
+    MCP server. Exits 2 without listening when it cannot serve safely.
+    """
+    try:
+        serve_http(
+            host, port, timeout=timeout, allow_unauthenticated=allow_unauthenticated
+        )
+    except (ApiExtraMissing, Unprotected) as refused:
+        _fail(str(refused), refused)
