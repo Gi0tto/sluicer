@@ -570,6 +570,7 @@ def test_a_private_address_and_a_page_too_heavy_are_answers():
 
     assert private[0].error.code == "refused_address"
     assert big[0].error.code == "too_large"
+    assert not any("127.0.0.1" in url for url in heavy.asked())
 
 
 def test_an_off_site_redirect_as_a_line_names_where_it_pointed():
@@ -592,3 +593,28 @@ def test_blank_lines_in_a_state_file_are_nothing(tmp_path):
     state.write_text(state.read_text().replace("\n", "\n\n", 1))
 
     assert urls(run(FakeWeb(shop()), state=state, max_pages=3)) == [f"{ROOT}/c/2"]
+
+
+def test_a_redirect_into_a_private_address_is_an_answer():
+    from sluicer.fetch import AddressRefused
+
+    fake = FakeWeb(shop())
+
+    def refusing(url):
+        raise AddressRefused(
+            "http://10.0.0.1/", "10.0.0.1 is not on the public internet"
+        )
+
+    web = Web(rungs=[("http", refusing)], read=fake.web().read, get=fake.get)
+    pages = list(
+        crawl(
+            f"{ROOT}/",
+            allow_private=False,
+            resolve=lambda host: ["93.184.215.14"],
+            web=web,
+            clock=fake.clock,
+            sleep=fake.clock.sleep,
+        )
+    )
+
+    assert pages[0].error.code == "refused_address"

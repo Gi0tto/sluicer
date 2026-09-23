@@ -1,8 +1,10 @@
 """Sluicer as a tool an agent can call, over the Model Context Protocol.
 
-Seven tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``,
-``compile_extractor``, ``run_extractor``, ``heal_extractor`` and
-``audit_page`` -- expose what the library does and add no logic of their own.
+Nine tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``,
+``compile_extractor``, ``run_extractor``, ``heal_extractor``, ``audit_page``,
+``map_site`` and ``crawl_site`` -- expose what the library does and add no
+logic of their own beyond bounds: a map or a crawl an agent starts is small
+and has a clock.
 Run it with ``sluicer-mcp``; it needs the ``mcp`` extra.
 
 Every answer carries ``ok``, true exactly when it can be used as it is, and has
@@ -15,12 +17,13 @@ import functools
 import json
 import logging
 import os
+import re
 import sys
 from collections.abc import Callable
 from dataclasses import asdict
 from typing import Any, cast
 
-from sluicer import __version__, extractor as extractor_module
+from sluicer import __version__, crawl as crawling, extractor as extractor_module
 from sluicer.api import extract
 from sluicer.audit import answered_with, audit
 from sluicer.extras import MissingExtra, import_extra
@@ -43,6 +46,28 @@ Off by default: an agent reading untrusted pages can be told to fetch
 ``http://localhost:8080/admin`` or a cloud metadata endpoint, and this server
 runs on a machine that can reach both.
 """
+
+
+MAP_LIMIT = 1000
+"""The most addresses ``map_site`` hands an agent: a thousand is about 80 KB."""
+
+MAP_SITEMAPS = 10
+"""The most sitemap files one ``map_site`` reads."""
+
+CRAWL_PAGES = 25
+"""The most pages one ``crawl_site`` takes."""
+
+CRAWL_DEPTH = 3
+"""The most links from its start one ``crawl_site`` goes."""
+
+TIME_BUDGET_SECONDS = 60.0
+"""How long ``map_site`` and ``crawl_site`` may keep starting requests. A page
+already started finishes, so an answer can take a little longer."""
+
+CRAWL_MAX_DELAY_SECONDS = 10.0
+"""The longest ``Crawl-delay`` a tool call waits for; a site asking for more
+is answered ``crawl_delay_too_long`` rather than holding the agent a minute a
+page."""
 
 
 class McpExtraMissing(MissingExtra):
@@ -161,7 +186,7 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
 
 
 def build_server() -> Any:
-    """Build the server with its seven tools registered.
+    """Build the server with its nine tools registered.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
@@ -178,7 +203,8 @@ def build_server() -> Any:
             "declares, with no model in the loop. Every field names the vocabulary "
             "it came from. Every answer has ok: false means do not use it as it "
             "is, and says why. Fetching obeys robots.txt and refuses private "
-            "addresses."
+            "addresses; a map or a crawl asks a site one request at a time, a "
+            "second apart or its Crawl-delay, and is bounded in size and time."
         ),
     )
 
@@ -382,7 +408,117 @@ def build_server() -> Any:
             result["fetch"] = fetched
         return cast(answers.AuditAnswer, result)
 
+    @server.tool()  # type: ignore[untyped-decorator]
+    @_answers_instead_of_raising
+    def map_site(url: str, limit: int = 100) -> answers.MapAnswer:
+        """List a site's addresses, from its sitemaps or its start page's links.
+
+        url: an http(s) address on the site; its links stand in when the site
+        has no sitemap.
+        limit: the most addresses returned, 1 to 1,000.
+
+        Returns {"ok", "url", "source", "urls", "sitemaps", "truncated"}.
+        source is "sitemaps" or "links"; each of urls is {"url", "lastmod",
+        "sitemap"}, only addresses on the site, in the order the sitemaps list
+        them; sitemaps says what became of each one tried. At most ten
+        sitemaps are read, politely, within a minute; truncated is true when a
+        bound cut the map short. Hand the addresses worth reading to
+        extract_declared, or crawl_site to follow links from one.
+        """
+        _within("limit", limit, 1, MAP_LIMIT)
+        found = crawling.map_site(
+            url,
+            limit=limit,
+            max_sitemaps=MAP_SITEMAPS,
+            time_budget=TIME_BUDGET_SECONDS,
+            allow_private=_allow_private(),
+        )
+        answer = {
+            "ok": True,
+            "url": found.url,
+            "source": found.source,
+            "urls": [asdict(address) for address in found.urls],
+            "sitemaps": [asdict(read) for read in found.sitemaps],
+            "truncated": found.truncated,
+        }
+        return cast(answers.MapAnswer, answer)
+
+    @server.tool()  # type: ignore[untyped-decorator]
+    @_answers_instead_of_raising
+    def crawl_site(
+        url: str,
+        max_pages: int = 10,
+        max_depth: int = 2,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
+    ) -> answers.CrawlAnswer:
+        """Crawl a site from url, following its links, and summarise every page.
+
+        url: an http(s) address where the crawl starts; only links on its
+        site are followed.
+        max_pages: the most pages taken, 1 to 25.
+        max_depth: the most links from url, 0 to 3; 0 reads url alone.
+        include: text an address must contain for its link to be followed
+        (any one of them); plain text, not a pattern.
+        exclude: text that stops a link being followed when its address
+        contains it.
+
+        Returns {"ok", "url", "pages", "stopped"}. Pages come breadth first,
+        each {"ok", "url", "depth", "found_on", "landed", "fetch", "canonical",
+        "summary", "sources", "types", "links"} -- the summary and the types
+        declared, not the records; call extract_declared on a page for those
+        -- or, when it has nothing, {"ok": false, "error"} with the page's
+        reason. stopped is "done", "max_pages" (links were left unfollowed)
+        or "time_budget" (a minute passed). One request at a time, a second
+        apart or the site's Crawl-delay, robots.txt obeyed. ok is false only
+        when no page could be read, and error then says why.
+        """
+        _within("max_pages", max_pages, 1, CRAWL_PAGES)
+        _within("max_depth", max_depth, 0, CRAWL_DEPTH)
+        try:
+            run = crawling.crawl(
+                url,
+                max_pages,
+                max_depth,
+                include=[re.escape(text) for text in include or ()],
+                exclude=[re.escape(text) for text in exclude or ()],
+                max_delay=CRAWL_MAX_DELAY_SECONDS,
+                time_budget=TIME_BUDGET_SECONDS,
+                allow_private=_allow_private(),
+            )
+        except ValueError as bad:
+            raise _BadInput(str(bad)) from bad
+        pages = [_crawled(page) for page in run]
+        answer: dict[str, Any] = {
+            "ok": any(page["ok"] for page in pages),
+            "url": crawling.normalise(url),
+            "pages": pages,
+            "stopped": run.stopped,
+        }
+        if not answer["ok"] and pages:
+            answer["error"] = pages[0]["error"]
+        return cast(answers.CrawlAnswer, answer)
+
     return server
+
+
+def _within(name: str, value: int, least: int, most: int) -> None:
+    """Refuse a bound outside what a tool call may ask for, saying what may."""
+    if not least <= value <= most:
+        raise _BadInput(f"{name} must be from {least} to {most}, not {value}")
+
+
+def _crawled(page: crawling.Page) -> dict[str, Any]:
+    """A crawled page as an agent gets it: the summary, never the records."""
+    line = page.to_json()
+    if not page.ok:
+        error = {**line["error"], "url": page.url}
+        return {key: line[key] for key in ("ok", "url", "depth")} | {"error": error}
+    line["types"] = sorted(
+        {kind for record in line.pop("records") for kind in record["types"]}
+    )
+    line["links"] = len(line["links"])
+    return line
 
 
 def _change(change: extractor_module.Change) -> Any:

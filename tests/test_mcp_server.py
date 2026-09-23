@@ -41,7 +41,7 @@ def fake_mcp(monkeypatch):
     return registered
 
 
-def test_the_server_registers_its_seven_tools(monkeypatch):
+def test_the_server_registers_its_nine_tools(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
@@ -56,6 +56,8 @@ def test_the_server_registers_its_seven_tools(monkeypatch):
         "run_extractor",
         "heal_extractor",
         "audit_page",
+        "map_site",
+        "crawl_site",
     }
 
 
@@ -770,6 +772,9 @@ def test_every_answer_type_requires_ok_and_nothing_else():
         mcp_answers.RunAnswer,
         mcp_answers.HealAnswer,
         mcp_answers.AuditAnswer,
+        mcp_answers.MapAnswer,
+        mcp_answers.CrawlAnswer,
+        mcp_answers.CrawledPage,
     ]
     for answer in answers:
         assert answer.__required_keys__ == {"ok"}, answer.__name__
@@ -883,3 +888,173 @@ def test_audit_page_says_when_it_audited_an_error_page(monkeypatch):
     assert answer["not_checked"][0].startswith(
         "The page asked for: the site answered status 404"
     )
+
+
+# -- map_site and crawl_site -------------------------------------------------------
+
+
+def _shop():
+    from fake_site import page
+
+    return {
+        "https://example.com/": page("Home", "/a", "/b?page=2", "/private/x"),
+        "https://example.com/a": page("A", "/b?page=2"),
+        "https://example.com/b?page=2": page("B"),
+        "https://example.com/private/x": page("X"),
+        "https://example.com/sitemap.xml": (
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            "<url><loc>https://example.com/a</loc><lastmod>2026-09-01</lastmod></url>"
+            "</urlset>"
+        ),
+    }
+
+
+def _fake_site_library(monkeypatch, pages=None):
+    """The library's map and crawl, pointed at a fake web, recording each call.
+
+    Names resolve to one public address without asking a resolver, since the
+    server judges every address and the suite may not look one up.
+    """
+    import sluicer.crawl as library
+    from fake_site import FakeWeb
+
+    fake = FakeWeb(pages if pages is not None else _shop())
+    calls = []
+
+    def wrap(real):
+        def call(*args, **kwargs):
+            calls.append(kwargs)
+            paced = {
+                "web": fake.web(),
+                "clock": fake.clock,
+                "sleep": fake.clock.sleep,
+                "resolve": lambda host: ["93.184.215.14"],
+            }
+            return real(*args, **{**kwargs, **paced})
+
+        return call
+
+    monkeypatch.setattr("sluicer.crawl.map_site", wrap(library.map_site))
+    monkeypatch.setattr("sluicer.crawl.crawl", wrap(library.crawl))
+    return fake, calls
+
+
+def test_map_site_lists_the_sites_addresses_within_its_bounds(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    _, calls = _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import MAP_SITEMAPS, TIME_BUDGET_SECONDS, build_server
+
+    monkeypatch.delenv("SLUICER_ALLOW_PRIVATE", raising=False)
+    build_server()
+    answer = registered["map_site"]("https://example.com/")
+
+    assert answer["ok"] is True and answer["source"] == "sitemaps"
+    assert answer["urls"] == [
+        {
+            "url": "https://example.com/a",
+            "lastmod": "2026-09-01",
+            "sitemap": "https://example.com/sitemap.xml",
+        }
+    ]
+    assert answer["sitemaps"][0]["kind"] == "urlset"
+    assert calls[0]["max_sitemaps"] == MAP_SITEMAPS
+    assert calls[0]["time_budget"] == TIME_BUDGET_SECONDS
+    assert calls[0]["allow_private"] is False
+
+
+def test_a_map_or_a_crawl_asked_past_its_bounds_is_a_bad_input(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    fake, _ = _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    for answer in (
+        registered["map_site"]("https://example.com/", limit=0),
+        registered["map_site"]("https://example.com/", limit=5000),
+        registered["crawl_site"]("https://example.com/", max_pages=26),
+        registered["crawl_site"]("https://example.com/", max_depth=9),
+        registered["crawl_site"]("mailto:x@example.com"),
+    ):
+        assert answer["ok"] is False and answer["error"]["code"] == "bad_input"
+    assert fake.requests == []
+
+
+def test_crawl_site_summarises_each_page_and_leaves_the_records_out(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    _, calls = _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import (
+        CRAWL_MAX_DELAY_SECONDS,
+        TIME_BUDGET_SECONDS,
+        build_server,
+    )
+
+    build_server()
+    answer = registered["crawl_site"]("https://example.com/", max_pages=3)
+
+    assert answer["ok"] is True and answer["stopped"] == "max_pages"
+    assert [page["url"] for page in answer["pages"]] == [
+        "https://example.com/",
+        "https://example.com/a",
+        "https://example.com/b?page=2",
+    ]
+    first = answer["pages"][0]
+    assert first["summary"]["title"]["value"] == "Home"
+    assert first["types"] == ["Product"] and first["links"] == 3
+    assert "records" not in first
+    assert calls[0]["max_delay"] == CRAWL_MAX_DELAY_SECONDS
+    assert calls[0]["time_budget"] == TIME_BUDGET_SECONDS
+
+
+def test_crawl_site_reads_include_and_exclude_as_plain_text(monkeypatch):
+    """An agent writes "?page=", which as a pattern would mean something else."""
+    registered = fake_mcp(monkeypatch)
+    _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    only = registered["crawl_site"]("https://example.com/", include=["?page="])
+    without = registered["crawl_site"]("https://example.com/", exclude=["/private/"])
+
+    assert [p["url"] for p in only["pages"]] == [
+        "https://example.com/",
+        "https://example.com/b?page=2",
+    ]
+    assert "https://example.com/private/x" not in [p["url"] for p in without["pages"]]
+
+
+def test_a_crawl_that_read_nothing_is_not_ok_and_says_why(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    pages = _shop()
+    pages["https://example.com/robots.txt"] = "User-agent: *\nDisallow: /\n"
+    _fake_site_library(monkeypatch, pages)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    answer = registered["crawl_site"]("https://example.com/")
+
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "refused_by_robots"
+    assert answer["error"]["url"] == "https://example.com/"
+    assert answer["pages"][0] == {
+        "ok": False,
+        "url": "https://example.com/",
+        "depth": 0,
+        "error": answer["error"],
+    }
+
+
+def test_the_crawl_tools_refuse_private_addresses_unless_told(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    fake, _ = _fake_site_library(monkeypatch, {})
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    monkeypatch.delenv("SLUICER_ALLOW_PRIVATE", raising=False)
+    crawled = registered["crawl_site"]("http://127.0.0.1:8080/")
+    mapped = registered["map_site"]("http://127.0.0.1:8080/")
+
+    assert crawled["error"]["code"] == "refused_address"
+    assert crawled["error"]["retryable"] is False
+    assert mapped["error"]["code"] == "refused_address"
+    assert fake.requests == []

@@ -315,7 +315,9 @@ def map_site(
     def read(address: str) -> bool:
         """Read one sitemap into ``kept`` and ``waiting``; whether it read."""
         nonlocal truncated
-        found = _fetch_sitemap(address, polite, web, max_delay, max_bytes)
+        found = _fetch_sitemap(
+            address, polite, web, max_delay, max_bytes, allow_private, resolve
+        )
         if isinstance(found, str):
             reads.append(SitemapRead(address, error=found))
             return False
@@ -369,8 +371,13 @@ def _fetch_sitemap(
     web: Web,
     max_delay: float,
     max_bytes: int,
+    allow_private: bool,
+    resolve: Callable[[str], Iterable[str]],
 ) -> Sitemap | str:
     """One sitemap, read politely, or the sentence that says why it was not."""
+    refused = None if allow_private else why_not_public(address, resolve)
+    if refused is not None:
+        return f"it is not fetched: {refused}"
     try:
         if robots_refusal(address, polite.reader, now=polite.clock) is not None:
             return "its robots.txt disallows it"

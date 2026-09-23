@@ -25,15 +25,20 @@ ErrorCode = Literal[
     "fetch_failed",
     "too_large",
     "bad_input",
+    "redirected_off_site",
+    "crawl_delay_too_long",
 ]
 
 
 class ErrorDetail(TypedDict, total=False):
-    """Why a tool could not answer.
+    """Why a tool could not answer, or why one crawled page has nothing.
 
     ``retryable`` is true only for ``fetch_failed``: the same call may work
     later. The others need something to change first -- an install, an input,
-    or the caller's mind about a site that said no.
+    or the caller's mind about a site that said no. The last two codes are a
+    crawled page's own: ``redirected_off_site``, with the ``target`` it
+    pointed to, and ``crawl_delay_too_long``, a site asking for more time
+    between requests than a crawl waits.
     """
 
     code: Required[ErrorCode]
@@ -41,6 +46,7 @@ class ErrorDetail(TypedDict, total=False):
     retryable: Required[bool]
     url: str
     extra: str
+    target: str
 
 
 class FieldAnswer(TypedDict):
@@ -230,3 +236,58 @@ class AuditAnswer(TypedDict, total=False):
     warnings: int
     notes: int
     fetch: FetchRecord
+
+
+class SiteUrlAnswer(TypedDict):
+    """One address of a site: its sitemap's ``lastmod`` as written, and the
+    ``sitemap`` that listed it, null when it was a link on the start page."""
+
+    url: str
+    lastmod: str | None
+    sitemap: str | None
+
+
+class SitemapReadAnswer(TypedDict):
+    """One sitemap tried, what it was, and why it was not read, if it was not."""
+
+    url: str
+    kind: str | None
+    entries: int
+    error: str | None
+
+
+class MapAnswer(TypedDict, total=False):
+    ok: Required[bool]
+    error: ErrorDetail
+    url: str
+    source: Literal["sitemaps", "links"]
+    urls: list[SiteUrlAnswer]
+    sitemaps: list[SitemapReadAnswer]
+    truncated: bool
+
+
+class CrawledPage(TypedDict, total=False):
+    """One page of a crawl: its summary and the types it declared, not its
+    records, which ``extract_declared`` gives for any page worth reading whole.
+    ``ok`` false means ``error`` says why the page has nothing."""
+
+    ok: Required[bool]
+    url: str
+    depth: int
+    found_on: str | None
+    landed: str | None
+    fetch: FetchRecord
+    canonical: str | None
+    summary: dict[str, SummaryAnswer]
+    sources: list[str]
+    types: list[str]
+    links: int
+    error: ErrorDetail
+
+
+class CrawlAnswer(TypedDict, total=False):
+    ok: Required[bool]
+    error: ErrorDetail
+    url: str
+    pages: list[CrawledPage]
+    stopped: Literal["done", "max_pages", "time_budget"]

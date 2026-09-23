@@ -47,7 +47,7 @@ from sluicer.fetch import (
     RobotsRefused,
     fetch,
 )
-from sluicer.fetch.address import _resolve
+from sluicer.fetch.address import _resolve, why_not_public
 from sluicer.fetch.identity import RobotsUnreachable
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
 
@@ -421,6 +421,11 @@ class _Visitor:
 
         if normalise(task.url) is None:
             return failed("bad_input", f"{task.url!r} is not an http(s) address")
+        # Before its robots.txt is read: that is a request too, and a refused
+        # address would come back from it as a robots.txt nobody could read.
+        refused = None if self.allow_private else why_not_public(task.url, self.resolve)
+        if refused is not None:
+            return failed("refused_address", str(AddressRefused(task.url, refused)))
         try:
             delay = self.polite.delay_for(task.url)
         except RobotsUnreachable as unreachable:

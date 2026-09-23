@@ -543,3 +543,17 @@ def test_what_a_sitemap_cannot_mean_is_passed_over():
 
     assert [u.url for u in result.urls] == ["https://example.com/p"]
     assert fake.asked().count("https://example.com/s.xml") == 1
+
+
+def test_a_sitemap_on_a_private_address_is_not_asked_when_refused():
+    fake = site(
+        {
+            "https://example.com/robots.txt": "Sitemap: http://10.0.0.7/s.xml\n",
+            "https://example.com/": page("Home"),
+        }
+    )
+
+    result = mapped(fake, allow_private=False, resolve=lambda host: ["93.184.215.14"])
+
+    assert result.sitemaps[0].error.startswith("it is not fetched")
+    assert not any("10.0.0.7" in url for url in fake.asked())
