@@ -285,6 +285,14 @@ def main() -> int:
         )
         if "front axle" not in words.get("markdown", ""):
             check.failures.append(f"page_markdown lost the text: {words}")
+        audited = check.expect(
+            "audit_page",
+            call(a, "audit_page", {"html_or_url": PAGE}, headers=auth),
+            200,
+            tool="audit_page",
+        )
+        if audited.get("ok") is not True or not audited.get("records"):
+            check.failures.append(f"audit_page audited nothing: {audited}")
         v1 = (DRIFT / "shop_v1.html").read_text()
         learnt = check.expect(
             "compile_extractor",
