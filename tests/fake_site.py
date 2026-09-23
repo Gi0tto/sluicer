@@ -56,7 +56,7 @@ class FakeWeb:
         self.clock.now += self.cost
         self.requests.append((url, started, self.clock.now))
         answer = self.pages.get(url, (404, "<html><body>Not found</body></html>", {}))
-        if isinstance(answer, Exception):
+        if isinstance(answer, BaseException):
             raise answer
         if isinstance(answer, str):
             answer = (200, answer, {})

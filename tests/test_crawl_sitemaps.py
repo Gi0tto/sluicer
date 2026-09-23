@@ -170,10 +170,35 @@ def test_a_sitemap_that_breaks_keeps_what_came_before_and_says_why():
     assert read.broken is not None and "stops being XML" in read.broken
 
 
-def test_a_sitemap_is_read_no_further_than_the_entries_asked_for():
+def test_a_sitemap_is_read_no_further_than_the_entries_asked_for_and_says_so():
     body = urlset(*(f"https://example.com/{n}" for n in range(10)))
+    text = "".join(f"https://example.com/{n}\n" for n in range(10)).encode()
 
-    assert len(parse_sitemap(body.encode(), max_entries=3).entries) == 3
+    for read in (
+        parse_sitemap(body.encode(), max_entries=3),
+        parse_sitemap(text, max_entries=3),
+    ):
+        assert len(read.entries) == 3
+        assert read.broken == "it lists more than 3 entries, and the rest were not read"
+    assert parse_sitemap(body.encode(), max_entries=10).broken is None
+
+
+def test_a_sitemap_past_the_protocols_cap_marks_the_map_cut_short(monkeypatch):
+    monkeypatch.setattr("sluicer.crawl.sitemaps.MAX_SITEMAP_URLS", 2)
+    fake = site(
+        {
+            "https://example.com/sitemap.xml": urlset(
+                "https://other.example/1",
+                "https://example.com/a",
+                "https://example.com/b",
+            )
+        }
+    )
+
+    result = mapped(fake)
+
+    assert result.truncated is True
+    assert [u.url for u in result.urls] == ["https://example.com/a"]
 
 
 # -- mapping a site --------------------------------------------------------------

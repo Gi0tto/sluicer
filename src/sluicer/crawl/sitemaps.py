@@ -117,6 +117,10 @@ def parse_sitemap(
 ) -> Sitemap:
     """Read a sitemap's bytes: gzip or not, XML or a list of addresses.
 
+    No more than ``max_entries`` are read; a file listing more says so in
+    ``broken``, since the protocol caps one file at fifty thousand and what
+    lies past the cap was never read.
+
     Raises:
         SitemapUnreadable: it is not a sitemap, it declares a document type,
             its gzip is broken, or it inflates past ``max_bytes``.
@@ -191,8 +195,8 @@ def _xml(data: bytes, max_entries: int) -> Sitemap:
             element.clear()
             while element.getprevious() is not None:
                 del root[0]
-            if len(entries) >= max_entries:
-                break
+            if len(entries) > max_entries:
+                return Sitemap(kind, tuple(entries[:max_entries]), _past(max_entries))
     except lxml.etree.XMLSyntaxError as broken:
         if root is None:
             raise SitemapUnreadable(f"it is not XML: {broken}") from None
@@ -224,10 +228,16 @@ def _text(data: bytes, max_entries: int) -> Sitemap:
         (line.strip(), None)
         for line in lines
         if line.strip().lower().startswith(("http://", "https://"))
-    ][:max_entries]
+    ]
     if not entries:
         raise SitemapUnreadable("it is neither XML nor a list of addresses")
+    if len(entries) > max_entries:
+        return Sitemap("text", tuple(entries[:max_entries]), _past(max_entries))
     return Sitemap("text", tuple(entries))
+
+
+def _past(max_entries: int) -> str:
+    return f"it lists more than {max_entries} entries, and the rest were not read"
 
 
 def map_site(
@@ -305,11 +315,13 @@ def map_site(
     def read(address: str) -> bool:
         """Read one sitemap into ``kept`` and ``waiting``; whether it read."""
         nonlocal truncated
-        found = _fetch_sitemap(address, polite, web, max_delay, max_bytes, limit)
+        found = _fetch_sitemap(address, polite, web, max_delay, max_bytes)
         if isinstance(found, str):
             reads.append(SitemapRead(address, error=found))
             return False
         reads.append(SitemapRead(address, found.kind, len(found.entries), found.broken))
+        if found.broken is not None and found.broken.startswith("it lists more"):
+            truncated = True
         for loc, lastmod in found.entries:
             listed = normalise(loc)
             if listed is None:
@@ -357,7 +369,6 @@ def _fetch_sitemap(
     web: Web,
     max_delay: float,
     max_bytes: int,
-    limit: int,
 ) -> Sitemap | str:
     """One sitemap, read politely, or the sentence that says why it was not."""
     try:
@@ -386,7 +397,7 @@ def _fetch_sitemap(
     if response.status != 200:
         return f"it answered {response.status}"
     try:
-        return parse_sitemap(response.body, max_bytes, limit)
+        return parse_sitemap(response.body, max_bytes, MAX_SITEMAP_URLS)
     except SitemapUnreadable as unreadable:
         return unreadable.reason
 
