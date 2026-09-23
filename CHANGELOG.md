@@ -133,6 +133,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   picked: on Google's page-per-variant example, which prices one variant and
   links the rest, the group has no price. On Google's own example the summary
   had only title, brand and type.
+- `--cache DIR` and `--max-age SECONDS` on every command that reads a page,
+  and `sluicer.fetch.cache`: a page is kept with its `ETag` and
+  `Last-Modified`, and the next fetch asks the site with `If-None-Match` and
+  `If-Modified-Since`; a 304 gives the kept page back, marked `revalidated`.
+  The only other freshness rule is the caller's `--max-age`, within which the
+  site is not asked; nothing is guessed from `Last-Modified`. Only 2xx pages
+  are kept, never their cookies, and a page that changed into a challenge
+  goes up the whole ladder again. `fetch.cached` says the page's age and
+  whether the site was asked.
 - `--respect tdm` on every command that reads a page, `crawl` and `batch`
   included (`respect_tdm` in Python and on the MCP tools `extract_declared`,
   `page_markdown` and `crawl_site`): a page whose text and data mining rights

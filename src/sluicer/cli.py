@@ -129,6 +129,20 @@ _fetch_options = [
         "tdmrep.json, headers and meta tags.",
     ),
     click.option(
+        "--cache",
+        "cache_dir",
+        metavar="DIR",
+        help="Keep fetched pages in DIR, and ask the site with their ETag or "
+        "Last-Modified whether a page changed before fetching it again.",
+    ),
+    click.option(
+        "--max-age",
+        type=click.FloatRange(min=0),
+        metavar="SECONDS",
+        help="With --cache, give a page kept for less than SECONDS back without "
+        "asking its site at all.",
+    ),
+    click.option(
         "--at",
         metavar="DATE",
         help="Read a URL as the Wayback Machine captured it nearest to DATE "
@@ -150,10 +164,18 @@ def _read_source(
     base_url: str | None = None,
     at: str | None = None,
     respect: tuple[str, ...] = (),
+    cache_dir: str | None = None,
+    max_age: float | None = None,
 ) -> tuple[str | bytes, str | None, Fetched | None]:
     """``_read_page``, then refused when ``respect`` names a reservation the
     page makes: its text and data mining rights, for ``tdm``."""
-    html, url, fetched = _read_page(source, stealth, no_robots, base_url, at)
+    if max_age is not None and cache_dir is None:
+        _fail("--max-age says how long a kept page is good for; it needs --cache.")
+    if cache_dir is not None and at is not None:
+        _fail("--cache keeps live pages; a capture read with --at never changes.")
+    html, url, fetched = _read_page(
+        source, stealth, no_robots, base_url, at, cache_dir, max_age
+    )
     if "tdm" in respect:
         _refuse_reserved(html, url, fetched, obey_robots=not no_robots)
     return html, url, fetched
@@ -196,6 +218,8 @@ def _read_page(
     no_robots: bool = False,
     base_url: str | None = None,
     at: str | None = None,
+    cache_dir: str | None = None,
+    max_age: float | None = None,
 ) -> tuple[str | bytes, str | None, Fetched | None]:
     """Return the HTML of ``source``, the URL to attribute it to, and the fetch record.
 
@@ -217,6 +241,15 @@ def _read_page(
                 from sluicer.fetch.archive import fetch_archived
 
                 fetched = fetch_archived(source, at, obey_robots=not no_robots)
+            elif cache_dir is not None:
+                from sluicer.fetch.cache import Cache, fetch_cached
+
+                fetched = fetch_cached(
+                    source,
+                    Cache(cache_dir, max_age),
+                    stealth=stealth,
+                    obey_robots=not no_robots,
+                )
             else:
                 fetched = fetch_url(source, stealth=stealth, obey_robots=not no_robots)
         except FetchExtraMissing as missing:
@@ -291,10 +324,14 @@ def extract(
     no_robots: bool,
     base_url: str | None,
     respect: tuple[str, ...],
+    cache_dir: str | None,
+    max_age: float | None,
     at: str | None,
 ) -> None:
     """Read the structured data a URL, a file or stdin declares."""
-    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at, respect)
+    html, url, fetched = _read_source(
+        source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
+    )
     try:
         result = extract_html(
             html,
@@ -327,6 +364,9 @@ def extract(
                 if fetched.archived is not None
                 else {}
             ),
+            **(
+                {"cached": asdict(fetched.cached)} if fetched.cached is not None else {}
+            ),
         }
     click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
 
@@ -352,6 +392,8 @@ def inspect(
     no_robots: bool,
     base_url: str | None,
     respect: tuple[str, ...],
+    cache_dir: str | None,
+    max_age: float | None,
     at: str | None,
 ) -> None:
     """Show, for a person, what a page declares and where each answer came from.
@@ -361,7 +403,9 @@ def inspect(
     the source of each field, and every summary answer with its source and
     key. Exit codes are ``extract``'s.
     """
-    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at, respect)
+    html, url, fetched = _read_source(
+        source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
+    )
     try:
         result = extract_html(
             html,
@@ -376,6 +420,13 @@ def inspect(
     click.echo(_inspection(shown, result, fetched, microformats, not no_robots))
     if not result.records and not result.summary:
         raise SystemExit(NOTHING_FOUND)
+
+
+def _kept_line(hit: Any) -> str:
+    """How a page came from the cache, said for a person."""
+    if hit.revalidated:
+        return "kept, and the site said it has not changed (304)"
+    return f"kept {hit.age:.0f} s ago, within --max-age: the site was not asked"
 
 
 def _moment(stamp: str) -> str:
@@ -400,6 +451,8 @@ def _inspection(
             f"fetch     {fetched.rung} rung, status {fetched.status}, "
             f"{fetched.seconds:.2f} s"
         )
+        if fetched.cached is not None:
+            lines.append(f"cached    {_kept_line(fetched.cached)}")
         if fetched.archived is not None:
             capture = fetched.archived
             lines.append(
@@ -556,6 +609,8 @@ def diff_command(
     no_robots: bool,
     base_url: str | None,
     respect: tuple[str, ...],
+    cache_dir: str | None,
+    max_age: float | None,
     at: str | None,
 ) -> None:
     """Say what changed between two readings of a page, question by question.
@@ -570,7 +625,7 @@ def diff_command(
     readings = []
     for source, when in ((before, at), (after, None)):
         html, url, fetched = _read_source(
-            source, stealth, no_robots, base_url, when, respect
+            source, stealth, no_robots, base_url, when, respect, cache_dir, max_age
         )
         readings.append(
             extract_html(html, url=url, headers=fetched.headers if fetched else None)
@@ -610,11 +665,13 @@ def markdown(
     no_robots: bool,
     base_url: str | None,
     respect: tuple[str, ...],
+    cache_dir: str | None,
+    max_age: float | None,
     at: str | None,
 ) -> None:
     """Print the main content of a URL, a file or stdin as markdown."""
     html, url, _fetched = _read_source(
-        source, stealth, no_robots, base_url, at, respect
+        source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
     )
     # MarkdownExtraMissing: trafilatura is not installed; the message says how.
     try:
@@ -891,6 +948,8 @@ def audit_command(
     no_robots: bool,
     base_url: str | None,
     respect: tuple[str, ...],
+    cache_dir: str | None,
+    max_age: float | None,
     at: str | None,
 ) -> None:
     """Check what a page declares against what Google documents, and more.
@@ -909,7 +968,9 @@ def audit_command(
     there was nothing to audit, and 0. 2, as everywhere, when the page could
     not be read.
     """
-    html, url, fetched = _read_source(source, stealth, no_robots, base_url, at, respect)
+    html, url, fetched = _read_source(
+        source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
+    )
     site = None
     try:
         if fetched is not None and not no_site and fetched.archived is None:
@@ -937,6 +998,11 @@ def audit_command(
                 **(
                     {"archived": asdict(fetched.archived)}
                     if fetched.archived is not None
+                    else {}
+                ),
+                **(
+                    {"cached": asdict(fetched.cached)}
+                    if fetched.cached is not None
                     else {}
                 ),
             }
@@ -968,6 +1034,8 @@ def _audit_report(
             f"fetch     {fetched.rung} rung, status {fetched.status}, "
             f"{fetched.seconds:.2f} s"
         )
+        if fetched.cached is not None:
+            lines.append(f"cached    {_kept_line(fetched.cached)}")
         if fetched.archived is not None:
             capture = fetched.archived
             lines.append(

@@ -23,7 +23,7 @@ dresses it up as a browser.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -78,6 +78,7 @@ def http_responses(
     max_bytes: int = MAX_RESPONSE_BYTES,
     error: type[MissingExtra] = MissingExtra,
     redirects: Redirects | None = None,
+    send: Mapping[str, str] | None = None,
 ) -> Callable[[str], Response]:
     """Build the HTTP transport: an address in, a ``Response`` out.
 
@@ -90,6 +91,8 @@ def http_responses(
             the same class for every rung.
         redirects: the caller's rule for a redirect, asked before each hop is
             requested; a hop it refuses raises ``RedirectRefused``.
+        send: headers sent with every request beside our User-Agent, which
+            they cannot replace: a cache's validators, ``If-None-Match``.
     """
     requests = import_extra(
         "curl_cffi.requests", "fetch", doing="Fetching a URL", error=error
@@ -106,7 +109,7 @@ def http_responses(
                 pins = _pins(current, resolve)
                 if pins:
                     options[curl_option.RESOLVE] = pins
-            status, headers, body = _get(requests, current, options, max_bytes)
+            status, headers, body = _get(requests, current, options, max_bytes, send)
             location = headers.get("location")
             if status in _REDIRECTS and location:
                 target = urljoin(current, location)
@@ -163,14 +166,18 @@ def http_rung(
 
 
 def _get(
-    requests: Any, url: str, options: dict[Any, Any], max_bytes: int
+    requests: Any,
+    url: str,
+    options: dict[Any, Any],
+    max_bytes: int,
+    send: Mapping[str, str] | None = None,
 ) -> tuple[int, Any, bytes]:
     """One request, no redirect followed, the body read up to ``max_bytes``."""
     with requests.Session(curl_options=options, impersonate=None) as session:
         try:
             response = session.get(
                 url,
-                headers={"User-Agent": USER_AGENT},
+                headers={**(send or {}), "User-Agent": USER_AGENT},
                 timeout=HTTP_TIMEOUT_SECONDS,
                 allow_redirects=False,
                 stream=True,

@@ -105,6 +105,20 @@ lowest to the highest a variant declares, and no variant is picked. A
 page that misuses a term is answered by that misuse, which is why every answer
 names the key it was read from.
 
+## A cache asks, it does not guess
+
+`--cache DIR` keeps each page a fetch brought back with its `ETag` and
+`Last-Modified`, and the next fetch sends them: a 304 is the site saying
+nothing changed, for the price of a request with no body. That is the only
+freshness rule, besides the one a caller states with `--max-age`. HTTP caches
+may guess a page's freshness from how long ago it last changed, and scrapy's
+`RFC2616Policy` does; a monitor that guesses is a monitor that misses the
+change it was running for, so nothing here is inferred from `Last-Modified`,
+and `Cache-Control` is not read. Only a 2xx page is kept, never a refusal or
+a challenge, and never the cookies that came with it; a page that changed
+into one a browser must fetch goes up the whole ladder again. Every answer
+from the cache says so, with its age.
+
 ## Politeness is the product
 
 A crawler is judged by the sites it visits, so the rules are the site's before

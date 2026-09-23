@@ -222,6 +222,12 @@ as its address, never fetched or read.
 
 ## In fetching
 
+**The cache serves single pages.** `--cache` is read by `extract`, `inspect`,
+`markdown`, `audit` and `diff`, not by `crawl` or `batch`, whose state file is
+their memory, nor by the MCP server. A page that came from the browser rung is
+not revalidated, since a browser sends no validators it was not given: it is
+fetched again, and kept again.
+
 **A challenge is detected by words, on a page that is not content.** A title
 that is the challenge ("Just a moment...") counts on any page; a marker anywhere
 else counts only on a page that declared nothing about a thing and carries less

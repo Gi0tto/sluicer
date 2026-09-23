@@ -82,6 +82,20 @@ class Climb:
 
 
 @dataclass(frozen=True)
+class CacheHit:
+    """How a page came from ``sluicer.fetch.cache`` rather than from its site.
+
+    ``age`` is the seconds since the site last answered for it, and
+    ``revalidated`` whether the site was asked this time and said nothing
+    changed (304); false means it was not asked at all, the page being
+    younger than the cache's ``max_age``.
+    """
+
+    age: float
+    revalidated: bool
+
+
+@dataclass(frozen=True)
 class Capture:
     """Which archived capture a page was read from (``sluicer.fetch.archive``).
 
@@ -117,6 +131,8 @@ class Fetched:
     ``Link``, usage directives in ``X-Robots-Tag``, the charset."""
     archived: Capture | None = None
     """The capture the page was read from, when it came from an archive."""
+    cached: CacheHit | None = None
+    """How the page came from a cache, when it did."""
 
 
 Rung = Callable[[str], Fetched]
