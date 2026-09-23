@@ -2,7 +2,7 @@
 
 Everything here is deliberate, measured, and open. It is not a bug list: it is
 the set of places where Sluicer currently stops, written down so nobody has to
-rediscover them, and so the next plan inherits decided questions instead of
+rediscover them, and so a contributor inherits decided questions instead of
 surprises.
 
 ## In the extraction path
@@ -10,21 +10,22 @@ surprises.
 **A reference is followed one hop.** A JSON-LD node that names another by
 `@id` gets that node in its place, so an article's author and publisher arrive
 whole; a reference inside the node that replaced it stays a reference. Measured
-on a Yoast blog post, following every reference tripled the output, because
-every record re-expanded the same graph.
+on a Yoast blog post, three hops instead of one took the output from 22 KB to
+38 KB, because every record re-expanded the same graph.
 
 **The summary answers by rule, not by judgement.** Its subject is the first
 declared record about a thing, ahead of pages, sites and furniture, and each
 question takes the first candidate in a stated list. A page that misuses a term
-is answered by that misuse: Wikipedia's `headline` is its short description, so
-its summary title is "hydraulic structure" rather than "Sluice".
+is answered by that misuse, except where a rule was written for it: Wikipedia
+puts its short description in `headline`, so when only `name` appears in the
+title the page shows, `name` is the title.
 
 **Gap-filling targets the first record of a type.** When a page declares several
 records sharing a type, a lower-precedence reader fills the first one in document
 order. On a page whose `@graph` opens with a `BreadcrumbList`, an `og:title`
 lands on the breadcrumb rather than the product. Document order is the only
-deterministic signal available in this slice; trust scoring is where a better one
-can come from.
+deterministic signal available; the template contract planned in the roadmap is
+where a better one can come from.
 
 **A declared encoding can still disagree with the bytes.** Bytes are decoded
 the way a browser decodes them: a byte order mark, then an XML declaration or a
@@ -35,9 +36,7 @@ has better information than the page, and nothing currently accepts it. When
 only text is available and lxml cannot parse it, the retry reads it as UTF-8
 whatever the document claims, because the text has already been decoded.
 
-**RDFa is read as Lite, not as a graph.** `declared` covers JSON-LD, microdata,
-microformats, RDFa, Dublin Core, OpenGraph and the Twitter card today. The RDFa
-reader stops where the graph begins: `vocab`, `prefix`, `typeof`, `property` and
+**RDFa is read as Lite, not as a graph.** The RDFa reader stops where the graph begins: `vocab`, `prefix`, `typeof`, `property` and
 `resource` are read, and chained subjects, typed literals and inference are not.
 Anyone who needs the full graph is better served by a triple store than by this
 pretending.
@@ -58,13 +57,14 @@ tags are never reported as microformats; each has a reader of its own here.
 
 **Eight vocabularies fold onto one flat set of keys, and some of them collide.**
 `og:image:alt` and `twitter:image:alt` both strip to `image:alt`; a Dublin Core
-`title` lands on the same key as an `og:title`; and RDFa folds `vocab` and
-`prefix` away, so two vocabularies sharing a term name share a key. The
-precedence decides who wins -- JSON-LD, microdata, microformats, RDFa, Dublin
-Core, OpenGraph, the Twitter card -- so the answer is stated and stable rather
-than decided by the order the page's author typed. What is lost is the loser: it
-is dropped, not kept under a qualified name. Microformats keeps its own type
-spelling while it is at it: an `h-entry` records `@type` as `h-entry`, so it
+`title` lands on the same key as an `og:title`. RDFa shortens schema.org terms
+to the names the other readers use and keeps other vocabularies' full IRIs, so
+only schema.org terms collide across vocabularies. The precedence decides who
+wins -- JSON-LD, microdata, microformats, RDFa, Dublin Core, OpenGraph, the
+Twitter card, HTML's own metadata names -- so the answer is stated and stable
+rather than decided by the order the page's author typed. What is lost is the
+loser: it is dropped, not kept under a qualified name. Microformats keeps its
+own type spelling: an `h-entry` records `@type` as `h-entry`, so it
 never folds with a schema.org `Article` that means the same thing.
 
 ## In announcing ourselves
@@ -100,8 +100,8 @@ one page, so there is nothing yet to pace, and that stops being true the day it
 crawls.
 
 **The stealth rung does not announce itself, deliberately.** It exists to not be
-recognised, and announcing yourself and then evading is incoherent. It is no
-longer part of the automatic ladder for the same reason: climbing on a
+recognised, and announcing yourself and then evading is incoherent. It is not
+part of the automatic ladder for the same reason: climbing on a
 measurement from plain HTTP to a browser is a change of cost, while climbing
 from announcing yourself to hiding is a change of character, and it should not
 happen to a caller who never asked for it.
@@ -125,11 +125,11 @@ can see it is the HTTP rung's answer to a page that wanted a browser. When every
 rung failed, `FetchFailed` says what each one said; nothing is returned that
 could pass for a page.
 
-**The redirect-to-login measurement named in the design is not implemented.**
-The other two, a refusal and a skeletal body, are.
+**A redirect to a login page is not detected as a refusal.** A refusal status, a
+challenge page and a skeletal body are.
 
-**The fetch layer holds bytes and passes text.** `load()` learned to take bytes
-so a document's own encoding wins, and the adapter still hands it
+**The fetch layer holds bytes and passes text.** `load()` takes bytes so a
+document's own encoding wins, and the adapter still hands it
 `response.html_content`, which scrapling has already decoded. Deciding which of
 the two is more trustworthy needs a measurement nobody has taken yet.
 
@@ -149,15 +149,18 @@ address has been requested by the time it is refused. SECURITY.md says so too.
 returns at most 200,000 characters and says when it cut; the fetch underneath
 has no size limit, and a 200 MB response was measured holding 1.14 GB.
 
-**A missing extra answers with `is_error` false.** It is a result, not a
-protocol failure, so an agent that branches only on that flag will not notice.
-The payload is unmistakable and the alternative is worse: a raised exception
-becomes `UnexpectedToolError: Error executing tool fetch_page` and the install
-sentence is discarded by the SDK. Measured against mcp 2.2.0.
+**Every error answer has `is_error` false.** A missing extra, a robots
+refusal, a refused address, a failed fetch and a bad input come back as results
+carrying `error` and one of `missing_extra`, `refused_by_robots`,
+`refused_address`, `fetch_failed` or `bad_input`, not as protocol failures, so
+an agent that branches only on that flag will not notice. The alternative is
+worse: a raised exception becomes `Error executing tool fetch_page` and the
+sentence that says what happened is discarded by the SDK. Measured against mcp
+2.2.0.
 
-**Nothing validates the shape a tool returns.** `structured_content` is None in
-mcp 2.2.0 even for a tool annotated as returning a mapping, so the contract
-between us and an agent is prose, not schema.
+**Nothing validates the shape a tool returns.** mcp 2.2.0 passes a tool's
+mapping through as `structured_content` but publishes no output schema for it,
+so the contract between us and an agent is prose, not schema.
 
 **The three tools are pinned by set equality**, so a fourth cannot appear
 unnoticed.
@@ -166,12 +169,11 @@ unnoticed.
 
 **Adding a reader touches three places.** The reader names are written into
 `merge`'s keyword signature, into the fold's source labels, and into the tuple
-in `api`. The cost is now measured rather than predicted: four readers arrived
-this way, `merge` takes seven parameters, and each addition was a breaking
-change to a published signature plus edits in two modules -- the microformats
-one also had to be threaded through as a flag, since it is optional. The seam
-belongs one level up, as a sequence of named findings or a registry. Worth
-moving before the first release, cheap while nobody depends on it.
+in `api`. `merge` takes eight parameters, and each new reader is a breaking
+change to its signature plus edits in two modules; microformats also has to be
+threaded through as a flag, since it is optional. The seam belongs one level
+up, as a sequence of named findings or a registry. Worth moving before 1.0,
+while few depend on it.
 
 **A hand-built `Record` can be silently inert.** `Record(type="Product")`
 constructed by hand gets an empty `types`, and the fold reads `types`, so that

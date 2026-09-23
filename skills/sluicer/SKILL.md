@@ -44,26 +44,34 @@ unless it was started with `SLUICER_ALLOW_PRIVATE=1`.
 
 ```json
 {
-  "url": "https://example.com/p",
+  "url": "https://example.com/product",
   "summary": {
-    "title": { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
-    "price": { "value": "41.90", "source": "jsonld", "key": "Product.offers" },
-    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers" }
+    "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
+    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" },
+    "language": { "value": "en", "source": "html", "key": "<html lang>" },
+    "type":     { "value": "Product", "source": "jsonld", "key": "@type" },
+    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers" },
+    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers" },
+    "sku":      { "value": "BP-1187", "source": "jsonld", "key": "Product.sku" }
   },
   "records": [
     {
       "type": "Product",
+      "types": ["Product"],
       "fields": {
-        "name": { "value": "Brake pad set", "source": "jsonld" },
+        "name":   { "value": "Brake pad set", "source": "jsonld" },
+        "sku":    { "value": "BP-1187", "source": "jsonld" },
         "offers": {
           "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" },
           "source": "jsonld"
         },
-        "mpn": { "value": "BP-2210", "source": "microdata" }
-      }
+        "mpn":    { "value": "BP-2210", "source": "microdata" },
+        "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph" }
+      },
+      "source": "jsonld"
     }
   ],
-  "sources": ["jsonld", "microdata"]
+  "sources": ["jsonld", "microdata", "opengraph"]
 }
 ```
 
@@ -79,7 +87,8 @@ sluicer extract listing.html --induce            # rows of a page that declares 
 sluicer markdown https://example.com/article
 ```
 
-Exit codes: 0 found, 1 read but nothing declared, 2 could not be read.
+Exit codes: 0 something found (a record or a summary answer), 1 the page gives
+nothing at all, 2 could not be read.
 
 ```python
 import sluicer

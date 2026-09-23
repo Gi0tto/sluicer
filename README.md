@@ -26,34 +26,39 @@ always gives you the same answer, and a run costs CPU and nothing else.
 
 ```bash
 uv tool install 'sluicer[fetch,markdown,mcp]'
-sluicer extract https://example.com/product
+sluicer extract product.html --url https://example.com/product
 ```
 
 ```json
 {
   "url": "https://example.com/product",
   "summary": {
-    "title":    { "value": "Brake pad set", "source": "jsonld",    "key": "Product.name" },
-    "price":    { "value": "41.90",         "source": "jsonld",    "key": "Product.offers" },
-    "currency": { "value": "EUR",           "source": "jsonld",    "key": "Product.offers" },
-    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" }
+    "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
+    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" },
+    "language": { "value": "en", "source": "html", "key": "<html lang>" },
+    "type":     { "value": "Product", "source": "jsonld", "key": "@type" },
+    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers" },
+    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers" },
+    "sku":      { "value": "BP-1187", "source": "jsonld", "key": "Product.sku" }
   },
   "records": [
     {
       "type": "Product",
+      "types": ["Product"],
       "fields": {
         "name":   { "value": "Brake pad set", "source": "jsonld" },
-        "sku":    { "value": "BP-1187",       "source": "jsonld" },
+        "sku":    { "value": "BP-1187", "source": "jsonld" },
         "offers": {
           "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" },
           "source": "jsonld"
         },
-        "mpn":    { "value": "BP-2210",       "source": "microdata" }
-      }
+        "mpn":    { "value": "BP-2210", "source": "microdata" },
+        "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph" }
+      },
+      "source": "jsonld"
     }
   ],
-  "sources": ["jsonld", "microdata", "opengraph"],
-  "fetch": { "rung": "http", "status": 200, "climbs": [] }
+  "sources": ["jsonld", "microdata", "opengraph"]
 }
 ```
 
@@ -68,19 +73,18 @@ Core, OpenGraph, the Twitter card, the metadata names HTML itself defines, and
 microformats2 when you ask for it. On a large part of the commercial web the
 structured data is sitting in the source and nobody reads it.
 
-Two of those matter more than the rest, and the numbers say why. Measured across
-the 359 commercial pages of a public annotated corpus: `article:published_time`
-is on 33% of them and `<meta name="author">` on 29%, and reading those two took
-recall on `publish_date` from 0.06 to **0.50** and on `author` from 0.01 to
-**0.38**. The first is part of the OpenGraph protocol and was missed because
-only the `og:` prefix was matched; the second is a tag no vocabulary owns, which
-other tools either ignore or file under a vocabulary that never claimed it.
+Two of those carry most of the dates and authors on pages that declare no
+JSON-LD: across the 359 commercial pages of a public annotated corpus,
+`article:published_time` is on 33% of them and `<meta name="author">` on 29%.
+The first is part of the OpenGraph protocol, in its `article:` namespace; the
+second is a tag no vocabulary owns, which other tools either ignore or file under
+a vocabulary that never claimed it.
 
 Dublin Core, RDFa and microformats buy something different — compatibility, not
 reach. Measured across twenty live pages, they unlock zero pages that JSON-LD,
 microdata or OpenGraph do not already cover. What they buy is parity with
-`extruct`, which reads six vocabularies, takes 540,765 installs a month, and has
-had no release in 683 days.
+`extruct`, which reads six vocabularies and, as of 2026-09-22, took 540,765
+installs a month and had had no release in 683 days.
 
 **Answers the questions you came with.** `summary` gives one value each for
 title, description, url, image, author, published, modified, language,
@@ -99,8 +103,7 @@ and a reference to another node on the page replaced by that node.
 then microformats, then RDFa, then Dublin Core, then OpenGraph, then the Twitter
 card, then HTML's own metadata names, and each value carries the reader that won
 it. A value from `<meta name="author">` says `"source": "html"`, because that is
-what it is. You always know where a
-number came from before you act on it.
+what it is. You always know where a number came from before you act on it.
 
 **Reads pages that declare nothing.** Ask for it with `induce=True` and Sluicer
 looks for the shape the page repeats -- the rows of a listing, the cards of a
@@ -124,8 +127,8 @@ the cheaper rung already had.
 `Sluicer/<version>` with a link to this repository and borrows no browser's
 referer or fingerprint, so a site owner can see it coming and refuse it with one
 line of `robots.txt`, which Sluicer reads and obeys by default -- for a redirect
-to another host too, and treating a robots.txt it cannot reach as a refusal, as
-RFC 9309 says. The stealth rung exists, and it is not part of the automatic ladder:
+to another host too -- and it fetches nothing when a robots.txt cannot be read,
+as RFC 9309 says. The stealth rung exists, and it is not part of the automatic ladder:
 climbing on a measurement from plain HTTP to a browser is a change of cost, while
 climbing from announcing yourself to hiding is a change of character, and it does
 not happen to a caller who never asked for it.
@@ -151,8 +154,9 @@ sluicer extract listing.html --induce          # rows of a page that declares no
 sluicer markdown https://example.com/article   # the readable content
 ```
 
-Exit codes follow grep: 0 when something was found, 1 when the page was read and
-declares nothing, 2 when it could not be read at all.
+Exit codes follow grep: 0 when something was found -- a record, or at least one
+summary answer such as the page's title -- 1 when the page was read and gives
+nothing at all, 2 when it could not be read.
 
 From Python:
 
@@ -186,8 +190,11 @@ the record of what it cost to get.
 uv tool install sluicer                            # the command
 uv pip install sluicer                             # the library
 uv pip install 'sluicer[fetch,markdown,mcp]'       # fetching, markdown, the server
-uv pip install 'sluicer[microformats]'             # the seventh vocabulary
+uv pip install 'sluicer[microformats]'             # microformats2, off by default
 ```
+
+Until the first upload to PyPI, install from the tagged release on GitHub:
+`uv tool install 'sluicer[fetch,markdown,mcp] @ git+https://github.com/Gi0tto/sluicer@v0.1.0'`.
 
 The base install is `lxml` and `click`. Fetching, markdown and the MCP server
 each sit behind an extra, so a reader who only parses HTML never carries a
@@ -205,8 +212,8 @@ Microformats is behind one too, and it is the only reader that is off by
 default: its reference parser costs twelve packages against a base install of
 three. Turn it on per call with `extract(html, microformats=True)`, and without
 the extra that call raises `MicroformatsExtraMissing` with the install line in
-the message. It is worth what it is worth: measured on 2026-09-22 across twenty
-live pages, microformats appeared on exactly one, and that page carried
+the message. Measured on 2026-09-22 across twenty live pages, microformats
+appeared on exactly one, and that page carried
 OpenGraph as well, so it was already readable. What it buys is compatibility
 with `extruct`.
 

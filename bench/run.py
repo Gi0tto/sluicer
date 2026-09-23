@@ -258,7 +258,9 @@ def _document(pages_list, pages, runs, per_page) -> str:
     }
     today = datetime.date.today().isoformat()
     commit = _git("rev-parse", "--short", "HEAD")
-    dirty = " with uncommitted changes" if _git("status", "--porcelain") else ""
+    # Its own output does not make the tree it measured dirty.
+    changed = _git("status", "--porcelain", "--", ".", ":!docs/scoreboard.md")
+    dirty = " (with uncommitted changes)" if changed else ""
     node = subprocess.run(["node", "--version"], capture_output=True, text=True)
     lines = [
         "# Scoreboard",
@@ -266,7 +268,7 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "How often Sluicer's `summary` gets a page's title, author and publication",
         "date right, measured beside the tools people use for the same job, on a",
         "public annotated corpus, with the losses in the same table as the wins.",
-        f"Regenerated on {today} from commit `{commit}`{dirty} with",
+        f"Regenerated on {today} from commit `{commit}`{dirty} by",
         "`uv run bench/run.py`; the method and every pin are in",
         "[`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).",
         "",

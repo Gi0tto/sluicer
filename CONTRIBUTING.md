@@ -31,7 +31,15 @@ Run the suite from the repository root:
 uv run pytest
 ```
 
-It takes well under a second and it never touches the network. If a test of
+CI also runs these, and refuses a change that fails any of them:
+
+```bash
+uv run ruff check src tests bench
+uv run mypy
+uv run pytest --cov          # coverage must stay at or above 97%
+```
+
+The suite takes a second or two and it never touches the network. If a test of
 yours needs a page, save it under `tests/fixtures/` and read it from disk. If it
 needs a fetch, inject a fake rung the way `tests/test_fetch_ladder.py` does.
 
@@ -62,13 +70,10 @@ English everywhere: code, comments, tests, commit messages.
 
 `docs/changelog.md`, `docs/roadmap.md`, `docs/contributing.md` and
 `docs/security.md` are symlinks to the files of the same name in the repository
-root. They were hand-maintained copies until 2026-09-22 and had already drifted:
-the published roadmap listed shipped work as still to come. Edit the root file;
-the site follows.
+root. Edit the root file; the site follows.
 
 `docs/index.md` is **not** a copy of the README and should not become one. A
 README sells the project to someone deciding whether to try it; a documentation
-home orients someone who has already decided. The README's relative links also
-resolve from the repository root, so copying it under `docs/` silently breaks
-seven of them — `mkdocs build --strict` catches that, which is why it runs in CI
-on every push.
+home orients someone who has already decided. The README's links are absolute,
+because it is also the PyPI page; the site's pages link relatively, and
+`mkdocs build --strict` in CI refuses a broken one.

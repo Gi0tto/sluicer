@@ -1,9 +1,9 @@
 """Command line front door.
 
-Exit codes follow grep: 0 when something was found, 1 when the page was read
-and holds nothing to report, 2 when it could not be read at all. A script can
-tell "this page declares nothing" from "the fetch failed" without parsing
-English.
+Exit codes follow grep: 0 when something was found -- a record, or at least one
+summary answer -- 1 when the page was read and gives nothing at all, 2 when it
+could not be read. A script can tell "this page gives nothing" from "the fetch
+failed" without parsing English.
 """
 
 from __future__ import annotations
@@ -178,8 +178,8 @@ def extract(
         result = extract_html(html, url=url, induce=induce, microformats=microformats)
     except MicroformatsExtraMissing as missing:
         _fail(str(missing), missing)
-    if not result.records:
-        click.echo("This page declares no structured data.", err=True)
+    if not result.records and not result.summary:
+        click.echo("This page gives nothing: no record and no summary.", err=True)
         if fetched is not None:
             # What the page cost is reported even when it declared nothing.
             click.echo(f"Fetch reached the '{fetched.rung}' rung.", err=True)

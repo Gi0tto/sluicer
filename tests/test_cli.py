@@ -19,12 +19,25 @@ def test_extract_prints_json_records():
     assert payload["records"][0]["fields"]["name"]["value"] == "Brake pad set"
 
 
-def test_a_page_with_nothing_declared_exits_one():
-    result = CliRunner().invoke(main, ["extract", str(FIXTURES / "plain.html")])
+def test_a_page_that_gives_nothing_at_all_exits_one(tmp_path):
+    page = tmp_path / "bare.html"
+    page.write_text("<html><body><p>Nothing declared here.</p></body></html>")
+
+    result = CliRunner().invoke(main, ["extract", str(page)])
 
     assert result.exit_code == 1
-    assert "declares no structured data" in result.stderr
-    assert "declares no structured data" not in result.stdout
+    assert "gives nothing" in result.stderr
+    assert result.stdout == ""
+
+
+def test_a_page_with_only_a_title_still_prints_its_summary():
+    """The summary is an answer too: a <title> is on the page to be read."""
+    result = CliRunner().invoke(main, ["extract", str(FIXTURES / "plain.html")])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["records"] == []
+    assert payload["summary"]["title"]["value"] == "Plain page"
 
 
 def test_an_empty_file_is_reported_not_crashed(tmp_path):
@@ -161,7 +174,7 @@ def test_an_empty_url_result_still_reports_what_the_fetch_cost(monkeypatch):
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
     assert result.exit_code == 1
-    assert "declares no structured data" in result.stderr
+    assert "gives nothing" in result.stderr
     assert "stealth" in result.stderr
     assert "the server refused: status 403" in result.stderr
     assert "the page looks like a challenge" in result.stderr

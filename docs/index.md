@@ -9,7 +9,7 @@ always gives you the same answer, and a run costs CPU and nothing else.
 
 ```bash
 uv tool install 'sluicer[fetch,markdown,mcp]'
-sluicer extract https://example.com/product
+sluicer extract product.html --url https://example.com/product
 ```
 
 ```json
@@ -17,25 +17,31 @@ sluicer extract https://example.com/product
   "url": "https://example.com/product",
   "summary": {
     "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name" },
-    "price":    { "value": "41.90",         "source": "jsonld", "key": "Product.offers" },
-    "currency": { "value": "EUR",           "source": "jsonld", "key": "Product.offers" }
+    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image" },
+    "language": { "value": "en", "source": "html", "key": "<html lang>" },
+    "type":     { "value": "Product", "source": "jsonld", "key": "@type" },
+    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers" },
+    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers" },
+    "sku":      { "value": "BP-1187", "source": "jsonld", "key": "Product.sku" }
   },
   "records": [
     {
       "type": "Product",
+      "types": ["Product"],
       "fields": {
         "name":   { "value": "Brake pad set", "source": "jsonld" },
-        "sku":    { "value": "BP-1187",       "source": "jsonld" },
+        "sku":    { "value": "BP-1187", "source": "jsonld" },
         "offers": {
           "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" },
           "source": "jsonld"
         },
-        "mpn":    { "value": "BP-2210",       "source": "microdata" }
-      }
+        "mpn":    { "value": "BP-2210", "source": "microdata" },
+        "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph" }
+      },
+      "source": "jsonld"
     }
   ],
-  "sources": ["jsonld", "microdata", "opengraph"],
-  "fetch": { "rung": "http", "status": 200, "climbs": [] }
+  "sources": ["jsonld", "microdata", "opengraph"]
 }
 ```
 
@@ -67,7 +73,7 @@ listed there did not happen.
 ## What it reads
 
 Eight vocabularies, in a stated order of precedence: JSON-LD, microdata,
-microformats, RDFa Lite, Dublin Core, OpenGraph — including the protocol's own
+microformats (on request), RDFa Lite, Dublin Core, OpenGraph — including the protocol's own
 `article:`, `book:`, `profile:`, `video:` and `music:` namespaces — the Twitter
 card, and last, the metadata names HTML itself defines (`author`,
 `description`, `keywords`), which arrive marked `"source": "html"` rather than

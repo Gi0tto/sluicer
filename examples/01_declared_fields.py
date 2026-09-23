@@ -12,4 +12,4 @@ print(f"vocabularies that fired: {result.sources}")
 for record in result.records:
     print(f"\n{record.type or 'untyped'}:")
     for name, field in record.fields.items():
-        print(f"  {name:16} {field.value[:60]!r}  via {field.source}")
+        print(f"  {name:16} {str(field.value)[:60]!r}  via {field.source}")
