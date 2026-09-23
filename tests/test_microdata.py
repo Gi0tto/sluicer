@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from sluicer.declared.microdata import read_microdata
 from sluicer.document import load
 
@@ -127,3 +129,46 @@ def test_without_a_page_address_an_address_stays_as_written():
     )
 
     assert read_microdata(doc)[0]["url"] == "/p/1"
+
+
+_LONG = "x" * 4000
+_COPIED_MANY_TIMES = {
+    "one element, named by four hundred items with itemref": (
+        f'<p id="big" itemprop="d">{_LONG}</p>'
+        + '<div itemscope itemref="big"></div>' * 400
+    ),
+    "one element naming four hundred properties": (
+        '<div itemscope><p itemprop="'
+        + " ".join(f"p{i}" for i in range(400))
+        + f'">{_LONG}</p></div>'
+    ),
+    "four hundred itemprops nested in each other": (
+        "<div itemscope>"
+        + '<span itemprop="a">' * 400
+        + _LONG
+        + "</span>" * 400
+        + "</div>"
+    ),
+    "four hundred links resolved against a long base": (
+        f'<base href="http://h.example/{_LONG}/"><div itemscope>'
+        + '<a itemprop="u" href="x">x</a>' * 400
+        + "</div>"
+    ),
+}
+
+
+@pytest.mark.parametrize("html", _COPIED_MANY_TIMES.values(), ids=_COPIED_MANY_TIMES)
+def test_a_value_copied_many_times_costs_at_most_ten_times_the_page(html):
+    """Found by the property that what a page yields is bounded by its size.
+
+    Each of these made 1.6 MB of JSON from a page of 6 to 18 KB, between 89
+    and 271 times the page, and the ratio grows with the page. The budget of
+    256 items per top-level item bounded expansions, not what they copied, and
+    each referrer here is a top-level item with a budget of its own.
+    """
+    import json
+
+    found = read_microdata(load(html))
+
+    assert found
+    assert len(json.dumps(found)) <= 11 * len(html)

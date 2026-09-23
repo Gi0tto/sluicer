@@ -381,6 +381,28 @@ def test_items_that_itemref_each_other_cost_a_bounded_amount():
     assert _timed("<html><body>" + "".join(parts) + "</body></html>") < 2
 
 
+def test_items_that_itemref_each_other_are_walked_a_bounded_number_of_times():
+    """Found while bounding what microdata copies: the walk was paid for by no one.
+
+    Each top-level item may expand 256 nested ones, and each expansion walked
+    the nested item's markup again, so fifty items naming a core of seven that
+    name each other walked 256 times the core fifty times: 2.3 seconds for a
+    29 KB page, growing with its square. Every element walked is now paid for
+    from the page's budget.
+    """
+    core = [f"g{i}" for i in range(7)]
+    filler = "<i>f</i>" * 500
+    parts = [
+        f'<div id="{name}" itemprop="r" itemscope '
+        f'itemref="{" ".join(other for other in core if other != name)}">'
+        f"{filler}</div>"
+        for name in core
+    ]
+    parts += [f'<div itemscope itemref="{" ".join(core)}"></div>'] * 50
+
+    assert _timed("".join(parts)) < 1
+
+
 def test_thousands_of_references_to_one_large_node_cost_a_bounded_amount():
     """A 119 KB page took 12 seconds and 4 GB when every reference was copied."""
     import json
