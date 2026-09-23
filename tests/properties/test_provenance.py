@@ -34,12 +34,18 @@ READERS = (
 
 
 def _metas(tree, attribute: str) -> set[str]:
-    """Each ``<meta>``'s ``attribute``, trimmed and lowercased, if it has content."""
-    return {
-        (meta.get(attribute) or "").strip().lower()
-        for meta in tree.xpath(f"//meta[@{attribute}]")
-        if (meta.get("content") or "").strip()
-    }
+    """Each ``<meta>``'s ``attribute``, lowercased, if it has content.
+
+    ``name`` is one name; ``property`` is a list of terms, as RDFa makes it and
+    the readers read it, so ``property="name og:title"`` is both.
+    """
+    found: set[str] = set()
+    for meta in tree.xpath(f"//meta[@{attribute}]"):
+        if not (meta.get("content") or "").strip():
+            continue
+        value = (meta.get(attribute) or "").lower()
+        found.update(value.split() if attribute == "property" else [value.strip()])
+    return found
 
 
 def _declared_on_the_page(tree, source: str, key: str) -> bool:
@@ -126,3 +132,15 @@ def test_every_answer_names_a_reader_and_a_key_the_page_has(page):
 def test_so_does_every_answer_on_a_broken_or_hostile_page(page):
     html, url = page
     _check(html, url)
+
+
+def test_the_oracle_reads_a_property_as_a_list_of_terms():
+    """Found by the fuzz profile: ``property="name og:title"`` declares og:title,
+    as the readers read it, and the oracle still read it as one name."""
+    import lxml.html
+
+    tree = lxml.html.fromstring(
+        '<html><head><meta property="name og:title" content="Pad"></head></html>'
+    )
+
+    assert _declared_on_the_page(tree, "opengraph", "og:title")
