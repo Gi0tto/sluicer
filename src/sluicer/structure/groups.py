@@ -122,8 +122,15 @@ def _same_shape_siblings(parent: HtmlElement) -> list[list[HtmlElement]]:
     return ordered
 
 
-def repeating_groups(tree: HtmlElement, minimum: int = 3) -> list[list[HtmlElement]]:
-    """Return groups of same-shaped siblings, the most promising first."""
+def repeating_groups(
+    tree: HtmlElement, minimum: int = 3, furniture_too: bool = False
+) -> list[list[HtmlElement]]:
+    """Return groups of same-shaped siblings, the most promising first.
+
+    Groups inside the page's furniture -- its navigation, its asides, what it
+    hides -- are left out, unless ``furniture_too``: a person who points at a
+    value there means that group.
+    """
     found: list[tuple[int, int, list[HtmlElement]]] = []
     # Decided once per element, from its parent's answer, since the walk meets
     # a parent before its children. Asked of every element by climbing to the
@@ -135,7 +142,7 @@ def repeating_groups(tree: HtmlElement, minimum: int = 3) -> list[list[HtmlEleme
         furniture[parent] = (
             _furniture(parent) if above is None else above or _chrome(parent)
         )
-        if furniture[parent]:
+        if furniture[parent] and not furniture_too:
             continue
         for members in _same_shape_siblings(parent):
             if len(members) >= minimum:

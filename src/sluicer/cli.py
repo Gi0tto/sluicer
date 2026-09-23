@@ -543,22 +543,49 @@ def _load_extractor(path: str) -> Extractor:
     default=None,
     help="Learn the rows the pages repeat (default: only if they declare no thing).",
 )
+@click.option(
+    "--want",
+    "wanted",
+    multiple=True,
+    metavar="NAME=VALUE",
+    help="A value one row holds, and the column's name: --want price=41.90. "
+    "Chooses the listing and keeps only the columns named.",
+)
 @click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
 @click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")
 def compile_command(
     sources: tuple[str, ...],
     output: str,
     listing: bool | None,
+    wanted: tuple[str, ...],
     stealth: bool,
     no_robots: bool,
 ) -> None:
-    """Learn an extractor from pages of one template, and write it to a file."""
+    """Learn an extractor from pages of one template, and write it to a file.
+
+    With --want, the examples say which repeated group is the listing and
+    what its columns are called: --want title="Brake pad set" --want
+    price=41.90 learns the listing whose rows hold both, with those two
+    columns, and a value no row holds is an error that names it.
+    """
+    want: dict[str, str] | None = None
+    if wanted:
+        want = {}
+        for pair in wanted:
+            name, equals, value = pair.partition("=")
+            if not equals or not name.strip() or not value.strip():
+                _fail(f"--want takes NAME=VALUE, not {pair!r}.")
+            want[name.strip()] = value
     pages = _read_pages(sources, stealth, no_robots)
     try:
-        extractor = compile_extractor(pages, listing=listing, names=list(sources))
+        extractor = compile_extractor(
+            pages, listing=listing, names=list(sources), want=want
+        )
     except NothingToLearn as nothing:
         click.echo(f"Learnt nothing: {nothing}.", err=True)
         raise SystemExit(NOTHING_FOUND) from nothing
+    except ValueError as refused:
+        _fail(f"{refused}.", refused)
     _write(output, extractor.to_json())
     learnt = []
     if extractor.listing is not None:

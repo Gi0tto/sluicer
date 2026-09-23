@@ -24,7 +24,7 @@ import json
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
@@ -113,6 +113,9 @@ class Listing:
     rows: tuple[int, int]
     fields: tuple[ListingField, ...]
     empty: float = 0.0
+    chosen: bool = False
+    """The columns were chosen by examples (``compile --want``): ``heal``
+    finds the listing again by the values its columns held, and adds none."""
 
 
 @dataclass(frozen=True)
@@ -148,6 +151,7 @@ class Extractor:
                 "member": self.listing.member,
                 "rows": list(self.listing.rows),
                 "empty": self.listing.empty,
+                **({"chosen": True} if self.listing.chosen else {}),
                 "fields": [
                     {
                         "name": f.name,
@@ -196,6 +200,7 @@ def _extractor_of(body: Any) -> Extractor:
             rows=(rows[0], rows[1]),
             # Absent from a 0.2 file, which learnt nothing about empty rows.
             empty=float(raw.get("empty", 0.0)),
+            chosen=raw.get("chosen", False) is True,
             fields=tuple(
                 ListingField(
                     name=_text(f["name"]),
@@ -299,6 +304,7 @@ def compile_extractor(
     pages: Sequence[Page],
     listing: bool | None = None,
     names: Sequence[str] | None = None,
+    want: Mapping[str, str] | None = None,
 ) -> Extractor:
     """Learn an extractor from pages of one template.
 
@@ -308,12 +314,25 @@ def compile_extractor(
             one unless a page declares its own subject -- a product, an
             article -- whose page it is; True looks for one anyway.
         names: what to call each page in ``learnt_from``; its address by default.
+        want: example values a listing's rows hold, by the name each column
+            is to have: ``{"price": "41.90", "title": "Brake pad set"}``. The
+            examples choose the listing -- the first repeated group, in page
+            order, whose rows hold every one of them -- and the columns, which
+            are only the ones named, under those names. A value matches when
+            it says the same with its spaces collapsed, or is the same amount.
 
     Raises:
-        NothingToLearn: the pages declare nothing and repeat nothing.
+        NothingToLearn: the pages declare nothing and repeat nothing, or no
+            repeated group holds every example in ``want``.
+        ValueError: ``want`` with ``listing=False``, or a name that is empty.
     """
     if not pages:
         raise NothingToLearn("an extractor needs at least one page")
+    if want is not None:
+        if listing is False:
+            raise ValueError("examples of a listing's values need a listing")
+        if not want or any(not name.strip() for name in want):
+            raise ValueError("every example needs a name and a value: name=value")
     docs = [load(html, url=url) for html, url in pages]
     results = [extract(html, url=url) for html, url in pages]
     summary = _learn_summary([r.summary for r in results], len(pages))
@@ -338,7 +357,9 @@ def compile_extractor(
     )
     learnt: Listing | None = None
     notes: list[str] = []
-    if listing or (listing is None and not has_a_subject):
+    if want:
+        learnt, notes = _learn_wanted(docs, want)
+    elif listing or (listing is None and not has_a_subject):
         learnt, notes = _learn_listing(docs)
     if listing and learnt is None:
         notes.append("no listing was found on these pages")
@@ -434,9 +455,32 @@ def heal(
         NothingToLearn: the new pages hold nothing an extractor could be
             learnt from -- no declared answer, no type, no listing.
     """
-    fresh = compile_extractor(
-        pages, listing=True if extractor.listing else None, names=names
-    )
+    old_listing = extractor.listing
+    if old_listing is not None and old_listing.chosen:
+        found = _learn_by_values(
+            [load(html, url=url) for html, url in pages], old_listing
+        )
+        try:
+            fresh = compile_extractor(pages, listing=False, names=names)
+        except NothingToLearn:
+            if found is None:
+                raise
+            fresh = Extractor(
+                learnt_from=tuple(
+                    (names[n - 1] if names else None) or url or f"page {n}"
+                    for n, (_, url) in enumerate(pages, 1)
+                ),
+                summary={},
+                types=(),
+                listing=None,
+            )
+        fresh = Extractor(
+            fresh.learnt_from, fresh.summary, fresh.types, found, fresh.notes
+        )
+    else:
+        fresh = compile_extractor(
+            pages, listing=True if extractor.listing else None, names=names
+        )
     changes: list[Change] = []
     for question in extractor.summary:
         if question not in fresh.summary:
@@ -529,6 +573,124 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
     )
     rows_range = (min(counts), max(counts))
     return Listing(container, member, rows_range, fields, empty), notes
+
+
+def _learn_wanted(
+    docs: list[Document], want: Mapping[str, str]
+) -> tuple[Listing, list[str]]:
+    """The listing whose rows hold every example, and only the columns named.
+
+    Groups are taken in each page's order, as ``repeating_groups`` ranks them;
+    the first whose rows hold every example, on any page, is the listing, and
+    each example's column is the first field, in row order, that held it.
+    """
+    chosen: tuple[str, str] | None = None
+    columns: dict[str, str] = {}
+    ambiguous: dict[str, list[str]] = {}
+    missing: set[str] = set(want)
+    for doc in docs:
+        for group in repeating_groups(doc.tree, furniture_too=True):
+            group_rows = _rows_of(group, doc)
+            if not group_rows:
+                continue
+            held = {
+                name: _holding(group_rows, example) for name, example in want.items()
+            }
+            missing &= {name for name, paths in held.items() if not paths}
+            if all(held.values()):
+                chosen = (path_of(group[0].getparent()), kind(group[0]))
+                columns = {name: paths[0] for name, paths in held.items()}
+                ambiguous = {n: p for n, p in held.items() if len(p) > 1}
+                break
+        if chosen is not None:
+            break
+    if chosen is None:
+        said = ", ".join(f"{name}={want[name]!r}" for name in sorted(missing) or want)
+        raise NothingToLearn(
+            f"no repeated group on these pages holds {said}"
+            if missing
+            else "no one repeated group holds every example together"
+        )
+    container, member = chosen
+    rows: list[dict[str, str]] = []
+    counts: list[int] = []
+    empty = 0.0
+    for doc in docs:
+        found, _ = _find(doc, container)
+        members = _members(found, member) if found is not None else []
+        page_rows = _rows_of(members, doc) if members else []
+        if not page_rows:
+            continue
+        counts.append(len(page_rows))
+        rows.extend(page_rows)
+        empty = max(empty, round(1 - len(page_rows) / len(members), 4))
+    notes = [
+        f"{name}={want[name]!r} was in {len(paths)} places in a row; "
+        f"the first, {paths[0]}, was taken"
+        for name, paths in ambiguous.items()
+    ]
+    if len(counts) < len(docs):
+        notes.append(
+            f"the listing is at {container} on {len(counts)} of {len(docs)} pages; "
+            "the others were ignored"
+        )
+    fields = tuple(
+        _profile(name, path, [row.get(path) for row in rows])
+        for name, path in columns.items()
+    )
+    listing = Listing(
+        container, member, (min(counts), max(counts)), fields, empty, chosen=True
+    )
+    return listing, notes
+
+
+def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
+    """The listing, every column of it, whose rows hold most of ``old``'s values.
+
+    How a listing learnt from examples is found again: by what it held, as it
+    was first found, and in the furniture too. None when no group holds any.
+    """
+    samples = {sample for f in old.fields for sample in f.samples}
+    best: tuple[int, str, str] | None = None
+    for doc in docs:
+        for group in repeating_groups(doc.tree, furniture_too=True):
+            held = {value for row in _rows_of(group, doc) for value in row.values()}
+            score = len(samples & held)
+            if score and (best is None or score > best[0]):
+                best = (score, path_of(group[0].getparent()), kind(group[0]))
+    if best is None:
+        return None
+    _score, container, member = best
+    rows: list[dict[str, str]] = []
+    counts: list[int] = []
+    empty = 0.0
+    for doc in docs:
+        found, _ = _find(doc, container)
+        members = _members(found, member) if found is not None else []
+        page_rows = _rows_of(members, doc) if members else []
+        if page_rows:
+            counts.append(len(page_rows))
+            rows.extend(page_rows)
+            empty = max(empty, round(1 - len(page_rows) / len(members), 4))
+    # Never empty: the group was found on one of these pages, at this path.
+    paths = list(dict.fromkeys(path for row in rows for path in row))
+    fields = tuple(
+        _profile(path, path, [row.get(path) for row in rows]) for path in paths
+    )
+    return Listing(container, member, (min(counts), max(counts)), fields, empty)
+
+
+def _holding(rows: list[dict[str, str]], example: str) -> list[str]:
+    """Every field path, in row order, whose value is ``example`` in some row."""
+    wanted = " ".join(example.split())
+    worth = amount(wanted)
+    found: dict[str, None] = {}
+    for row in rows:
+        for path, value in row.items():
+            said = " ".join(value.split())
+            if said == wanted or (worth is not None and amount(said) == worth):
+                found.setdefault(path)
+    return list(found)
 
 
 def _first_index(
@@ -947,7 +1109,7 @@ def _heal_listing(
         if f.name not in matched:
             changes.append(Change("vanished", f.name, None))
     for path in fresh:
-        if path not in claimed:
+        if path not in claimed and not old.chosen:
             changes.append(Change("new", None, path))
     taken = set(claimed.values())
     fields = tuple(
@@ -960,14 +1122,18 @@ def _heal_listing(
             reads=f.reads,
         )
         for f in new.fields
-        # A new column keeps its path as its name, unless a moved one took it.
-        if f.path in claimed or f.path not in taken
+        # A new column keeps its path as its name, unless a moved one took it;
+        # a listing whose columns were chosen gains none.
+        if f.path in claimed or (f.path not in taken and not old.chosen)
     )
     position = {f.name: n for n, f in enumerate(old.fields)}
     fields = tuple(
         sorted(fields, key=lambda f: (position.get(f.name, len(position)), f.name))
     )
-    return Listing(new.container, new.member, new.rows, fields), changes
+    listing = Listing(
+        new.container, new.member, new.rows, fields, new.empty, chosen=old.chosen
+    )
+    return listing, changes
 
 
 def _comparable(path: str, value: str) -> str:

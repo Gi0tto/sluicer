@@ -61,6 +61,36 @@ that drifted (with `failed`, the checks it broke) and for a heal that lost data
 
 The file is plain JSON, meant to be read and, if you need to, edited.
 
+## Pointing at what you want
+
+Left to itself, `compile` takes the page's most promising repeated group and
+every field its rows carry, named by where they sit (`span.price`). Given
+examples, it takes the listing whose rows hold them, and only the columns they
+name:
+
+```bash
+sluicer compile page1.html page2.html -o books.json \
+    --want title="A Light in the Attic" --want price=51.77
+```
+
+- **The examples choose the listing.** The first repeated group, in each page's
+  order, whose rows hold every example is the listing, even in a sidebar or a
+  menu, where `compile` alone never looks. An example no row holds is an error
+  that names it; examples held by two different groups are an error too.
+- **They name the columns.** The rows `run` gives are `{"title": ..., "price":
+  ...}`, and no other column is learnt or checked. A value matches when it says
+  the same with its spaces collapsed, or is the same amount: `51.77` is the
+  row's `£51.77`. A value in two places in a row takes the first, and the
+  compile notes it.
+- **The contract is the same.** The listing's place, its rows, each column's
+  presence, shape and reading are checked as for any extractor, and `heal`
+  finds the listing again by the values its columns held, keeps the names, and
+  adds no column the examples did not name.
+
+On books.toscrape.com, learnt from its first two pages with `title`, `price`
+and `stock`, the third page replays as 20 rows of those three columns, and a
+page of another site fails with the listing not found.
+
 ## What a run checks
 
 | check | fails when |
@@ -135,7 +165,11 @@ moved: span.stock -> span.availability (2 of 2 learnt values found there; the ne
 - The listing's place is an exact path. Any new wrapper or renamed class above
   the rows fails the `listing` check; that is the point, and `heal` finds the new
   place.
-- One listing per extractor: the page's most promising repeated group.
+- One listing per extractor: the page's most promising repeated group, or the
+  one the examples point at.
+- Examples find values in a listing's rows, not on a page with no listing: a
+  product page that declares nothing cannot yet be learnt by pointing at its
+  price.
 - Healing matches by values seen before. A redesign that changes both the
   markup and every value at once -- a different page altogether -- is reported
   as fields vanished and new, not as moves.

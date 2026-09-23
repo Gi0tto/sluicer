@@ -77,6 +77,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   resolved against the page's base. WordPress's REST API, which every
   WordPress page declares as `rel=alternate type=application/json`, is not
   taken for a feed. Shown in `sluicer inspect` and in the MCP answer.
+- `sluicer compile --want NAME=VALUE` (and `want=` for `compile_extractor`, in
+  Python and over MCP): examples of what one row holds choose the listing --
+  the first repeated group whose rows hold them all, even in a sidebar, where
+  compile alone never looks -- and name its columns, and only those are learnt
+  and checked. A value matches as written with spaces collapsed, or as the same
+  amount (`51.77` is `£51.77`). An example no row holds is an error naming it.
+  `heal` finds such a listing again by the values its columns held, keeps the
+  names, and adds no column. On books.toscrape.com: `--want title=... --want
+  price=51.77 --want stock="In stock"` learns the 20-row catalogue and
+  replays page 3 with those three columns.
 - A `ProductGroup`'s summary reads its variants, in both shapes Google
   documents: listed in `hasVariant`, or each its own node pointing at the
   group with `isVariantOf` or `inProductGroupWithID`. What the group leaves to
@@ -213,6 +223,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Crawl-delay` and `Sitemap` reading in the `with-extras` job.
 
 ### Fixed
+- A healed listing forgot the share of empty rows its pages always had, so a
+  page with the spacer rows the extractor was learnt with failed the healed
+  extractor's empty-rows check.
 - An address resolves alike on every Python. 3.14's `urljoin` keeps a bare
   `?` or `#` that 3.13's drops, so `href="/p?"` answered `https://site/p?` on
   one and `https://site/p` on the other; the empty query and fragment are now

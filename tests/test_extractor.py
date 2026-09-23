@@ -13,6 +13,7 @@ import pytest
 
 from sluicer.extractor import (
     Extractor,
+    NothingToLearn,
     compile_extractor,
     heal,
     run_extractor,
@@ -427,3 +428,202 @@ def test_a_moved_field_says_what_its_move_rests_on():
     assert price.kind == "moved"
     assert price.evidence == {"seen": 5, "samples": 5, "runner_up": 0}
     assert all(c.evidence is None for c in changes if c.kind in ("new", "vanished"))
+
+
+# -- learnt from examples: --want ------------------------------------------------
+
+
+def _two_listings(first_price: str = "£51.77") -> tuple[str, str]:
+    """A page repeating two groups: a strip of offers, then the catalogue."""
+    offers = "".join(
+        f'<div class="offer"><b class="deal">Deal {n}</b>'
+        f'<i class="cut">-{n}0%</i></div>'
+        for n in range(1, 7)
+    )
+    books = [
+        ("A Light in the Attic", first_price, "In stock"),
+        ("Tipping the Velvet", "£53.74", "In stock"),
+        ("Soumission", "£50.10", "In stock"),
+        ("Sharp Objects", "£47.82", "Out of stock"),
+        ("Sapiens", "£54.23", "In stock"),
+        ("The Requiem Red", "£22.65", "In stock"),
+    ]
+    rows = "".join(
+        f'<li class="book"><a class="title" href="/b/{n}">{title}</a>'
+        f'<img class="cover" alt="{title}" src="/c/{n}.jpg">'
+        f'<span class="price">{price}</span><span class="stock">{stock}</span></li>'
+        for n, (title, price, stock) in enumerate(books, 1)
+    )
+    html = (
+        "<html><body><aside>" + offers + "</aside>"
+        '<main><ol class="books">' + rows + "</ol></main></body></html>"
+    )
+    return html, "https://shop.example/books"
+
+
+def test_examples_choose_the_listing_and_name_its_columns():
+    learnt = compile_extractor(
+        [_two_listings()], want={"title": "A Light in the Attic", "price": "51.77"}
+    )
+    assert learnt.listing is not None
+    assert learnt.listing.member == "li.book"
+    assert [(f.name, f.path) for f in learnt.listing.fields] == [
+        ("title", "a.title"),
+        ("price", "span.price"),
+    ]
+    assert learnt.listing.fields[1].reads == "amount"
+    assert learnt.notes == (
+        "title='A Light in the Attic' was in 2 places in a row; the first, "
+        "a.title, was taken",
+    )
+
+
+def test_an_example_learnt_extractor_replays_with_the_names_given():
+    learnt = compile_extractor(
+        [_two_listings()], want={"title": "A Light in the Attic", "price": "£51.77"}
+    )
+    run = run_extractor(learnt, *_two_listings("£9.99"))
+    assert run.ok, failed(run)
+    assert run.rows[0] == {"title": "A Light in the Attic", "price": "£9.99"}
+
+
+def test_the_offers_strip_is_the_listing_when_the_examples_are_there():
+    learnt = compile_extractor([_two_listings()], want={"deal": "Deal 3"})
+    assert learnt.listing.member == "div.offer"
+    assert [f.name for f in learnt.listing.fields] == ["deal"]
+
+
+def test_an_example_no_row_holds_is_named():
+    with pytest.raises(NothingToLearn, match=r"holds price='12.34'"):
+        compile_extractor(
+            [_two_listings()], want={"title": "Sapiens", "price": "12.34"}
+        )
+
+
+def test_examples_in_two_different_listings_are_no_one_listing():
+    with pytest.raises(NothingToLearn, match="no one repeated group holds every"):
+        compile_extractor(
+            [_two_listings()], want={"deal": "Deal 1", "title": "Sapiens"}
+        )
+
+
+def test_examples_may_come_from_any_of_the_pages():
+    second = _two_listings()[0].replace("Sapiens", "Dune"), "https://shop.example/p2"
+    learnt = compile_extractor([_two_listings(), second], want={"title": "Dune"})
+    assert learnt.listing.member == "li.book"
+    assert learnt.listing.rows == (6, 6)
+
+
+def test_a_page_without_the_listing_is_noted_and_left_out():
+    empty = "<html><body><p>Nothing here</p></body></html>", "https://shop.example/x"
+    learnt = compile_extractor([_two_listings(), empty], want={"title": "Sapiens"})
+    assert learnt.notes[-1].endswith("on 1 of 2 pages; the others were ignored")
+
+
+def test_examples_need_a_listing_and_a_name():
+    with pytest.raises(ValueError, match="need a listing"):
+        compile_extractor([_two_listings()], listing=False, want={"title": "Sapiens"})
+    with pytest.raises(ValueError, match="name=value"):
+        compile_extractor([_two_listings()], want={" ": "Sapiens"})
+    with pytest.raises(ValueError, match="name=value"):
+        compile_extractor([_two_listings()], want={})
+
+
+def test_heal_keeps_the_names_the_examples_gave():
+    learnt = compile_extractor([_two_listings()], want={"title": "Sapiens"})
+    moved = _two_listings()[0].replace('class="title"', 'class="name"')
+    healed, changes = heal(learnt, [(moved, "https://shop.example/books")])
+    run = run_extractor(healed, moved, url="https://shop.example/books")
+    assert run.ok, failed(run)
+    assert run.rows[0] == {"title": "A Light in the Attic"}, "no column added"
+    assert [(c.kind, c.before, c.after) for c in changes] == [
+        ("moved", "title", "a.name")
+    ]
+    assert healed.listing.chosen
+
+
+def test_heal_finds_a_chosen_listing_in_the_furniture_by_its_values():
+    learnt = compile_extractor([_two_listings()], want={"deal": "Deal 3"})
+    moved = _two_listings()[0].replace('class="deal"', 'class="promo"')
+    healed, changes = heal(learnt, [(moved, "https://shop.example/books")])
+    assert healed.listing.member == "div.offer"
+    assert [(c.kind, c.before, c.after) for c in changes] == [
+        ("moved", "deal", "b.promo")
+    ]
+
+
+def test_heal_of_a_chosen_listing_reads_every_page_that_still_has_it():
+    learnt = compile_extractor([_two_listings()], want={"title": "Sapiens"})
+    closed = "<html><body><p>Closed</p></body></html>", "https://shop.example/x"
+    healed, _changes = heal(learnt, [closed, _two_listings()])
+    assert healed.listing.member == "li.book"
+    assert healed.listing.rows == (6, 6)
+
+
+def test_heal_of_a_chosen_listing_whose_values_are_gone_loses_it():
+    learnt = compile_extractor([_two_listings()], want={"deal": "Deal 3"})
+    gone = "<html><body><p>Closed</p></body></html>", "https://shop.example/books"
+    with pytest.raises(NothingToLearn):
+        heal(learnt, [gone])
+    declared = (
+        '<html><head><meta property="og:title" content="Shop"></head>'
+        "<body><p>Closed</p></body></html>",
+        "https://shop.example/books",
+    )
+    _healed, changes = heal(learnt, [declared])
+    assert [c.kind for c in changes] == ["summary-gained", "listing-lost"]
+
+
+def test_a_chosen_listing_is_kept_through_its_file_and_an_old_file_is_not_one():
+    learnt = compile_extractor([_two_listings()], want={"title": "Sapiens"})
+    text = learnt.to_json()
+    assert '"chosen": true' in text
+    assert Extractor.from_json(text) == learnt
+    assert '"chosen"' not in shop().to_json()
+    assert not Extractor.from_json(shop().to_json()).listing.chosen
+
+
+def test_a_healed_listing_keeps_the_share_of_empty_rows_it_learnt():
+    """heal rebuilt the listing without it, so a page with the spacer rows it
+    always had failed the healed extractor."""
+    rows = "".join(
+        f'<li class="p"><a class="t" href="/{n}">Book {n}</a>'
+        f'<span class="c">£{n}.00</span></li><li class="p"></li>'
+        for n in range(1, 7)
+    )
+    page_ = f'<html><body><ol class="r">{rows}</ol></body></html>', "https://s.example/"
+    learnt = compile_extractor([page_], listing=True)
+    assert learnt.listing.empty == 0.5
+    moved = page_[0].replace('class="c"', 'class="cost"'), page_[1]
+    healed, _changes = heal(learnt, [moved])
+    assert healed.listing.empty == 0.5
+    assert run_extractor(healed, *moved).ok
+
+
+def test_compile_takes_examples_on_the_command_line(tmp_path):
+    source = tmp_path / "books.html"
+    source.write_text(_two_listings()[0])
+    out = tmp_path / "books.json"
+    result = _cli(
+        "compile",
+        str(source),
+        "-o",
+        str(out),
+        "--want",
+        "title=Sapiens",
+        "--want",
+        "price=£54.23",
+    )
+    assert result.exit_code == 0, result.stderr
+    learnt = Extractor.from_json(out.read_text())
+    assert [f.name for f in learnt.listing.fields] == ["title", "price"]
+    bad = _cli("compile", str(source), "-o", str(out), "--want", "title")
+    assert bad.exit_code == 2
+    assert "NAME=VALUE" in bad.stderr
+    missing = _cli("compile", str(source), "-o", str(out), "--want", "title=Nope")
+    assert missing.exit_code == 1
+    assert "no repeated group on these pages holds title='Nope'" in missing.stderr
+    refused = _cli(
+        "compile", str(source), "-o", str(out), "--no-listing", "--want", "t=Sapiens"
+    )
+    assert refused.exit_code == 2

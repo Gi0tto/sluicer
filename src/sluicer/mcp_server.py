@@ -307,7 +307,9 @@ def build_server() -> Any:
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising
     def compile_extractor(
-        pages: list[str], listing: bool | None = None
+        pages: list[str],
+        listing: bool | None = None,
+        want: dict[str, str] | None = None,
     ) -> answers.CompileAnswer:
         """Learn an extractor from pages of one template, to replay later for free.
 
@@ -316,6 +318,10 @@ def build_server() -> Any:
         product page.
         listing: learn the rows the pages repeat; by default only where they
         declare nothing about a thing.
+        want: example values one row of the listing holds, by the name each
+        column is to have, as {"price": "41.90", "title": "Brake pad set"}:
+        they choose the listing and the columns, and only those columns are
+        kept. A value that no row holds is an error that names it.
 
         Returns {"ok", "extractor"}: keep that object and hand it to
         run_extractor. It holds what the pages declared, the listing's place,
@@ -325,8 +331,10 @@ def build_server() -> Any:
             raise _BadInput("compile_extractor needs at least one page")
         read = [_html_of(one)[:2] for one in pages]
         try:
-            learnt = extractor_module.compile_extractor(read, listing=listing)
-        except extractor_module.NothingToLearn as nothing:
+            learnt = extractor_module.compile_extractor(
+                read, listing=listing, want=want
+            )
+        except (extractor_module.NothingToLearn, ValueError) as nothing:
             raise _BadInput(str(nothing)) from nothing
         return {"ok": True, "extractor": json.loads(learnt.to_json())}
 
