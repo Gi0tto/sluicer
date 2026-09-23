@@ -64,8 +64,9 @@ Verified end to end on 2026-09-24 with codex-cli 0.144.4: Codex called
 
 ## Other clients
 
-These are written from each client's own documentation, as it read on
-2026-09-24, and were not run here. Each starts the same command.
+Gemini CLI was run here; the others are written from each client's own
+documentation, as it read on 2026-09-24, and were not. Each starts the same
+command.
 
 **Cursor** -- `.cursor/mcp.json` in a project, or `~/.cursor/mcp.json`:
 
@@ -101,8 +102,16 @@ or, from a terminal:
 code --add-mcp '{"name":"sluicer","command":"uvx","args":["--with","sluicer[mcp]","sluicer","mcp"]}'
 ```
 
-**Gemini CLI** -- `~/.gemini/settings.json`, or `.gemini/settings.json` in a
-project:
+**Gemini CLI** -- run on 2026-09-24:
+
+```bash
+gemini mcp add -s user sluicer uvx --with 'sluicer[mcp]' sluicer mcp
+```
+
+writes this into `~/.gemini/settings.json` (or `.gemini/settings.json` in a
+project, without `-s user`), and `gemini mcp list` then shows the server
+connected. Gemini CLI starts MCP servers only in a folder it trusts: in one
+it does not, the server is listed as disabled.
 
 ```json
 {
@@ -137,6 +146,53 @@ write its full path, which `which uvx` prints.
 
 **Anything else that speaks MCP** -- over stdio, the command above.
 
+## In your own agent's code
+
+Any framework that speaks MCP starts the same server. Run it as its own
+process, as below, rather than importing it into your application's
+environment: measured on 2026-09-24, `langchain-mcp-adapters` 0.3.1 resolves
+mcp 1.30 and fails to import against mcp 2.2, which `sluicer[mcp]` needs, so
+the two in one environment break the application. As separate processes they
+speak MCP to each other, and every one of these listed the ten tools and
+answered a page's price with its place:
+
+LangChain (`langchain-mcp-adapters` 0.3.1, its client on mcp 1.30):
+
+```python
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+client = MultiServerMCPClient({"sluicer": {
+    "command": "uvx", "args": ["--with", "sluicer[mcp]", "sluicer", "mcp"],
+    "transport": "stdio",
+}})
+tools = await client.get_tools()   # hand them to any LangChain agent
+```
+
+OpenAI Agents SDK (`openai-agents` 0.22.3):
+
+```python
+from agents import Agent
+from agents.mcp import MCPServerStdio
+
+async with MCPServerStdio(params={
+    "command": "uvx", "args": ["--with", "sluicer[mcp]", "sluicer", "mcp"],
+}) as sluicer:
+    agent = Agent(name="reader", mcp_servers=[sluicer])
+```
+
+Pydantic AI (`pydantic-ai-slim[mcp]` 2.48, on FastMCP 4.0.7):
+
+```python
+from pydantic_ai import Agent
+from pydantic_ai.mcp import MCPToolset, StdioTransport
+
+sluicer = MCPToolset(StdioTransport("uvx", ["--with", "sluicer[mcp]", "sluicer", "mcp"]))
+agent = Agent("openai:gpt-5", toolsets=[sluicer])
+```
+
+The model is the framework's to choose: Sluicer's answers are the same
+whichever model reads them, since none is asked to produce them.
+
 ## Without MCP
 
 `sluicer serve` answers the same ten tools over HTTP, for any language and any
@@ -146,10 +202,46 @@ Python, `sluicer.extract(html, url=...)` is the library the server calls.
 
 ## With other tools
 
-Sluicer reads HTML, whoever fetched it: `extract` never fetches. A page
-another crawler brought back -- a browser automation, a scraping framework, a
-fetch service's raw HTML -- is handed to `sluicer.extract(html, url=...)` as
-it is. Hand it the response's headers too, `headers=...`, and the answer is
-the one Sluicer gives when it fetches the page itself: a `Link` header's
-canonical, an `X-Robots-Tag` and the charset are read from them. Bytes are
-better than text, since the page's own charset declaration is still in them.
+Sluicer reads HTML, whoever fetched it: `extract` never fetches. Hand it the
+page as the other tool brought it back -- bytes are better than text, since
+the page's own charset declaration is still in them -- with the address it
+came from and, when the tool keeps them, the response's headers: a `Link`
+header's canonical, an `X-Robots-Tag` and the charset are read from those.
+Each of these was run on 2026-09-24 against a local page, and each answered
+its price with its place and its canonical from the `Link` header:
+
+```python
+import sluicer
+
+# httpx 0.28
+r = httpx.get(url)
+sluicer.extract(r.content, url=str(r.url), headers=dict(r.headers))
+
+# Playwright 1.63: the rendered page, as text
+response = page.goto(url)
+sluicer.extract(page.content(), url=page.url, headers=response.all_headers())
+
+# Scrapling 0.4
+page = Fetcher.get(url)
+sluicer.extract(page.body, url=page.url, headers=dict(page.headers))
+
+# Crawl4AI 0.9: inside `async with AsyncWebCrawler() as crawler`
+result = await crawler.arun(url=url)
+sluicer.extract(result.html, url=result.url, headers=result.response_headers)
+
+# Scrapy 2.19: in a spider's callback
+headers = {k.decode(): v[0].decode() for k, v in response.headers.items()}
+sluicer.extract(response.body, url=response.url, headers=headers)
+```
+
+Firecrawl's raw HTML is the page as it was received, and `firecrawl-py`
+4.44 holds it in `raw_html`; this one was not run here, since Firecrawl's
+service needs a key:
+
+```python
+doc = Firecrawl(api_key=key).scrape(url, formats=["rawHtml"])
+sluicer.extract(doc.raw_html, url=doc.metadata.source_url)
+```
+
+All six install beside Sluicer's base package in one environment; the base
+package needs only lxml and click.

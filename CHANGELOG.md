@@ -2,6 +2,53 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Added
+- A scoreboard on news in many languages (`bench/news.py`,
+  `docs/scoreboard-news.md`): fundus's parser fixtures, 263 news pages from
+  42 countries' publishers in 21 declared languages, with scripts, each
+  paired with its labels by fundus's own code. The same questions, tools and
+  scoring as the other scoreboards, and a table per language. Sluicer's
+  titles are the most often right of the four tools (0.863), its dates are
+  never wrong when it answers one, and trafilatura finds more authors, which
+  it also reads from the visible byline.
+- `docs/agents.md` shows Sluicer in LangChain, the OpenAI Agents SDK and
+  Pydantic AI, and after Playwright, Crawl4AI, Scrapling, Scrapy, httpx and
+  Firecrawl, each run on a local page but Firecrawl, whose service needs a
+  key. Gemini CLI was run too: `gemini mcp add` writes the entry the page
+  shows, and connects in a folder it trusts. Measured: `langchain-mcp-adapters`
+  0.3.1 resolves mcp 1.30 and fails to import against the mcp 2.2 Sluicer
+  needs, so the page says to run the server as its own process, where the
+  two speak MCP to each other.
+
+### Fixed
+- Bytes that are valid UTF-8 and hold a character outside ASCII are read as
+  UTF-8, whatever the page or the response declares. A page another tool
+  saved or re-encoded keeps its old declaration over UTF-8 bytes: fundus's
+  fixtures of People's Daily (`<meta charset=GB2312>`) and El Mundo
+  (`iso-8859-15`) read as mojibake, and now read right. On 1,427 pages as
+  their servers sent them, none is read differently. Found by the
+  multilingual news scoreboard.
+- The journal or newspaper a page is published in is what the page belongs
+  to, not what it is about, as the site and its organisation are: `Periodical`,
+  `Newspaper` and every kind of `...Organization`. Nature declares its
+  Periodical in the footer of every article, and "Nature" was every
+  article's title.
+- On a page that declares an article, a record named as the site or its
+  publisher comes after the article: Dainik Bhaskar's own app, named as the
+  paper is, was the story's title, type and price ("0 INR"). Beside anything
+  but an article such a record keeps its place, so a business's page with
+  its reviews still answers the business.
+- An author is a name: one with no letter in it (People's Daily writes an
+  id, `105092`) or that is the page's own host (`mdr.de`) is not answered,
+  and a title from the page's tags ending in its host has it cut:
+  "VolunteerNC | nc.gov" on nc.gov is "VolunteerNC". Measured on the 1,688
+  pages of every scoreboard: 9 answers are righter and 2 fundus labels that
+  name a site's domain as the author are no longer matched.
+- `pytest` collects `tests/` only: a benchmark's cache under `bench/` holds
+  other projects' checkouts, with test suites of their own.
+
 ## 0.4.0 - 2026-09-23
 
 ### Changed
