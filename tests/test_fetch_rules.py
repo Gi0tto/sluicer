@@ -119,3 +119,53 @@ def test_the_same_skeletal_page_climbs_when_nothing_was_declared():
 
     assert reason is not None
     assert "skeletal" in reason
+
+
+ARTICLE_TEXT = "The minister paused. " * 90  # well past a challenge page's length
+
+
+def test_an_article_quoting_a_challenge_phrase_is_not_a_challenge():
+    """Measured on 0.2.0: this page, with its own NewsArticle, bought a browser."""
+    article = (
+        "<html><head><title>The interview</title></head><body><p>"
+        + ARTICLE_TEXT
+        + "She said: just a moment, before answering.</p></body></html>"
+    )
+
+    assert why_climb(200, article, found_records=True) is None
+    assert why_climb(200, article, found_records=False) is None
+
+
+def test_a_full_page_carrying_cloudflare_bot_detection_is_not_a_challenge():
+    watched = (
+        "<html><head><title>Brake pads</title></head><body><p>"
+        + ARTICLE_TEXT
+        + '</p><script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js">'
+        "</script></body></html>"
+    )
+
+    assert why_climb(200, watched, found_records=False) is None
+
+
+def test_a_title_that_is_the_challenge_climbs_whatever_the_body():
+    titles = (
+        "Just a moment...",
+        "Just a moment\u2026",
+        "Attention Required! | Cloudflare",
+    )
+    for title in titles:
+        page = f"<html><head><title>{title}</title></head><body>{ARTICLE_TEXT}</body>"
+
+        reason = why_climb(200, page, found_records=False)
+
+        assert reason is not None, title
+        assert "challenge" in reason
+
+
+def test_a_headline_that_starts_like_a_challenge_is_a_headline():
+    page = (
+        "<html><head><title>Just a moment: the minister answers</title></head>"
+        f"<body>{ARTICLE_TEXT}</body></html>"
+    )
+
+    assert why_climb(200, page, found_records=True) is None

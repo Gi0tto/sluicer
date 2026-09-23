@@ -17,6 +17,23 @@ MARKUP_CEILING = 2000
 
 _REFUSING_STATUSES = frozenset({401, 403, 407, 429})
 
+CHALLENGE_TEXT_CEILING = 1500
+"""Characters of visible text above which a page is content, whatever it says.
+
+A challenge page is a sentence or two. An article that quotes "just a moment",
+or a shop page carrying Cloudflare's bot-detection script, is not one.
+"""
+
+# A title that is the challenge itself, compared whole: "Just a moment: the
+# minister answers" is a headline, "Just a moment..." is a waiting room.
+_CHALLENGE_TITLES = frozenset(
+    {"just a moment", "attention required! | cloudflare", "ddos-guard"}
+)
+_CHALLENGE_TITLE_PREFIXES = ("checking your browser",)
+
+# Anywhere on a page that is not content. ``challenge-platform`` alone is not
+# enough on a full page: Cloudflare injects a script from that path into
+# ordinary pages it only watches.
 _CHALLENGE_MARKERS = (
     "cf-challenge",
     "challenge-platform",
@@ -26,6 +43,7 @@ _CHALLENGE_MARKERS = (
     "enable javascript and cookies to continue",
 )
 
+_TITLE = re.compile(r"(?is)<title\b[^>]*>(.*?)</title>")
 _TAGS = re.compile(r"(?s)<(script|style).*?</\1>|<[^>]+>")
 # A script that runs: one with a source, or an inline one that is not data.
 _SCRIPT = re.compile(
@@ -36,12 +54,12 @@ _SCRIPT = re.compile(
 
 def why_climb(status: int, html: str, found_records: bool) -> str | None:
     """Return the reason to climb a rung, or None to stay where we are."""
-    lowered = html.lower()
-    for marker in _CHALLENGE_MARKERS:
-        if marker in lowered:
-            # Before the status: "a page standing in front of the content" is the
-            # more useful diagnosis, and says a browser will likely get through.
-            return f"the response is a challenge page, not the content: {marker!r}"
+    text = _TAGS.sub(" ", html).strip()
+    marker = _challenge(html, text, found_records)
+    if marker is not None:
+        # Before the status: "a page standing in front of the content" is the
+        # more useful diagnosis, and says a browser will likely get through.
+        return f"the response is a challenge page, not the content: {marker!r}"
 
     if status in _REFUSING_STATUSES:
         return f"the server refused: status {status}"
@@ -50,7 +68,6 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
         # asking the same question gets the same answer.
         return None
 
-    text = _TAGS.sub(" ", html).strip()
     # Both remaining rules are about a page that gave us nothing, so both are
     # off once something was declared about a thing: _TAGS strips <script>
     # bodies, so a complete JSON-LD block counts as zero characters of text,
@@ -70,4 +87,25 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
             f"nothing was declared, there are only {len(text)} characters of "
             "text, and the page runs a script that may render the rest"
         )
+    return None
+
+
+def _challenge(html: str, text: str, found_records: bool) -> str | None:
+    """The marker that makes ``html`` a challenge page, or None when it is not.
+
+    A title that is the challenge counts on any page. A marker anywhere else
+    counts only on a page that is not content: nothing declared about a thing,
+    and less visible text than ``CHALLENGE_TEXT_CEILING``.
+    """
+    title = _TITLE.search(html)
+    if title is not None:
+        said = " ".join(title.group(1).split()).lower().rstrip(".\u2026 ")
+        if said in _CHALLENGE_TITLES or said.startswith(_CHALLENGE_TITLE_PREFIXES):
+            return said
+    if found_records or len(text) >= CHALLENGE_TEXT_CEILING:
+        return None
+    lowered = html.lower()
+    for marker in _CHALLENGE_MARKERS:
+        if marker in lowered:
+            return marker
     return None
