@@ -92,8 +92,11 @@ visits. A numbered slot -- the third tag, the second author -- whose own place
 is still there never moves to another slot of its group, because one tag
 turning up in another slot moved nothing. A field found in none of these ways
 is reported as `vanished`, even if a new field has the same shape, because a
-guess would put the wrong column under the old name. A field that moved keeps its old name, so rows read with the healed
-extractor have the columns downstream code expects.
+guess would put the wrong column under the old name. Links are compared by
+path and parameters: a link that gained a tracking parameter, `?ref_=list_1`,
+is the same link, and `?id=2` is another item than `?id=1`. A field that moved
+keeps its old name, so rows read with the healed extractor have the columns
+downstream code expects.
 
 Every field kept or moved carries its evidence: how many of the values it was
 learnt with were found in the new place, of how many, and how many the next

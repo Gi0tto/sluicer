@@ -71,6 +71,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   never moves to another slot of its group. Both were found by the drift
   benchmark, on Hacker News, Lobsters, arXiv and Pinboard captures a month
   apart, all of the same template.
+- `run` failed a page of the same template when one row renumbered a step in
+  the middle of a path: one Stack Overflow user with a second kind of badge,
+  or one Verge story with a second author, turned `span>span.badgecount` into
+  `span1>span.badgecount` for every row, and the field was found in none.
+  Renumbering is now read at every step, not only the last.
+- `heal` called a link vanished when the site tagged it with a new parameter:
+  after IMDb's 2023 redesign every film's link carries `?ref_=chttp_t_1`. A
+  link with the same path, whose parameters are all among the other's, is now
+  the same link; `?id=2` is still another item than `?id=1`.
 
 ## 0.2.0 - 2026-09-23
 

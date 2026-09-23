@@ -173,6 +173,27 @@ def test_one_row_with_a_second_tag_does_not_rename_every_row():
     assert run.rows[0]["span.tag"] == "Paperback"
 
 
+def test_one_row_with_a_second_badge_does_not_rename_what_is_in_every_badge():
+    # Found by the drift benchmark: Stack Overflow and The Verge a month apart,
+    # same markup. One user with a second kind of badge, or one story with a
+    # second author, numbered the step for every row, and the field under it
+    # was not found in any.
+    gold = '<span><b class="count">3</b> gold</span>'
+    silver = '<span><b class="count">7</b> silver</span>'
+
+    def badged(extra_on=()):
+        def flair(i):
+            return f'<div class="flair">{gold}{silver if i in extra_on else ""}</div>'
+
+        return books(10, stock=flair)
+
+    extractor = learn(shop_page(badged()), shop_page(badged()))
+    run = run_extractor(extractor, shop_page(badged(extra_on={4})), "https://s/3")
+
+    assert run.ok, failed(run)
+    assert run.rows[0]["div.flair>span>b.count"] == "3"
+
+
 def test_a_rare_optional_field_is_not_held_to_a_shape():
     extractor = learn(
         shop_page(
@@ -313,6 +334,38 @@ def test_a_relative_address_learnt_from_a_file_still_matches_the_site():
 
     moved = {c.before: c.after for c in changes if c.kind == "moved"}
     assert moved["a.title@href"] == "a.name@href"
+
+
+def test_a_link_that_gained_a_tracking_parameter_is_the_same_link():
+    # Found by the drift benchmark: IMDb's Top 250 before and after its 2023
+    # redesign tags every link with ?ref_=chttp_t_1, and heal called the title
+    # links of the same films vanished.
+    extractor = learn(shop_page(books(6)), shop_page(books(6)))
+    redesigned = [
+        li(TITLES[i], f"/book/{i}?ref_=list_{i}", f"£{10 + i}.99", STOCK, cls="card")
+        for i in range(6)
+    ]
+    page = shop_page(redesigned).replace('class="title"', 'class="name"')
+
+    _healed, changes = heal(extractor, [(page, "https://shop.example/")])
+
+    moved = {c.before: c.after for c in changes if c.kind == "moved"}
+    assert moved["a.title@href"] == "a.name@href"
+
+
+def test_a_link_whose_parameter_changed_is_another_link():
+    def page(edition, cls):
+        rows = [
+            li(TITLES[i], f"/book?id={i + edition}", f"£{10 + i}.99", STOCK)
+            for i in range(6)
+        ]
+        return shop_page(rows).replace('class="title"', f'class="{cls}"')
+
+    extractor = learn(page(0, "title"))
+
+    _healed, changes = heal(extractor, [(page(10, "name"), "https://shop.example/")])
+
+    assert ("vanished", "a.title@href") in {(c.kind, c.before) for c in changes}
 
 
 def test_healing_learns_hrefs_against_their_own_page():

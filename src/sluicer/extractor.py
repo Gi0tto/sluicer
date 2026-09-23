@@ -635,15 +635,21 @@ def _slot_of(path: str) -> str:
     return head.rstrip("0123456789") + at + attribute
 
 
-def _aliases(path: str) -> tuple[str, ...]:
-    """``path`` and the spelling it takes when the group's numbering shifts.
+def _unnumbered(path: str) -> str:
+    """``path`` as it reads whether or not the group's numbering shifted.
 
     Induction numbers a slot the moment one row repeats it, for the whole group:
-    ``span.tag`` becomes ``span.tag1`` because one row gained a second tag.
+    ``span.tag`` becomes ``span.tag1`` because one row gained a second tag, and
+    ``div.flair>span>b.count`` becomes ``div.flair>span1>b.count`` because one
+    row gained a second badge. Every step drops the ``1`` of a first slot; a
+    second slot, ``span2``, stays apart.
     """
     head, at, attribute = path.partition("@")
-    other = head[:-1] if head.endswith("1") else head + "1"
-    return (path, other + at + attribute)
+    steps = [
+        step[:-1] if step.endswith("1") and not step[-2:-1].isdigit() else step
+        for step in head.split(">")
+    ]
+    return ">".join(steps) + at + attribute
 
 
 def _replay_listing(
@@ -660,9 +666,10 @@ def _replay_listing(
     raw = _rows_of(members, doc) if members else []
     rows = []
     for row in raw:
+        loose = {_unnumbered(path): value for path, value in row.items()}
         kept = {}
         for f in listing.fields:
-            value = next((row[p] for p in _aliases(f.path) if p in row), None)
+            value = row.get(f.path, loose.get(_unnumbered(f.path)))
             if value is not None:
                 kept[f.name] = value
         rows.append(kept)
@@ -741,12 +748,17 @@ def _heal_listing(
             for path, value in row.items():
                 values.setdefault(path, []).append(_comparable(path, value))
     fresh = {f.path: f for f in new.fields}
+    links = {
+        path: _links_by_path(held) for path, held in values.items() if _is_address(path)
+    }
 
     def seen_in(old_field: ListingField, path: str) -> int:
         """How many of the old field's samples ``path`` holds on the new pages."""
         samples = {_comparable(old_field.path, v) for v in old_field.samples}
         if _is_address(path) != _is_address(old_field.path):
             return 0
+        if _is_address(path):
+            return sum(1 for v in samples if _a_link_in(v, links.get(path, {})))
         held = set(values.get(path, []))
         return sum(1 for v in samples if v in held)
 
@@ -838,6 +850,25 @@ def _comparable(path: str, value: str) -> str:
     while kept.startswith(("./", "/")):
         kept = kept[2:] if kept.startswith("./") else kept[1:]
     return kept
+
+
+def _links_by_path(held: list[str]) -> dict[str, list[frozenset[str]]]:
+    """Comparable addresses by their path, each as the set of its parameters."""
+    by_path: dict[str, list[frozenset[str]]] = {}
+    for value in held:
+        path, _, query = value.partition("?")
+        by_path.setdefault(path, []).append(frozenset(query.split("&")) - {""})
+    return by_path
+
+
+def _a_link_in(value: str, by_path: dict[str, list[frozenset[str]]]) -> bool:
+    """Whether ``value`` is among the addresses: the same path, and all the
+    parameters of one among the other's. A site that tags every link with
+    ``?ref_=list_1`` has not changed where its links go; ``?id=2`` is another
+    item than ``?id=1``."""
+    path, _, query = value.partition("?")
+    mine = frozenset(query.split("&")) - {""}
+    return any(mine <= theirs or theirs <= mine for theirs in by_path.get(path, ()))
 
 
 def _is_address(path: str) -> bool:
