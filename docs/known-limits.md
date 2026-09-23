@@ -146,6 +146,75 @@ somewhere. Indian digit grouping (`12,34,567`) is refused too. The currency
 list is ISO 4217's as SIX published it on 2026-09-17, and is only as current as
 that.
 
+## In the audit
+
+**It checks what Google documents, not what Google decides.** Google does not
+publish the rules of its Rich Results Test, and a page that meets every
+documented requirement may still not be shown. The rules here are the tables
+of Google's pages as read on 2026-09-23, with the conditions their prose adds;
+when Google changes a page, the audit is wrong until `sluicer/audit/google.py`
+is read against it again. Every rule names its page, so the check is one link.
+
+**A subtype counts only where the documentation says it does.** A `Restaurant`
+is a local business because the local business page says to use the most
+specific subtype; a `Car` is not a product, because the product pages say it
+is not "automatically". Elsewhere the rule followed is schema.org's type tree
+(release 30.1), which Google's validator may read differently: it is not known
+whether it takes a `ReportageNewsArticle` for an article, and this audit does.
+
+**What is served, not what is rendered.** The audit reads the HTML the fetch
+brought back. Markup a page's script adds later is only there when the fetch
+climbed to a browser, and the HTTP rung climbs only on a refusal, a challenge
+or an empty shell. Measured on 2026-09-23, a Greenhouse job page is served
+declaring no JobPosting and an Apple store page an empty breadcrumb, both
+filled in by script.
+
+**Nothing is compared with today's date.** A `priceValidUntil` in the past, an
+event that is over and a job that has expired are not reported: the answer
+would change with the clock, and the same page must get the same audit.
+
+**Values are checked for their form, not their truth.** A price of `41.90` is
+well formed whatever the product costs, a GTIN with a valid check digit may
+name another product, and an `addressCountry` is not checked against ISO
+3166, whose list has no free machine-readable source like ISO 4217's.
+
+**An optional part's requirements are not the feature's.** Google writes of
+shipping details, a video's clips and the like that their properties are
+required "if you want" them used. A part that lacks one is reported as
+`incomplete-part`, a warning; the feature can still be met. A product's
+reviews are a part when the product also has offers or a rating, and needed
+when they are all it has.
+
+**Conflicts are compared one to one.** Two vocabularies are held to agree only
+when each declares exactly one record of a shared type. A listing that
+declares twenty products in JSON-LD and twenty in microdata gets no comparison,
+since pairing them would be a guess.
+
+**An Extraction is audited as merged.** Handed what `extract` returned, the
+audit sees one record per thing with the winning value of each field, so a
+disagreement between vocabularies was already settled, and the page's own
+title, description, canonical and OpenGraph are not there to check. The audit
+says so in `not_checked`.
+
+**The AI agents are the vendors' lists of 2026-09-23.** Agents appear, are
+renamed (Google-NotebookLM, supported until August 2026, is now
+Google-GeminiNotebook) and are retired; an agent no vendor page names is reported only as a name the
+robots.txt uses. Whether an agent may have the page is protego's reading of
+its product token, the parser Sluicer obeys itself; a vendor's own parser may
+pick a different group in edge cases, such as a group named by a prefix of the
+token. The vendor's word on whether a user-requested fetch honours robots.txt
+is reported beside the verdict, and not second-guessed.
+
+**llms-full.txt is reported, not read.** The llms.txt proposal defines no
+format for it, so only whether a site serves one, and how long it is, is
+known.
+
+**schema.org's names are copied, under their licence.** The type tree and
+enumeration terms in `sluicer/audit/schema_org.py` are read from schema.org's
+own export, which is published under CC BY-SA 3.0; the module names its source
+and release. Google's pages are CC BY 4.0, and each rule cites the page it
+comes from.
+
 ## In fetching
 
 **A challenge is detected by words, on a page that is not content.** A title
@@ -219,7 +288,7 @@ Records, fields and summary answers are typed; a field's value is any JSON, as
 the page declared it, and the extractor object is a plain mapping whose shape
 is documented in [extractors](extractors.md), not in the schema.
 
-**The six tools are pinned by set equality**, so a seventh cannot appear
+**The seven tools are pinned by set equality**, so an eighth cannot appear
 unnoticed. The HTTP door is held to that same list, not to a second one.
 
 ## In the HTTP API

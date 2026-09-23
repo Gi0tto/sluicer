@@ -26,6 +26,7 @@ nav:
   - Why Sluicer: why.md
   - Extractors: extractors.md
   - HTTP API: http-api.md
+  - Audit: audit.md
   - Known limits: known-limits.md
   - Design notes: design-notes.md
   - Scoreboard: scoreboard.md

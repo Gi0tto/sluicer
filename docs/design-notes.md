@@ -86,3 +86,15 @@ robots.txt, which is obeyed by default. The stealth rung is never automatic:
 climbing from plain HTTP to a browser is a change of cost, climbing to a
 disguise is a change of character. What a rung sends is checked against a real
 server, because a faked library accepts whatever keyword it is handed.
+
+## Why the audit reads each vocabulary on its own
+
+`extract` folds JSON-LD, microdata and RDFa into one record per thing, which is
+what a caller asking "what is this product" wants. An audit asks a different
+question -- does this markup meet this rule -- and Google answers it for each
+syntax on its own: a product declared twice is two items to its validator. So
+the audit takes each reader's items before any folding, names the vocabulary
+of every finding, and compares the vocabularies only where each declares one
+record of a type (`sluicer/audit/records.py`). The rules themselves are data,
+one entry per documented type, in `sluicer/audit/google.py`, so a change on
+Google's side is a change to a table and to nothing that walks it.

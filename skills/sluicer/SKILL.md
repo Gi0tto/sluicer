@@ -41,6 +41,13 @@ field says `"source": "induced"`.
 - `heal_extractor(extractor, pages)` -- after a redesign, what moved where, with
   how many of each field's old values were found in its new place; moved fields
   keep their names.
+- `audit_page(html_or_url, site=true)` -- every JSON-LD, microdata and RDFa
+  record held to the rich-result features Google documents for its type: which
+  required and recommended properties it lacks, which values are malformed,
+  each finding with its path and the URL of its rule; then the page's title,
+  description, canonical and OpenGraph, and for a URL which AI agents the
+  site's robots.txt admits and whether its llms.txt keeps to llmstxt.org. Use it
+  instead of reading markup and guessing what Google wants.
 
 Every answer carries `ok`: true exactly when it can be used as it is. When it
 is false, the answer says why: `error` with a `code` -- `refused_by_robots`,
@@ -103,10 +110,12 @@ sluicer extract listing.html --induce            # rows of a page that declares 
 sluicer markdown https://example.com/article
 sluicer compile page1.html page2.html -o shop.json   # an extractor, learnt once
 sluicer run shop.json https://shop.example/c?page=7  # exit 3 if the page drifted
+sluicer audit https://example.com/product            # exit 3 if a documented rule is broken
 ```
 
 Exit codes: 0 something found (a record or a summary answer), 1 the page gives
-nothing at all, 2 could not be read, 3 a page broke an extractor's contract.
+nothing at all, 2 could not be read, 3 a page broke an extractor's contract, or
+an audit found a documented rule broken.
 
 When the same kind of page will be read again and again -- a listing checked
 daily, a product page watched -- compile an extractor once and run it: each run

@@ -88,6 +88,7 @@ sluicer inspect https://example.com/product         # the same, for a person to 
 sluicer extract listing.html --induce               # rows of a page that declares nothing
 sluicer markdown https://example.com/article        # the readable content
 sluicer diff yesterday.html https://shop.example/p  # what changed, and where from
+sluicer audit https://example.com/product           # its markup against Google's documentation
 
 sluicer compile page1.html page2.html -o shop.json  # learn an extractor
 sluicer run shop.json https://shop.example/c?p=7    # replay it, checked
@@ -95,8 +96,8 @@ sluicer heal shop.json https://shop.example/c -o shop.json  # after a redesign
 ```
 
 Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
-for a page that broke its extractor or a heal that lost a field. A drifted page
-never exits 0.
+for a page that broke its extractor, a heal that lost a field, or an audit that
+found a documented rule broken. A drifted page never exits 0.
 
 ```python
 import sluicer
@@ -106,13 +107,13 @@ print(result.summary["title"].value, "via", result.summary["title"].key)
 ```
 
 For an agent: `claude mcp add sluicer -- sluicer-mcp`, or install the repository
-as a Claude Code plugin with `/plugin install`. Six tools -- `extract_declared`,
-`page_markdown`, `fetch_page`, `compile_extractor`, `run_extractor`,
-`heal_extractor` -- each answering with `ok`, which is true exactly when the
-answer can be used as it is, and an output schema. The server fetches nothing
-on `localhost`, a private network or a cloud's metadata endpoint -- redirects
-and a browser's requests included -- unless started with
-`SLUICER_ALLOW_PRIVATE=1`.
+as a Claude Code plugin with `/plugin install`. Seven tools --
+`extract_declared`, `page_markdown`, `fetch_page`, `compile_extractor`,
+`run_extractor`, `heal_extractor`, `audit_page` -- each answering with `ok`,
+which is true exactly when the answer can be used as it is, and an output
+schema. The server fetches nothing on `localhost`, a private network or a
+cloud's metadata endpoint -- redirects and a browser's requests included --
+unless started with `SLUICER_ALLOW_PRIVATE=1`.
 
 For any other language: `sluicer serve` answers the same tools over HTTP,
 `POST /v1/tools/<name>` with the tool's arguments as JSON, and describes them at
@@ -199,6 +200,7 @@ At <https://gi0tto.github.io/sluicer/>, or in the repository:
 [Why Sluicer](https://github.com/Gi0tto/sluicer/blob/main/docs/why.md) ·
 [Extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md) ·
 [HTTP API](https://github.com/Gi0tto/sluicer/blob/main/docs/http-api.md) ·
+[Audit](https://github.com/Gi0tto/sluicer/blob/main/docs/audit.md) ·
 [Scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md) ·
 [Scoreboard, as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md) ·
 [Scoreboard, products](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md) ·

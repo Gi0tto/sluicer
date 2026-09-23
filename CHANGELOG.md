@@ -86,6 +86,31 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `product:price:currency`, `product:availability`, `product:brand`,
   `product:retailer_item_id`), which Meta's catalogues read, answers price,
   currency, availability, brand and sku after the page's own offers.
+- `sluicer audit SOURCE [--json]`, `sluicer.audit.audit()` and the MCP tool
+  `audit_page`: every record JSON-LD, microdata and RDFa declare, held to the
+  rich-result features Google documents for its type -- product snippets and
+  merchant listings, review snippets, articles, breadcrumbs, organizations,
+  local businesses, recipes, events, job postings, videos, software apps,
+  course lists, datasets, Book actions, Q&A, discussion forums, profile pages
+  and site names -- with the required and recommended properties it lacks and
+  the values in a form the documentation or schema.org refuses: prices, ISO
+  4217 currencies, ISO 8601 dates and durations, absolute URLs, schema.org
+  enumerations, ratings on their scale, GTIN and ISBN check digits. Features
+  Google has retired (FAQ, How-to, the sitelinks search box, and the seven
+  phased out in 2025) are named as retired, with their dates. Every finding
+  names the vocabulary, the record, the property path and the page its rule is
+  written on; the requirements are data, read from Google Search Central on
+  2026-09-23 (`sluicer/audit/google.py`, `docs/audit.md`).
+- The page as a whole: `<title>`, meta description, one absolute canonical, and
+  OpenGraph's four required properties; facts two vocabularies state
+  differently about one thing.
+- For a URL, the site beside it (`sluicer.fetch.site.read_site`): which of 25
+  AI agents, each from its vendor's own page, the robots.txt admits and what
+  each is for, the `User-agent` names no vendor documents, and llms.txt read
+  against llmstxt.org's format. Exit codes: 3 when anything is an error, 1 when
+  nothing is declared, 0 otherwise, 2 when the page could not be read.
+- MCP: seven tools; `audit_page` has an output schema like the others.
+
 
 ### Fixed
 - A product declared once per colour or size, as Zara declares it, or beside

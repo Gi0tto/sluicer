@@ -63,7 +63,7 @@ request says `Sluicer/<version>`, borrows no browser's referer or fingerprint,
 and obeys `robots.txt` -- and nothing is fetched when `robots.txt` cannot be
 read, as RFC 9309 says. The stealth rung exists and never runs unless asked.
 
-**A tool an agent can trust.** Six MCP tools, each answer with `ok` and an
+**A tool an agent can trust.** Seven MCP tools, each answer with `ok` and an
 output schema, an error that can never be mistaken for the page, and a server
 that keeps every request -- redirects, images, frames, websockets -- off
 private addresses unless told otherwise.
