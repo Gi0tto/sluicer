@@ -124,11 +124,9 @@ is only asked again.
 redirects ended on another host is refused if that host's robots.txt says no,
 but the hops in between were requested without asking theirs. Addresses are
 stricter: with `allow_private=False` every hop is judged before it is requested,
-by both rungs (see the MCP section below).
-
-**`Crawl-delay` is read by nobody.** Sluicer fetches one page when you ask for
-one page, so there is nothing yet to pace, and that stops being true the day it
-crawls.
+by both rungs (see the MCP section below). A crawl is stricter still: it
+refuses a hop that leaves the site before it is asked, so its redirects stay on
+one site, whose robots.txt it has already read.
 
 **The stealth rung does not announce itself, deliberately.** It exists to not be
 recognised, and announcing yourself and then evading is incoherent. It is not
@@ -250,8 +248,78 @@ standard puts it, between a byte order mark and the page's declaration. The
 browser rungs hand over the DOM the browser built, decoded by the browser.
 
 **The same page is parsed twice on a successful URL fetch**, once by the ladder
-to decide whether to climb and once by the caller. Deterministic, so the cost is
-time rather than correctness.
+to decide whether to climb and once by the caller, and three times in a crawl,
+which reads its links as well. Deterministic, so the cost is time rather than
+correctness; next to a second's delay between pages, it is not the time that
+matters.
+
+## In crawling
+
+**The browser's own requests are not paced.** Every request the crawler makes
+waits its site's delay -- robots.txt, sitemaps, each redirect hop, each rung --
+but a page that climbs to the browser is loaded as a browser loads it, images,
+scripts and all, inside one paced call. The ladder climbs only on a
+measurement, so it is the rare page; it is still more requests than one.
+
+**An unguarded browser follows a redirect itself.** With `allow_private=True`,
+the default outside the MCP server, the browser rung is not routed, so a
+redirect off the site it was sent to is seen only where the page landed: that
+page is kept out of a crawl of one site, but the other site has had its
+request. The HTTP rung, and the browser when guarded, refuse the hop before it
+is asked.
+
+**Pacing is kept per process.** When each site was last asked is remembered for
+the whole process, so one crawl after another keeps the delay; two processes
+do not share it, and neither do `sluicer map --plain | sluicer batch -`, whose
+second command starts as the first ends. One request at a time per site holds
+within a crawl; two crawls of one site running at once in one process each
+keep their own.
+
+**A site is a host, not a domain.** `shop.example.com` and `blog.example.com`
+are two sites, paced apart and, for a crawl kept to its site, not followed
+between. The base install has no list of public suffixes to tell a registrable
+domain from a host, and a wrong guess would pace two strangers as one. `www.`
+is the one prefix folded.
+
+**Two spellings of one page can both be fetched.** `index.html` is not folded
+into its directory -- on books.toscrape.com, `/` and `/index.html` are one page
+and both were read -- and neither is a tracking parameter stripped or a query
+reordered, since a server may read each differently. A redirect and a
+canonical are what fold two addresses into one.
+
+**A file is told by its extension.** A PDF at an address without one is
+fetched, up to 16 MiB, and read as a page that declares nothing.
+
+**Only `<a href>` and `<area href>` are links.** Navigation a script builds, a
+form, an `<iframe>` or a `<link rel="next">` is not followed. A page that
+climbs to the browser is read for links in the HTML the browser rendered.
+
+**Headers are not read.** The ladder hands a page over without its headers, so
+an `X-Robots-Tag: nofollow` is not seen; the `<meta>` is.
+
+**`Request-rate` is read as a rate, all day.** A rate given for hours of the
+day (`1/5s 0900-1700`) is kept at every hour.
+
+**A time budget stops starting, it does not interrupt.** A page already being
+fetched when the time is up finishes, which under the ladder's own bounds is
+under a minute; an MCP answer can take that much longer than its minute.
+
+**A crawl resumes only with the options it was written with.** The file's
+order is the order those options take the site in, so another start, depth or
+pattern is refused rather than mixed. A larger `--max-pages` is the exception
+that is safe, and continues.
+
+**A redirect target in a batch goes to the end.** A batch reads its list in
+order, and a cross-site redirect's target after the list, in that site's turn.
+
+**Sitemaps are XML or plain text.** An RSS or Atom feed, which the protocol
+also accepts, is reported as not a sitemap. A sitemap heavier than 16 MiB
+inflated is not read at all, where the protocol allows 50 MB. `lastmod` is
+passed on as written, never parsed.
+
+**A crawl never climbs to the stealth rung and never skips robots.txt.** The
+single-page commands keep `--stealth` and `--no-robots` for a person with a
+reason; a crawl, which asks a site for many pages on one decision, has neither.
 
 ## In the MCP server
 
@@ -288,7 +356,7 @@ Records, fields and summary answers are typed; a field's value is any JSON, as
 the page declared it, and the extractor object is a plain mapping whose shape
 is documented in [extractors](extractors.md), not in the schema.
 
-**The seven tools are pinned by set equality**, so an eighth cannot appear
+**The nine tools are pinned by set equality**, so a tenth cannot appear
 unnoticed. The HTTP door is held to that same list, not to a second one.
 
 ## In the HTTP API

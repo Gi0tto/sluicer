@@ -17,7 +17,8 @@ and stated:
   ``?a=1&b=2`` and ``?b=2&a=1`` differently;
 * a trailing slash is kept: ``/a`` and ``/a/`` are two addresses, because a
   server may answer them differently. Most sites redirect one to the other,
-  and where a redirect landed is marked seen, so the pair costs one request.
+  and where a redirect landed is marked seen, so the second spelling is
+  fetched again only when it was queued before the first was read.
 
 An address carrying a user name or password, or a scheme other than http and
 https, is not one a crawl takes.

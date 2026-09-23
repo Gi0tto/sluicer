@@ -78,6 +78,33 @@ three or more records is a listing and none of its items is the subject. A
 page that misuses a term is answered by that misuse, which is why every answer
 names the key it was read from.
 
+## Politeness is the product
+
+A crawler is judged by the sites it visits, so the rules are the site's before
+they are ours. Every request -- a robots.txt, a sitemap, a redirect's hop, a
+rung the ladder climbs to -- waits its site's delay after the last request
+ended, a second or the site's `Crawl-delay`, counted from the end so that a
+slow answer is never a reason to ask sooner. One request at a time per site,
+where a site is a host with or without `www.`: pacing `www.example.com` and
+`example.com` apart would ask the same machines twice as often. The time each
+site was last asked is kept for the process, as the robots.txt answers are,
+because the first real crawls found three places where a request followed
+another by 0.00 s, each between two pieces of code that each paced only
+themselves. A crawl has no switch to skip robots.txt and never climbs to the
+stealth rung: a single fetch is one decision about one page, a crawl is many
+pages on one decision. It lives in `sluicer/crawl/schedule.py`.
+
+## A crawl's order is decided, not raced
+
+Addresses are numbered as they are admitted, pages come back in that order
+whatever order their fetches finished in, and what a page admits is decided
+when its turn comes, not when its fetch happens to return. So the same site
+crawled twice gives the same file, whatever the concurrency, and the file is
+the whole state: replaying it admits again exactly what it admitted, and a
+stopped crawl continues without asking for any page twice. A page that was
+fetched but whose turn never came -- the time ran out on a page before it -- is
+dropped rather than written out of order. It lives in `sluicer/crawl/pages.py`.
+
 ## Arriving under our own name
 
 Every request says `Sluicer/<version>` with a link to the repository and sends

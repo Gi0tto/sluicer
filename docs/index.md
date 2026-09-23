@@ -75,6 +75,10 @@ sluicer audit https://example.com/product           # its markup against Google'
 sluicer compile page1.html page2.html -o shop.json  # learn an extractor
 sluicer run shop.json https://shop.example/c?p=7    # replay it, checked
 sluicer heal shop.json https://shop.example/c -o shop.json  # after a redesign
+
+sluicer map https://shop.example/                   # a site's addresses, from its sitemaps
+sluicer crawl https://shop.example/ -o shop.jsonl   # follow its links, politely; --resume
+sluicer batch urls.txt -o pages.jsonl               # read a list, one JSON line per page
 ```
 
 Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
@@ -89,13 +93,13 @@ print(result.summary["title"].value, "via", result.summary["title"].key)
 ```
 
 For an agent: `claude mcp add sluicer -- sluicer-mcp`, or install the repository
-as a Claude Code plugin with `/plugin install`. Seven tools --
+as a Claude Code plugin with `/plugin install`. Nine tools --
 `extract_declared`, `page_markdown`, `fetch_page`, `compile_extractor`,
-`run_extractor`, `heal_extractor`, `audit_page` -- each answering with `ok`,
-which is true exactly when the answer can be used as it is, and an output
-schema. The server fetches nothing on `localhost`, a private network or a
-cloud's metadata endpoint -- redirects and a browser's requests included --
-unless started with `SLUICER_ALLOW_PRIVATE=1`.
+`run_extractor`, `heal_extractor`, `audit_page`, `map_site`, `crawl_site` --
+each answering with `ok`, which is true exactly when the answer can be used as
+it is, and an output schema. The server fetches nothing on `localhost`, a
+private network or a cloud's metadata endpoint -- redirects and a browser's
+requests included -- unless started with `SLUICER_ALLOW_PRIVATE=1`.
 
 For any other language: `sluicer serve` answers the same tools over HTTP,
 `POST /v1/tools/<name>` with the tool's arguments as JSON, and describes them at
@@ -181,6 +185,7 @@ alarm. See [drift](drift.md).
 [Why Sluicer](why.md) ·
 [Extractors](extractors.md) ·
 [HTTP API](http-api.md) ·
+[Crawling](crawling.md) ·
 [Scoreboard](scoreboard.md) ·
 [Scoreboard, as served](scoreboard-served.md) ·
 [Scoreboard, products](scoreboard-products.md) ·

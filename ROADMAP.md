@@ -60,6 +60,15 @@ the evidence behind every move `heal` reports.
 25 sites, a scoreboard on pages as their servers sent them, and property tests
 that found eleven defects the example tests had never met.
 
+## Built for the next release
+
+**Crawling a site, politely.** `sluicer map` reads a site's sitemaps, safely;
+`sluicer crawl` follows its links and `sluicer batch` reads a list, each page
+through the ladder, one request at a time per site with its `Crawl-delay`
+between, resumable from its own output, and measured by the site it crawls.
+Two MCP tools, `map_site` and `crawl_site`, small and on a clock. See
+[crawling](https://github.com/Gi0tto/sluicer/blob/main/docs/crawling.md).
+
 ## Next
 
 **The proof, made bigger.** A first drift benchmark is in
@@ -86,10 +95,6 @@ promising one today.
 **Provenance down to the fragment.** Every field already names its reader and
 key; naming the element or the script block it was read from would let an
 agent show the bytes behind an answer.
-
-**Crawling a site.** Sitemaps, `robots.txt` as a map rather than only a rule, and
-a queue that resumes. Fetching one page is solved; fetching a site politely is
-not, for us.
 
 ## Considered and declined
 

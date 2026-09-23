@@ -48,11 +48,22 @@ field says `"source": "induced"`.
   description, canonical and OpenGraph, and for a URL which AI agents the
   site's robots.txt admits and whether its llms.txt keeps to llmstxt.org. Use it
   instead of reading markup and guessing what Google wants.
+- `map_site(url, limit=100)` -- a site's addresses from its sitemaps (up to
+  1,000, from up to ten sitemaps), or its start page's links when it has none.
+- `crawl_site(url, max_pages=10, max_depth=2, include, exclude)` -- follow a
+  site's links, up to 25 pages on its own site, and get each page's summary and
+  the types it declared; `extract_declared` on a page gives its records.
+  `include` and `exclude` are plain text an address must or must not contain.
+  Both take at most a minute, ask the site one request at a time, a second
+  apart or its `Crawl-delay`, and say `truncated` or `stopped` when a bound
+  cut them short.
 
 Every answer carries `ok`: true exactly when it can be used as it is. When it
 is false, the answer says why: `error` with a `code` -- `refused_by_robots`,
-`refused_address`, `fetch_failed`, `too_large`, `missing_extra` or `bad_input`
--- a `message` and `retryable` (true only for `fetch_failed`); or, from
+`refused_address`, `fetch_failed`, `too_large`, `missing_extra` or `bad_input`,
+and on a crawled page `redirected_off_site` (with its `target`) or
+`crawl_delay_too_long` -- a `message` and `retryable` (true only for
+`fetch_failed`); or, from
 `run_extractor`, `failed`, the checks the page broke; or, from
 `heal_extractor`, `lost`, when the page no longer has a field the old extractor
 read. An error is never text that could be mistaken for the page. The server
@@ -111,6 +122,8 @@ sluicer markdown https://example.com/article
 sluicer compile page1.html page2.html -o shop.json   # an extractor, learnt once
 sluicer run shop.json https://shop.example/c?page=7  # exit 3 if the page drifted
 sluicer audit https://example.com/product            # exit 3 if a documented rule is broken
+sluicer map https://example.com/ --plain         # a site's addresses, one a line
+sluicer crawl https://example.com/ --max-pages 50 -o site.jsonl   # --resume continues it
 ```
 
 Exit codes: 0 something found (a record or a summary answer), 1 the page gives

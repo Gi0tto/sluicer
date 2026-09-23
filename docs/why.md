@@ -63,7 +63,7 @@ request says `Sluicer/<version>`, borrows no browser's referer or fingerprint,
 and obeys `robots.txt` -- and nothing is fetched when `robots.txt` cannot be
 read, as RFC 9309 says. The stealth rung exists and never runs unless asked.
 
-**A tool an agent can trust.** Seven MCP tools, each answer with `ok` and an
+**A tool an agent can trust.** Nine MCP tools, each answer with `ok` and an
 output schema, an error that can never be mistaken for the page, and a server
 that keeps every request -- redirects, images, frames, websockets -- off
 private addresses unless told otherwise.
@@ -80,8 +80,11 @@ private addresses unless told otherwise.
 - **The data is not declared and the pages are not a repeated template.**
   Induction reads listings and feeds; it does not read an arbitrary page's
   prose into fields. That is a model's job, and its answers should be checked.
-- **You are crawling a site.** Sluicer fetches the page you ask for; it does
-  not follow links, pace itself by `Crawl-delay`, or keep a frontier. Put it
-  behind a crawler.
+- **You are crawling the web.** `sluicer crawl` reads a site politely -- one
+  request at a time, a second apart or its `Crawl-delay`, resumable from its
+  own output -- which is built for hundreds or thousands of pages of one site,
+  not millions of many: its frontier lives in memory, and its pace is the
+  site's. For a crawl at that scale, put Sluicer's extraction behind a crawler
+  built for it.
 - **You only need one vocabulary, raw.** extruct returns each vocabulary as the
   page wrote it, which is what you want when the merge is not.

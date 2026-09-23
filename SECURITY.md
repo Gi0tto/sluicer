@@ -51,6 +51,14 @@ rung. `tests/live/guard_check.py` shows a real Chromium reaching a private
 server by six routes without the guard and by none with it. Set
 `SLUICER_ALLOW_PRIVATE=1` to turn the filter off.
 
+`map_site` and `crawl_site` fetch many addresses from one an agent chose: every
+page, every sitemap and every hop of a redirect is judged by the same filter
+before it is requested, a crawl never leaves the site it started on, and both
+are bounded -- ten sitemaps or 25 pages, a minute each. A sitemap is parsed with
+no entity resolved and nothing fetched from inside it, and one that declares a
+document type is refused, so neither an external entity nor billion laughs
+reaches the parser.
+
 So: run the MCP server where you would be willing to run `curl` with a URL
 somebody else chose. If that is not acceptable in your environment, put the
 egress control where it belongs, in the network, not in this library.

@@ -110,7 +110,38 @@ Dates are the day the work landed. Anything not listed here did not happen.
   against llmstxt.org's format. Exit codes: 3 when anything is an error, 1 when
   nothing is declared, 0 otherwise, 2 when the page could not be read.
 - MCP: seven tools; `audit_page` has an output schema like the others.
-
+- **Crawling, politely** (`sluicer.crawl`, `docs/crawling.md`). `map_site`
+  lists a site's addresses from its sitemaps -- the ones robots.txt names, or
+  `/sitemap.xml` and `/sitemap_index.xml` -- following an index on the same
+  site, gzip told by its bytes, and the start page's links when there is no
+  sitemap. `crawl` follows a site's links breadth first and hands back each
+  page's extraction or the reason it has none; `extract_many` reads a list.
+  Every page goes through the ladder, robots.txt included, and every site is
+  asked one request at a time, no sooner than a second after the last ended or
+  its `Crawl-delay` or `Request-rate` if longer -- robots.txt, sitemaps, each
+  redirect hop and each rung included, and remembered for the process. A crawl
+  refuses a redirect that leaves its site before the other site is asked,
+  marks where a page landed and its canonical seen, and skips links that name
+  a file. The same site crawled twice gives the same pages in the same order,
+  and the output, one JSON line per page, is the state a crawl resumes from
+  without asking for any page again.
+- `sluicer map`, `sluicer crawl` and `sluicer batch`, writing JSON Lines to
+  stdout or `--out`, `--resume` to continue, and the grep exit codes over the
+  whole run.
+- MCP tools `map_site` and `crawl_site`, bounded to a thousand addresses or 25
+  pages and a minute, with the error codes `redirected_off_site` and
+  `crawl_delay_too_long` for a crawled page. The server has eight tools.
+- Sitemaps are parsed with no entity resolved, nothing fetched from inside,
+  any document type refused, and gzip inflated no further than 16 MiB;
+  billion laughs and XXE are tested.
+- `http_responses`, the HTTP rung's transport answering bytes; a caller's rule
+  for redirects, asked before every hop by the HTTP rung and the guarded
+  browser, with `RedirectRefused` final on the ladder; `robots_delay` and
+  `robots_sitemaps`, read through the robots.txt cache; `robots_reader_from`,
+  `RedirectRefused` and `ResponseTooLarge` exported from `sluicer.fetch`.
+- CI: `tests/live/crawl_check.py`, a crawl of a local site that measures its
+  own politeness from the server's side, in the `live` job; the real protego's
+  `Crawl-delay` and `Sitemap` reading in the `with-extras` job.
 
 ### Fixed
 - A product declared once per colour or size, as Zara declares it, or beside
