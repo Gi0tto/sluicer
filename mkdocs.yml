@@ -25,6 +25,7 @@ nav:
   - Sluicer: index.md
   - Why Sluicer: why.md
   - Extractors: extractors.md
+  - HTTP API: http-api.md
   - Known limits: known-limits.md
   - Design notes: design-notes.md
   - Scoreboard: scoreboard.md

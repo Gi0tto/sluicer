@@ -113,11 +113,23 @@ on `localhost`, a private network or a cloud's metadata endpoint -- redirects
 and a browser's requests included -- unless started with
 `SLUICER_ALLOW_PRIVATE=1`.
 
+For any other language: `sluicer serve` answers the same tools over HTTP,
+`POST /v1/tools/<name>` with the tool's arguments as JSON, and describes them at
+`/openapi.json`. It listens on loopback; anywhere else it needs
+`SLUICER_API_TOKEN`. See [the HTTP API](https://github.com/Gi0tto/sluicer/blob/main/docs/http-api.md).
+
+```bash
+sluicer serve                                       # 127.0.0.1:8000
+curl -s http://127.0.0.1:8000/v1/tools/extract_declared \
+  -H 'Content-Type: application/json' -d '{"html_or_url": "https://example.com/p"}'
+```
+
 ## Install
 
 ```bash
 uv pip install sluicer                          # the library and the command: lxml and click
 uv pip install 'sluicer[fetch,markdown,mcp]'    # fetching, markdown, the MCP server
+uv pip install 'sluicer[api]'                   # the HTTP API, which brings those three
 uv pip install 'sluicer[microformats]'          # microformats2, off by default
 uvx --from 'sluicer[fetch]' scrapling install   # the browser, once, for the browser rung
 ```
@@ -179,6 +191,7 @@ alarm. See [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md).
 At <https://gi0tto.github.io/sluicer/>, or in the repository:
 [Why Sluicer](https://github.com/Gi0tto/sluicer/blob/main/docs/why.md) ·
 [Extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md) ·
+[HTTP API](https://github.com/Gi0tto/sluicer/blob/main/docs/http-api.md) ·
 [Scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md) ·
 [Scoreboard, as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md) ·
 [Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md) ·

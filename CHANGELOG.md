@@ -4,6 +4,22 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Added
+- `sluicer serve`, the MCP server's tools over HTTP, behind a new `api` extra
+  (`starlette>=1.2`, `uvicorn>=0.31.1`, and the `mcp` extra). `POST
+  /v1/tools/<name>` takes a tool's arguments as a JSON object and answers what
+  the tool answers; `GET /v1/tools` lists the tools with their input and output
+  schemas, and `GET /openapi.json` is generated from those same schemas. Built
+  from the server `build_server` returns, through the SDK's own `list_tools`
+  and `call_tool`, so a tool added there is served with nothing else to change.
+  The status follows the answer: 200 for anything a tool answered, a page that
+  drifted included, and a stated status for each error code. It listens on
+  loopback and there answers only requests addressed to it; beyond loopback it
+  needs `SLUICER_API_TOKEN` or `--allow-unauthenticated`. JSON bodies only,
+  bounded at 16 MiB, a time budget per request, four calls at once, no CORS.
+  `docs/http-api.md` says all of it; `tests/live/api_check.py` asks a real
+  server over a real socket; the image serves it.
+
 ### Fixed
 - `compile` took page furniture for the listing on 6 of the drift benchmark's 25
   sites: GitHub's language menu of 491 links, old Reddit's sidebar lists, the

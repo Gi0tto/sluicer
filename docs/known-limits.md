@@ -214,7 +214,59 @@ the page declared it, and the extractor object is a plain mapping whose shape
 is documented in [extractors](extractors.md), not in the schema.
 
 **The six tools are pinned by set equality**, so a seventh cannot appear
-unnoticed.
+unnoticed. The HTTP door is held to that same list, not to a second one.
+
+## In the HTTP API
+
+**A call that runs out of time still runs to its end.** The 504 is sent when
+the budget runs out, and whatever the call brings later is dropped: a thread
+cannot be stopped from outside, so a fetch keeps its worker until its own
+timeouts end it, twenty seconds of plain HTTP and thirty of a browser. Four
+workers bound how many such calls there can be, and a call still waiting for
+one when its budget runs out is never started. On SIGTERM, which is what
+`docker stop` sends, uvicorn shuts down and then re-raises the signal, so the
+process ends at once and a call still fetching ends with it: measured, 0.1 s
+after the signal, with a page held for six.
+
+**A status says less than its answer.** `too_large` is 413 for a fetched page
+too heavy as much as for a request body too big, although HTTP's 413 is about
+the request; one code keeps one status, and `error.url` names the page when it
+was fetched. `fetch_failed` is 502 whatever each rung met, a rung's own timeout
+included; the message says what each one said. Only the request's own budget is
+a 504.
+
+**One token, plain HTTP.** There is no identity per caller, no scope, no rate
+limit, and no rotation short of a restart. The server speaks HTTP, not HTTPS;
+beyond one machine, TLS belongs in front of it. [Security](security.md) says
+what that leaves.
+
+**The `Host` check holds on loopback only.** Listening on every interface, any
+`Host` is answered, since the name other machines use to reach it is not one it
+can know. There the token is what protects it, and with
+`--allow-unauthenticated`, nothing in the server does.
+
+**No CORS, no streaming, no batch.** A browser app on another origin needs the
+middleware recipe in [the HTTP API](http-api.md). A call answers once, when it
+is done, and a list of URLs handed to `compile_extractor` is one request inside
+one budget: six pages that each take the plain HTTP rung's twenty seconds use
+all of the default 120.
+
+**Most bounds are not options of the command.** The 16 MiB body, the four
+workers and the 64 connections are arguments of `build_app` or constants beside
+it; only the time budget is a flag of `sluicer serve`. Past 64 connections,
+uvicorn answers 503 in plain text, not in the answers' JSON.
+
+**The listing speaks MCP's names.** `GET /v1/tools` is the SDK's own listing,
+so its keys are `inputSchema` and `outputSchema`, while the answers' keys are
+snake_case, as the tools write them. Renaming either would make one of them a
+copy.
+
+**A tool without an output schema cannot be served.** It has no structured
+answer, and the door answers 500 rather than make one up. Every tool here has
+one, and a test holds them to it.
+
+**The live check provokes every error but `internal_error`**, which only a bug
+in the server can. The suite provokes it with a tool that raises.
 
 ## In the shape of the code
 

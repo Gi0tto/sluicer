@@ -55,6 +55,38 @@ So: run the MCP server where you would be willing to run `curl` with a URL
 somebody else chose. If that is not acceptable in your environment, put the
 egress control where it belongs, in the network, not in this library.
 
+## The HTTP API is the same door, on a socket
+
+`sluicer serve` (the `api` extra) answers the MCP server's tools over HTTP, and
+everything above holds for it: the tools fetch what a caller names, and refuse
+private addresses unless `SLUICER_ALLOW_PRIVATE=1`. A socket reaches further
+than stdio, though. An MCP server over stdio answers the one process that
+started it; a port answers anything that can connect to it, a web page in the
+user's own browser included. So it starts closed:
+
+- It listens on `127.0.0.1` unless told otherwise, and there it answers only
+  requests whose `Host` is `localhost`, `127.0.0.1` or `[::1]`, which is what
+  stops a page reaching it by pointing a name of its own at 127.0.0.1 (DNS
+  rebinding).
+- A tool runs only for a body sent as `application/json`, which a page on
+  another origin cannot send without a preflight, and no preflight is granted:
+  the server sends no CORS headers, so no other origin can read an answer
+  either.
+- Beyond loopback it will not start without a bearer token in
+  `SLUICER_API_TOKEN`, unless `--allow-unauthenticated` says something in front
+  of it already decides who may call. The token is read from the environment,
+  never from the command line where `ps` shows it, and compared in constant
+  time. Only `GET /health`, which says the version, answers without it.
+- A body over 16 MiB is refused, a request past its time budget (120 seconds
+  by default) is answered 504, and four tool calls run at once.
+
+What it does not do: it speaks plain HTTP, so beyond one machine the token
+crosses the network in the clear unless TLS is put in front of it; there is one
+token, not an identity per caller, no rate limit and no log beyond uvicorn's
+access log. A caller holding the token can make the machine fetch any public
+URL, as fast as four workers allow. Put it where you would put a `curl` that
+anyone holding the token may point.
+
 ## What a page can still do to you
 
 It can lie. Structured data is written by the site, so a record Sluicer returns
