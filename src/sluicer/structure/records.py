@@ -164,16 +164,30 @@ def _random(segment: str) -> bool:
 
 
 def _parts(parent: HtmlElement, path: _Path) -> Iterator[tuple[HtmlElement, _Path]]:
-    """Every element under ``parent``, each with the path that reaches it."""
+    """Every element under ``parent``, each with the path that reaches it.
+
+    In document order, walked with a stack of its own: libxml2 nests elements
+    two thousand deep, and a recursive walk ran out of Python's stack on a row
+    a thousand deep.
+    """
+    pending = list(reversed(_steps(parent, path)))
+    while pending:
+        child, here = pending.pop()
+        yield child, here
+        pending.extend(reversed(_steps(child, here)))
+
+
+def _steps(parent: HtmlElement, path: _Path) -> list[tuple[HtmlElement, _Path]]:
+    """``parent``'s element children, each with the path one step further."""
     counts: dict[tuple[str, str], int] = {}
+    steps = []
     for child in parent:
         if not isinstance(child.tag, str):
             continue
         label = (child.tag, _label(child))
         counts[label] = counts.get(label, 0) + 1
-        here = (*path, (*label, counts[label]))
-        yield child, here
-        yield from _parts(child, here)
+        steps.append((child, (*path, (*label, counts[label]))))
+    return steps
 
 
 def _repeated(walked: list[list[tuple[HtmlElement, _Path]]]) -> set[_Path]:

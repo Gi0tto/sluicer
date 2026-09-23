@@ -283,3 +283,23 @@ def test_a_separator_between_children_is_not_text_of_the_wrapper_s_own():
     record = records_from(group)[0]
 
     assert "span.meta" not in record.fields, record.fields
+
+
+def test_a_row_nested_a_thousand_deep_is_walked_not_a_recursion_error():
+    """Found by the property that ``extract`` never raises.
+
+    libxml2 nests elements up to 2,047 deep, and the walk over a row's parts
+    recursed once per level: a row 1,000 deep was a ``RecursionError`` out of
+    ``extract(html, induce=True)``.
+    """
+    from sluicer.document import load
+    from sluicer.structure.records import _parts
+
+    depth = 1000
+    # Parsed by load, whose parser keeps what lxml's default drops past 256.
+    row = load("<ul><li>" + "<b>x" * depth + "</li></ul>").tree.xpath("//li")[0]
+
+    parts = list(_parts(row, ()))
+
+    assert len(parts) == depth
+    assert [len(path) for _, path in parts] == list(range(1, depth + 1))
