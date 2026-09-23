@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
+## 0.4.1 - 2026-09-24
 
 ### Added
 - A scoreboard on news in many languages (`bench/news.py`,
