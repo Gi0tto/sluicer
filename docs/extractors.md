@@ -84,20 +84,24 @@ any page failed any check. A run that broke its contract never exits 0.
 ## What healing does
 
 `heal` learns the new pages from scratch, then matches each old field to its new
-place: the new field that holds most of the sample values the old one held, and
-of two that hold as many, the one more rows carry. Two
-columns that swapped are two moves, not two fields kept in place. A field whose
-old values appear nowhere, but whose own place is still there holding values of
-the shape it was learnt with, is kept: a listing's items change between two
-visits. A numbered slot -- the third tag, the second author -- whose own place
-is still there never moves to another slot of its group, because one tag
-turning up in another slot moved nothing. A field found in none of these ways
-is reported as `vanished`, even if a new field has the same shape, because a
-guess would put the wrong column under the old name. Links are compared by
-path and parameters: a link that gained a tracking parameter, `?ref_=list_1`,
-is the same link, and `?id=2` is another item than `?id=1`. A field that moved
-keeps its old name, so rows read with the healed extractor have the columns
-downstream code expects.
+place:
+
+- The new field that holds most of the sample values the old one held. Of two
+  that hold as many, the one more rows carry. Two columns that swapped are two
+  moves, not two fields kept in place.
+- Else its own place, when that is still there and holds values of the shape the
+  field was learnt with: a listing's items change between two visits.
+- A numbered slot -- the third tag, the second author -- whose own place is still
+  there never moves to another slot of its group, because one tag turning up in
+  another slot moved nothing.
+- Links are compared by path and parameters. A link that gained a tracking
+  parameter, `?ref_=list_1`, is the same link; `?id=2` is another item than
+  `?id=1`.
+
+A field found in none of these ways is reported as `vanished`, even if a new
+field has the same shape, because a guess would put the wrong column under the
+old name. A field that moved keeps its old name, so rows read with the healed
+extractor have the columns downstream code expects.
 
 Every field kept or moved carries its evidence: how many of the values it was
 learnt with were found in the new place, of how many, and how many the next
@@ -139,7 +143,9 @@ moved: span.stock -> span.availability (2 of 2 learnt values found there; the ne
 - Two text fields of the same shape that swap values on a page the extractor was
   not learnt from pass the shape checks; the `values` check catches a swap only
   when one side becomes the same in every row.
-- How often extractors survive real redesigns, and how often healing is right, is
-  not measured yet. That benchmark, built from Wayback Machine snapshots of the
-  same pages before and after real redesigns, is next on the
-  [roadmap](roadmap.md).
+- A member that carries nothing is not a row. A page whose rows became empty
+  shells, all but two, passes as a short page.
+- The `values` check is held from three rows up, and three rows that say the
+  same thing by chance fail it.
+- How extractors behave across real changes, and how often healing is right, is
+  measured on Wayback Machine captures in [drift](drift.md), losses first.

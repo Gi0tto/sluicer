@@ -1,0 +1,536 @@
+[
+  {
+    "id": "books-toscrape-com-short",
+    "url": "https://books.toscrape.com/",
+    "learn": [
+      "20200604082704"
+    ],
+    "b": "20200731142332",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "books-toscrape-com-long",
+    "url": "https://books.toscrape.com/",
+    "learn": [
+      "20200604082704"
+    ],
+    "b": "20240601233006",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "quotes-toscrape-com-short",
+    "url": "https://quotes.toscrape.com/",
+    "learn": [
+      "20200602102118",
+      "20200618072547"
+    ],
+    "b": "20200729202214",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "quotes-toscrape-com-long",
+    "url": "https://quotes.toscrape.com/",
+    "learn": [
+      "20200602102118",
+      "20200618072547"
+    ],
+    "b": "20240604125257",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "news-ycombinator-com-short",
+    "url": "https://news.ycombinator.com/",
+    "learn": [
+      "20230110235512",
+      "20230117235628"
+    ],
+    "b": "20230215233325",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "news-ycombinator-com-long",
+    "url": "https://news.ycombinator.com/",
+    "learn": [
+      "20230110235512",
+      "20230117235628"
+    ],
+    "b": "20250901235851",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "news-ycombinator-com-newest-short",
+    "url": "https://news.ycombinator.com/newest",
+    "learn": [
+      "20220110233943",
+      "20220117231718"
+    ],
+    "b": "20220216012250",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "news-ycombinator-com-newest-long",
+    "url": "https://news.ycombinator.com/newest",
+    "learn": [
+      "20220110233943",
+      "20220117231718"
+    ],
+    "b": "20250902000313",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "lobste-rs-short",
+    "url": "https://lobste.rs/",
+    "learn": [
+      "20190113060506",
+      "20190117045817"
+    ],
+    "b": "20190217060032",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "lobste-rs-long",
+    "url": "https://lobste.rs/",
+    "learn": [
+      "20190113060506",
+      "20190117045817"
+    ],
+    "b": "20250102084729",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "github-com-trending-short",
+    "url": "https://github.com/trending",
+    "learn": [
+      "20190111005533",
+      "20190118090026"
+    ],
+    "b": "20190216010556",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "github-com-trending-long",
+    "url": "https://github.com/trending",
+    "learn": [
+      "20190111005533",
+      "20190118090026"
+    ],
+    "b": "20250102010705",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "stackoverflow-com-questions-short",
+    "url": "https://stackoverflow.com/questions",
+    "learn": [
+      "20190111033016",
+      "20190118033930"
+    ],
+    "b": "20190215235542",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "old-reddit-com-r-programming-short",
+    "url": "https://old.reddit.com/r/programming/",
+    "learn": [
+      "20190205180935"
+    ],
+    "b": "20190216000712",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {
+      "A": "https://old.reddit.com/r/Programming",
+      "A2": "https://old.reddit.com/r/Programming"
+    }
+  },
+  {
+    "id": "old-reddit-com-r-programming-long",
+    "url": "https://old.reddit.com/r/programming/",
+    "learn": [
+      "20190205180935"
+    ],
+    "b": "20240601164748",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {
+      "A": "https://old.reddit.com/r/Programming",
+      "A2": "https://old.reddit.com/r/Programming"
+    }
+  },
+  {
+    "id": "sfbay-craigslist-org-search-sss-long",
+    "url": "https://sfbay.craigslist.org/search/sss",
+    "learn": [
+      "20210227071601"
+    ],
+    "b": "20240603050007",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "www-imdb-com-chart-top-short",
+    "url": "https://www.imdb.com/chart/top/",
+    "learn": [
+      "20210113235535",
+      "20210118190810"
+    ],
+    "b": "20210215212133",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "www-imdb-com-chart-top-long",
+    "url": "https://www.imdb.com/chart/top/",
+    "learn": [
+      "20210113235535",
+      "20210118190810"
+    ],
+    "b": "20240601032507",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "www-python-org-jobs-long",
+    "url": "https://www.python.org/jobs/",
+    "learn": [
+      "20140221111940"
+    ],
+    "b": "20240101114645",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {
+      "A": "http://legacy.python.org/community/jobs/",
+      "A2": "http://legacy.python.org/community/jobs/"
+    }
+  },
+  {
+    "id": "arxiv-org-list-cs-CL-recent-short",
+    "url": "https://arxiv.org/list/cs.CL/recent",
+    "learn": [
+      "20220111235049",
+      "20220119193247"
+    ],
+    "b": "20220216050017",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "arxiv-org-list-cs-CL-recent-long",
+    "url": "https://arxiv.org/list/cs.CL/recent",
+    "learn": [
+      "20220111235049",
+      "20220119193247"
+    ],
+    "b": "20241221000607",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "slashdot-org-short",
+    "url": "https://slashdot.org/",
+    "learn": [
+      "20120110225604",
+      "20120117235827"
+    ],
+    "b": "20120215232109",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "slashdot-org-long",
+    "url": "https://slashdot.org/",
+    "learn": [
+      "20120110225604",
+      "20120117235827"
+    ],
+    "b": "20240101235750",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "www-npr-org-sections-news-short",
+    "url": "https://www.npr.org/sections/news/",
+    "learn": [
+      "20180111012341",
+      "20180118020738"
+    ],
+    "b": "20180216060712",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "www-npr-org-sections-news-long",
+    "url": "https://www.npr.org/sections/news/",
+    "learn": [
+      "20180111012341",
+      "20180118020738"
+    ],
+    "b": "20240602035025",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "weworkremotely-com-categories-remote-programming-long",
+    "url": "https://weworkremotely.com/categories/remote-programming-jobs",
+    "learn": [
+      "20190413204619"
+    ],
+    "b": "20231228211411",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {
+      "B_long": "https://weworkremotely.com/categories/remote-full-stack-programming-jobs"
+    }
+  },
+  {
+    "id": "metacpan-org-recent-short",
+    "url": "https://metacpan.org/recent",
+    "learn": [
+      "20190110171443",
+      "20190117195916"
+    ],
+    "b": "20190215150231",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "metacpan-org-recent-long",
+    "url": "https://metacpan.org/recent",
+    "learn": [
+      "20190110171443",
+      "20190117195916"
+    ],
+    "b": "20240528042611",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "hackaday-com-blog-short",
+    "url": "https://hackaday.com/blog/",
+    "learn": [
+      "20160110133007",
+      "20160118183826"
+    ],
+    "b": "20160215232551",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "hackaday-com-blog-long",
+    "url": "https://hackaday.com/blog/",
+    "learn": [
+      "20160110133007",
+      "20160118183826"
+    ],
+    "b": "20240601214904",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "sourceforge-net-directory-short",
+    "url": "https://sourceforge.net/directory/",
+    "learn": [
+      "20160111022229",
+      "20160117192101"
+    ],
+    "b": "20160215235904",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "sourceforge-net-directory-long",
+    "url": "https://sourceforge.net/directory/",
+    "learn": [
+      "20160111022229",
+      "20160117192101"
+    ],
+    "b": "20240602074646",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {
+      "B_long": "https://sourceforge.net/directory/windows/"
+    }
+  },
+  {
+    "id": "pinboard-in-popular-short",
+    "url": "https://pinboard.in/popular/",
+    "learn": [
+      "20190113092504",
+      "20190121071827"
+    ],
+    "b": "20190217091957",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "pinboard-in-popular-long",
+    "url": "https://pinboard.in/popular/",
+    "learn": [
+      "20190113092504",
+      "20190121071827"
+    ],
+    "b": "20240603124549",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "www-theverge-com-tech-short",
+    "url": "https://www.theverge.com/tech",
+    "learn": [
+      "20210111030321",
+      "20210117222554"
+    ],
+    "b": "20210215184607",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "www-theverge-com-tech-long",
+    "url": "https://www.theverge.com/tech",
+    "learn": [
+      "20210111030321",
+      "20210117222554"
+    ],
+    "b": "20240601221929",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "techcrunch-com-category-startups-long",
+    "url": "https://techcrunch.com/category/startups/",
+    "learn": [
+      "20220612161103"
+    ],
+    "b": "20240601180320",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "www-bbc-com-news-technology-short",
+    "url": "https://www.bbc.com/news/technology",
+    "learn": [
+      "20210111004149",
+      "20210117223701"
+    ],
+    "b": "20210216001036",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "www-bbc-com-news-technology-long",
+    "url": "https://www.bbc.com/news/technology",
+    "learn": [
+      "20210111004149",
+      "20210117223701"
+    ],
+    "b": "20240602035118",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {
+      "B_long": "https://www.bbc.com/innovation"
+    }
+  },
+  {
+    "id": "arstechnica-com-gadgets-short",
+    "url": "https://arstechnica.com/gadgets/",
+    "learn": [
+      "20210110042708",
+      "20210119065142"
+    ],
+    "b": "20210215072221",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "arstechnica-com-gadgets-long",
+    "url": "https://arstechnica.com/gadgets/",
+    "learn": [
+      "20210110042708",
+      "20210119065142"
+    ],
+    "b": "20250301033151",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "www-producthunt-com-short",
+    "url": "https://www.producthunt.com/",
+    "learn": [
+      "20190109213926",
+      "20190117213006"
+    ],
+    "b": "20190216143410",
+    "kind": "short",
+    "why": "B a few weeks after A: the template usually unchanged",
+    "redirected": {}
+  },
+  {
+    "id": "www-producthunt-com-long",
+    "url": "https://www.producthunt.com/",
+    "learn": [
+      "20190109213926",
+      "20190117213006"
+    ],
+    "b": "20240602041431",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  },
+  {
+    "id": "pypi-org-search--q-scraping-long",
+    "url": "https://pypi.org/search/?q=scraping",
+    "learn": [
+      "20190717035432"
+    ],
+    "b": "20260217013635",
+    "kind": "long",
+    "why": "B years after A: across a redesign when the site had one",
+    "redirected": {}
+  }
+]

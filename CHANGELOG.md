@@ -59,7 +59,6 @@ Dates are the day the work landed. Anything not listed here did not happen.
   ever sent to. It keeps the 4,096 used last.
 - A page too heavy to fetch ended the command line in a traceback; it now exits
   2 with a message.
-### Fixed
 - `heal` on a page of the same template whose items had changed -- any live
   listing, a month later -- reported every title and link as `vanished`, so
   `sluicer heal` exited 3 on a page that had not drifted. A field whose place is

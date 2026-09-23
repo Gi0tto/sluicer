@@ -58,11 +58,13 @@ the evidence behind every move `heal` reports.
 
 ## Next
 
-**The proof.** A drift benchmark built from Wayback Machine snapshots of the
-same pages before and after real redesigns: the share of extractors that
-survive, that fail loudly, that fail silently, and that heal -- measured for
-Sluicer and for the adaptive selectors of Scrapling beside it. Silent failure is
-the headline number. Until it exists, the claim is only what the fixtures show.
+**The proof, made bigger.** A first drift benchmark is in
+[drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md): 44 pairs of
+Wayback Machine captures on 25 sites, judged by an oracle that does not use the
+extractor's code, with Scrapling's adaptive selectors beside it. It found five
+defects, now fixed. Next: more pairs, pairs chosen so that A and B share items
+and heal can be judged, and a compile that picks the listing rather than page
+furniture, which it did on 6 of the 25 sites.
 
 **A better ruler.** Pages as they are served, scripts intact, so JSON-LD is
 measured; more fields, starting with price and currency; a multilingual

@@ -1,0 +1,29 @@
+{
+  "losses": {
+    "metacpan-org-recent-short": "Read by hand: the same template, so the oracle is right and the run is wrong. What Sluicer learnt here is not the list of releases but the three day tables that hold it, each release row its own numbered field, 308 fields in all. On B the fifteenth release of each of the three days carried the same river-gauge label, 'River stage zero No dependents', the commonest label a new release has. The values check read three identical values as rows collapsed to a placeholder. With three rows it cannot tell that from a coincidence, and it is held from three rows up. Not fixed; see the limits.",
+    "www-imdb-com-chart-top-long": "Read by hand: a real redesign. In 2023 IMDb replaced the 250-row table with a list that serves 25 rows and loads the rest by script. heal moved both links of each film, the poster link and the title link, to their new places. That works only since this benchmark's fix for links that gained ?ref_=chttp_t_1. heal reported the titles and the poster images as vanished rather than guess. The new title text carries the rank, '1. The Shawshank Redemption', and the poster's alt text names an actor, 'Tim Robbins in The Shawshank Redemption (1994)', so none of the old values is seen again. A person would call the title moved; heal needs an old value to prove it.",
+    "old-reddit-com-r-programming-long": "Read by hand: the learnt listing is not the posts. It is the three bullet lists of the sidebar: the rules, the related subreddits, and one more. The only field that names a list is the link in its fifth item. By 2024 the rules had been reordered, and the rule that links reddiquette is no longer fifth. The healed extractor reads the fifth item, as it should for a numbered slot, and finds no link there. Two of the three lists read the same as before.",
+    "sourceforge-net-directory-long": "Read by hand: a real redesign, reached through a redirect to the Windows directory, which is what a scraper asking for the address reads. heal moved each project's name, its link and its description to their new places, all right on the four projects both pages list. The icon went to the new icon, which some projects lack, since they show a default icon kept in another field; half the matched projects have none. The icon's alt text, 'Apache OpenOffice Icon', and the whole card's text, which carried the weekly downloads, are found nowhere and reported vanished. Before this benchmark's tie-break fix, heal put the name on the icon's alt text too."
+  },
+  "notes": {
+    "github-com-trending-short": "The learnt listing is the sidebar's menu of 491 languages, not the trending repositories; the pair is kept because that is the extractor a user would have got. The menu's markup changed between January and February 2019, and the run said so. heal found the menu again: these two pairs are the two right heals on pages with drift, and neither is a listing anyone wanted.",
+    "stackoverflow-com-questions-short": "A false alarm before this benchmark's fix to renumbering. One user on A with a second kind of badge had numbered the badge step for every row.",
+    "www-theverge-com-tech-short": "A false alarm before the same fix; here one story had a second author.",
+    "hackaday-com-blog-short": "The learnt listing is the paragraphs of the first post on the page that hold a link, not the posts. B's first post is another post, whose paragraphs hold no link.",
+    "hackaday-com-blog-long": "The same paragraphs-of-one-post listing, this time on a post whose paragraphs do hold links. It survives, and nothing it reads is what a user wanted.",
+    "www-producthunt-com-short": "Between January and February 2019 a wrapper, div.large_bbe28, was inserted above the list; the hashed class names stayed the same. By the path contract that is drift, and the run said so. heal found the list, but no product was on both captures.",
+    "weworkremotely-com-categories-remote-programming-long": "The address now redirects to another category, remote full-stack programming jobs.",
+    "www-bbc-com-news-technology-long": "The address now redirects to /innovation, another section.",
+    "pypi-org-search--q-scraping-long": "B is not a listing: PyPI now answers a client without JavaScript with a 'Client Challenge' page. The run failed on every check, as it should for a page that is not the page.",
+    "www-bbc-com-news-technology-short": "The learnt listing is four page sections with 814 fields among them, not the stories.",
+    "arstechnica-com-gadgets-short": "The learnt listing is three page sections, not the articles.",
+    "news-ycombinator-com-newest-long": "Hacker News dropped the list's class, table.itemlist, and the run said so."
+  },
+  "fixed": [
+    "heal called every title and link vanished on a page of the same template whose items had changed, which is any live listing a month later: Hacker News, Lobsters, arXiv, Pinboard. sluicer heal then exited 3 on a page that had not drifted.",
+    "heal moved numbered slots onto each other when one value turned up in another slot: Pinboard's first tag to the fourth place, and an arXiv ninth author, who was a first author a month later, onto the first-author column.",
+    "run failed pages of the same template when one row renumbered a step in the middle of a path: one Stack Overflow user with a second kind of badge, one Verge story with a second author. These were two of the three false alarms.",
+    "heal called a link vanished when the site tagged every link with a new parameter, as IMDb did in its 2023 redesign with ?ref_=chttp_t_1.",
+    "heal broke a tie between two new places holding a field's old values by the alphabet. On SourceForge's redesign it put each project's name on its icon's alt text, which a quarter of the rows lack, rather than on its heading."
+  ]
+}
