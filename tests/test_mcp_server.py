@@ -25,6 +25,9 @@ def fake_mcp(monkeypatch):
         def tool(self, *args, **kwargs):
             def decorate(function):
                 registered[function.__name__] = function
+                registered.setdefault("__tool_options__", {})[function.__name__] = (
+                    kwargs
+                )
                 return function
 
             return decorate
@@ -32,13 +35,22 @@ def fake_mcp(monkeypatch):
         def run(self, transport="stdio", **kwargs):
             registered["__ran__"] = True
 
+    class ToolAnnotations(dict):
+        """What the SDK's ToolAnnotations was given."""
+
+        def __init__(self, **hints):
+            super().__init__(hints)
+
     server_module = types.ModuleType("mcp.server.mcpserver")
     server_module.MCPServer = MCPServer
     package = types.ModuleType("mcp")
     sub = types.ModuleType("mcp.server")
+    types_module = types.ModuleType("mcp.types")
+    types_module.ToolAnnotations = ToolAnnotations
     monkeypatch.setitem(sys.modules, "mcp", package)
     monkeypatch.setitem(sys.modules, "mcp.server", sub)
     monkeypatch.setitem(sys.modules, "mcp.server.mcpserver", server_module)
+    monkeypatch.setitem(sys.modules, "mcp.types", types_module)
     return registered
 
 
@@ -63,6 +75,27 @@ def test_the_server_registers_its_ten_tools(monkeypatch):
     build_server()
 
     assert {name for name in registered if not name.startswith("__")} == TOOLS
+
+
+def test_every_tool_says_it_only_reads_and_has_a_title(monkeypatch):
+    """Codex's writes mode and Claude Code run a tool without asking when it
+    says it is read-only; without the hint, every call to a tool that only
+    reads waited for a person to approve it, and codex exec cancelled it."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    options = registered["__tool_options__"]
+    assert set(options) == TOOLS
+    for name, given in options.items():
+        hints = given["annotations"]
+        assert given["title"] and hints["title"] == given["title"], name
+        assert hints["read_only_hint"] is True, name
+        assert hints["destructive_hint"] is False, name
+        assert hints["idempotent_hint"] is True, name
+        assert hints["open_world_hint"] is True, name
+    assert len({given["title"] for given in options.values()}) == len(TOOLS)
 
 
 def test_the_module_names_every_tool_it_registers_and_counts_them():

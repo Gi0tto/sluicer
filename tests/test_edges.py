@@ -337,9 +337,12 @@ def test_an_address_the_server_refuses_is_an_answer(monkeypatch):
 
     module = types.ModuleType("mcp.server.mcpserver")
     module.MCPServer = MCPServer
+    annotations = types.ModuleType("mcp.types")
+    annotations.ToolAnnotations = dict
     monkeypatch.setitem(sys.modules, "mcp", types.ModuleType("mcp"))
     monkeypatch.setitem(sys.modules, "mcp.server", types.ModuleType("mcp.server"))
     monkeypatch.setitem(sys.modules, "mcp.server.mcpserver", module)
+    monkeypatch.setitem(sys.modules, "mcp.types", annotations)
 
     def refuse(url, **kwargs):
         raise AddressRefused(url, "127.0.0.1 is not on the public internet")

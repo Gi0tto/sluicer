@@ -285,17 +285,39 @@ def build_server() -> Any:
         instructions=(
             "Deterministic extraction of the structured data a web page already "
             "declares, with no model in the loop. Every field names the vocabulary "
-            "it came from. Every answer has ok: false means do not use it as it "
-            "is, and says why. Fetching obeys robots.txt and refuses private "
-            "addresses; a map or a crawl asks a site one request at a time, a "
-            "second apart or its Crawl-delay, and is bounded in size and time."
+            "it came from and where on the page it was declared. Every tool only "
+            "reads. Every answer carries ok; false means do not use it as it is, "
+            "and the answer says why. Fetching obeys robots.txt and refuses "
+            "private addresses; a map or a crawl asks a site one request at a "
+            "time, a second apart or its Crawl-delay, and is bounded in size and "
+            "time."
         ),
     )
 
-    # The SDK instance is untyped here, so its decorator is too. The ignores
-    # are narrow on purpose: ``warn_unused_ignores`` flags them the day the SDK
-    # ships types, which a module-wide relaxation would not.
-    @server.tool()  # type: ignore[untyped-decorator]
+    from mcp.types import ToolAnnotations
+
+    def tool(title: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Register a tool under its title, saying what every one of them is.
+
+        Each reads -- a page given, or the web -- and changes nothing
+        anywhere, so a client that asks before a tool writes, as Codex's
+        ``writes`` mode and Claude Code do, can run it without asking.
+        """
+        return cast(
+            Callable[[Callable[..., Any]], Callable[..., Any]],
+            server.tool(
+                title=title,
+                annotations=ToolAnnotations(
+                    title=title,
+                    read_only_hint=True,
+                    destructive_hint=False,
+                    idempotent_hint=True,
+                    open_world_hint=True,
+                ),
+            ),
+        )
+
+    @tool("Extract a page's declared data")
     @_answers_instead_of_raising
     def extract_declared(
         html_or_url: str,
@@ -334,7 +356,7 @@ def build_server() -> Any:
             result["fetch"] = fetched
         return cast(answers.ExtractAnswer, result)
 
-    @server.tool()  # type: ignore[untyped-decorator]
+    @tool("Read a page as markdown")
     @_answers_instead_of_raising
     def page_markdown(
         html_or_url: str,
@@ -368,7 +390,7 @@ def build_server() -> Any:
             result["fetch"] = fetched
         return cast(answers.MarkdownAnswer, result)
 
-    @server.tool()  # type: ignore[untyped-decorator]
+    @tool("Fetch a page")
     @_answers_instead_of_raising
     def fetch_page(url: str) -> answers.PageAnswer:
         """Fetch a page's HTML, and say what it cost: plain HTTP or a browser.
@@ -395,7 +417,7 @@ def build_server() -> Any:
         }
         return cast(answers.PageAnswer, page)
 
-    @server.tool()  # type: ignore[untyped-decorator]
+    @tool("Learn an extractor")
     @_answers_instead_of_raising
     def compile_extractor(
         pages: list[str],
@@ -429,7 +451,7 @@ def build_server() -> Any:
             raise _BadInput(str(nothing)) from nothing
         return {"ok": True, "extractor": json.loads(learnt.to_json())}
 
-    @server.tool()  # type: ignore[untyped-decorator]
+    @tool("Run an extractor")
     @_answers_instead_of_raising
     def run_extractor(extractor: dict[str, Any], html_or_url: str) -> answers.RunAnswer:
         """Replay an extractor on one page, and check the page still keeps to it.
@@ -455,7 +477,7 @@ def build_server() -> Any:
         }
         return cast(answers.RunAnswer, answer)
 
-    @server.tool()  # type: ignore[untyped-decorator]
+    @tool("Heal an extractor")
     @_answers_instead_of_raising
     def heal_extractor(
         extractor: dict[str, Any], pages: list[str]
@@ -490,7 +512,7 @@ def build_server() -> Any:
         }
         return cast(answers.HealAnswer, answer)
 
-    @server.tool()  # type: ignore[untyped-decorator]
+    @tool("Audit a page's markup")
     @_answers_instead_of_raising
     def audit_page(html_or_url: str, site: bool = True) -> answers.AuditAnswer:
         """Check a page's structured data against what Google documents for it.
@@ -524,7 +546,7 @@ def build_server() -> Any:
             result["fetch"] = fetched
         return cast(answers.AuditAnswer, result)
 
-    @server.tool()  # type: ignore[untyped-decorator]
+    @tool("Read a feed")
     @_answers_instead_of_raising
     def read_feed(url_or_text: str, limit: int = 50) -> answers.FeedAnswer:
         """Read a feed's items: RSS, Atom or JSON Feed.
@@ -568,7 +590,7 @@ def build_server() -> Any:
             answer["fetch"] = fetched
         return cast(answers.FeedAnswer, answer)
 
-    @server.tool()  # type: ignore[untyped-decorator]
+    @tool("Map a site")
     @_answers_instead_of_raising
     def map_site(url: str, limit: int = 100) -> answers.MapAnswer:
         """List a site's addresses, from its sitemaps or its start page's links.
@@ -604,7 +626,7 @@ def build_server() -> Any:
         }
         return cast(answers.MapAnswer, answer)
 
-    @server.tool()  # type: ignore[untyped-decorator]
+    @tool("Crawl a site")
     @_answers_instead_of_raising
     def crawl_site(
         url: str,
