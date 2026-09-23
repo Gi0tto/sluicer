@@ -1,4 +1,5 @@
 import lxml.html
+import pytest
 
 from sluicer.structure.records import records_from
 
@@ -303,3 +304,56 @@ def test_a_row_nested_a_thousand_deep_is_walked_not_a_recursion_error():
 
     assert len(parts) == depth
     assert [len(path) for _, path in parts] == list(range(1, depth + 1))
+
+
+def _listing_of(html):
+    """The rows of the first list in ``html``, parsed the way sluicer parses."""
+    from sluicer.document import load
+
+    # load's parser keeps what lxml's default drops past 256 levels.
+    return list(load(html).tree.xpath("//ul")[0])
+
+
+_SHAPES_THAT_MULTIPLY = {
+    "rows six hundred deep, with text at every level": (
+        "<ul>" + ("<li>" + "<b>x" * 600 + "</li>") * 3 + "</ul>"
+    ),
+    "a long class over three hundred parts": (
+        "<ul>"
+        + (f'<li><div class="{"c" * 4000}">' + "<i>y</i>" * 300 + "</div></li>") * 3
+        + "</ul>"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "html", _SHAPES_THAT_MULTIPLY.values(), ids=_SHAPES_THAT_MULTIPLY
+)
+def test_what_induced_records_hold_is_bounded_by_their_rows(html):
+    """Found by the property that what a page yields is bounded by its size.
+
+    A field is named by the path down to it and a part with text of its own
+    holds all the text below it: the first made 1.6 MB from a 7 KB page, the
+    second 3.6 MB from 19 KB, and both grow with the square of the page.
+    """
+    import json
+
+    records = records_from(_listing_of(html))
+
+    assert records
+    held = [{name: f.value for name, f in r.fields.items()} for r in records]
+    assert len(json.dumps(held)) <= 11 * len(html)
+
+
+def test_a_row_a_thousand_deep_is_named_in_a_moment():
+    """Each part's name was spelt from its whole path, level by level, and a
+    check at each level copied the path again: three rows a thousand deep took
+    2.5 seconds, and the cost grew with the cube of the depth."""
+    import time
+
+    rows = _listing_of("<ul>" + ("<li>" + "<b>x" * 1000 + "</li>") * 3 + "</ul>")
+
+    started = time.perf_counter()
+    records_from(rows)
+
+    assert time.perf_counter() - started < 0.5

@@ -25,6 +25,7 @@ import re
 import unicodedata
 from collections.abc import Iterator
 from itertools import pairwise
+from typing import TypeAlias
 
 from lxml.html import HtmlElement
 
@@ -51,6 +52,9 @@ _TEXT_ATTRIBUTE = {"img": "alt"}
 # which of the same-named siblings this is.
 _Step = tuple[str, str, int]
 _Path = tuple[_Step, ...]
+# A slot's name as a link to its parent's and its own last step, spelt out only
+# for a part that carries a fact.
+_Trail: TypeAlias = "tuple[_Trail | None, str]"
 
 
 def address_of(element: HtmlElement) -> str | None:
@@ -103,8 +107,10 @@ def _carries_only_its_children(element: HtmlElement) -> bool:
 def _facts(element: HtmlElement) -> list[tuple[str, str]]:
     """The facts one part carries, each with the suffix its name takes."""
     facts = []
-    text = _text(element)
-    if text and not _carries_only_its_children(element):
+    # A wrapper's text is all its children's, and is not read at all: on a row
+    # nested deep, reading it at every level was all the text below, again.
+    text = "" if _carries_only_its_children(element) else _text(element)
+    if text:
         facts.append(("", text))
     address = address_of(element)
     if address:
@@ -200,28 +206,71 @@ def _repeated(walked: list[list[tuple[HtmlElement, _Path]]]) -> set[_Path]:
     }
 
 
-def _name(path: _Path, repeated: set[_Path]) -> str:
-    """The field name for one slot, numbered where the group needs it numbered."""
-    segments = []
-    for depth, (tag, css_class, ordinal) in enumerate(path):
-        segment = f"{tag}.{css_class}" if css_class else tag
-        if (*path[:depth], (tag, css_class, 0)) in repeated:
-            segment += str(ordinal)
-        segments.append(segment)
-    return ">".join(segments)
+def _last_step(path: _Path, repeated: set[_Path]) -> str:
+    """The last step of a slot's name, numbered where the group needs it numbered."""
+    tag, css_class, ordinal = path[-1]
+    segment = f"{tag}.{css_class}" if css_class else tag
+    if (*path[:-1], (tag, css_class, 0)) in repeated:
+        segment += str(ordinal)
+    return segment
+
+
+# What one group's records may hold -- every name and every value they copy --
+# is paid for from a budget of ten times what its rows hold, and never less than
+# this. A field is named by the path down to it, and a part with text of its own
+# holds all the text below it, so three rows six hundred deep with text at every
+# level made 1.6 MB from a 7 KB page, and one long class over three hundred
+# parts was written into three hundred names. When the budget runs out the
+# records stop there, in document order, the same every time.
+_FLOOR = 10_000
 
 
 def records_from(group: list[HtmlElement]) -> list[Record]:
     """Return one record per member of ``group``, all named the same way."""
     walked = [list(_parts(member, ())) for member in group]
     repeated = _repeated(walked)
+    left = max(_FLOOR, 10 * sum(_held(member) for member in group))
+    # Each part's name is its parent's and one step more: spelt out from the
+    # whole path for every part, three rows a thousand deep took 2.5 seconds.
+    trails: dict[HtmlElement, _Trail] = {}
     records: list[Record] = []
     for parts in walked:
         record = Record(type=None, source="induced")
         for part, path in parts:
-            name = _name(path, repeated)
-            for suffix, value in _facts(part):
+            trail = trails[part] = (
+                trails.get(part.getparent()),
+                _last_step(path, repeated),
+            )
+            facts = _facts(part)
+            if not facts:
+                continue
+            name = _spelt(trail)
+            left -= sum(len(name) + len(suffix) + len(value) for suffix, value in facts)
+            if left < 0:
+                break
+            for suffix, value in facts:
                 record.fields[name + suffix] = Field(value=value, source="induced")
         if record.fields:
             records.append(record)
+        if left < 0:
+            break
     return records
+
+
+def _spelt(trail: _Trail | None) -> str:
+    steps = []
+    while trail is not None:
+        trail, step = trail
+        steps.append(step)
+    return ">".join(reversed(steps))
+
+
+def _held(member: HtmlElement) -> int:
+    """How much ``member`` holds: its tags, attributes and text, as written."""
+    return sum(
+        len(element.text or "")
+        + len(element.tail or "")
+        + (len(element.tag) if isinstance(element.tag, str) else 0)
+        + sum(len(key) + len(value) for key, value in element.attrib.items())
+        for element in member.iter()
+    )
