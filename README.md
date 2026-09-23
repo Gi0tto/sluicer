@@ -14,7 +14,7 @@
   <a href="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml"><img src="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/network%20in%20tests-none-blue" alt="no network in tests">
   <img src="https://img.shields.io/badge/LLM%20calls-none-blue" alt="no LLM calls">
-  <a href="https://github.com/Gi0tto/sluicer/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT-yellow.svg" alt="MIT"></a>
+  <a href="https://github.com/Gi0tto/sluicer/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT%2C%20one%20file%20CC%20BY--SA%203.0-yellow.svg" alt="MIT, one file CC BY-SA 3.0"></a>
   <a href="https://pypi.org/project/sluicer/"><img src="https://img.shields.io/pypi/pyversions/sluicer" alt="Python versions"></a>
 </p>
 
@@ -230,8 +230,11 @@ At <https://gi0tto.github.io/sluicer/>, or in the repository:
 
 ## Licence
 
-MIT, with no vendored code. The base install needs `lxml` and `click`, both
-BSD-3-Clause. The extras pull a wider tree that is not all permissive: `tld` is
+MIT, with no vendored code, and one exception: `sluicer/audit/schema_org.py`
+holds schema.org's type and enumeration names, which schema.org publishes
+under CC BY-SA 3.0, and that one file is distributed under it (the package's
+licence expression is `MIT AND CC-BY-SA-3.0`). The base install needs `lxml`
+and `click`, both BSD-3-Clause. The extras pull a wider tree that is not all permissive: `tld` is
 tri-licensed MPL-1.1, GPL-2.0-only or LGPL-2.1-or-later, `orjson` is MPL-2.0
 alongside Apache-2.0 or MIT, and `certifi` is MPL-2.0. CI lists every licence
 in that tree and fails on one nobody has read; see

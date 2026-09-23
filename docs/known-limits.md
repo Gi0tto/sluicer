@@ -210,7 +210,8 @@ known.
 **schema.org's names are copied, under their licence.** The type tree and
 enumeration terms in `sluicer/audit/schema_org.py` are read from schema.org's
 own export, which is published under CC BY-SA 3.0; the module names its source
-and release. Google's pages are CC BY 4.0, and each rule cites the page it
+and release, and it alone is distributed under CC BY-SA 3.0, as `LICENSE`
+says, with the licence's text in `LICENSES/`. The rest of sluicer is MIT. Google's pages are CC BY 4.0, and each rule cites the page it
 comes from.
 
 ## In fetching

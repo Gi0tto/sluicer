@@ -5,6 +5,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Changed
+- The licence is `MIT AND CC-BY-SA-3.0`: `sluicer/audit/schema_org.py`, which
+  holds schema.org's type and enumeration names, is distributed under CC BY-SA
+  3.0, as schema.org publishes its vocabulary, and says so in its header;
+  `LICENSE` names the exception and `LICENSES/CC-BY-SA-3.0.txt` holds the
+  licence's text. Everything else stays MIT.
 - OpenGraph's arrays and structured properties are read as ogp.me reads
   them. A record's OpenGraph field is a list when the page repeats one of the
   protocol's arrays -- several `og:image` are a list of `{url, width, height,

@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: CC-BY-SA-3.0
+# Type and enumeration names from schema.org (https://schema.org/), release
+# 30.1, published by schema.org under CC BY-SA 3.0. This file, unlike the rest
+# of sluicer, is distributed under that licence: see LICENSES/CC-BY-SA-3.0.txt.
 """schema.org's type tree and enumerations, as far as the audit needs them.
 
 Two facts the audit cannot get from a page: which types sit below a type Google
@@ -12,8 +16,9 @@ names it, superseded ones left out likewise. Only the roots and enumerations
 the audit asks about are kept.
 
 schema.org publishes its vocabulary under CC BY-SA 3.0; these are its type and
-term names, which every page using the vocabulary writes, and their source is
-named here.
+term names, which every page using the vocabulary writes. This module is
+distributed under that licence, as LICENSE says, and nothing else in sluicer
+is: no other module copies from it, and importing it binds no caller's code.
 """
 
 from __future__ import annotations
