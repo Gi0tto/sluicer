@@ -48,6 +48,10 @@ field says `"source": "induced"`.
   description, canonical and OpenGraph, and for a URL which AI agents the
   site's robots.txt admits and whether its llms.txt keeps to llmstxt.org. Use it
   instead of reading markup and guessing what Google wants.
+- `read_feed(url_or_text, limit=50)` -- a feed's items, RSS, Atom or JSON Feed,
+  each with its link, dates (normalised to ISO 8601), authors and content; a
+  page that declares a feed is followed to it. Use it to follow a site's news
+  rather than crawling its pages.
 - `map_site(url, limit=100)` -- a site's addresses from its sitemaps (up to
   1,000, from up to ten sitemaps), or its start page's links when it has none.
 - `crawl_site(url, max_pages=10, max_depth=2, include, exclude)` -- follow a

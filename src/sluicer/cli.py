@@ -1381,6 +1381,54 @@ def crawl_command(
     _report(pages, out)
 
 
+@main.command("feed")
+@click.argument("source")
+@_with_fetch_options
+def feed_command(
+    source: str,
+    stealth: bool,
+    no_robots: bool,
+    base_url: str | None,
+    respect: tuple[str, ...],
+    cache_dir: str | None,
+    max_age: float | None,
+    at: str | None,
+) -> None:
+    """Read a feed's items: RSS, Atom or JSON Feed, from a URL, a file or stdin.
+
+    A page that is not a feed but declares one, with <link rel=alternate>, is
+    followed to it. Prints the feed as JSON: what it says about itself and
+    every item, dates also normalised. Exits 1 for a feed with no item, 2 for
+    what is not a feed.
+    """
+    from sluicer.declared.links import read_links
+    from sluicer.document import load
+    from sluicer.feeds import read_feed
+
+    html, url, fetched = _read_source(
+        source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
+    )
+    feed = read_feed(html, url=url)
+    if feed is None:
+        declared = read_links(load(html, url=url)).get("feeds", [])
+        if not declared:
+            _fail(f"{url or source} is not RSS, Atom or JSON Feed, and declares none.")
+        followed = declared[0]["href"]
+        click.echo(f"Reading the feed the page declares: {followed}", err=True)
+        html, url, fetched = _read_source(
+            followed, stealth, no_robots, None, at, respect, cache_dir, max_age
+        )
+        feed = read_feed(html, url=url)
+        if feed is None:
+            _fail(f"{followed}, which the page declares as a feed, is not one.")
+    payload = {"url": url, **asdict(feed)}
+    if fetched is not None:
+        payload["fetch"] = {"rung": fetched.rung, "status": fetched.status}
+    click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+    if not feed.items:
+        raise SystemExit(NOTHING_FOUND)
+
+
 @main.command("warc")
 @click.argument("files", nargs=-1, required=True)
 @click.option(

@@ -57,6 +57,7 @@ def test_the_server_registers_its_nine_tools(monkeypatch):
         "run_extractor",
         "heal_extractor",
         "audit_page",
+        "read_feed",
         "map_site",
         "crawl_site",
     }

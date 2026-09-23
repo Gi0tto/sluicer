@@ -60,6 +60,8 @@ CRAWL_PAGES = 25
 
 CRAWL_DEPTH = 3
 """The most links from its start one ``crawl_site`` goes."""
+FEED_ITEMS = 500
+"""The most items one ``read_feed`` answers with."""
 
 TIME_BUDGET_SECONDS = 60.0
 """How long ``map_site`` and ``crawl_site`` may keep starting requests. A page
@@ -518,6 +520,50 @@ def build_server() -> Any:
         if fetched is not None:
             result["fetch"] = fetched
         return cast(answers.AuditAnswer, result)
+
+    @server.tool()  # type: ignore[untyped-decorator]
+    @_answers_instead_of_raising
+    def read_feed(url_or_text: str, limit: int = 50) -> answers.FeedAnswer:
+        """Read a feed's items: RSS, Atom or JSON Feed.
+
+        url_or_text: an http(s) URL of a feed -- or of a page that declares
+        one, which is followed to it -- or the feed itself.
+        limit: the most items answered, 1 to 500; items_total says how many
+        the feed holds.
+
+        Returns {"ok", "url", "format", "title", "link", "description",
+        "items", "items_total"}, each item {"title", "link", "id",
+        "published", "updated", "summary", "content", "authors",
+        "categories", "enclosures", "normalised"}, dates in normalised as ISO
+        8601. What is not a feed, and declares none, is bad_input.
+        """
+        from sluicer.declared.links import read_links
+        from sluicer.document import load
+        from sluicer.feeds import read_feed as read
+
+        _within("limit", limit, 1, FEED_ITEMS)
+        html, url, fetched = _html_of(url_or_text)
+        feed = read(html, url=url)
+        if feed is None and url is not None:
+            declared = read_links(load(html, url=url)).get("feeds", [])
+            if declared:
+                html, url, fetched = _html_of(declared[0]["href"])
+                feed = read(html, url=url)
+        if feed is None:
+            raise _BadInput(
+                f"{url or 'the text'} is not RSS, Atom or JSON Feed, and declares none"
+            )
+        found = asdict(feed)
+        answer: dict[str, Any] = {
+            "ok": True,
+            "url": url,
+            **found,
+            "items": found["items"][:limit],
+            "items_total": len(feed.items),
+        }
+        if fetched is not None:
+            answer["fetch"] = fetched
+        return cast(answers.FeedAnswer, answer)
 
     @server.tool()  # type: ignore[untyped-decorator]
     @_answers_instead_of_raising

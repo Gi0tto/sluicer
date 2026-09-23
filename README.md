@@ -108,6 +108,7 @@ sluicer map https://shop.example/                   # a site's addresses, from i
 sluicer crawl https://shop.example/ -o shop.jsonl   # follow its links, politely; --resume
 sluicer batch urls.txt -o pages.jsonl               # read a list, one JSON line per page
 sluicer warc crawl.warc.gz > pages.jsonl            # the pages a web archive holds
+sluicer feed https://blog.example/                  # a feed's items, from the page that declares it
 ```
 
 Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
@@ -122,9 +123,10 @@ print(result.summary["title"].value, "via", result.summary["title"].key)
 ```
 
 For an agent: `claude mcp add sluicer -- sluicer-mcp`, or install the repository
-as a Claude Code plugin with `/plugin install`. Nine tools --
+as a Claude Code plugin with `/plugin install`. Ten tools --
 `extract_declared`, `page_markdown`, `fetch_page`, `compile_extractor`,
-`run_extractor`, `heal_extractor`, `audit_page`, `map_site`, `crawl_site` --
+`run_extractor`, `heal_extractor`, `audit_page`, `read_feed`, `map_site`,
+`crawl_site` --
 each answering with `ok`, which is true exactly when the answer can be used as
 it is, and an output schema. The server fetches nothing on `localhost`, a
 private network or a cloud's metadata endpoint -- redirects and a browser's

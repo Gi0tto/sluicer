@@ -133,6 +133,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   picked: on Google's page-per-variant example, which prices one variant and
   links the rest, the group has no price. On Google's own example the summary
   had only title, brand and type.
+- `sluicer feed SOURCE`, `sluicer.feeds.read_feed` and the MCP tool
+  `read_feed`: a feed's items -- RSS 2.0, RSS 1.0, Atom 1.0 with its
+  `xml:base`, JSON Feed 1.0 and 1.1 -- each with its title, link, id, dates
+  (normalised as ISO 8601 beside the feed's own), authors, categories,
+  enclosures, summary and content. A page that is not a feed but declares one
+  is followed to it. XML declaring an entity or an external document type is
+  refused before it is parsed (`sluicer.safexml`, shared with the sitemaps).
+  The MCP server has ten tools.
 - `--cache DIR` and `--max-age SECONDS` on every command that reads a page,
   and `sluicer.fetch.cache`: a page is kept with its `ETag` and
   `Last-Modified`, and the next fetch asks the site with `If-None-Match` and

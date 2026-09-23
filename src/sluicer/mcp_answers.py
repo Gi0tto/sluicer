@@ -284,6 +284,37 @@ class AuditAnswer(TypedDict, total=False):
     fetch: FetchRecord
 
 
+class FeedItemAnswer(TypedDict):
+    """One item of a feed, as ``sluicer.feeds.FeedItem`` holds it."""
+
+    title: str | None
+    link: str | None
+    id: str | None
+    published: str | None
+    updated: str | None
+    summary: str | None
+    content: str | None
+    authors: list[str]
+    categories: list[str]
+    enclosures: list[dict[str, str]]
+    normalised: dict[str, str]
+
+
+class FeedAnswer(TypedDict, total=False):
+    ok: Required[bool]
+    error: ErrorDetail
+    url: str | None
+    format: str
+    title: str | None
+    link: str | None
+    description: str | None
+    language: str | None
+    updated: str | None
+    items: list[FeedItemAnswer]
+    items_total: int
+    fetch: FetchRecord
+
+
 class SiteUrlAnswer(TypedDict):
     """One address of a site: its sitemap's ``lastmod`` as written, and the
     ``sitemap`` that listed it, null when it was a link on the start page."""

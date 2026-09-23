@@ -16,12 +16,10 @@ bound cut it short.
 from __future__ import annotations
 
 import io
-import re
 import time
 import zlib
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from itertools import islice
 from urllib.parse import urlsplit
 
 import lxml.etree
@@ -35,6 +33,7 @@ from sluicer.fetch import AddressRefused, FetchFailed, fetch
 from sluicer.fetch.address import _resolve, why_not_public
 from sluicer.fetch.identity import RobotsUnreachable, robots_refusal, robots_sitemaps
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
+from sluicer.safexml import as_text, declares_what_expands
 
 MAX_SITEMAPS = 50
 """The most sitemap files one map reads. A site's index names its files, and
@@ -49,9 +48,6 @@ GUESSES = ("/sitemap.xml", "/sitemap_index.xml")
 _OFF_SITE = "an index lists sitemaps of its own site, and this one is elsewhere"
 _GZIP = b"\x1f\x8b"
 # Searched for literally, so the search is linear whatever the page holds.
-_ENTITY = re.compile(rb"<!ENTITY", re.IGNORECASE)
-_DOCTYPE = re.compile(rb"<!DOCTYPE", re.IGNORECASE)
-_EXTERNAL_OR_SUBSET = re.compile(rb"\[|\bSYSTEM\b|\bPUBLIC\b", re.IGNORECASE)
 _NO_DOCUMENT_TYPE = (
     "it declares a document type, which a sitemap never needs and an entity "
     "attack does, so it was not read"
@@ -177,7 +173,7 @@ def _xml(data: bytes, max_entries: int) -> Sitemap:
     # before any element, and how far an older libxml2 lets that go is not
     # this package's to promise. A bare document type holds nothing to expand
     # and is refused at the root.
-    if _declares_what_expands(_as_text(data)):
+    if declares_what_expands(as_text(data)):
         raise SitemapUnreadable(_NO_DOCUMENT_TYPE)
     events = lxml.etree.iterparse(
         io.BytesIO(data),
@@ -222,35 +218,6 @@ def _xml(data: bytes, max_entries: int) -> Sitemap:
             raise SitemapUnreadable(f"it is not XML: {broken}") from None
         return Sitemap(kind, tuple(entries), broken=f"it stops being XML: {broken}")
     return Sitemap(kind, tuple(entries))
-
-
-def _declares_what_expands(text: bytes) -> bool:
-    """Whether ``text`` declares an entity, or a document type with an internal
-    subset or an external identifier -- or more than one document type, which
-    no well-formed document has.
-
-    A bare ``<!DOCTYPE html>`` holds nothing to expand, and is left to the
-    parser, which reports the soft 404 it usually is as not a sitemap.
-    """
-    if _ENTITY.search(text):
-        return True
-    found = [match.end() for match in islice(_DOCTYPE.finditer(text), 2)]
-    if not found:
-        return False
-    if len(found) > 1:
-        return True
-    end = text.find(b">", found[0])
-    return bool(
-        _EXTERNAL_OR_SUBSET.search(text, found[0], end if end >= 0 else len(text))
-    )
-
-
-def _as_text(data: bytes) -> bytes:
-    """``data`` as bytes a pattern can search: UTF-16 is decoded first, since
-    its every other byte is zero and ``<!DOCTYPE`` would not be found in it."""
-    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
-        return data.decode("utf-16", errors="replace").encode("utf-8")
-    return data
 
 
 def _entry(element: lxml.etree._Element) -> tuple[str, str | None] | None:
