@@ -64,7 +64,14 @@ settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
 
 class _FakeMatcher:
-    """Protego's ``can_fetch(url, user_agent)`` shape, over the stdlib parser."""
+    """Protego's shape, over the stdlib parser: ``can_fetch(url, user_agent)``,
+    ``crawl_delay`` and ``request_rate`` for a user agent, and ``sitemaps``.
+
+    The stdlib reads ``Crawl-delay`` and ``Request-rate`` by the same group
+    rules, so a fake delay is chosen the way a real one is. Where protego
+    differs -- it reads a fractional delay, the stdlib only whole seconds -- the
+    ``with-extras`` CI job asks the real one.
+    """
 
     def __init__(self, text: str) -> None:
         self._parser = robotparser.RobotFileParser()
@@ -72,6 +79,17 @@ class _FakeMatcher:
 
     def can_fetch(self, url: str, user_agent: str) -> bool:
         return self._parser.can_fetch(user_agent, url)
+
+    def crawl_delay(self, user_agent: str):
+        found = self._parser.crawl_delay(user_agent)
+        return None if found is None else float(found)
+
+    def request_rate(self, user_agent: str):
+        return self._parser.request_rate(user_agent)
+
+    @property
+    def sitemaps(self):
+        return iter(self._parser.site_maps() or [])
 
 
 @pytest.fixture(autouse=True)

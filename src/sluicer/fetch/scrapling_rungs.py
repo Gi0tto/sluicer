@@ -18,7 +18,14 @@ from sluicer.fetch.address import AddressRefused, _resolve
 from sluicer.fetch.browser_guard import MAX_REDIRECTS, Guard
 from sluicer.fetch.http_rung import HTTP_TIMEOUT_SECONDS, http_rung
 from sluicer.fetch.identity import USER_AGENT
-from sluicer.fetch.result import MAX_RESPONSE_BYTES, Fetched, ResponseTooLarge, Rung
+from sluicer.fetch.result import (
+    MAX_RESPONSE_BYTES,
+    Fetched,
+    RedirectRefused,
+    Redirects,
+    ResponseTooLarge,
+    Rung,
+)
 
 __all__ = [
     "BROWSER_TIMEOUT_MS",
@@ -80,6 +87,7 @@ def default_rungs(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
+    redirects: Redirects | None = None,
 ) -> list[tuple[str, Rung]]:
     """Return the rungs a caller gets without asking for anything more.
 
@@ -90,12 +98,18 @@ def default_rungs(
     With ``allow_private`` false, both keep off addresses that are not on the
     public web, redirects included: see ``http_rung`` and ``browser_guard``.
 
+    ``redirects`` is a caller's rule for a redirect, asked before the hop is
+    requested. The HTTP rung asks it of every hop; the browser rung only when
+    it is guarded, since an unguarded browser follows a redirect itself.
+
     The browser rung passes ``useragent``, not ``extra_headers``: measured
     against a live server, the browser context silently overrides a
     ``User-Agent`` in ``extra_headers`` with its own, and the site saw Chrome.
     """
     _, dynamic, _ = _fetchers()
-    http = http_rung(allow_private, resolve, max_bytes, error=FetchExtraMissing)
+    http = http_rung(
+        allow_private, resolve, max_bytes, error=FetchExtraMissing, redirects=redirects
+    )
     browser = _browser(
         "browser",
         dynamic.fetch,
@@ -111,6 +125,7 @@ def default_rungs(
         allow_private,
         resolve,
         max_bytes,
+        redirects,
     )
     return [("http", http), ("browser", browser)]
 
@@ -148,6 +163,7 @@ def _browser(
     allow_private: bool,
     resolve: Callable[[str], Iterable[str]],
     max_bytes: int,
+    redirects: Redirects | None = None,
 ) -> Rung:
     """A rung that loads a page in a browser, guarded when it has to be."""
 
@@ -171,6 +187,9 @@ def _browser(
             if guard.redirect is not None:
                 # The document was sent elsewhere: ask for it as a new fetch.
                 target, guard.redirect = guard.redirect, None
+                ruled = redirects(current, target) if redirects else None
+                if ruled is not None:
+                    raise RedirectRefused(current, target, ruled)
                 refused = guard.why_refused(target)
                 if refused is not None:
                     raise AddressRefused(target, refused)

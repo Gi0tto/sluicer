@@ -28,8 +28,11 @@ def test_the_fetch_package_has_a_surface_of_its_own():
         "Climb",
         "FetchFailed",
         "Fetched",
+        "RedirectRefused",
+        "ResponseTooLarge",
         "RobotsRefused",
         "fetch",
+        "robots_reader_from",
     }
 
 

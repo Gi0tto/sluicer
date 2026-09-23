@@ -264,12 +264,12 @@ def test_the_default_reader_takes_the_text_out_of_the_markup():
     directive, so it parses no rules at all and allows everything -- the
     exact defect this test is written to catch.
     """
-    from sluicer.fetch.ladder import _default_robots_reader
+    from sluicer.fetch.ladder import robots_reader_from
 
     wrapped_rung = rung(
         "http", "<html><body>User-agent: *\nDisallow: /deny\n</body></html>"
     )
-    read = _default_robots_reader(wrapped_rung)
+    read = robots_reader_from(wrapped_rung)
 
     text = read("https://example.com/robots.txt")
 
@@ -312,9 +312,9 @@ def test_a_site_that_refuses_us_is_obeyed_through_the_real_reader_shape():
 
 def test_a_robots_file_that_answers_200_is_read_as_the_rules_it_publishes():
     """2xx is the only status whose body is a set of rules."""
-    from sluicer.fetch.ladder import _default_robots_reader
+    from sluicer.fetch.ladder import robots_reader_from
 
-    read = _default_robots_reader(rung("http", "User-agent: *\nDisallow: /deny\n"))
+    read = robots_reader_from(rung("http", "User-agent: *\nDisallow: /deny\n"))
 
     assert read("https://example.com/robots.txt") == "User-agent: *\nDisallow: /deny\n"
 
@@ -325,9 +325,9 @@ def test_a_robots_file_that_404s_means_no_rules_were_published():
     The status used to be ignored entirely, which happened to give the right
     answer here and the wrong one for every other failing status.
     """
-    from sluicer.fetch.ladder import _default_robots_reader
+    from sluicer.fetch.ladder import robots_reader_from
 
-    read = _default_robots_reader(
+    read = robots_reader_from(
         rung("http", "<html><body>Not found</body></html>", status=404)
     )
 
@@ -346,9 +346,9 @@ def test_a_robots_file_that_5xxs_is_read_as_a_full_disallow():
     the reader returns refuses everything when the real gate parses it.
     """
     from sluicer.fetch.identity import robots_allows
-    from sluicer.fetch.ladder import _default_robots_reader
+    from sluicer.fetch.ladder import robots_reader_from
 
-    read = _default_robots_reader(
+    read = robots_reader_from(
         rung("http", "<html><body>Service unavailable</body></html>", status=503)
     )
 

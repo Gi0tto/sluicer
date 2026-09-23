@@ -576,3 +576,91 @@ def test_an_empty_page_is_still_a_rung_that_failed(monkeypatch):
 
     assert raised.value.status == 200
     assert isinstance(raised.value, ValueError), "callers catch ValueError"
+
+
+# -- a caller's rule for redirects ----------------------------------------------
+
+
+def _same_host(current, target):
+    from urllib.parse import urlsplit
+
+    if urlsplit(target).hostname != urlsplit(current).hostname:
+        return "it leaves the site"
+    return None
+
+
+def test_a_redirect_the_callers_rule_refuses_is_never_asked(monkeypatch):
+    from sluicer.fetch.result import RedirectRefused
+
+    seen = fake_curl(
+        monkeypatch, [(301, b"", {"location": "https://elsewhere.example/p"}), PAGE]
+    )
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(RedirectRefused) as refused:
+        http_rung(redirects=_same_host)("https://example.com/p")
+
+    assert refused.value.url == "https://example.com/p"
+    assert refused.value.target == "https://elsewhere.example/p"
+    assert refused.value.reason == "it leaves the site"
+    assert seen["urls"] == ["https://example.com/p"]
+
+
+def test_a_redirect_the_callers_rule_allows_is_followed(monkeypatch):
+    seen = fake_curl(monkeypatch, [(302, b"", {"location": "/q"}), PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    result = http_rung(redirects=_same_host)("https://example.com/p")
+
+    assert result.url == "https://example.com/q"
+    assert seen["urls"] == ["https://example.com/p", "https://example.com/q"]
+
+
+def test_the_transport_hands_back_the_bytes_as_they_came(monkeypatch):
+    """A sitemap may be gzip nobody announced; decoding it as a page destroys it."""
+    import gzip
+
+    body = gzip.compress(b"<urlset/>")
+    fake_curl(monkeypatch, [(200, body, {"content-type": "application/x-gzip"})])
+    from sluicer.fetch.http_rung import http_responses
+
+    response = http_responses()("https://example.com/sitemap.xml.gz")
+
+    assert response.body == body
+    assert response.status == 200
+    assert response.content_type == "application/x-gzip"
+    assert response.url == "https://example.com/sitemap.xml.gz"
+
+
+def test_the_guarded_browser_asks_the_callers_rule_about_its_document(monkeypatch):
+    from sluicer.fetch.result import RedirectRefused
+
+    loads = fake_browser(
+        monkeypatch, {"https://example.com/old": "->https://elsewhere.example/new"}
+    )
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    rungs = default_rungs(allow_private=False, resolve=public, redirects=_same_host)
+    with pytest.raises(RedirectRefused):
+        dict(rungs)["browser"]("https://example.com/old")
+
+    assert loads == ["https://example.com/old"]
+
+
+def test_a_redirect_the_callers_rule_refused_is_not_a_reason_to_climb():
+    from sluicer.fetch.result import RedirectRefused
+
+    refusing = _rung(
+        "http",
+        raises=RedirectRefused("https://example.com/p", "https://b.example/", "no"),
+    )
+    browser = _rung("browser")
+
+    with pytest.raises(RedirectRefused):
+        fetch(
+            "https://example.com/p",
+            rungs=[("http", refusing), ("browser", browser)],
+            robots_reader=lambda url: None,
+        )
+
+    assert browser.calls == []

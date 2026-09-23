@@ -206,6 +206,12 @@ jobs:
           assert robots_allows('https://example.com/private/p', read=lambda u: refuse, cache={}) is False
           assert robots_allows('https://example.com/public', read=lambda u: refuse, cache={}) is True
           assert robots_allows('https://example.com/p', read=lambda u: None, cache={}) is True
+          # What a crawler paces itself by, and where it finds the sitemaps.
+          from sluicer.fetch.identity import robots_delay, robots_sitemaps
+          paced = 'User-agent: Sluicer\nCrawl-delay: 2.5\n\nUser-agent: *\nCrawl-delay: 1\nSitemap: https://example.com/s.xml\n'
+          assert robots_delay('https://example.com/p', read=lambda u: paced, cache={}) == 2.5
+          assert robots_delay('https://example.com/p', read=lambda u: 'User-agent: *\nRequest-rate: 1/8\n', cache={}) == 8.0
+          assert robots_sitemaps('https://example.com/p', read=lambda u: paced, cache={}) == ['https://example.com/s.xml']
           print('robots: the real parser agrees with what the suite believes')
 
           # The audit reads the same robots.txt for each AI agent, through the

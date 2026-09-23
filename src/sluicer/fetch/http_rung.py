@@ -11,6 +11,11 @@ It asks for what scrapling's fetcher had no way to be asked for:
   addresses the host has -- the ones just checked -- and never looks the name
   up itself, so a name that answers differently the second time (DNS
   rebinding) reaches nothing new.
+* **A caller's rule for redirects.** A crawl keeps to its site by refusing a
+  hop that leaves it, before the other site is asked anything.
+
+``http_responses`` is the same transport answering bytes, for what is not a
+page: a sitemap, which may be gzip the server did not announce as an encoding.
 
 What it sends was measured on the wire: ``User-Agent`` is ours, and nothing
 dresses it up as a browser.
@@ -19,6 +24,7 @@ dresses it up as a browser.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -30,6 +36,8 @@ from sluicer.fetch.result import (
     MAX_RESPONSE_BYTES,
     EmptyBody,
     Fetched,
+    RedirectRefused,
+    Redirects,
     ResponseTooLarge,
     Rung,
 )
@@ -48,14 +56,28 @@ class TooManyRedirects(Exception):
     """A chain of redirects longer than ``MAX_REDIRECTS``: a loop, most likely."""
 
 
-def http_rung(
+@dataclass(frozen=True)
+class Response:
+    """What the transport got for an address, before anything read it as a page.
+
+    ``url`` is where the redirects ended. ``body`` is the bytes as they arrived,
+    decompressed from any ``Content-Encoding`` and never heavier than the bound.
+    """
+
+    url: str
+    status: int
+    content_type: str
+    body: bytes
+
+
+def http_responses(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
     error: type[MissingExtra] = MissingExtra,
-    allow_empty: bool = False,
-) -> Rung:
-    """Build the HTTP rung.
+    redirects: Redirects | None = None,
+) -> Callable[[str], Response]:
+    """Build the HTTP transport: an address in, a ``Response`` out.
 
     Args:
         allow_private: when false, every hop is judged by ``public_addresses``
@@ -64,9 +86,8 @@ def http_rung(
         max_bytes: the most a body may weigh before ``ResponseTooLarge``.
         error: what a missing ``fetch`` extra raises, so callers can catch
             the same class for every rung.
-        allow_empty: return an empty body rather than fail on it. A page with
-            no HTML is a rung that failed; an empty robots.txt or llms.txt is
-            an answer, and ``sluicer.fetch.site`` reads those.
+        redirects: the caller's rule for a redirect, asked before each hop is
+            requested; a hop it refuses raises ``RedirectRefused``.
     """
     requests = import_extra(
         "curl_cffi.requests", "fetch", doing="Fetching a URL", error=error
@@ -75,7 +96,7 @@ def http_rung(
         "curl_cffi", "fetch", doing="Fetching a URL", error=error
     ).CurlOpt
 
-    def http(url: str) -> Fetched:
+    def get(url: str) -> Response:
         current = url
         for _ in range(MAX_REDIRECTS + 1):
             options: dict[Any, Any] = {curl_option.MAXFILESIZE_LARGE: max_bytes}
@@ -86,14 +107,43 @@ def http_rung(
             status, headers, body = _get(requests, current, options, max_bytes)
             location = headers.get("location")
             if status in _REDIRECTS and location:
-                current = urljoin(current, location)
+                target = urljoin(current, location)
+                refused = redirects(current, target) if redirects else None
+                if refused is not None:
+                    raise RedirectRefused(current, target, refused)
+                current = target
                 continue
-            charset = _charset(headers.get("content-type") or "")
-            html = body.decode(sniff_encoding(body, charset), errors="replace")
-            if not html and not allow_empty:
-                raise EmptyBody(url, "http", status)
-            return Fetched(url=current, html=html, status=status, rung="http")
+            return Response(current, status, headers.get("content-type") or "", body)
         raise TooManyRedirects(f"{url} redirected more than {MAX_REDIRECTS} times")
+
+    return get
+
+
+def http_rung(
+    allow_private: bool = True,
+    resolve: Callable[[str], Iterable[str]] = _resolve,
+    max_bytes: int = MAX_RESPONSE_BYTES,
+    error: type[MissingExtra] = MissingExtra,
+    redirects: Redirects | None = None,
+    allow_empty: bool = False,
+) -> Rung:
+    """Build the HTTP rung: ``http_responses``, its body read as a page.
+
+    The first five arguments are ``http_responses``'s. ``allow_empty`` returns
+    an empty body rather than failing on it: a page with no HTML is a rung
+    that failed, but an empty robots.txt or llms.txt is an answer, and
+    ``sluicer.fetch.site`` reads those.
+    """
+    get = http_responses(allow_private, resolve, max_bytes, error, redirects)
+
+    def http(url: str) -> Fetched:
+        response = get(url)
+        body = response.body
+        charset = _charset(response.content_type)
+        html = body.decode(sniff_encoding(body, charset), errors="replace")
+        if not html and not allow_empty:
+            raise EmptyBody(url, "http", response.status)
+        return Fetched(url=response.url, html=html, status=response.status, rung="http")
 
     return http
 

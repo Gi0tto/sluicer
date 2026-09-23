@@ -6,9 +6,11 @@ it from a person. Sluicer arrives under its own name and obeys robots.txt.
 
 from __future__ import annotations
 
+import math
 import time
 from collections import OrderedDict
 from collections.abc import Callable, MutableMapping
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from sluicer import __version__
@@ -101,6 +103,88 @@ def robots_refusal(
     read at all -- nothing answered, or it answered 5xx -- it raises
     ``RobotsUnreachable`` instead, and that answer is not remembered.
     """
+    rules = _rules(url, read, cache, now)
+    if rules is None or rules.can_fetch(url, USER_AGENT):
+        return None
+    return "its robots.txt disallows it"
+
+
+def robots_delay(
+    url: str,
+    read: Callable[[str], str | None],
+    cache: MutableMapping[str, tuple[float, str | None]] | None = None,
+    now: Callable[[], float] = time.monotonic,
+) -> float:
+    """How many seconds the site asks us to leave between requests; 0 if none.
+
+    ``Crawl-delay``, or the interval a ``Request-rate`` of ``n/s`` implies,
+    whichever asks for more, from the group that applies to ``USER_AGENT``.
+    Neither is in RFC 9309, and both are what a site that wants to be asked
+    less often actually writes. A value that is not a number is no request;
+    an infinite one is kept, so a caller bounding its waits can refuse it.
+    Read through the same cache as ``robots_refusal``, with the same
+    ``RobotsUnreachable``.
+    """
+    rules = _rules(url, read, cache, now)
+    if rules is None:
+        return 0.0
+    delay = float(rules.crawl_delay(USER_AGENT) or 0.0)
+    rate = rules.request_rate(USER_AGENT)
+    if rate is not None and rate.requests > 0:
+        delay = max(delay, rate.seconds / rate.requests)
+    return 0.0 if math.isnan(delay) or delay < 0 else delay
+
+
+def robots_sitemaps(
+    url: str,
+    read: Callable[[str], str | None],
+    cache: MutableMapping[str, tuple[float, str | None]] | None = None,
+    now: Callable[[], float] = time.monotonic,
+) -> list[str]:
+    """The sitemaps the site's robots.txt names, in the order it names them.
+
+    ``Sitemap:`` lines belong to no group, so they are the site's whatever user
+    agent asks. Read through the same cache as ``robots_refusal``.
+    """
+    rules = _rules(url, read, cache, now)
+    return [] if rules is None else [str(found) for found in rules.sitemaps]
+
+
+def _rules(
+    url: str,
+    read: Callable[[str], str | None],
+    cache: MutableMapping[str, tuple[float, str | None]] | None,
+    now: Callable[[], float],
+) -> Any:
+    """The parsed robots.txt governing ``url``, or None when it publishes none.
+
+    ``Any``: protego is imported by name, so there is no class here to name.
+    """
+    text = _robots_text(url, read, cache, now)
+    if not text:
+        return None
+    # Imported here: ``scrapling_rungs`` imports ``USER_AGENT`` from this
+    # module, so a top-level import would be a cycle. ``FetchExtraMissing``
+    # rather than a bare ``MissingExtra``, because protego ships with the fetch
+    # extra and the entry points catch that extra's class by name.
+    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+
+    protego = import_extra(
+        "protego",
+        "fetch",
+        doing="Reading a site's robots.txt",
+        error=FetchExtraMissing,
+    )
+    return protego.Protego.parse(text)
+
+
+def _robots_text(
+    url: str,
+    read: Callable[[str], str | None],
+    cache: MutableMapping[str, tuple[float, str | None]] | None,
+    now: Callable[[], float],
+) -> str | None:
+    """The text of the robots.txt governing ``url``, remembered for a day."""
     store = cache if cache is not None else _CACHE
     key = _cache_key(url)
     entry = store.get(key)
@@ -117,24 +201,18 @@ def robots_refusal(
     # Written back even when it was only read: that is what keeps a site in
     # use from being the one a bounded cache forgets.
     store[key] = entry
-    text = entry[1]
-    if not text:
-        return None
-    # Imported here: ``scrapling_rungs`` imports ``USER_AGENT`` from this
-    # module, so a top-level import would be a cycle. ``FetchExtraMissing``
-    # rather than a bare ``MissingExtra``, because protego ships with the fetch
-    # extra and the entry points catch that extra's class by name.
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+    return entry[1]
 
-    protego = import_extra(
-        "protego",
-        "fetch",
-        doing="Reading a site's robots.txt",
-        error=FetchExtraMissing,
-    )
-    if protego.Protego.parse(text).can_fetch(url, USER_AGENT):
-        return None
-    return "its robots.txt disallows it"
+
+def robots_cached(
+    url: str,
+    cache: MutableMapping[str, tuple[float, str | None]] | None = None,
+    now: Callable[[], float] = time.monotonic,
+) -> bool:
+    """Whether the answer for ``url``'s robots.txt is at hand, so asking costs
+    no request. A crawler counts a request it makes as one the site receives."""
+    entry = (cache if cache is not None else _CACHE).get(_cache_key(url))
+    return entry is not None and now() - entry[0] < ROBOTS_TTL_SECONDS
 
 
 def _cache_key(url: str) -> str:

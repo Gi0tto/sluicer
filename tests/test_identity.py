@@ -178,3 +178,98 @@ def test_the_process_cache_is_bounded_by_default():
     from sluicer.fetch import identity
 
     assert identity._CACHE.limit == identity.ROBOTS_CACHE_HOSTS
+
+
+# -- what a crawler reads: how often, and where the sitemaps are ---------------
+
+
+def test_a_crawl_delay_for_us_is_read_from_our_group():
+    from sluicer.fetch.identity import robots_delay
+
+    rules = "User-agent: Sluicer\nCrawl-delay: 5\n\nUser-agent: *\nCrawl-delay: 1\n"
+
+    assert robots_delay("https://example.com/p", read=lambda url: rules) == 5.0
+
+
+def test_a_request_rate_is_read_as_the_interval_it_implies():
+    from sluicer.fetch.identity import robots_delay
+
+    rules = "User-agent: *\nCrawl-delay: 2\nRequest-rate: 1/10\n"
+
+    assert robots_delay("https://example.com/p", read=lambda url: rules) == 10.0
+
+
+def test_a_site_that_asks_nothing_asks_for_no_delay():
+    from sluicer.fetch.identity import robots_delay
+
+    assert robots_delay("https://example.com/p", read=lambda url: None) == 0.0
+    assert robots_delay("https://other.example/p", read=lambda url: ALLOW_ALL) == 0.0
+
+
+def test_a_delay_that_is_not_a_number_is_no_delay(monkeypatch):
+    """protego reads ``Crawl-delay: nan`` as a float; waiting NaN seconds raises."""
+    import sys
+    import types
+
+    from sluicer.fetch.identity import robots_delay
+
+    for said in (float("nan"), -3.0):
+        rules = types.SimpleNamespace(
+            crawl_delay=lambda agent, said=said: said,
+            request_rate=lambda agent: None,
+        )
+        protego = types.ModuleType("protego")
+        protego.Protego = types.SimpleNamespace(parse=lambda text, rules=rules: rules)
+        monkeypatch.setitem(sys.modules, "protego", protego)
+
+        assert (
+            robots_delay("https://example.com/p", read=lambda url: "x", cache={}) == 0
+        )
+
+
+def test_the_sitemaps_a_robots_file_names_are_read_in_its_order():
+    from sluicer.fetch.identity import robots_sitemaps
+
+    rules = (
+        "Sitemap: https://example.com/b.xml\nUser-agent: *\nDisallow: /x\n"
+        "Sitemap: https://example.com/a.xml.gz\n"
+    )
+
+    assert robots_sitemaps("https://example.com/", read=lambda url: rules) == [
+        "https://example.com/b.xml",
+        "https://example.com/a.xml.gz",
+    ]
+    assert robots_sitemaps("https://none.example/", read=lambda url: None) == []
+
+
+def test_one_read_answers_the_refusal_the_delay_and_the_sitemaps():
+    from sluicer.fetch.identity import (
+        robots_cached,
+        robots_delay,
+        robots_refusal,
+        robots_sitemaps,
+    )
+
+    calls = []
+
+    def read(url):
+        calls.append(url)
+        return "User-agent: *\nCrawl-delay: 3\nSitemap: https://example.com/s.xml\n"
+
+    assert robots_cached("https://example.com/a") is False
+    robots_refusal("https://example.com/a", read=read)
+    assert robots_cached("https://example.com/b") is True
+    robots_delay("https://example.com/b", read=read)
+    robots_sitemaps("https://example.com/c", read=read)
+
+    assert calls == ["https://example.com/robots.txt"]
+
+
+def test_an_unreadable_robots_file_leaves_the_delay_unknown_not_zero():
+    """A delay read as zero from a robots.txt nobody read would pace nothing."""
+    from sluicer.fetch.identity import UNREACHABLE, RobotsUnreachable, robots_delay
+
+    stand_in = f"# {UNREACHABLE}: TimeoutError\nUser-agent: *\nDisallow: /\n"
+
+    with pytest.raises(RobotsUnreachable):
+        robots_delay("https://example.com/p", read=lambda url: stand_in)

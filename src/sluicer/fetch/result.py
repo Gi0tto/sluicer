@@ -42,6 +42,29 @@ class EmptyBody(ValueError):
         self.status = status
 
 
+class RedirectRefused(Exception):
+    """A redirect pointed where the caller said it may not lead, and was not asked.
+
+    ``url`` is the address that redirected, ``target`` where it pointed, and
+    ``reason`` the caller's rule. Never a reason to climb: a browser asking for
+    the same address is sent to the same place.
+    """
+
+    def __init__(self, url: str, target: str, reason: str) -> None:
+        super().__init__(
+            f"{url} redirects to {target}, which is not followed: {reason}"
+        )
+        self.url = url
+        self.target = target
+        self.reason = reason
+
+
+Redirects = Callable[[str, str], str | None]
+"""A caller's rule for redirects: given the address that redirected and the one
+it names, why that hop may not be followed, or None when it may. The crawler
+uses one to keep a crawl on its site; a single fetch has none."""
+
+
 @dataclass(frozen=True)
 class Climb:
     """One step between rungs, and the measurement that forced it.

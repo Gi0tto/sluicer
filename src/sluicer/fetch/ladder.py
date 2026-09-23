@@ -34,6 +34,7 @@ from sluicer.fetch.result import (
     Climb,
     EmptyBody,
     Fetched,
+    RedirectRefused,
     ResponseTooLarge,
     Rung,
 )
@@ -42,9 +43,11 @@ from sluicer.fetch.rules import why_climb
 __all__ = [
     "AddressRefused",
     "FetchFailed",
+    "RedirectRefused",
     "ResponseTooLarge",
     "RobotsRefused",
     "fetch",
+    "robots_reader_from",
 ]
 
 
@@ -78,7 +81,7 @@ class FetchFailed(Exception):
         self.climbs = climbs
 
 
-def _default_robots_reader(cheapest_rung: Rung) -> Callable[[str], str | None]:
+def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
     """Build a robots reader from the ladder's own cheapest rung.
 
     The cheapest rung -- the real HTTP rung in production, a fake in a test --
@@ -164,6 +167,8 @@ def fetch(
         AddressRefused: ``allow_private`` is false and the address, or one a
             redirect led to, is private.
         ResponseTooLarge: the page is heavier than ``max_bytes``.
+        RedirectRefused: an injected rung was given a rule for redirects, and a
+            hop broke it.
         FetchFailed: every rung failed, the URL is invalid, or its robots.txt
             could not be read.
         FetchExtraMissing: the ``fetch`` extra is not installed.
@@ -191,9 +196,7 @@ def fetch(
             raise AddressRefused(url, refused)
 
     read = (
-        robots_reader
-        if robots_reader is not None
-        else _default_robots_reader(rungs[0][1])
+        robots_reader if robots_reader is not None else robots_reader_from(rungs[0][1])
     )
     if obey_robots:
         refusal = _robots(url, read)
@@ -214,7 +217,7 @@ def fetch(
             failure = f"the rung raised {type(e).__name__}: {e}"
             # A refusal or a page too heavy is the page's answer, not the
             # rung's: the next rung would be told the same, at a higher cost.
-            final = isinstance(e, (AddressRefused, ResponseTooLarge))
+            final = isinstance(e, (AddressRefused, RedirectRefused, ResponseTooLarge))
             if index < last and not final:
                 climbs.append(
                     Climb(name, rungs[index + 1][0], failure, seconds=seconds)
