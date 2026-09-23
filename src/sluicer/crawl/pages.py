@@ -92,8 +92,10 @@ class Page:
     ended. ``found_on`` is the page whose link led here, None for the start or
     a listed address. ``canonical`` is the page's own ``<link
     rel=canonical>``, and ``links`` every address it lets a crawl follow, in
-    document order. ``extraction`` is ``sluicer.extract``'s reading; it and
-    the fetch fields are None exactly when ``error`` is not.
+    document order; a page that answered 4xx or 5xx has neither, since both
+    would be its error page's. ``extraction`` is ``sluicer.extract``'s
+    reading, as for one fetch; it and the fetch fields are None exactly when
+    ``error`` is not.
     """
 
     url: str
@@ -511,6 +513,9 @@ class _Visitor:
                 target=landed,
             )
         doc = load(fetched.html, url=fetched.url)
+        # An error page's links and canonical are the error page's: a 404 that
+        # names a product as its canonical would have the product marked seen.
+        answered = fetched.status < 400
         return Page(
             task.url,
             task.depth,
@@ -521,8 +526,8 @@ class _Visitor:
             seconds=fetched.seconds,
             climbs=tuple(fetched.climbs),
             extraction=extract(fetched.html, url=fetched.url, induce=self.induce),
-            canonical=canonical_of(doc),
-            links=tuple(links_on(doc)),
+            canonical=canonical_of(doc) if answered else None,
+            links=tuple(links_on(doc)) if answered else (),
         )
 
 

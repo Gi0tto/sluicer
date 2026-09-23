@@ -765,3 +765,21 @@ def test_a_second_crawl_of_a_site_in_one_process_waits_for_the_first():
     list(extract_many([f"{ROOT}/p/1"], **paced(fake, web=fake.web())))
 
     assert fake.gaps("example.com") == [1.0, 1.0, 1.0, 1.0]
+
+
+def test_an_error_pages_links_and_canonical_are_not_the_sites():
+    """A 404 naming a product as its canonical would mark the product seen."""
+    canon = f'<link rel="canonical" href="{ROOT}/p/1">'
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": page("Home", "/gone", "/p/1"),
+            f"{ROOT}/gone": (404, page("Not found", "/nav/1", extra=canon), {}),
+            f"{ROOT}/p/1": page("Pad 1"),
+        }
+    )
+
+    pages = list(run(fake))
+
+    assert urls(pages) == [f"{ROOT}/", f"{ROOT}/gone", f"{ROOT}/p/1"]
+    assert pages[1].ok and pages[1].status == 404
+    assert pages[1].links == () and pages[1].canonical is None
