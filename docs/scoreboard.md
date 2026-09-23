@@ -3,7 +3,7 @@
 How often Sluicer's `summary` gets a page's title, author and publication
 date right, measured beside the tools people use for the same job, on a
 public annotated corpus, with the losses in the same table as the wins.
-Regenerated on 2026-09-23 from commit `6f026e1` with uncommitted changes with
+Regenerated on 2026-09-23 from commit `a0ed1c3` by
 `uv run bench/run.py`; the method and every pin are in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -43,10 +43,10 @@ The 359 article, listing, collection and product pages:
 
 | tool | seconds for all pages | packages installed |
 |---|---|---|
-| sluicer 0.1.0 | 1.19 | 3 |
-| trafilatura 2.2.0 | 18.95 | 17 |
-| metascraper 5.58.1 | 3.71 | 125 |
-| newspaper4k 0.9.6 | 32.89 | 22 |
+| sluicer 0.1.0 | 1.16 | 3 |
+| trafilatura 2.2.0 | 16.18 | 17 |
+| metascraper 5.58.1 | 2.67 | 125 |
+| newspaper4k 0.9.6 | 29.77 | 22 |
 
 Seconds count only the extraction call, one page after another on one
 core; packages count everything the tool's own environment holds.
