@@ -384,3 +384,40 @@ def test_the_exception_is_exported_from_the_package_root():
 
     assert sluicer.MicroformatsExtraMissing is MicroformatsExtraMissing
     assert "MicroformatsExtraMissing" in sluicer.__all__
+
+
+def test_a_page_mf2py_refuses_to_read_declares_no_microformats(monkeypatch):
+    """Found by the property that ``extract`` never raises.
+
+    mf2py 2.0.2 raised ``ValueError`` out of ``extract(html,
+    microformats=True)`` for any page whose ``<base href>`` has a bracketed
+    host that is not IPv6 -- ``https://[domain]/``, as an unfilled template
+    writes -- microformats or none, before reading anything.
+    """
+    from sluicer import extract
+
+    def refuse(**kwargs):
+        raise ValueError("'domain' does not appear to be an IPv4 or IPv6 address")
+
+    module = types.ModuleType("mf2py")
+    module.parse = refuse
+    monkeypatch.setitem(sys.modules, "mf2py", module)
+
+    result = extract('<base href="https://[domain]/p"><p>x</p>', microformats=True)
+
+    assert "microformats" not in result.sources
+
+
+@pytest.mark.parametrize("base", ["https://[domain]/p", "http://[::1"])
+def test_the_real_mf2py_is_asked_and_the_page_still_reads(base):
+    """The same page against mf2py itself, wherever the extra is installed."""
+    pytest.importorskip("mf2py")
+    from sluicer import extract
+
+    html = (
+        f'<html><head><base href="{base}"><title>T</title></head>'
+        '<body><p class="h-card"><a class="p-name u-url" href="/me">Jane</a></p>'
+        "</body></html>"
+    )
+
+    assert extract(html, microformats=True).summary["title"].value == "T"

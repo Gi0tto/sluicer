@@ -71,9 +71,18 @@ def read_microformats(doc: Document) -> list[dict[str, str]]:
     # it made itself; the caller can do nothing with it.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        parsed: dict[str, Any] = mf2py.parse(
-            doc=doc.html, url=doc.url, metaformats=False
-        )
+        try:
+            parsed: dict[str, Any] = mf2py.parse(
+                doc=doc.html, url=doc.url, metaformats=False
+            )
+        except ValueError:
+            # Before it reads anything, mf2py asks urlparse whether the page's
+            # <base href> is absolute, and urlparse refuses a bracketed host
+            # that is not an IPv6 address: the https://[domain]/ an unfilled
+            # template writes. Measured on mf2py 2.0.2. A page mf2py cannot
+            # read declares no microformats, as a block that is not JSON
+            # declares no JSON-LD.
+            return []
     found: list[dict[str, str]] = []
     for item in parsed.get("items") or []:
         flat = _flatten(item)
