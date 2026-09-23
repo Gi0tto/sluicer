@@ -15,14 +15,18 @@ Three mechanisms live in a page's own markup, each with its own standing:
 What is reported is what the page says, verbatim and lowercased, never what it
 therefore permits: a page that declares nothing is reported as declaring
 nothing, which is not the same as allowing everything. Site-level rules --
-robots.txt, TDMRep's ``/.well-known/tdmrep.json`` -- and HTTP headers are not
-the page's markup and are not read here.
+robots.txt, TDMRep's ``/.well-known/tdmrep.json`` -- are not the page's and are
+not read here. The response's headers -- ``X-Robots-Tag``, TDMRep's
+``TDM-Reservation`` and ``TDM-Policy`` -- are reported apart, under ``http``,
+when the headers were given: the page and its server can disagree, and which
+one a reader obeys is its own rule.
 """
 
 from __future__ import annotations
 
 from typing import TypedDict
 
+from sluicer.declared.headers import HeaderRights
 from sluicer.document import Document
 
 # Crawler names a page may put in place of ``robots``, as the engines document
@@ -55,14 +59,17 @@ class Rights(TypedDict, total=False):
     agents: dict[str, list[str]]
     tdm_reservation: str
     tdm_policy: str
+    http: HeaderRights
 
 
-def read_rights(doc: Document) -> Rights:
+def read_rights(doc: Document, header: HeaderRights | None = None) -> Rights:
     """The usage directives the page's own ``<meta>`` tags declare.
 
     Directives from several tags for one agent are gathered in order, each
     once. ``tdm_reservation`` is as the page wrote it -- ``1`` reserves the
-    rights, ``0`` does not -- and the first tag wins.
+    rights, ``0`` does not -- and the first tag wins. ``header`` is what the
+    response's headers declare (``sluicer.declared.headers.read_header_rights``),
+    kept under ``http`` when it says anything.
     """
     found: Rights = {}
     general: list[str] = []
@@ -86,4 +93,6 @@ def read_rights(doc: Document) -> Rights:
         found["robots"] = general
     if agents:
         found["agents"] = {name: rules for name, rules in agents.items() if rules}
+    if header:
+        found["http"] = header
     return found

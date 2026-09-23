@@ -163,6 +163,19 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
     page's relative links resolve against; for literal HTML it is None. Literal
     HTML is held to the bound a fetched page is.
     """
+    html, url, record, _headers = _page_of(html_or_url)
+    return html, url, record
+
+
+def _page_of(
+    html_or_url: str,
+) -> tuple[str, str | None, dict[str, Any] | None, dict[str, str] | None]:
+    """``_html_of``, and the response's headers for a URL.
+
+    The headers are read into the answer -- a canonical in ``Link``,
+    ``X-Robots-Tag`` -- and never sent back raw: a response's cookies are not
+    the agent's to see.
+    """
     if html_or_url.strip().lower().startswith(("http://", "https://")):
         from sluicer.fetch import fetch
 
@@ -179,10 +192,11 @@ def _html_of(html_or_url: str) -> tuple[str, str | None, dict[str, Any] | None]:
                     for climb in fetched.climbs
                 ],
             },
+            fetched.headers,
         )
     if len(html_or_url) > MAX_RESPONSE_BYTES:
         raise ResponseTooLarge("the HTML handed in", MAX_RESPONSE_BYTES)
-    return html_or_url, None, None
+    return html_or_url, None, None, None
 
 
 def build_server() -> Any:
@@ -230,8 +244,9 @@ def build_server() -> Any:
         one value each, naming its source and key. On failure ok is false and
         "error" says why; there is never a record.
         """
-        html, url, fetched = _html_of(html_or_url)
-        result = {"ok": True, **asdict(extract(html, url=url, induce=induce))}
+        html, url, fetched, headers = _page_of(html_or_url)
+        read = extract(html, url=url, induce=induce, headers=headers)
+        result = {"ok": True, **asdict(read)}
         if fetched is not None:
             result["fetch"] = fetched
         return cast(answers.ExtractAnswer, result)

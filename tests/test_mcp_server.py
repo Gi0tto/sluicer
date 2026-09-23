@@ -1,3 +1,4 @@
+import json
 import sys
 import types
 
@@ -152,6 +153,7 @@ def fake_fetch(
     monkeypatch,
     landed_on="https://example.com/final",
     html="<html></html>",
+    headers=None,
     raises=None,
 ):
     """Stand in for the ladder, with the real ``fetch``'s signature and failures.
@@ -191,7 +193,9 @@ def fake_fetch(
         fetch.calls.append({"url": url, "allow_private": allow_private})
         if raises is not None:
             raise raises
-        return Fetched(url=landed_on, html=html, status=200, rung="http")
+        return Fetched(
+            url=landed_on, html=html, status=200, rung="http", headers=headers or {}
+        )
 
     fetch.calls = []
 
@@ -214,6 +218,29 @@ def test_extract_declared_reports_the_url_it_landed_on(monkeypatch):
 
     assert result["url"] == "https://example.com/final"
     assert result["fetch"]["rung"] == "http"
+
+
+def test_extract_declared_reads_the_response_headers_and_never_returns_them(
+    monkeypatch,
+):
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(
+        monkeypatch,
+        html="<html><head><title>T</title></head></html>",
+        headers={
+            "link": "</canonical>; rel=canonical",
+            "x-robots-tag": "noai",
+            "set-cookie": "session=secret",
+        },
+    )
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    result = registered["extract_declared"]("https://example.com/p")
+
+    assert result["links"]["canonical"] == "https://example.com/canonical"
+    assert result["rights"]["http"] == {"robots": ["noai"]}
+    assert "secret" not in json.dumps(result)
 
 
 def test_extract_declared_reports_no_url_for_literal_html(monkeypatch):

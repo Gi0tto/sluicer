@@ -525,7 +525,12 @@ class _Visitor:
             status=fetched.status,
             seconds=fetched.seconds,
             climbs=tuple(fetched.climbs),
-            extraction=extract(fetched.html, url=fetched.url, induce=self.induce),
+            extraction=extract(
+                fetched.html,
+                url=fetched.url,
+                induce=self.induce,
+                headers=fetched.headers,
+            ),
             canonical=canonical_of(doc) if answered else None,
             links=tuple(links_on(doc)) if answered else (),
         )

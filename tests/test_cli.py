@@ -635,6 +635,29 @@ def test_inspect_says_whether_the_page_declares_how_it_may_be_used(tmp_path):
     assert "rights    none declared in the page" in silent
 
 
+def test_extract_reads_the_fetched_pages_headers(monkeypatch):
+    from sluicer.fetch.result import Fetched
+
+    def fake_fetch(url, rungs=None, **kwargs):
+        return Fetched(
+            url="https://example.com/p",
+            html="<html><head><title>T</title></head></html>",
+            status=200,
+            rung="http",
+            headers={"link": "</c>; rel=canonical", "x-robots-tag": "noindex"},
+        )
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+
+    extracted = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+    inspected = CliRunner().invoke(main, ["inspect", "https://example.com/p"])
+
+    payload = json.loads(extracted.stdout)
+    assert payload["links"]["canonical"] == "https://example.com/c"
+    assert payload["rights"]["http"] == {"robots": ["noindex"]}
+    assert "rights    robots noindex  [http header]" in inspected.stdout
+
+
 # -- audit --------------------------------------------------------------------
 
 AUDITED_WELL = (

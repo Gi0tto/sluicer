@@ -366,3 +366,20 @@ def test_a_rung_tries_once_and_gives_up_in_bounded_time(monkeypatch):
     assert seen["http"][1].get("timeout") <= 20
     assert seen["browser"][1].get("retries") == 1
     assert seen["browser"][1].get("timeout") <= 30_000
+
+
+def test_a_browser_answer_keeps_its_headers_names_lowercased():
+    import types
+
+    from sluicer.fetch.scrapling_rungs import _as_fetched
+
+    response = types.SimpleNamespace(
+        html_content="<html><body>hi</body></html>",
+        status=200,
+        url="https://example.com/p",
+        headers={"X-Robots-Tag": "noindex", "Link": "</c>; rel=canonical"},
+    )
+    fetched = _as_fetched(response, "browser", "https://example.com/p")
+    assert fetched.headers == {"x-robots-tag": "noindex", "link": "</c>; rel=canonical"}
+    del response.headers
+    assert _as_fetched(response, "browser", "https://example.com/p").headers == {}

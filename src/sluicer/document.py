@@ -215,7 +215,9 @@ class Document:
     """What relative links resolve against, worked out once by ``load``."""
 
 
-def load(html: str | bytes, url: str | None = None) -> Document:
+def load(
+    html: str | bytes, url: str | None = None, charset: str | None = None
+) -> Document:
     """Parse ``html`` into a ``Document``. Never raises.
 
     Args:
@@ -225,6 +227,9 @@ def load(html: str | bytes, url: str | None = None) -> Document:
             ``sniff_encoding``), never by libxml2, which commits to Latin-1 at
             the first non-ASCII byte.
         url: the address the page came from, used to resolve its links.
+        charset: the charset the response was sent with, from its
+            ``Content-Type``; for bytes, it comes before the page's own
+            declaration, as the HTML standard orders them.
 
     A ``str`` carrying an XML encoding declaration (ordinary XHTML) is refused
     by lxml, since a decoded string cannot also declare an encoding; it is
@@ -234,7 +239,7 @@ def load(html: str | bytes, url: str | None = None) -> Document:
     verbatim on the result.
     """
     if isinstance(html, bytes):
-        tree = _parse_bytes(html)
+        tree = _parse_bytes(html, charset)
         return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
     try:
         tree = lxml.html.fromstring(html, parser=_TEXT_PARSER)
@@ -251,14 +256,14 @@ def load(html: str | bytes, url: str | None = None) -> Document:
     return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
 
 
-def _parse_bytes(data: bytes) -> lxml.html.HtmlElement:
+def _parse_bytes(data: bytes, charset: str | None = None) -> lxml.html.HtmlElement:
     """Decode ``data`` the way a browser would, then parse it.
 
     The decision is never left to libxml2: it settles on Latin-1 at the first
     non-ASCII byte it meets, so a curly quote in a ``<title>`` that precedes
     ``<meta charset="utf-8">`` turned every field on the page to mojibake.
     """
-    text = data.decode(sniff_encoding(data), errors="replace")
+    text = data.decode(sniff_encoding(data, charset), errors="replace")
     return _parse_utf8(text.encode("utf-8"))
 
 

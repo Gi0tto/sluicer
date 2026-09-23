@@ -158,6 +158,7 @@ def summarise(
     opengraph: dict[str, str],
     twitter: dict[str, str],
     htmlmeta: dict[str, str],
+    header_canonicals: list[str] | None = None,
 ) -> dict[str, SummaryField]:
     """Answer each of ``FIELDS`` the page gives an answer to, in that order.
 
@@ -166,8 +167,10 @@ def summarise(
     furniture; induced records are never the subject. Document-level
     vocabularies are read from their own findings rather than from whichever
     record they were folded onto, so a breadcrumb that opens the page's
-    ``@graph`` cannot lend them its name.
+    ``@graph`` cannot lend them its name. ``header_canonicals`` are the
+    canonicals the response's ``Link`` header names, resolved.
     """
+    header_canonicals = header_canonicals or []
     subject = _subject(records)
     site = next((r for r in records if "WebSite" in r.types), None)
     organisation = next(
@@ -228,7 +231,7 @@ def summarise(
             meta(htmlmeta, "html", "description", "meta name="),
             meta(dublincore, "dublincore", "description", "dc."),
         ],
-        "url": [_canonical(doc), og("url"), own("url", _address)],
+        "url": [_canonical(doc, header_canonicals), og("url"), own("url", _address)],
         "image": [
             own("image", _address),
             og("image"),
@@ -826,12 +829,21 @@ def _without_site(found: SummaryField, site_names: set[str]) -> SummaryField | N
     return found
 
 
-def _canonical(doc: Document) -> SummaryField | None:
-    """The page's canonical address, when its head names exactly one."""
-    declared = canonicals(doc)
+def _canonical(doc: Document, header: list[str]) -> SummaryField | None:
+    """The page's canonical address, when its head and ``Link`` header name one.
+
+    ``header`` is the ``Link`` header's canonicals, already resolved; the
+    head's are compared resolved too, so ``/p`` and ``https://site/p`` are one
+    address. Two different ones are a conflict, and answer nothing.
+    """
+    written = canonicals(doc)
+    base = base_url(doc)
+    declared = dict.fromkeys([join(base, href) for href in written] + header)
     if len(declared) != 1:
         return None
-    return SummaryField(declared[0], "html", "<link rel=canonical>")
+    if written:
+        return SummaryField(written[0], "html", "<link rel=canonical>")
+    return SummaryField(header[0], "http", "Link: rel=canonical")
 
 
 def _language(doc: Document) -> SummaryField | None:

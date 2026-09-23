@@ -68,6 +68,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   resolved against the page's base. WordPress's REST API, which every
   WordPress page declares as `rel=alternate type=application/json`, is not
   taken for a feed. Shown in `sluicer inspect` and in the MCP answer.
+- The response's headers, kept and read. `Fetched.headers` holds them, names
+  lowercased; `extract(headers=...)` reads them, and the CLI, the MCP server
+  and the crawler pass them for every page they fetch. A canonical, `hreflang`
+  alternates and the next and previous pages in the `Link` header (RFC 8288)
+  join the markup's -- Google accepts a canonical there as it does in the
+  head, so a head and a header naming two addresses are a conflict and answer
+  no `url`. `X-Robots-Tag`, per crawler as Google documents it, and TDMRep's
+  `TDM-Reservation` and `TDM-Policy` headers are reported in `rights["http"]`,
+  apart from what the page's own tags say. The `Content-Type` charset decodes
+  bytes ahead of the page's declaration, as a browser does. The headers
+  themselves are never sent back to an MCP client: a response's cookies are
+  not the agent's to see.
 - `Extraction.normalised`: the summary's `published`, `modified`, `price` and
   `currency` read into ISO 8601, a decimal with a point and an ISO 4217 code,
   where the page's text leaves no doubt. The summary keeps what the page wrote.

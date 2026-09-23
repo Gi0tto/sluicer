@@ -75,11 +75,13 @@ def _as_fetched(response: Any, rung: str, requested_url: str) -> Fetched:
     """
     if not response.html_content:
         raise ValueError(f"the {rung} rung returned no HTML for {requested_url!r}")
+    declared = getattr(response, "headers", None) or {}
     return Fetched(
         url=getattr(response, "url", None) or requested_url,
         html=response.html_content,
         status=response.status,
         rung=rung,
+        headers={str(k).lower(): str(v) for k, v in dict(declared).items()},
     )
 
 

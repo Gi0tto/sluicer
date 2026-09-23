@@ -100,7 +100,8 @@ def _declared(part: str, before: Any, after: Any) -> list[Difference]:
         if old == new:
             continue
         kind = "added" if old is None else "removed" if new is None else "changed"
-        where = f"html {part}.{key}"
+        # What the response's headers declared came over HTTP, not in markup.
+        where = f"{'http' if key == 'http' else 'html'} {part}.{key}"
         found.append(
             Difference(
                 f"{part}.{key}",

@@ -90,6 +90,31 @@ def test_curls_own_refusal_of_a_heavy_body_is_the_same_answer(monkeypatch):
         http_rung(max_bytes=2500)("https://example.com/p")
 
 
+def test_the_http_rung_keeps_the_responses_headers(monkeypatch):
+    class Repeated(dict):
+        """A curl_cffi header set, where a header can come twice."""
+
+        def multi_items(self):
+            return [
+                ("Content-Type", "text/html; charset=utf-8"),
+                ("Link", "</a>; rel=canonical"),
+                ("link", "</b>; rel=next"),
+            ]
+
+    fake_curl(
+        monkeypatch,
+        [(200, b"<html><body>ok</body></html>", Repeated(content_type="text/html"))],
+    )
+    from sluicer.fetch.http_rung import http_rung
+
+    fetched = http_rung()("https://example.com/p")
+
+    assert fetched.headers == {
+        "content-type": "text/html; charset=utf-8",
+        "link": "</a>; rel=canonical, </b>; rel=next",
+    }
+
+
 def test_curl_is_told_the_bound_too(monkeypatch):
     seen = fake_curl(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung

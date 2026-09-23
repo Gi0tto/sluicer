@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import TypedDict
 
+from sluicer.declared.headers import HeaderLinks
 from sluicer.document import Document, base_url, join
 
 
@@ -78,13 +79,18 @@ def canonicals(doc: Document) -> list[str]:
     return found
 
 
-def read_links(doc: Document) -> Links:
+def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:
     """Every link relation the page declares, in document order, first wins.
 
     ``<link>`` anywhere in the document is read, since pages put them in the
     body too; ``rel=next`` and ``rel=prev`` are also read from ``<a>``, where
     pagination usually is. A relation declared twice keeps its first address,
     and a list never repeats one.
+
+    ``header`` is what the response's ``Link`` header declares
+    (``sluicer.declared.headers.read_header_links``), read after the markup.
+    A canonical there counts with the head's: the same address in both is one
+    canonical, two different ones are a conflict.
     """
     base = base_url(doc)
     found: Links = {}
@@ -123,7 +129,17 @@ def read_links(doc: Document) -> Links:
             feeds.append({"format": _FEEDS[kind], "href": address, "title": title})
         elif kind in _OEMBED and address not in oembed:
             oembed.append(address)
-    declared = [join(base, href) for href in canonicals(doc)][:_MOST]
+    if header is not None:
+        for hreflang, address in header["alternates"]:
+            if (hreflang.lower(), address) not in seen:
+                seen.add((hreflang.lower(), address))
+                alternates.append({"hreflang": hreflang, "href": address})
+        if header["next"] is not None:
+            found.setdefault("next", header["next"])
+        if header["prev"] is not None:
+            found.setdefault("prev", header["prev"])
+    declared = [join(base, href) for href in canonicals(doc)]
+    declared = [*declared, *(header["canonicals"] if header else [])][:_MOST]
     if len(set(declared)) == 1:
         found["canonical"] = declared[0]
     elif declared:

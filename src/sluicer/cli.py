@@ -223,7 +223,13 @@ def extract(
     """Read the structured data a URL, a file or stdin declares."""
     html, url, fetched = _read_source(source, stealth, no_robots, base_url)
     try:
-        result = extract_html(html, url=url, induce=induce, microformats=microformats)
+        result = extract_html(
+            html,
+            url=url,
+            induce=induce,
+            microformats=microformats,
+            headers=fetched.headers if fetched else None,
+        )
     except MicroformatsExtraMissing as missing:
         _fail(str(missing), missing)
     if not result.records and not result.summary:
@@ -277,7 +283,13 @@ def inspect(
     """
     html, url, fetched = _read_source(source, stealth, no_robots, base_url)
     try:
-        result = extract_html(html, url=url, induce=induce, microformats=microformats)
+        result = extract_html(
+            html,
+            url=url,
+            induce=induce,
+            microformats=microformats,
+            headers=fetched.headers if fetched else None,
+        )
     except MicroformatsExtraMissing as missing:
         _fail(str(missing), missing)
     shown = "standard input" if source == "-" else (url or source)
@@ -388,7 +400,20 @@ def _link_lines(links: Mapping[str, Any]) -> list[str]:
 
 
 def _rights_lines(rights: Mapping[str, Any]) -> list[str]:
-    """What the page's tags declare about its use; one line saying so if nothing."""
+    """What the page's tags declare about its use; one line saying so if nothing.
+
+    What the response's headers declared follows, each line marked as theirs.
+    """
+    said = _directives(rights)
+    said += [f"{line}  [http header]" for line in _directives(rights.get("http", {}))]
+    if not said:
+        return ["rights    none declared in the page"]
+    return [
+        ("rights    " if n == 0 else "          ") + line for n, line in enumerate(said)
+    ]
+
+
+def _directives(rights: Mapping[str, Any]) -> list[str]:
     said = []
     if rights.get("robots"):
         said.append("robots " + ", ".join(rights["robots"]))
@@ -398,11 +423,7 @@ def _rights_lines(rights: Mapping[str, Any]) -> list[str]:
         said.append(f"tdm-reservation {rights['tdm_reservation']}")
     if "tdm_policy" in rights:
         said.append(f"tdm-policy {rights['tdm_policy']}")
-    if not said:
-        return ["rights    none declared in the page"]
-    return [
-        ("rights    " if n == 0 else "          ") + line for n, line in enumerate(said)
-    ]
+    return said
 
 
 def _columns(rows: list[tuple[str, str, str]], indent: str) -> list[str]:
@@ -441,8 +462,10 @@ def diff_command(
     """
     readings = []
     for source in (before, after):
-        html, url, _fetched = _read_source(source, stealth, no_robots, base_url)
-        readings.append(extract_html(html, url=url))
+        html, url, fetched = _read_source(source, stealth, no_robots, base_url)
+        readings.append(
+            extract_html(html, url=url, headers=fetched.headers if fetched else None)
+        )
     differences = compare(readings[0], readings[1])
     if as_json:
         click.echo(

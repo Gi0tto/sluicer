@@ -96,6 +96,10 @@ class Fetched:
     rung: str
     climbs: list[Climb] = field(default_factory=list)
     seconds: float = 0.0
+    headers: dict[str, str] = field(default_factory=dict)
+    """The response's headers, names lowercased, a repeated one's values joined
+    with ", ". What the page's server said beside the page: a canonical in
+    ``Link``, usage directives in ``X-Robots-Tag``, the charset."""
 
 
 Rung = Callable[[str], Fetched]

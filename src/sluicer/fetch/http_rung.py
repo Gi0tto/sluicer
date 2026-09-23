@@ -24,10 +24,11 @@ dresses it up as a browser.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
+from sluicer.declared.headers import charset
 from sluicer.document import sniff_encoding
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch.address import _numeric, _resolve, public_addresses
@@ -68,6 +69,7 @@ class Response:
     status: int
     content_type: str
     body: bytes
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 def http_responses(
@@ -113,7 +115,13 @@ def http_responses(
                     raise RedirectRefused(current, target, refused)
                 current = target
                 continue
-            return Response(current, status, headers.get("content-type") or "", body)
+            return Response(
+                current,
+                status,
+                headers.get("content-type") or "",
+                body,
+                _all_headers(headers),
+            )
         raise TooManyRedirects(f"{url} redirected more than {MAX_REDIRECTS} times")
 
     return get
@@ -139,11 +147,17 @@ def http_rung(
     def http(url: str) -> Fetched:
         response = get(url)
         body = response.body
-        charset = _charset(response.content_type)
-        html = body.decode(sniff_encoding(body, charset), errors="replace")
+        sent = charset({"content-type": response.content_type})
+        html = body.decode(sniff_encoding(body, sent), errors="replace")
         if not html and not allow_empty:
             raise EmptyBody(url, "http", response.status)
-        return Fetched(url=response.url, html=html, status=response.status, rung="http")
+        return Fetched(
+            url=response.url,
+            html=html,
+            status=response.status,
+            rung="http",
+            headers=response.headers,
+        )
 
     return http
 
@@ -197,10 +211,13 @@ def _pins(url: str, resolve: Callable[[str], Iterable[str]]) -> list[str]:
     return [f"{host.encode('idna').decode('ascii')}:{port}:{listed}"]
 
 
-def _charset(content_type: str) -> str | None:
-    """The ``charset`` parameter of a ``Content-Type``, or None."""
-    for parameter in content_type.split(";")[1:]:
-        name, _, value = parameter.partition("=")
-        if name.strip().lower() == "charset" and value.strip():
-            return value.strip().strip("\"'")
-    return None
+def _all_headers(headers: Any) -> dict[str, str]:
+    """A response's headers as one lowercased name each, repeats joined."""
+    pairs = (
+        headers.multi_items() if hasattr(headers, "multi_items") else headers.items()
+    )
+    found: dict[str, str] = {}
+    for name, value in pairs:
+        key = str(name).lower()
+        found[key] = f"{found[key]}, {value}" if key in found else str(value)
+    return found

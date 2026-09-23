@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from sluicer.declared.headers import (
+    charset,
+    lowered,
+    read_header_links,
+    read_header_rights,
+)
 from sluicer.declared.links import Links, read_links
 from sluicer.declared.merge import ABOUT_A_THING, Record, merge
 from sluicer.declared.readers import READERS
@@ -47,6 +54,7 @@ def extract(
     url: str | None = None,
     induce: bool = False,
     microformats: bool = False,
+    headers: Mapping[str, str] | None = None,
 ) -> Extraction:
     """Read the structured data ``html`` declares, merged, with its provenance.
 
@@ -59,6 +67,13 @@ def extract(
             ``source="induced"``. Never fills a gap in a declared record.
         microformats: also read microformats2. Off by default; needs
             ``sluicer[microformats]``.
+        headers: the response's headers, when the page came over HTTP. A
+            canonical, ``hreflang`` alternates and the next and previous pages
+            in its ``Link`` header join the markup's in ``links`` and the
+            summary's ``url``; ``X-Robots-Tag`` and TDMRep's headers are
+            reported in ``rights["http"]``; the ``Content-Type`` charset
+            decodes bytes, ahead of the page's own declaration, as a browser
+            does. ``Fetched.headers`` is this.
 
     Returns:
         An ``Extraction``: the ``summary``, the ``records`` (a record with no
@@ -73,7 +88,9 @@ def extract(
     Why the order is what it is, and when induction runs, is in
     ``docs/design-notes.md``.
     """
-    doc = load(html, url=url)
+    sent = lowered(headers)
+    doc = load(html, url=url, charset=charset(sent))
+    header_links = read_header_links(sent, url) if sent else None
     asked = {"microformats": microformats}
     found = {
         reader.name: (
@@ -96,6 +113,7 @@ def extract(
         found["opengraph"] or {},
         found["twitter"] or {},
         found["html"] or {},
+        header_links["canonicals"] if header_links else None,
     )
     if induce and not _declared_about_its_things(records):
         induced = induce_records(doc)
@@ -108,8 +126,8 @@ def extract(
         normalised=normalised(summary),
         records=records,
         sources=sources,
-        links=read_links(doc),
-        rights=read_rights(doc),
+        links=read_links(doc, header_links),
+        rights=read_rights(doc, read_header_rights(sent) if sent else None),
     )
 
 
