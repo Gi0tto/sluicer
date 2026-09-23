@@ -242,10 +242,10 @@ that carry a label; an invention is an answer on a page whose label is empty.
 
 | | title | author | date | dates invented | seconds | packages |
 |---|---|---|---|---|---|---|
-| **sluicer 0.1.0** | 0.725 | 0.521 | 0.536 | **8** | **1.2** | **3** |
+| **sluicer 0.2.0** | 0.725 | 0.521 | 0.536 | **8** | **1.6** | **3** |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.2 | 17 |
-| newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.8 | 22 |
-| metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.7 | 125 |
+| newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
+| metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.5 | 125 |
 
 Sluicer loses on authors and dates, which the others also read from the visible
 text of the page and Sluicer does not guess from prose. It invents least: when
