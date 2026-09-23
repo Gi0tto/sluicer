@@ -89,7 +89,13 @@ packages = ["src/sluicer"]
 exclude = ["/site", "/bench"]
 
 [dependency-groups]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.16", "mypy>=1.11"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.16",
+    "mypy>=1.11",
+    "hypothesis>=6.168.1",
+]
 
 # The three sections below are the gates CI enforces: lint, coverage, types.
 

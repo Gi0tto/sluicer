@@ -16,3 +16,4 @@ stdout.txt
 stderr.txt
 exitcode.txt
 site/
+.hypothesis/

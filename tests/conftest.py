@@ -16,11 +16,43 @@ that never touches ``robots_allows``, and this keeps every test file that
 does from having to remember to ask for them.
 """
 
+import os
 import sys
 import types
 from urllib import robotparser
 
 import pytest
+from hypothesis import HealthCheck, settings
+
+# The properties in tests/properties run under one of two profiles, chosen by
+# HYPOTHESIS_PROFILE. ``default`` is what every run of the suite gets: few
+# examples, drawn from a fixed seed, so the suite stays a few seconds long and a
+# red build on an unrelated change can be reproduced by running it again.
+# ``fuzz`` is the search, run by its own CI job: thousands of examples, a fresh
+# seed every time, and the blob that replays a failure printed with it.
+#
+# No deadline in either: a property that parses a page is timed by the machine
+# it runs on, and a slow CI runner is not a bug. What each property must cost is
+# asserted where it matters, as a bound on output, not on the clock.
+#
+# Hypothesis keeps what it finds in .hypothesis/ in the working directory, a
+# directory of files; nothing here reaches the network.
+_UNHURRIED = [HealthCheck.too_slow, HealthCheck.data_too_large]
+settings.register_profile(
+    "default",
+    max_examples=15,
+    deadline=None,
+    derandomize=True,
+    suppress_health_check=_UNHURRIED,
+)
+settings.register_profile(
+    "fuzz",
+    max_examples=2500,
+    deadline=None,
+    print_blob=True,
+    suppress_health_check=_UNHURRIED,
+)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
 
 class _FakeMatcher:
