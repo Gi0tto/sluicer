@@ -26,6 +26,7 @@ nav:
   - Why Sluicer: why.md
   - Extractors: extractors.md
   - Moving from extruct: extruct.md
+  - In your agent: agents.md
   - HTTP API: http-api.md
   - Audit: audit.md
   - Crawling: crawling.md

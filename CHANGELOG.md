@@ -2,16 +2,6 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
-
-### Added
-- Two more ways of writing a date are read into ISO 8601: the year first, as
-  PubMed writes a citation's date (`2023 Jan 7`), and JavaScript's
-  `Date.toString()`, which one page wrote into its JSON-LD (`Fri Oct 24 2025
-  03:22:33 GMT+0000 (GMT)`), at its offset. Of the 669 dates the benchmarks'
-  pages declare, the ones not read go from 11 to 6, all six refused on
-  purpose.
-
 ## 0.4.0 - 2026-09-23
 
 ### Changed
@@ -37,6 +27,30 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is not a price of 19.
 
 ### Added
+- Every MCP tool has a title and says in its annotations that it only reads,
+  destroys nothing and may reach the web (`readOnlyHint`, `destructiveHint`,
+  `idempotentHint`, `openWorldHint`). A client that asks before a tool writes
+  now runs Sluicer's without asking: measured with Codex 0.144.4, `codex exec`
+  cancelled every call unless the tools were approved in advance, and with
+  the annotations it runs them in its default, `writes` and `auto` modes.
+- `sluicer mcp`, the MCP server as a subcommand, which is how the MCP Registry
+  starts a package: `uvx --with 'sluicer[mcp]' sluicer mcp`. `sluicer-mcp`
+  stays. `server.json` lists the server in the registry as
+  `io.github.Gi0tto/sluicer`, the README carries the `mcp-name` line the
+  registry checks on PyPI, and a test holds the entry to the package's
+  version. The release workflow publishes it after PyPI, with a pinned and
+  checksummed `mcp-publisher` and the workflow's own identity, once the
+  repository variable `PUBLISH_TO_MCP_REGISTRY` is true.
+- `docs/agents.md`: the server in Claude Code, Codex, Cursor, VS Code, Gemini
+  CLI, Claude Desktop and Zed, the skill in Codex, and a page another
+  crawler fetched. Claude Code and Codex were run end to end; the others are
+  written from their own documentation, and say so.
+- Two more ways of writing a date are read into ISO 8601: the year first, as
+  PubMed writes a citation's date (`2023 Jan 7`), and JavaScript's
+  `Date.toString()`, which one page wrote into its JSON-LD (`Fri Oct 24 2025
+  03:22:33 GMT+0000 (GMT)`), at its offset. Of the 669 dates the benchmarks'
+  pages declare, the ones not read go from 11 to 6, all six refused on
+  purpose.
 - Every value says where on the page it was declared. `Field.where`,
   `Record.where` and `SummaryField.where` are an XPath to the element that
   declared it -- for JSON-LD, the `<script>` block's, with a JSON pointer (RFC
@@ -331,6 +345,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Crawl-delay` and `Sitemap` reading in the `with-extras` job.
 
 ### Fixed
+- The skill's frontmatter had a top-level `version`, which the Agent Skills
+  standard does not allow and its own validator refused, so a client that
+  reads the standard, as Codex does, could refuse the skill. The version is
+  under `metadata`, `compatibility` says what the skill needs, and a test
+  holds the frontmatter to the fields the standard names.
 - A `url` or `image` that cleans to nothing -- a JSON-LD `url` of one control
   character -- was answered as the empty text rather than passed over for the
   next declaration: addresses are now resolved before one is chosen. Found by

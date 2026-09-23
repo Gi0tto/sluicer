@@ -111,13 +111,20 @@ result = sluicer.extract(html, url="https://example.com/p")
 print(result.summary["title"].value, "via", result.summary["title"].key)
 ```
 
-For an agent: `claude mcp add sluicer -- sluicer-mcp`, or install the repository
-as a Claude Code plugin with `/plugin install`. Ten tools --
+For an agent: `uvx --with 'sluicer[mcp]' sluicer mcp` is the MCP server, and
+`claude mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp` or
+`codex mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp` adds it;
+Cursor, VS Code, Gemini CLI, Claude Desktop and Zed are in
+[In your agent](https://github.com/Gi0tto/sluicer/blob/main/docs/agents.md).
+The repository is also a Claude Code plugin, and its skill keeps to the open
+Agent Skills format Codex reads. Ten tools --
 `extract_declared`, `page_markdown`, `fetch_page`, `compile_extractor`,
 `run_extractor`, `heal_extractor`, `audit_page`, `read_feed`, `map_site`,
 `crawl_site` --
 each answering with `ok`, which is true exactly when the answer can be used as
-it is, and an output schema. The server fetches nothing on `localhost`, a
+it is, and an output schema, and each saying in its annotations that it only
+reads, so a client that asks before a tool writes runs it without asking. The
+server fetches nothing on `localhost`, a
 private network or a cloud's metadata endpoint -- redirects and a browser's
 requests included -- unless started with `SLUICER_ALLOW_PRIVATE=1`.
 
