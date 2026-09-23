@@ -84,7 +84,8 @@ any page failed any check. A run that broke its contract never exits 0.
 ## What healing does
 
 `heal` learns the new pages from scratch, then matches each old field to its new
-place: the new field that holds most of the sample values the old one held. Two
+place: the new field that holds most of the sample values the old one held, and
+of two that hold as many, the one more rows carry. Two
 columns that swapped are two moves, not two fields kept in place. A field whose
 old values appear nowhere, but whose own place is still there holding values of
 the shape it was learnt with, is kept: a listing's items change between two

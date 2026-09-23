@@ -336,6 +336,28 @@ def test_a_relative_address_learnt_from_a_file_still_matches_the_site():
     assert moved["a.title@href"] == "a.name@href"
 
 
+def test_a_field_found_in_two_new_places_moves_to_the_one_in_every_row():
+    # Found by the drift benchmark: SourceForge's 2024 redesign shows a
+    # project's name as its heading in every row and as its icon's alt text in
+    # rows that have an icon. The two held the old names equally, and heal took
+    # the icon, first in the alphabet, which a quarter of the rows lack.
+    def card(i):
+        icon = f'<a class="icon"><img alt="{TITLES[i]}" src="/i/{i}.png"></a>'
+        return (
+            f'<li class="card">{icon if i < 5 or i == 7 else ""}'
+            f'<h3 class="name">{TITLES[i]}</h3><a class="go" href="/book/{i}">Go</a>'
+            f'<span class="cost">£{10 + i}.99</span>{STOCK}</li>'
+        )
+
+    extractor = learn(shop_page(books(10)), shop_page(books(10)))
+    page = shop_page([card(i) for i in range(10)])
+
+    _healed, changes = heal(extractor, [(page, "https://shop.example/")])
+
+    moved = {c.before: c.after for c in changes if c.kind == "moved"}
+    assert moved["a.title"] == "h3.name"
+
+
 def test_a_link_that_gained_a_tracking_parameter_is_the_same_link():
     # Found by the drift benchmark: IMDb's Top 250 before and after its 2023
     # redesign tags every link with ?ref_=chttp_t_1, and heal called the title

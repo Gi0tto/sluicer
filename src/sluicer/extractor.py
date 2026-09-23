@@ -778,7 +778,10 @@ def _heal_listing(
     # Every candidate pairing, best first: the values an old field held, seen
     # again in a new place. The same place counts only as one candidate among
     # the others, so two columns that swapped are two moves, not two keeps; and
-    # it is the last candidate when it holds new values of the old shape.
+    # it is the last candidate when it holds new values of the old shape. Of
+    # two places that hold as much, the one more rows carry: a name that is
+    # both a heading and an icon's alt text is the heading, since not every
+    # row has an icon.
     scored = []
     for order, f in enumerate(old.fields):
         for path in fresh:
@@ -791,10 +794,11 @@ def _heal_listing(
             seen = overlap(f, path)
             same_place = path == f.path
             if seen > 0 or (same_place and (not f.samples or still_there(f))):
-                scored.append((-seen, not same_place, order, path, f))
+                missing = fresh[path].missing
+                scored.append((-seen, not same_place, missing, order, path, f))
     claimed: dict[str, str] = {}
     matched: dict[str, str] = {}
-    for _seen, _elsewhere, _order, path, f in sorted(scored, key=lambda s: s[:4]):
+    for *_rank, path, f in sorted(scored, key=lambda s: s[:5]):
         if f.name in matched or path in claimed:
             continue
         claimed[path] = f.name

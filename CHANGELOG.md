@@ -80,6 +80,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   after IMDb's 2023 redesign every film's link carries `?ref_=chttp_t_1`. A
   link with the same path, whose parameters are all among the other's, is now
   the same link; `?id=2` is still another item than `?id=1`.
+- `heal` broke a tie between two new places holding a field's old values by
+  their paths' alphabetical order. After SourceForge's redesign a project's
+  name is its heading in every row and its icon's alt text in the rows that
+  have an icon, and heal took the icon. The place more rows carry now wins.
 
 ## 0.2.0 - 2026-09-23
 
