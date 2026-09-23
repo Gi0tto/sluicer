@@ -143,7 +143,13 @@ def test_the_archive_is_read_over_the_http_rung_kept_within_it(monkeypatch):
         return archive()
 
     monkeypatch.setattr("sluicer.fetch.http_rung.http_rung", http_rung)
-    fetched = fetch_archived("http://shop.example/p/1", "2020", allow_private=False)
+    fetched = fetch_archived(
+        "http://shop.example/p/1",
+        "2020",
+        allow_private=False,
+        # A public address, answered here: the suite never asks a real resolver.
+        resolve=lambda host: ["93.184.216.34"],
+    )
     assert fetched.archived is not None
     assert built == {"allow_private": False, "redirects": _within_archive}
 
@@ -283,6 +289,9 @@ def test_an_agent_reads_a_page_as_it_was(monkeypatch, archived):
     assert read["ok"] is True
     assert read["fetch"]["archived"]["captured"] == "20200629104713"
     assert read["links"]["canonical"] == "http://shop.example/p/1"
+    from test_markdown import fake_trafilatura
+
+    fake_trafilatura(monkeypatch)
     text = registered["page_markdown"]("http://shop.example/p/1", at="2020")
     assert text["ok"] is True and text["fetch"]["rung"] == "archive"
 
