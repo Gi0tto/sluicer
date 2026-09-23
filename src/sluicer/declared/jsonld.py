@@ -52,8 +52,9 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
             found.extend(_flatten(parsed))
     index = _definitions(found)
     # Every copy a reference makes is paid for from one budget, ten times what
-    # the page holds: four thousand references to one node of four thousand
-    # items were four gigabytes of copies from a 119 KB page. Past the budget
+    # the page holds, in values and in characters: four thousand references to
+    # one node of four thousand items were four gigabytes of copies from a
+    # 119 KB page. Past the budget
     # a reference stays a reference, in document order, so the answer is
     # deterministic.
     walk = _Walk(index, [max(10_000, 10 * _size(found))])
@@ -187,13 +188,22 @@ class _Walk:
 
 
 def _size(value: Any) -> int:
-    """How many values ``value`` holds, itself included, counted without recursing."""
+    """What a copy of ``value`` costs, counted without recursing.
+
+    One for every value, itself included, and one for every character of its
+    text and of its keys. Counting values alone priced a node holding one long
+    string at three, so four hundred references to a 4,000-character name were
+    copied in full: 1.6 MB of JSON from a 10 KB page.
+    """
     count = 0
     pending = [value]
     while pending:
         item = pending.pop()
         count += 1
-        if isinstance(item, dict):
+        if isinstance(item, str):
+            count += len(item)
+        elif isinstance(item, dict):
+            count += sum(len(key) for key in item)
             pending.extend(item.values())
         elif isinstance(item, list):
             pending.extend(item)

@@ -426,6 +426,37 @@ def test_thousands_of_references_to_one_large_node_cost_a_bounded_amount():
     assert all(item == {"@id": "#t"} for item in related if "tags" not in item)
 
 
+def test_hundreds_of_references_to_one_long_string_cost_a_bounded_amount():
+    """Found by the property that what a page yields is bounded by its size.
+
+    The budget counted values and not characters, so a node holding one long
+    name cost three to copy however long the name: every one of 400 references
+    to a 4,000-character name was resolved, 1.6 MB of JSON from a 10 KB page,
+    and the ratio grows with the page.
+    """
+    import json
+
+    from sluicer.declared.jsonld import read_jsonld
+    from sluicer.document import load
+
+    graph = [
+        {"@id": "#t", "@type": "Thing", "name": "x" * 4000},
+        {"@type": "Product", "name": "p", "isRelatedTo": [{"@id": "#t"}] * 400},
+    ]
+    html = (
+        '<script type="application/ld+json">'
+        + json.dumps({"@graph": graph})
+        + "</script>"
+    )
+
+    found = read_jsonld(load(html))
+
+    related = next(node for node in found if node["@type"] == "Product")
+    resolved = [item for item in related["isRelatedTo"] if "name" in item]
+    assert 0 < len(resolved) < 20
+    assert len(json.dumps(found)) < 11 * len(html)
+
+
 def test_a_reference_is_still_resolved_when_the_page_is_small():
     import json
 
