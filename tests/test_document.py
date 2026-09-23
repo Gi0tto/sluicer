@@ -194,6 +194,42 @@ def test_a_label_python_knows_and_no_page_can_be_in_is_passed_over(label):
     assert _title(page.encode("utf-8")) == "Bremsöl"
 
 
+@pytest.mark.parametrize(
+    "meta",
+    [
+        '<meta content="text/html; a>b" charset="windows-1251">',
+        "<meta name='x>y' charset=windows-1251>",
+    ],
+)
+def test_a_greater_than_sign_in_a_quoted_value_does_not_end_the_meta(meta):
+    """Found by the property that a declaration is read whatever else its
+    ``<meta>`` carries, in any attribute order.
+
+    The tag was cut at its first ``>``, quoted or not, so a declaration
+    written after such a value was never seen and the page came out as
+    windows-1252 mojibake. The standard's prescan reads a quoted value whole.
+    """
+    page = f"<html><head>{meta}<title>Тормоза</title></head></html>"
+
+    assert _title(page.encode("windows-1251")) == "Тормоза"
+
+
+def test_a_head_of_unclosed_meta_tags_is_read_in_one_pass():
+    """Every ``<meta`` in the head was tried from where it began, and one that
+    never closed was scanned to the end of the head each time: 64 KB of
+    ``<meta `` took 1.4 seconds to sniff."""
+    import time
+
+    from sluicer.document import sniff_encoding
+
+    head = b"<meta " * 13_000
+
+    started = time.perf_counter()
+    sniff_encoding(head)
+
+    assert time.perf_counter() - started < 0.2
+
+
 def test_a_charset_inside_a_comment_is_not_a_declaration():
     page = (
         '<html><head><!-- <meta charset="windows-1251"> -->'

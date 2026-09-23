@@ -5,6 +5,7 @@ from __future__ import annotations
 import codecs
 import functools
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from urllib.parse import urljoin
 
@@ -53,7 +54,8 @@ _BOMS = (
 )
 _XML_DECLARATION = re.compile(rb"^\s*<\?xml[^>]*encoding\s*=\s*[\"']([^\"']+)")
 _COMMENT = re.compile(rb"<!--.*?-->", re.DOTALL)
-_META = re.compile(rb"<meta\b([^>]*)>", re.IGNORECASE)
+_META = re.compile(rb"<meta\b", re.IGNORECASE)
+_TAG_END = re.compile(rb"[>\"']")
 _ATTRIBUTE = re.compile(
     rb"""([^\s=/>"']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?"""
 )
@@ -103,12 +105,39 @@ def _declared_encoding(data: bytes) -> str | None:
     body = _BODY.search(head)
     if body:
         head = head[: body.start()]
-    for meta in _META.finditer(head):
-        label = _charset_of(meta.group(1))
+    for attributes in _meta_attributes(head):
+        label = _charset_of(attributes)
         found = _codec(label) if label else None
         if found is not None:
             return found
     return None
+
+
+def _meta_attributes(head: bytes) -> Iterator[bytes]:
+    """The attributes of each ``<meta>`` in ``head``, read the way the prescan is.
+
+    A quoted value is read whole, so ``<meta content="a>b" charset="koi8-r">``
+    declares KOI8-R; ending the tag at the first ``>`` lost every declaration
+    written after a value holding one. And the reading only moves forward: a
+    tag that never closes holds the rest of the head, as it does for the
+    standard, instead of being tried again from every ``<meta`` inside it,
+    which took seconds on a head of nothing but unclosed tags.
+    """
+    at = 0
+    while opening := _META.search(head, at):
+        start = at = opening.end()
+        while True:
+            stop = _TAG_END.search(head, at)
+            if stop is None:
+                return
+            if stop.group() == b">":
+                yield head[start : stop.start()]
+                at = stop.end()
+                break
+            closing = head.find(stop.group(), stop.end())
+            if closing < 0:
+                return
+            at = closing + 1
 
 
 def _charset_of(attributes: bytes) -> bytes | None:
