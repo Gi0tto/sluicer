@@ -513,3 +513,80 @@ def test_the_fetch_flags_reach_the_ladder(monkeypatch):
     )
 
     assert seen == {"stealth": True, "obey_robots": False}
+
+
+def test_inspect_shows_each_field_and_answer_with_where_it_came_from():
+    result = CliRunner().invoke(
+        main, ["inspect", str(FIXTURES / "drift" / "product.html")]
+    )
+
+    assert result.exit_code == 0, result.output
+    lines = result.stdout.splitlines()
+    assert lines[0].endswith("product.html")
+    assert any(
+        line.startswith("readers   jsonld (1 record, 3 fields)") for line in lines
+    )
+    assert any("Product  (jsonld)" in line for line in lines)
+    assert any(
+        line.split() == ["price", "41.90", "[jsonld", "Product.offers]"]
+        for line in lines
+    )
+    assert any("not read: microformats" in line for line in lines)
+
+
+def test_inspect_is_the_same_report_every_time():
+    page = str(FIXTURES / "drift" / "product.html")
+
+    first = CliRunner().invoke(main, ["inspect", page]).stdout
+    second = CliRunner().invoke(main, ["inspect", page]).stdout
+
+    assert first == second
+
+
+def test_inspect_says_what_the_fetch_cost(monkeypatch):
+    from sluicer.fetch.result import Climb, Fetched
+
+    page = (FIXTURES / "drift" / "product.html").read_text()
+
+    def fetched(url, **options):
+        return Fetched(
+            url=url,
+            html=page,
+            status=200,
+            rung="browser",
+            climbs=[Climb("http", "browser", "the server refused: status 403", 0.25)],
+            seconds=1.5,
+        )
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fetched)
+    result = CliRunner().invoke(main, ["inspect", "https://shop.example/p"])
+
+    assert result.exit_code == 0, result.output
+    assert "fetch     browser rung, status 200, 1.50 s" in result.stdout
+    assert "http -> browser after 0.25 s: the server refused: status 403" in (
+        result.stdout
+    )
+    assert "robots    allowed by the site's robots.txt" in result.stdout
+
+
+def test_inspect_of_a_page_that_gives_nothing_exits_one(tmp_path):
+    page = tmp_path / "bare.html"
+    page.write_text("<html><body><p>Nothing declared here.</p></body></html>")
+
+    result = CliRunner().invoke(main, ["inspect", str(page)])
+
+    assert result.exit_code == 1
+    assert "records   0, nothing declared" in result.stdout
+
+
+def test_a_page_too_heavy_to_fetch_exits_two_with_a_message(monkeypatch):
+    from sluicer.fetch.result import ResponseTooLarge
+
+    def heavy(url, **options):
+        raise ResponseTooLarge(url, 16)
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", heavy)
+    result = CliRunner().invoke(main, ["extract", "https://shop.example/huge"])
+
+    assert result.exit_code == 2
+    assert "larger than 16 bytes" in result.stderr

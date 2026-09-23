@@ -18,8 +18,9 @@ from typing import NoReturn
 
 import click
 
-from sluicer.api import extract as extract_html
+from sluicer.api import Extraction, extract as extract_html
 from sluicer.declared.microformats import MicroformatsExtraMissing
+from sluicer.declared.readers import READERS
 from sluicer.extractor import (
     LOSSES,
     Extractor,
@@ -29,7 +30,7 @@ from sluicer.extractor import (
     run_extractor,
 )
 from sluicer.fetch import FetchFailed, RobotsRefused, fetch as fetch_url
-from sluicer.fetch.result import Fetched
+from sluicer.fetch.result import Fetched, ResponseTooLarge
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
 
@@ -122,6 +123,8 @@ def _read_source(
             # Every rung failed, whatever library it was built on: a browser's
             # timeout, for one, is not an OSError.
             _fail(str(failed), failed)
+        except ResponseTooLarge as heavy:
+            _fail(str(heavy), heavy)
         except (OSError, ValueError) as failure:
             # An operational failure is a message and a bug is a traceback.
             # OSError covers down, unresolvable and timed out; ValueError is a
@@ -208,6 +211,131 @@ def extract(
             "climbs": [asdict(climb) for climb in fetched.climbs],
         }
     click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+@main.command()
+@click.argument("source")
+@click.option(
+    "--induce",
+    is_flag=True,
+    help="Also read the rows a page repeats when it declares nothing about them.",
+)
+@click.option(
+    "--microformats",
+    is_flag=True,
+    help="Also read microformats2 (needs sluicer[microformats]).",
+)
+@_with_fetch_options
+def inspect(
+    source: str,
+    induce: bool,
+    microformats: bool,
+    stealth: bool,
+    no_robots: bool,
+    base_url: str | None,
+) -> None:
+    """Show, for a person, what a page declares and where each answer came from.
+
+    The same reading as ``extract``, laid out to be read rather than parsed:
+    what the fetch cost, which vocabularies said something, every record with
+    the source of each field, and every summary answer with its source and
+    key. Exit codes are ``extract``'s.
+    """
+    html, url, fetched = _read_source(source, stealth, no_robots, base_url)
+    try:
+        result = extract_html(html, url=url, induce=induce, microformats=microformats)
+    except MicroformatsExtraMissing as missing:
+        _fail(str(missing), missing)
+    shown = "standard input" if source == "-" else (url or source)
+    click.echo(_inspection(shown, result, fetched, microformats, not no_robots))
+    if not result.records and not result.summary:
+        raise SystemExit(NOTHING_FOUND)
+
+
+def _inspection(
+    shown: str,
+    result: Extraction,
+    fetched: Fetched | None,
+    microformats: bool,
+    obeyed_robots: bool,
+) -> str:
+    """The report ``inspect`` prints, deterministic for a given page."""
+    lines = [f"page      {shown}"]
+    if fetched is not None:
+        lines.append(
+            f"fetch     {fetched.rung} rung, status {fetched.status}, "
+            f"{fetched.seconds:.2f} s"
+        )
+        for climb in fetched.climbs:
+            lines.append(
+                f"          {climb.from_rung} -> {climb.to_rung} after "
+                f"{climb.seconds:.2f} s: {climb.reason}"
+            )
+        lines.append(
+            "robots    allowed by the site's robots.txt"
+            if obeyed_robots
+            else "robots    not asked (--no-robots)"
+        )
+    records_by: dict[str, int] = {}
+    fields_by: dict[str, int] = {}
+    for record in result.records:
+        if record.source:
+            records_by[record.source] = records_by.get(record.source, 0) + 1
+        for found in record.fields.values():
+            fields_by[found.source] = fields_by.get(found.source, 0) + 1
+    said = []
+    for name in [reader.name for reader in READERS] + ["induced"]:
+        if name in fields_by:
+            fields = fields_by[name]
+            counted = f"{fields} field{'s' if fields != 1 else ''}"
+            if name in records_by:
+                n = records_by[name]
+                counted = f"{n} record{'s' if n != 1 else ''}, {counted}"
+            said.append(f"{name} ({counted})")
+    silent = [
+        reader.name
+        for reader in READERS
+        if reader.name not in fields_by and (reader.optional is None or microformats)
+    ]
+    lines.append("readers   " + (", ".join(said) if said else "none said anything"))
+    if silent:
+        lines.append("          silent: " + ", ".join(silent))
+    if not microformats:
+        lines.append("          not read: microformats (--microformats)")
+    lines.append("")
+    records = len(result.records)
+    lines.append(f"records   {records}" + ("" if records else ", nothing declared"))
+    for record in result.records:
+        kind = " / ".join(record.types) or "no type"
+        lines.append(f"  {kind}" + (f"  ({record.source})" if record.source else ""))
+        rows = [
+            (name, _brief(found.value), found.source)
+            for name, found in record.fields.items()
+        ]
+        lines.extend(_columns(rows, indent="    "))
+    lines.append("")
+    answers = len(result.summary)
+    lines.append(f"summary   {answers} answer{'s' if answers != 1 else ''}")
+    rows = [
+        (question, _brief(answer.value), f"{answer.source} {answer.key}")
+        for question, answer in result.summary.items()
+    ]
+    lines.extend(_columns(rows, indent="  "))
+    return "\n".join(lines)
+
+
+def _columns(rows: list[tuple[str, str, str]], indent: str) -> list[str]:
+    """Name, value and source, the first two padded to line the third up."""
+    name = max((len(row[0]) for row in rows), default=0)
+    value = max((len(row[1]) for row in rows), default=0)
+    return [f"{indent}{row[0]:{name}}  {row[1]:{value}}  [{row[2]}]" for row in rows]
+
+
+def _brief(value: object, limit: int = 72) -> str:
+    """A value on one line: text as it is, a nested value as compact JSON."""
+    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
 @main.command()
