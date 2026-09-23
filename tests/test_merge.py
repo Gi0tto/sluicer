@@ -10,7 +10,7 @@ def test_jsonld_wins_and_provenance_is_kept():
         dublincore={},
         opengraph={"title": "From OpenGraph"},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 1
@@ -29,7 +29,7 @@ def test_opengraph_alone_still_produces_one_record():
         dublincore={},
         opengraph={"title": "Only OG"},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert records[0].fields["title"].source == "opengraph"
@@ -46,7 +46,7 @@ def test_nothing_declared_gives_no_records():
             dublincore={},
             opengraph={},
             twitter={},
-            htmlmeta={},
+            html={},
         )
         == []
     )
@@ -64,7 +64,7 @@ def test_two_jsonld_objects_of_one_type_stay_two_records():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 2
@@ -88,7 +88,7 @@ def test_microdata_folds_into_the_first_record_of_its_type():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 2
@@ -108,7 +108,7 @@ def test_opengraph_fills_only_the_first_record():
         dublincore={},
         opengraph={"title": "Page title"},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 2
@@ -125,7 +125,7 @@ def test_a_list_valued_type_keeps_every_type_and_names_the_first():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 1
@@ -142,7 +142,7 @@ def test_records_fold_when_they_share_any_type():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 1
@@ -159,7 +159,7 @@ def test_records_sharing_no_type_stay_apart():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 2
@@ -175,7 +175,7 @@ def test_untyped_records_never_fold_into_each_other():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 2
@@ -193,7 +193,7 @@ def test_a_json_null_is_an_absence_not_the_text_none():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert "gtin" not in records[0].fields
@@ -208,7 +208,7 @@ def test_a_null_does_not_shadow_a_real_value_from_a_later_reader():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert records[0].fields["gtin"].value == "4001234567890"
@@ -230,7 +230,7 @@ def test_a_boolean_is_recorded_the_way_the_page_declared_it():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert records[0].fields["isAccessibleForFree"].value == "true"
@@ -246,7 +246,7 @@ def test_an_empty_value_does_not_shadow_a_real_one_from_a_later_reader():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 1
@@ -270,7 +270,7 @@ def test_six_readers_disagreeing_resolve_in_the_stated_order():
         dublincore={"title": "From Dublin Core", "creator": "A cataloguer"},
         opengraph={"title": "From OpenGraph", "image": "https://example.com/i.jpg"},
         twitter={"title": "From the Twitter card", "card": "summary"},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 1
@@ -295,7 +295,7 @@ def test_rdfa_folds_into_a_record_of_its_type_and_keeps_its_source():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 1
@@ -311,7 +311,7 @@ def test_an_rdfa_subject_of_another_type_stays_its_own_record():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 2
@@ -328,7 +328,7 @@ def test_opengraph_wins_a_key_the_twitter_card_also_declares():
         dublincore={},
         opengraph={"title": "From OpenGraph"},
         twitter={"title": "From the Twitter card"},
-        htmlmeta={},
+        html={},
     )
 
     assert records[0].fields["title"] == Field(
@@ -345,7 +345,7 @@ def test_the_twitter_card_fills_what_opengraph_left_empty():
         dublincore={},
         opengraph={"title": "From OpenGraph"},
         twitter={"card": "summary_large_image"},
-        htmlmeta={},
+        html={},
     )
 
     assert records[0].fields["card"] == Field(
@@ -362,7 +362,7 @@ def test_a_twitter_card_alone_still_produces_one_record():
         dublincore={},
         opengraph={},
         twitter={"title": "Only the card"},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 1
@@ -384,7 +384,7 @@ def test_an_empty_document_level_value_does_not_shadow_a_later_reader():
         dublincore={"title": "   "},
         opengraph={"title": "From OpenGraph"},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert records[0].fields["title"] == Field(
@@ -405,7 +405,7 @@ def test_microformats_sits_between_microdata_and_rdfa():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
 
     assert len(records) == 1
@@ -426,7 +426,7 @@ def test_html_s_own_metadata_names_come_last_and_say_so():
         dublincore={},
         opengraph={"description": "From OpenGraph"},
         twitter={},
-        htmlmeta={"description": "From the bare meta tag", "author": "Nancy Peyer"},
+        html={"description": "From the bare meta tag", "author": "Nancy Peyer"},
     )
 
     assert records[0].fields["description"] == Field(
@@ -444,7 +444,7 @@ def test_a_bare_meta_name_alone_still_produces_one_record():
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={"description": "Only the bare tag"},
+        html={"description": "Only the bare tag"},
     )
 
     assert records[0].fields["description"] == Field(
@@ -462,7 +462,7 @@ def _merge(**found):
         dublincore={},
         opengraph={},
         twitter={},
-        htmlmeta={},
+        html={},
     )
     readers.update(found)
     return merge(**readers)
@@ -515,3 +515,37 @@ def test_rdfa_items_of_one_type_stay_apart_as_well():
     )
 
     assert len(records) == 2
+
+
+def test_a_name_no_reader_has_is_refused_rather_than_dropped():
+    import pytest
+
+    with pytest.raises(ValueError, match="htmlmeta"):
+        merge(htmlmeta={"description": "lost"})
+
+
+def test_the_registry_is_the_order_of_precedence_the_docs_give():
+    from sluicer.declared.merge import ABOUT_A_THING
+    from sluicer.declared.readers import READERS
+
+    assert [reader.name for reader in READERS] == [
+        "jsonld",
+        "microdata",
+        "microformats",
+        "rdfa",
+        "dublincore",
+        "opengraph",
+        "twitter",
+        "html",
+    ]
+    assert {"jsonld", "microdata", "microformats", "rdfa"} == ABOUT_A_THING
+
+
+def test_the_precedence_is_the_registrys_not_the_callers():
+    """Keyword order at the call site changes nothing."""
+    records = merge(
+        html={"description": "From meta"},
+        opengraph={"description": "From OpenGraph"},
+    )
+
+    assert records[0].fields["description"].source == "opengraph"

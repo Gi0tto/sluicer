@@ -4,15 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from sluicer.declared.dublincore import read_dublincore
-from sluicer.declared.htmlmeta import read_htmlmeta
-from sluicer.declared.jsonld import read_jsonld
 from sluicer.declared.merge import ABOUT_A_THING, Record, merge
-from sluicer.declared.microdata import read_microdata
-from sluicer.declared.microformats import read_microformats
-from sluicer.declared.opengraph import read_opengraph
-from sluicer.declared.rdfa import read_rdfa
-from sluicer.declared.twitter import read_twitter
+from sluicer.declared.readers import READERS
 from sluicer.document import load
 from sluicer.structure import induce as induce_records
 from sluicer.summary import SummaryField, summarise
@@ -67,45 +60,29 @@ def extract(
     ``docs/design-notes.md``.
     """
     doc = load(html, url=url)
-    jsonld = read_jsonld(doc)
-    microdata = read_microdata(doc)
-    # Not calling the reader is what keeps mf2py unimported on a base install.
-    found_microformats = read_microformats(doc) if microformats else []
-    rdfa = read_rdfa(doc)
-    dublincore = read_dublincore(doc)
-    opengraph = read_opengraph(doc)
-    twitter = read_twitter(doc)
-    htmlmeta = read_htmlmeta(doc)
-
-    sources = [
-        name
-        for name, found in (
-            ("jsonld", jsonld),
-            ("microdata", microdata),
-            ("microformats", found_microformats),
-            ("rdfa", rdfa),
-            ("dublincore", dublincore),
-            ("opengraph", opengraph),
-            ("twitter", twitter),
-            ("html", htmlmeta),
+    asked = {"microformats": microformats}
+    found = {
+        reader.name: (
+            reader.read(doc)
+            if reader.optional is None or asked[reader.optional]
+            else None
         )
-        if found
-    ]
-    records = merge(
-        jsonld=jsonld,
-        microdata=microdata,
-        microformats=found_microformats,
-        rdfa=rdfa,
-        dublincore=dublincore,
-        opengraph=opengraph,
-        twitter=twitter,
-        htmlmeta=htmlmeta,
-    )
+        for reader in READERS
+    }
+    sources = [name for name, declared in found.items() if declared]
+    records = merge(**{name: declared for name, declared in found.items() if declared})
     # A record carrying no field is a type and nothing else -- a ``WebPage``
     # with only an ``@id``, a microformats root that was a CSS class -- and an
     # empty value is not a value, whole records included.
     records = [record for record in records if record.fields]
-    summary = summarise(doc, records, dublincore, opengraph, twitter, htmlmeta)
+    summary = summarise(
+        doc,
+        records,
+        found["dublincore"] or {},
+        found["opengraph"] or {},
+        found["twitter"] or {},
+        found["html"] or {},
+    )
     if induce and not _declared_about_its_things(records):
         induced = induce_records(doc)
         if induced:

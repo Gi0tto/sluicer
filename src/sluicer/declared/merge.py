@@ -5,9 +5,9 @@ both JSON-LD and microdata, fields from the lower-precedence reader fill gaps
 in the higher-precedence one. Within one reader, two entries of the same type
 are two things and stay two records.
 
-The order of precedence is written down once, in ``merge``: JSON-LD,
-microdata, microformats, RDFa, Dublin Core, OpenGraph, the Twitter card,
-HTML's own metadata names.
+The order of precedence is written down once, in
+``sluicer.declared.readers.READERS``: JSON-LD, microdata, microformats, RDFa,
+Dublin Core, OpenGraph, the Twitter card, HTML's own metadata names.
 
 A nested value -- JSON-LD's ``offers``, ``author`` or ``recipeIngredient``, a
 microdata item inside another -- is carried whole, as JSON: an object is a
@@ -25,6 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
+from sluicer.declared.readers import BY_NAME, READERS
 from sluicer.declared.types import type_name
 
 # What a field holds: text, or the objects and lists a page nests, down to text.
@@ -36,12 +37,9 @@ MAX_DEPTH = 16
 # The readers that describe a thing on the page, as opposed to the page itself
 # (Dublin Core, OpenGraph, the Twitter card, HTML's meta names). Induction runs
 # only when none of these produced a field, and the summary answers a record's
-# own questions only from these. Named positively on purpose: a new
-# document-level reader then needs no change here, and an unlisted reader is
-# taken to describe the document, which is the safe side -- it lets induction
-# run. A new reader that describes a thing must be added here, under the exact
-# source name it emits.
-ABOUT_A_THING = frozenset({"jsonld", "microdata", "rdfa", "microformats"})
+# own questions only from these. Read off the registry, so a new reader is
+# counted by saying what it describes, once.
+ABOUT_A_THING = frozenset(reader.name for reader in READERS if reader.about_things)
 
 
 @dataclass(frozen=True)
@@ -76,26 +74,15 @@ class Record:
     source: str | None = None
 
 
-def merge(
-    jsonld: list[dict[str, Any]],
-    microdata: list[dict[str, Any]],
-    microformats: list[dict[str, str]],
-    rdfa: list[dict[str, Any]],
-    dublincore: dict[str, str],
-    opengraph: dict[str, str],
-    twitter: dict[str, str],
-    htmlmeta: dict[str, str],
-) -> list[Record]:
-    """Merge reader output. Earlier readers win; every field keeps its source.
+def merge(**found: Any) -> list[Record]:
+    """Merge what each reader found. Earlier readers win; every field keeps its source.
 
-    The parameter order is the order of precedence: the first field written
-    under a name survives, so a later reader only fills gaps. The first four
-    readers describe things and fold by type; the last four describe the
-    document, declare no type, and fill the first record on the page.
-
-    No parameter has a default, so adding a reader forces every call site to
-    pass it rather than silently leaving it out. ``microformats`` is an empty
-    list when the caller did not ask for that reader.
+    ``found`` maps a reader's name (``jsonld``, ``html``, see ``READERS``) to
+    what it read; a reader left out found nothing. The precedence is the
+    registry's, never the caller's: the first field written under a name
+    survives, so a later reader only fills gaps. The readers about things fold
+    by type; the readers about the document declare no type and fill the first
+    record on the page.
 
     Two records fold when they share at least one type (``["Product",
     "Thing"]`` in JSON-LD and ``Thing`` in microdata). A record with no type
@@ -103,26 +90,26 @@ def merge(
     first matching record in document order, the only deterministic signal
     available; which record is the page's subject is the summary's question,
     not this one's.
+
+    Raises:
+        ValueError: a name no reader has, which would otherwise be dropped.
     """
+    unknown = sorted(set(found) - set(BY_NAME))
+    if unknown:
+        raise ValueError(f"no reader is called {', '.join(unknown)}")
     records: list[Record] = []
 
-    for item in jsonld:
-        records.append(_record_from(item, "jsonld"))
-
-    # Microdata, microformats and RDFa fold the same way, in this order.
     # A reader folds only into what earlier readers found, and each of those
     # records takes at most one item from it: one product described in two
     # vocabularies is one product, but three products in one vocabulary are
     # three. Folding all three onto the first put a related product's SKU and
-    # price on the main one.
-    for source, items in (
-        ("microdata", microdata),
-        ("microformats", microformats),
-        ("rdfa", rdfa),
-    ):
+    # price on the main one. JSON-LD, first, finds nothing to fold into.
+    for reader in READERS:
+        if not reader.about_things:
+            continue
         candidates = list(records)
-        for item in items:
-            record = _record_from(item, source)
+        for item in found.get(reader.name) or ():
+            record = _record_from(item, reader.name)
             target = _fold_target(candidates, record)
             if target is None:
                 records.append(record)
@@ -132,19 +119,18 @@ def merge(
                 target.fields.setdefault(key, value)
 
     # The document-level readers declare no type, so each fills the first
-    # record, in this order. That settles og:title against twitter:title,
-    # which strip to the same key, and puts <meta name="description"> behind
-    # og:description.
-    about_the_document = (
-        ("dublincore", dublincore),
-        ("opengraph", opengraph),
-        ("twitter", twitter),
-        ("html", htmlmeta),
-    )
-    if any(found for _, found in about_the_document):
+    # record, in the registry's order. That settles og:title against
+    # twitter:title, which strip to the same key, and puts <meta
+    # name="description"> behind og:description.
+    about_the_document = [
+        (reader.name, found.get(reader.name) or {})
+        for reader in READERS
+        if not reader.about_things
+    ]
+    if any(declared for _, declared in about_the_document):
         target = records[0] if records else Record()
-        for source, found in about_the_document:
-            for key, declared in found.items():
+        for source, declared_by_it in about_the_document:
+            for key, declared in declared_by_it.items():
                 text = _scalar(declared)
                 if text is None:
                     continue
