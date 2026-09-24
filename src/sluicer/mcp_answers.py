@@ -138,6 +138,7 @@ class ExtractAnswer(TypedDict, total=False):
     normalised: dict[str, str]
     conflicts: list[ConflictAnswer]
     records: list[RecordAnswer]
+    records_left_out: int
     sources: list[str]
     links: dict[str, Any]
     rights: dict[str, Any]
@@ -149,6 +150,8 @@ class MarkdownAnswer(TypedDict, total=False):
     error: ErrorDetail
     markdown: str
     url: str | None
+    length: int
+    next_offset: int | None
     fetch: FetchRecord
 
 
@@ -160,6 +163,7 @@ class PageAnswer(TypedDict, total=False):
     fetch: FetchRecord
     truncated: bool
     length: int
+    next_offset: int | None
 
 
 class CompileAnswer(TypedDict, total=False):

@@ -34,13 +34,20 @@ from sluicer.fetch.archive import NotArchived
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
 from sluicer.markdown import to_markdown
 
-MAX_HTML_CHARS = 200_000
-"""How much of a page ``fetch_page`` hands an agent.
+MOST_CHARS = 60_000
+"""The most characters of a page, or of its markdown, one answer carries.
 
-Measured on 2026-09-22, one product page was 3.95 MB of JSON, which is not a
-tool result but the end of the agent's context. The page is cut here, and the
-result says it was cut and how long it really was.
+Claude Code keeps a tool's answer to 25,000 tokens and puts a larger one in a
+file instead of the conversation; at about three characters a token, with
+room for JSON's escaping, this stays under it. The 200,000 characters
+``fetch_page`` used to return were over it on 302 of 386 real pages. A longer
+page is read in slices: each answer says where the next one starts.
 """
+DEFAULT_CHARS = 30_000
+"""A slice's length when the agent names none."""
+MOST_ANSWER_BYTES = 75_000
+"""The most an answer of ``extract_declared`` may weigh, in UTF-8 bytes of its
+JSON: past it the records are left out, counted, and the summary kept."""
 
 ALLOW_PRIVATE_ENV = "SLUICER_ALLOW_PRIVATE"
 """Set to 1 to let the server fetch addresses off the public internet.
@@ -374,6 +381,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         induce: bool = False,
         at: str | None = None,
         respect_tdm: bool = False,
+        records: bool = True,
     ) -> answers.ExtractAnswer:
         """Read the structured data a page declares, with where each value came from.
 
@@ -385,6 +393,10 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         respect_tdm: answer tdm_reserved instead of the page when the site
         reserves its text and data mining rights (TDMRep: its tdmrep.json,
         headers or meta tags).
+        records: also return every record, not only the summary and what
+        was normalised; false keeps the answer small. Records that would
+        make the answer larger than 75,000 bytes are left out and counted in
+        records_left_out.
 
         Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
         for a URL. records are typed fields, each {"value", "source",
@@ -405,6 +417,10 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             _respect_tdm(html, url, fetched, headers)
         read = extract(html, url=url, induce=induce, headers=headers)
         result = {"ok": True, **asdict(read)}
+        if not records:
+            del result["records"]
+        elif _bytes_of(result) > MOST_ANSWER_BYTES:
+            result["records_left_out"] = len(result.pop("records"))
         if fetched is not None:
             result["fetch"] = fetched
         return cast(answers.ExtractAnswer, result)
@@ -416,6 +432,8 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         front_matter: bool = False,
         at: str | None = None,
         respect_tdm: bool = False,
+        offset: int = 0,
+        max_chars: int = DEFAULT_CHARS,
     ) -> answers.MarkdownAnswer:
         """Return a page's main content as markdown, without navigation or footer.
 
@@ -426,18 +444,27 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         at: a date: read the URL as the Wayback Machine captured it then.
         respect_tdm: answer tdm_reserved when the site reserves its text and
         data mining rights (TDMRep).
+        offset: where in the markdown this answer starts, 0 for the
+        beginning; the answer before gives the next as next_offset.
+        max_chars: how many characters this answer carries, 1 to 60,000.
 
-        Returns {"ok", "markdown", "url"}, and "fetch" for a URL. The markdown
-        is always the page's own content: a failure is ok false with "error",
-        never text that could be mistaken for the page.
+        Returns {"ok", "markdown", "url", "length", "next_offset"}, and
+        "fetch" for a URL: markdown is one slice, length the whole markdown's,
+        next_offset where the next slice starts or null at the end. The
+        markdown is always the page's own content: a failure is ok false with
+        "error", never text that could be mistaken for the page.
         """
         html, url, fetched, headers = _page_of(html_or_url, at)
         if respect_tdm:
             _respect_tdm(html, url, fetched, headers)
+        whole = to_markdown(html, url=url, front_matter=front_matter)
+        part, following = _slice(whole, offset, max_chars)
         result: dict[str, Any] = {
             "ok": True,
-            "markdown": to_markdown(html, url=url, front_matter=front_matter),
+            "markdown": part,
             "url": url,
+            "length": len(whole),
+            "next_offset": following,
         }
         if fetched is not None:
             result["fetch"] = fetched
@@ -445,28 +472,37 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
 
     @tool("Fetch a page")
     @_answers_instead_of_raising
-    def fetch_page(url: str) -> answers.PageAnswer:
+    def fetch_page(
+        url: str, offset: int = 0, max_chars: int = DEFAULT_CHARS
+    ) -> answers.PageAnswer:
         """Fetch a page's HTML, and say what it cost: plain HTTP or a browser.
 
         url: an http(s) URL. Literal HTML is refused, since nothing would be
         fetched.
+        offset: where in the HTML this answer starts, 0 for the beginning;
+        the answer before gives the next as next_offset.
+        max_chars: how many characters this answer carries, 1 to 60,000.
 
-        Returns {"ok", "html", "url", "fetch", "truncated", "length"}. The
-        HTML is cut at 200,000 characters; prefer extract_declared or
-        page_markdown, which return what is in the page rather than all of it.
+        Returns {"ok", "html", "url", "fetch", "truncated", "length",
+        "next_offset"}: html is one slice of the page, length the whole
+        page's, and next_offset where the next slice starts, or null when
+        this one reaches the end. Prefer extract_declared or page_markdown,
+        which return what is in the page rather than all of it.
         """
         if not url.strip().lower().startswith(("http://", "https://")):
             # Refused rather than echoed back: a caller handed the string it
             # sent, with no way to tell nothing was fetched, is worse off.
             raise _BadInput(f"fetch_page needs an http:// or https:// URL, got {url!r}")
         html, landed, fetched = _html_of(url)
+        part, following = _slice(html, offset, max_chars)
         page = {
             "ok": True,
-            "html": html[:MAX_HTML_CHARS],
+            "html": part,
             "url": landed,
             "fetch": fetched,
-            "truncated": len(html) > MAX_HTML_CHARS,
+            "truncated": following is not None,
             "length": len(html),
+            "next_offset": following,
         }
         return cast(answers.PageAnswer, page)
 
@@ -765,6 +801,25 @@ def _parameter_notes(doc: str, names: Iterable[str]) -> dict[str, str]:
         else:
             current = None
     return notes
+
+
+def _bytes_of(answer: dict[str, Any]) -> int:
+    """What an answer weighs as the JSON a client receives."""
+    return len(json.dumps(answer, ensure_ascii=False, default=str).encode("utf-8"))
+
+
+def _slice(text: str, offset: int, max_chars: int) -> tuple[str, int | None]:
+    """The slice of ``text`` an answer carries, and where the next one starts,
+    or None when this one reaches the end. The same text, offset and length
+    always give the same slice."""
+    _within("max_chars", max_chars, 1, MOST_CHARS)
+    if offset < 0 or (offset and offset >= len(text)):
+        raise _BadInput(
+            f"offset {offset} is outside the text, which is {len(text):,} characters"
+        )
+    part = text[offset : offset + max_chars]
+    end = offset + len(part)
+    return part, end if end < len(text) else None
 
 
 def _within(name: str, value: int, least: int, most: int) -> None:

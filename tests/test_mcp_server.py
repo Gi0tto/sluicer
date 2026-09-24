@@ -676,19 +676,96 @@ def test_the_server_refuses_private_addresses_unless_told_otherwise(monkeypatch)
     assert [call["allow_private"] for call in fetch.calls] == [False, True]
 
 
-def test_a_large_page_is_cut_and_says_so(monkeypatch):
-    from sluicer.mcp_server import MAX_HTML_CHARS
+def test_a_large_page_is_read_in_slices_that_join_back_to_the_whole(monkeypatch):
+    """Claude Code keeps a tool answer to 25,000 tokens and puts a larger one
+    in a file: the 200,000 characters fetch_page used to return were over that
+    on most real pages. A slice says where the next one starts."""
+    from sluicer.mcp_server import MOST_CHARS
 
+    page = "".join(f"<p>{n}</p>" for n in range(20_000))
     registered = fake_mcp(monkeypatch)
-    fake_fetch(monkeypatch, html="x" * (MAX_HTML_CHARS + 10))
+    fake_fetch(monkeypatch, html=page)
     from sluicer.mcp_server import build_server
 
     build_server()
-    result = registered["fetch_page"]("https://example.com/p")
+    first = registered["fetch_page"]("https://example.com/p")
+    assert first["truncated"] is True and first["length"] == len(page)
+    assert len(first["html"]) <= MOST_CHARS and first["next_offset"] == len(
+        first["html"]
+    )
+    slices, offset = [], 0
+    while offset is not None:
+        got = registered["fetch_page"]("https://example.com/p", offset=offset)
+        slices.append(got["html"])
+        offset = got["next_offset"]
+    assert "".join(slices) == page
+    assert got["truncated"] is False
 
-    assert len(result["html"]) == MAX_HTML_CHARS
-    assert result["truncated"] is True
-    assert result["length"] == MAX_HTML_CHARS + 10
+
+def test_a_slice_larger_than_an_answer_may_be_is_refused(monkeypatch):
+    from sluicer.mcp_server import MOST_CHARS
+
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, html="<p>x</p>")
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    big = registered["fetch_page"]("https://example.com/p", max_chars=MOST_CHARS + 1)
+    assert big["ok"] is False and big["error"]["code"] == "bad_input"
+    past = registered["fetch_page"]("https://example.com/p", offset=10_000)
+    assert past["ok"] is False and past["error"]["code"] == "bad_input"
+
+
+def test_markdown_is_read_in_slices_too(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, html="<html></html>")
+    import sluicer.mcp_server as server_module
+
+    text = "".join(f"line {n}\n" for n in range(10_000))
+    monkeypatch.setattr(server_module, "to_markdown", lambda *a, **k: text)
+    server_module.build_server()
+    slices, offset = [], 0
+    while offset is not None:
+        got = registered["page_markdown"]("https://example.com/p", offset=offset)
+        assert got["ok"] is True and got["length"] == len(text)
+        slices.append(got["markdown"])
+        offset = got["next_offset"]
+    assert "".join(slices) == text and len(slices) > 1
+
+
+def test_extract_declared_answers_without_records_when_asked(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    page = (
+        '<html><head><script type="application/ld+json">'
+        '{"@type": "Product", "name": "Pads", "offers": {"price": "41.90"}}'
+        "</script></head></html>"
+    )
+    whole = registered["extract_declared"](page)
+    brief = registered["extract_declared"](page, records=False)
+    assert whole["records"] and "records" not in brief
+    assert brief["summary"] == whole["summary"]
+
+
+def test_records_too_large_for_an_answer_are_left_out_and_counted(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    monkeypatch.setattr(server_module, "MOST_ANSWER_BYTES", 2_000)
+    server_module.build_server()
+    items = ",".join(
+        f'{{"@type": "Product", "name": "Item {n}", "description": "{"word " * 20}"}}'
+        for n in range(40)
+    )
+    page = f'<script type="application/ld+json">[{items}]</script>'
+    got = registered["extract_declared"](page)
+    assert got["ok"] is True and "records" not in got
+    assert got["records_left_out"] == 40
+    assert got["sources"] == ["jsonld"]
+    whole = server_module._bytes_of(got)
+    assert whole < server_module.MOST_ANSWER_BYTES
 
 
 def test_the_server_reports_its_own_version(monkeypatch):

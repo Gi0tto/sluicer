@@ -15,6 +15,7 @@ Read the structured data a page declares, with where each value came from.
 - `induce`: also read repeated rows (a listing, a feed) from a page that declares nothing about them; those fields say source "induced".
 - `at`: a date (2024, 2024-06, 2024-06-01): read the URL as the Wayback Machine captured it nearest to then; "fetch" says which capture.
 - `respect_tdm`: answer tdm_reserved instead of the page when the site reserves its text and data mining rights (TDMRep: its tdmrep.json, headers or meta tags).
+- `records`: also return every record, not only the summary and what was normalised; false keeps the answer small. Records that would make the answer larger than 75,000 bytes are left out and counted in records_left_out.
 
 Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
 for a URL. records are typed fields, each {"value", "source",
@@ -36,6 +37,7 @@ is never a record.
 | `induce` | boolean | `False` |
 | `at` | string or null | `None` |
 | `respect_tdm` | boolean | `False` |
+| `records` | boolean | `True` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
 
@@ -49,10 +51,14 @@ Return a page's main content as markdown, without navigation or footer.
 - `front_matter`: open the markdown with a YAML block of what the page declares about itself (title, author, dates, url...) and each answer's source.
 - `at`: a date: read the URL as the Wayback Machine captured it then.
 - `respect_tdm`: answer tdm_reserved when the site reserves its text and data mining rights (TDMRep).
+- `offset`: where in the markdown this answer starts, 0 for the beginning; the answer before gives the next as next_offset.
+- `max_chars`: how many characters this answer carries, 1 to 60,000.
 
-Returns {"ok", "markdown", "url"}, and "fetch" for a URL. The markdown
-is always the page's own content: a failure is ok false with "error",
-never text that could be mistaken for the page.
+Returns {"ok", "markdown", "url", "length", "next_offset"}, and
+"fetch" for a URL: markdown is one slice, length the whole markdown's,
+next_offset where the next slice starts or null at the end. The
+markdown is always the page's own content: a failure is ok false with
+"error", never text that could be mistaken for the page.
 
 | parameter | type | default |
 |---|---|---|
@@ -60,6 +66,8 @@ never text that could be mistaken for the page.
 | `front_matter` | boolean | `False` |
 | `at` | string or null | `None` |
 | `respect_tdm` | boolean | `False` |
+| `offset` | integer | `0` |
+| `max_chars` | integer | `30000` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
 
@@ -70,14 +78,20 @@ Its annotations say it only reads, changes nothing, gives the same answer when c
 Fetch a page's HTML, and say what it cost: plain HTTP or a browser.
 
 - `url`: an http(s) URL. Literal HTML is refused, since nothing would be fetched.
+- `offset`: where in the HTML this answer starts, 0 for the beginning; the answer before gives the next as next_offset.
+- `max_chars`: how many characters this answer carries, 1 to 60,000.
 
-Returns {"ok", "html", "url", "fetch", "truncated", "length"}. The
-HTML is cut at 200,000 characters; prefer extract_declared or
-page_markdown, which return what is in the page rather than all of it.
+Returns {"ok", "html", "url", "fetch", "truncated", "length",
+"next_offset"}: html is one slice of the page, length the whole
+page's, and next_offset where the next slice starts, or null when
+this one reaches the end. Prefer extract_declared or page_markdown,
+which return what is in the page rather than all of it.
 
 | parameter | type | default |
 |---|---|---|
 | `url` | string | required |
+| `offset` | integer | `0` |
+| `max_chars` | integer | `30000` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
 

@@ -434,8 +434,11 @@ which fetch outside any route. What remains: the browser resolves names in its
 own network stack, so a name that answers differently between the check and the
 connection is reached from there. SECURITY.md says so too.
 
-**A page is bounded at 16 MiB, and what reaches an agent at 200,000
-characters.** The HTTP rung stops reading past `MAX_RESPONSE_BYTES`, after
+**A page is bounded at 16 MiB, and one answer to an agent at 60,000
+characters.** A longer page or markdown is read in slices, each answer saying
+where the next starts (`next_offset`), and `extract_declared` leaves its records
+out, counted, past 75,000 bytes: Claude Code puts an answer over 25,000 tokens
+in a file rather than the conversation. The HTTP rung stops reading past `MAX_RESPONSE_BYTES`, after
 decompression, so a gzip that inflates to gigabytes costs the bound; before
 0.3.0 a 200 MB response was measured holding 1.14 GB. The browser rungs are held
 to the same bound only once the page is loaded: the browser's own memory is the

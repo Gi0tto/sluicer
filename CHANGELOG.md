@@ -13,6 +13,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   still the most often right when it answers a date, 0.734 against 0.573.
 
 ### Added
+- No MCP answer is larger than a client takes. `fetch_page` and
+  `page_markdown` answer a slice of at most 60,000 characters, 30,000 unless
+  asked, with `offset`, `max_chars`, the whole length, and `next_offset` where
+  the next slice starts: Claude Code puts an answer over 25,000 tokens in a
+  file, and the 200,000 characters `fetch_page` returned were over that on 302
+  of 386 real pages. `extract_declared` takes `records=False` for the summary
+  alone, 1.4 KB instead of 5.9 KB at the median, and leaves its records out,
+  counted in `records_left_out`, past 75,000 bytes.
 - A page field is read after its label when the pages it was learnt from
   contradict its place. `compile --want` still learns where the example sits;
   when that place holds nothing on another of the pages given, or a value that
