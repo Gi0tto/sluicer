@@ -756,3 +756,57 @@ def test_an_example_is_the_same_amount_however_many_zeros_it_is_written_with():
     learnt = compile_extractor(labelled, listing=False, want={"price": "12"})
     [price] = learnt.fields
     assert price.anchor is not None and price.anchor.label == "Price:"
+
+
+def _specs(brand, price, sku, weight, order=("brand", "price", "sku", "weight")):
+    """A product page that declares nothing, its facts one to a row of a table."""
+    facts = {"brand": brand, "price": price, "sku": sku, "weight": weight}
+    labels = {"brand": "Brand", "price": "Price", "sku": "SKU", "weight": "Weight"}
+    rows = "".join(f"<tr><th>{labels[k]}</th><td>{facts[k]}</td></tr>" for k in order)
+    return (
+        "<html><head><title>Shop</title></head><body><main>"
+        f"<h1>Pads {sku}</h1><table class='specs'>{rows}</table></main></body></html>",
+        f"https://shop.example/p/{sku}",
+    )
+
+
+SPECS = [
+    _specs("Bosch", "41.90", "BP-1", "1 kg"),
+    _specs("ATE", "39.00", "BP-2", "2 kg"),
+]
+
+
+def test_two_examples_in_one_column_are_no_listing():
+    """A product's table holds its price and its SKU in two rows, both in the
+    row's ``td``: learnt as a listing, both columns were that ``td``, and a
+    new page's rows read price "Textar", sku "Textar" and passed."""
+    learnt = compile_extractor(SPECS, want={"price": "41.90", "sku": "BP-1"})
+    assert learnt.listing is None
+    assert [f.name for f in learnt.fields] == ["price", "sku"]
+    run = run_extractor(learnt, *_specs("Textar", "12.50", "BP-3", "3 kg"))
+    assert run.ok, failed(run)
+    assert run.rows == []
+    assert run.fields == {"price": "12.50", "sku": "BP-3"}
+
+
+def test_an_example_gives_up_a_column_another_example_needs():
+    """A title said twice in a row, as the cover's alt text and as the link,
+    and an alt text that says something else once: the alt is the only place
+    that holds it, so the title is the link."""
+    rows = "".join(
+        f"<li class='book'><img class='cover' alt='{'Cover' if n == 6 else t}'>"
+        f"<a class='title'>{t}</a><span class='price'>£{n}.00</span></li>"
+        for n, t in enumerate(TITLES[:6], 1)
+    )
+    html = f"<html><body><ol class='books'>{rows}</ol></body></html>"
+    learnt = compile_extractor(
+        [(html, None)], want={"title": TITLES[0], "alt": "Cover"}
+    )
+    assert [(f.name, f.path) for f in learnt.listing.fields] == [
+        ("title", "a.title"),
+        ("alt", "img.cover"),
+    ]
+    assert learnt.notes == (
+        "title='A Light in the Attic' was in 2 places in a row; a.title, the "
+        "first no other example needs, was taken",
+    )

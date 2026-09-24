@@ -74,14 +74,17 @@ sluicer compile page1.html page2.html -o books.json \
 ```
 
 - **The examples choose the listing.** The first repeated group, in each page's
-  order, whose rows hold every example is the listing, even in a sidebar or a
-  menu, where `compile` alone never looks. An example no row holds is an error
-  that names it; examples held by two different groups are an error too.
+  order, whose rows hold every example, each in a column of its own, is the
+  listing, even in a sidebar or a menu, where `compile` alone never looks. An
+  example no row holds is an error that names it. Examples held by two
+  different groups, or by one column -- a product's table, its price and its
+  SKU in two rows of the same `td` -- are no listing's: they are read as the
+  page's own values, below.
 - **They name the columns.** The rows `run` gives are `{"title": ..., "price":
   ...}`, and no other column is learnt or checked. A value matches when it says
   the same with its spaces collapsed, or is the same amount: `51.77` is the
-  row's `£51.77`, and `8` is `8.00`. A value in two places in a row takes the first, and the
-  compile notes it.
+  row's `£51.77`, and `8` is `8.00`. A value in two places in a row takes the first no other
+  example needs, and the compile notes it.
 - **The contract is the same.** The listing's place, its rows, each column's
   presence, shape and reading are checked as for any extractor, and `heal`
   finds the listing again by the values its columns held, keeps the names, and

@@ -410,8 +410,9 @@ def compile_extractor(
         names: what to call each page in ``learnt_from``; its address by default.
         want: example values, by the name each is to have: ``{"price":
             "41.90", "title": "Brake pad set"}``. When a repeated group's rows
-            hold every one -- the first such group, in page order -- they
-            choose the listing and its columns, which are only the ones named.
+            hold every one, each in a column of its own -- the first such
+            group, in page order -- they choose the listing and its columns,
+            which are only the ones named.
             When no one group holds them all, or with ``listing=False``, they
             are the page's own values, a product page's price and title, each
             learnt where it sits on the page, the page's own place before its
@@ -690,8 +691,11 @@ def _learn_wanted(
     """The listing whose rows hold every example, and only the columns named.
 
     Groups are taken in each page's order, as ``repeating_groups`` ranks them;
-    the first whose rows hold every example, on any page, is the listing, and
-    each example's column is the first field, in row order, that held it.
+    the first whose rows hold every example, each in a column of its own, on
+    any page, is the listing, and each example's column is the first field, in
+    row order, that held it and no example before it needs. Two examples one
+    column holds are no listing's: a product's table has its price and its SKU
+    in two rows of one ``td``, and read as a listing both would be that ``td``.
     """
     chosen: tuple[str, str] | None = None
     columns: dict[str, str] = {}
@@ -706,9 +710,10 @@ def _learn_wanted(
                 name: _holding(group_rows, example) for name, example in want.items()
             }
             missing &= {name for name, paths in held.items() if not paths}
-            if all(held.values()):
+            own = _columns_of(held) if all(held.values()) else None
+            if own is not None:
                 chosen = (path_of(group[0].getparent()), kind(group[0]))
-                columns = {name: paths[0] for name, paths in held.items()}
+                columns = own
                 ambiguous = {n: p for n, p in held.items() if len(p) > 1}
                 break
         if chosen is not None:
@@ -718,7 +723,8 @@ def _learn_wanted(
         raise NothingToLearn(
             f"no repeated group on these pages holds {said}"
             if missing
-            else "no one repeated group holds every example together"
+            else "no one repeated group holds every example together, "
+            "each in a column of its own"
         )
     container, member = chosen
     rows: list[dict[str, str]] = []
@@ -735,7 +741,11 @@ def _learn_wanted(
         empty = max(empty, round(1 - len(page_rows) / len(members), 4))
     notes = [
         f"{name}={want[name]!r} was in {len(paths)} places in a row; "
-        f"the first, {paths[0]}, was taken"
+        + (
+            f"the first, {paths[0]}, was taken"
+            if columns[name] == paths[0]
+            else f"{columns[name]}, the first no other example needs, was taken"
+        )
         for name, paths in ambiguous.items()
     ]
     if len(counts) < len(docs):
@@ -751,6 +761,35 @@ def _learn_wanted(
         container, member, (min(counts), max(counts)), fields, empty, chosen=True
     )
     return listing, notes
+
+
+def _columns_of(held: Mapping[str, list[str]]) -> dict[str, str] | None:
+    """Each example's column, none shared, or None when they cannot all have
+    one. Each takes, in turn, the first of the places that held it, in row
+    order, that is free, else one an example before it can give up for
+    another of its own: a matching, found in polynomial time however the
+    places overlap."""
+    owner: dict[str, str] = {}
+
+    def claim(name: str, seen: set[str]) -> bool:
+        free = next((p for p in held[name] if p not in owner), None)
+        if free is not None:
+            owner[free] = name
+            return True
+        for path in held[name]:
+            if path in seen:
+                continue
+            seen.add(path)
+            if claim(owner[path], seen):
+                owner[path] = name
+                return True
+        return False
+
+    for name in held:
+        if not claim(name, set()):
+            return None
+    column = {name: path for path, name in owner.items()}
+    return {name: column[name] for name in held}
 
 
 def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:

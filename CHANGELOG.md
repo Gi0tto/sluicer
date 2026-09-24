@@ -5,6 +5,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- Two examples one column holds are no listing. `compile --want price=41.90
+  --want sku=BP-1` on a product's table, the price and the SKU in two of its
+  rows, learnt a listing of the table's rows with both columns the same `td`,
+  and a new page read price "Bosch", sku "Bosch" and exited 0. Each example
+  now needs a column of its own; with none, the examples are the page's own
+  values, and the price and the SKU are read where each sits.
 - An example is one amount however many zeros it is written with: `--want
   price=8` finds the page's `£8.00`, on the page, in a listing's rows and after
   a label. Amounts were compared as the text `amount` gives back, `8` against
