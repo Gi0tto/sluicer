@@ -140,6 +140,9 @@ did.** libxml2 builds its own tree: it adds no `<tbody>` to a table, which a
 browser always does, and it mends broken markup its own way, so a place such
 as `/html/body/table[1]/tr[1]/td[1]` may select nothing in a browser's
 developer tools; the same page parsed by `sluicer.document.load` finds it.
+A fragment, or a page with no head that does not open with `<html>` or a
+doctype, is parsed as a whole document, as lxml's `document_fromstring` and a
+browser both build it, so its places start at `/html/body`.
 Some values have no place at all: a meta tag's -- OpenGraph, the Twitter
 card, Dublin Core and HTML's meta names return values, not elements, and
 their key names the tag -- an induced row's, a microformats item's, an answer

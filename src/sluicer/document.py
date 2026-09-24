@@ -246,6 +246,11 @@ def load(
             ``Content-Type``; for bytes, it comes before the page's own
             declaration, as the HTML standard orders them.
 
+    Always parsed as a whole document, whatever its start: ``lxml.html``'s
+    ``fromstring`` renames the ``<body>`` of what it takes for a fragment -- no
+    head, and neither ``<html>`` nor a doctype first -- to a ``<div>``, and
+    every place on such a page went through a div the page never had.
+
     A ``str`` carrying an XML encoding declaration (ordinary XHTML) is refused
     by lxml, since a decoded string cannot also declare an encoding; it is
     parsed as UTF-8 whatever it declares. A document lxml cannot parse at all
@@ -257,7 +262,7 @@ def load(
         tree = _parse_bytes(html, charset)
         return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
     try:
-        tree = lxml.html.fromstring(html, parser=_TEXT_PARSER)
+        tree = lxml.html.document_fromstring(html, parser=_TEXT_PARSER)
     except lxml.etree.LxmlError:
         # ParserError ("Document is empty"): nothing to read, not an error.
         tree = lxml.html.Element("html")
@@ -285,7 +290,9 @@ def _parse_bytes(data: bytes, charset: str | None = None) -> lxml.html.HtmlEleme
 def _parse_utf8(data: bytes) -> lxml.html.HtmlElement:
     """Parse UTF-8 bytes, telling lxml so, or return an empty ``<html>``."""
     try:
-        tree: lxml.html.HtmlElement = lxml.html.fromstring(data, parser=_UTF8_PARSER)
+        tree: lxml.html.HtmlElement = lxml.html.document_fromstring(
+            data, parser=_UTF8_PARSER
+        )
     except (lxml.etree.LxmlError, ValueError):
         tree = lxml.html.Element("html")
     return tree

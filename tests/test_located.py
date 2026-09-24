@@ -306,3 +306,33 @@ def test_a_page_nested_deep_answers_with_places_no_longer_than_itself():
     assert places[0] is not None and places[-1] is None, "document order decides"
     # The summary pays from its own budget, so a long record cannot starve it.
     assert result.summary["title"].where == thing.fields["name"].where
+
+
+def test_a_fragment_s_places_are_in_the_page_a_browser_would_build():
+    """lxml.html.fromstring renames a fragment's <body> to a <div> or <span>.
+
+    A page with no head and no <html> or doctype at its start -- a fragment, or
+    a saved page that opens with a comment -- was read from that renamed body,
+    and every XPath went through a div the page never had: /html/div[1]/div[1]
+    for what a browser, and lxml's own document parser, put at
+    /html/body/div[1].
+    """
+    import lxml.html
+
+    from sluicer import extract
+
+    product = (
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<span itemprop="name">Pad</span></div>'
+    )
+    for html in (
+        product + "<p>more</p>",
+        "<!-- saved --><p>x</p>" + product,
+        "text <b>bold</b> " + product,
+    ):
+        record = extract(html).records[0]
+        tree = lxml.html.document_fromstring(html)
+
+        assert record.where == "/html/body/div[1]", html
+        assert tree.xpath(record.where)[0].get("itemtype"), html
+        assert tree.xpath(record.fields["name"].where)[0].text == "Pad", html

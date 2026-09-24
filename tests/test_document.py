@@ -88,7 +88,7 @@ def test_a_parser_that_refuses_bytes_is_still_never_a_traceback(monkeypatch):
     def refuse(*args, **kwargs):
         raise ValueError("Unicode strings with encoding declaration are not supported.")
 
-    monkeypatch.setattr(lxml.html, "fromstring", refuse)
+    monkeypatch.setattr(lxml.html, "document_fromstring", refuse)
     page = b"<html><body><p>hi</p></body></html>"
 
     doc = load(page)
@@ -420,3 +420,19 @@ def test_an_empty_query_or_fragment_resolves_alike_on_every_python(address, reso
     from sluicer.document import join
 
     assert join("https://shop.example/c/brakes", address) == resolved
+
+
+def test_a_fragment_is_parsed_as_a_whole_document():
+    """Its tree is the page's <html>, with the <body> a browser would give it.
+
+    ``lxml.html.fromstring`` made the tree a <div> renamed from the <body>, so
+    an extractor learnt ``html>div>...`` and then could not find it: its
+    search starts at the tree, whose tag was not ``html``.
+    """
+    from sluicer.document import load
+
+    for page in ("<p>a</p><p>b</p>", b"<!-- saved --><p>a</p>", "text <b>b</b>"):
+        doc = load(page)
+
+        assert doc.tree.tag == "html"
+        assert [child.tag for child in doc.tree] == ["body"]

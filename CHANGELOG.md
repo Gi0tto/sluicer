@@ -54,6 +54,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   page with no head title, nor weighed as the page's title between a headline
   and a name: libxml2 has no namespaces, and an icon's "Close menu" was the
   page's title.
+- A page lxml takes for a fragment -- no head, and neither `<html>` nor a
+  doctype at its start, as a page a PHP warning is printed before -- is parsed as
+  a whole document. `lxml.html.fromstring` renamed its `<body>` to a `<div>`,
+  so every place on it went through an element the page never had,
+  `/html/div[1]/title[1]` for `/html/body/title[1]`; an extractor could not
+  find a path on such a page at all. On the benchmark pages, three evaldata
+  pages' title place changes so; no value changes.
 
 ## 0.7.0 - 2026-09-24
 
