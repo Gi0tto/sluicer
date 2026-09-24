@@ -11,6 +11,7 @@ tool sees the seed pages' examples and nothing of the test pages' labels.
 from __future__ import annotations
 
 import concurrent.futures
+import gzip
 import importlib.metadata
 import json
 import os
@@ -28,17 +29,20 @@ _FIELD_CHECKS = frozenset({"field", "reads", "shape"})
 _NAMED = re.compile(r"holds (\w+)=")
 
 
-def read(root: Path, folder: str, page_id: str) -> tuple[str, str | None]:
-    """A page's HTML and address: SWDE writes the address as a ``<base>`` first."""
-    html = (root / folder / f"{page_id}.htm").read_text(
-        encoding="utf-8-sig", errors="replace"
-    )
-    found = re.search(r'<base href="([^"]+)"', html[:4096])
-    return html, found.group(1) if found else None
+def pages_of(root: Path, site: dict[str, Any]) -> dict[str, tuple[str, str | None]]:
+    """Every page of a site with its address, from the site's one bundle: SWDE
+    writes each page's address as a ``<base>`` first."""
+    pages = json.loads(gzip.decompress((root / site["bundle"]).read_bytes()))
+    return {
+        page_id: (html, found.group(1) if found else None)
+        for page_id, html in pages.items()
+        for found in [re.search(r'<base href="([^"]+)"', html[:4096])]
+    }
 
 
 def one_site(root: Path, site: dict[str, Any]) -> dict[str, Any]:
-    seeds = [read(root, site["folder"], page_id) for page_id in site["seeds"]]
+    pages = pages_of(root, site)
+    seeds = [pages[page_id] for page_id in site["seeds"]]
     want = {name: example["value"] for name, example in site["examples"].items()}
     unlearnt: dict[str, str] = {}
     extractor = None
@@ -61,7 +65,7 @@ def one_site(root: Path, site: dict[str, Any]) -> dict[str, Any]:
     for page_id in site["tests"]:
         if extractor is None:
             break
-        html, url = read(root, site["folder"], page_id)
+        html, url = pages[page_id]
         started = time.perf_counter()
         run = run_extractor(extractor, html, url)
         seconds += time.perf_counter() - started
@@ -86,7 +90,7 @@ def one_site(root: Path, site: dict[str, Any]) -> dict[str, Any]:
 
 def main(sites_path: str, out_path: str) -> None:
     sites = json.loads(Path(sites_path).read_text(encoding="utf-8"))
-    root = Path(sites_path).parent / "pages"
+    root = Path(sites_path).parent / "bundles"
     results: dict[str, Any] = {}
     with concurrent.futures.ProcessPoolExecutor(os.cpu_count()) as pool:
         futures = {site["id"]: pool.submit(one_site, root, site) for site in sites}

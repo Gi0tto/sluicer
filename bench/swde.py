@@ -30,7 +30,9 @@ page changes, are asked the same thing, as the drift benchmark asks them.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import datetime
+import gzip
 import hashlib
 import html
 import json
@@ -66,6 +68,7 @@ TOOLS = ("sluicer", "scrapling")
 
 CACHE = HERE / "cache" / "swde"
 PAGES = CACHE / "pages"
+BUNDLES = CACHE / "bundles"
 SITES = CACHE / "sites.json"
 LABELS = CACHE / "labels.json"
 RESULTS = CACHE / "results"
@@ -76,9 +79,23 @@ SCOREBOARD = ROOT / "docs" / "scoreboard-swde.md"
 
 
 def ensure() -> None:
-    """The archives at the pinned commit, checked and unpacked, once."""
-    marker = PAGES / "unpacked-from"
+    """The archives at the pinned commit, checked, unpacked, and each site's
+    pages packed into one file, once.
+
+    One compressed file per site, rather than 124,291 pages on disk: a virus
+    scanner that reads every file opened read each page again on every run.
+    """
+    marker = BUNDLES / "made-from"
     if marker.exists() and marker.read_text(encoding="utf-8").strip() == COMMIT:
+        return
+    unpacked = PAGES / "unpacked-from"
+    if unpacked.exists() and unpacked.read_text(encoding="utf-8").strip() == COMMIT:
+        # Unpacked and checked by an earlier run that made no bundles yet.
+        BUNDLES.mkdir(parents=True, exist_ok=True)
+        for vertical in VERTICALS:
+            if (PAGES / vertical).exists():
+                _bundle(vertical)
+        marker.write_text(COMMIT + "\n", encoding="utf-8")
         return
     import py7zr
 
@@ -86,7 +103,9 @@ def ensure() -> None:
     archives.mkdir(parents=True, exist_ok=True)
     # Unpacking over a half-unpacked tree stalls py7zr: start from nothing.
     shutil.rmtree(PAGES, ignore_errors=True)
+    shutil.rmtree(BUNDLES, ignore_errors=True)
     PAGES.mkdir(parents=True)
+    BUNDLES.mkdir(parents=True)
     for name, digest in ARCHIVES.items():
         path = archives / f"{name}.7z"
         if not path.exists() or _sha256(path) != digest:
@@ -98,7 +117,42 @@ def ensure() -> None:
         print(f"unpacking {name}.7z", flush=True)
         with py7zr.SevenZipFile(path) as archive:
             archive.extractall(PAGES)
+        if name != "groundtruth":
+            _bundle(name)
     marker.write_text(COMMIT + "\n", encoding="utf-8")
+
+
+def _bundle(vertical: str) -> None:
+    """Each of a vertical's sites as one compressed file, and its pages gone.
+
+    Sites are packed side by side: reading the pages is the slow part, and a
+    virus scanner reads each one as it is opened. A bundle is written under
+    another name and renamed when whole, so one that exists is complete and a
+    run stopped halfway resumes where it was.
+    """
+    folders = [
+        folder
+        for folder in sorted((PAGES / vertical).iterdir())
+        if not (BUNDLES / f"{folder.name.split('(')[0]}.json.gz").exists()
+    ]
+    with concurrent.futures.ProcessPoolExecutor(8) as pool:
+        for site_id, count in pool.map(_pack, folders):
+            print(f"  packed {site_id}: {count} pages", flush=True)
+    shutil.rmtree(PAGES / vertical)
+
+
+def _pack(folder: Path) -> tuple[str, int]:
+    site_id = folder.name.split("(")[0]
+    pages = {
+        page.stem: page.read_text(encoding="utf-8-sig", errors="replace")
+        for page in sorted(folder.glob("*.htm"))
+    }
+    partial = BUNDLES / f"{site_id}.json.gz.partial"
+    partial.write_bytes(
+        gzip.compress(json.dumps(pages, ensure_ascii=False).encode(), 6)
+    )
+    partial.replace(BUNDLES / f"{site_id}.json.gz")
+    return site_id, len(pages)
 
 
 def _sha256(path: Path) -> str:
@@ -169,18 +223,12 @@ def prepare() -> None:
     """The sites the tools are given, and the labels only the scorer reads."""
     ensure()
     truth = labels()
-    folders = {
-        folder.name.split("(")[0]: folder
-        for vertical in VERTICALS
-        for folder in (PAGES / vertical).iterdir()
-        if folder.is_dir()
-    }
     if set(truth) != _SITE_NAMES:
         raise SystemExit("the sites in the data are not the 80 the split was fixed on")
     sites = []
     for site_id, attributes in sorted(truth.items()):
-        folder = folders[site_id]
-        ids = sorted(path.stem for path in folder.glob("*.htm"))
+        bundle = BUNDLES / f"{site_id}.json.gz"
+        ids = sorted(json.loads(gzip.decompress(bundle.read_bytes())))
         seeds, tests = ids[:SEEDS], ids[SEEDS:]
         examples = {}
         for attribute, table in attributes.items():
@@ -192,7 +240,7 @@ def prepare() -> None:
                 "id": site_id,
                 "vertical": site_id.split("-")[0],
                 "half": half(site_id),
-                "folder": str(folder.relative_to(PAGES)),
+                "bundle": bundle.name,
                 "seeds": seeds,
                 "examples": examples,
                 "tests": tests,
@@ -225,7 +273,7 @@ def run(tools: list[str]) -> None:
     RESULTS.mkdir(parents=True, exist_ok=True)
     for tool in tools:
         print(f"running {tool}", flush=True)
-        subprocess.run(_command(tool), cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(_command(tool), cwd=ROOT, check=True)
 
 
 # -- scoring -----------------------------------------------------------------------
@@ -259,12 +307,23 @@ def outcomes(
                 tally[("missed" + mark) if wanted else "silent"] += 1
             elif not wanted:
                 tally["invented" + mark] += 1
-            elif " ".join(value.split()) in wanted:
+            elif _edges(value) in {_edges(label) for label in wanted}:
                 tally["hit"] += 1
             else:
                 tally["wrong" + mark] += 1
         counts[attribute] = tally
     return counts
+
+
+# What SWDE's labels carry of the template at their ends: a label is a whole
+# text node, so ``ISBN-13<b>: 9780316125581`` is labelled ": 9780316125581" and
+# ``$61,200 | More Details`` is labelled "$61,200 |". Taken off both sides of
+# every comparison, for every tool alike.
+_SEPARATORS = " :|,;-\u2013\u2014>/\u00b7\u2022"
+
+
+def _edges(text: str) -> str:
+    return " ".join(text.split()).strip(_SEPARATORS)
 
 
 def metrics(tally: Counter[str]) -> dict[str, float]:
@@ -413,6 +472,27 @@ def publish(board: dict[str, Any]) -> None:
         "is still there, and that it still reads and is shaped as it was learnt.",
         "A wrong answer those checks caught makes `sluicer run` exit 3; one they",
         "did not is silent. Scrapling returns what it finds and has no check.",
+        "",
+        "## By half",
+        "",
+        "The sites were split before any full result was read (commit",
+        "`fc72378`): in each vertical, in alphabetical order, they alternate",
+        "between development and held-out. Sluicer's rules are made reading the",
+        "development sites only; the held-out ones are only scored. One",
+        "exception: all ten camera sites were read while the benchmark was being",
+        "built, before the split, so the held-out camera sites are not a clean",
+        "test.",
+        "",
+        "| half | site-attributes | sluicer F1 | Scrapling F1 |",
+        "|---|---|---|---|",
+    ]
+    for name in ("development", "held-out"):
+        hkeys = [k for k in keys if half(k[0]) == name]
+        lines.append(
+            f"| {name} | {len(hkeys)} | {_mean_f1(sl['per'], hkeys):.3f} | "
+            f"{_mean_f1(sc['per'], hkeys):.3f} |"
+        )
+    lines += [
         "",
         "## By vertical",
         "",

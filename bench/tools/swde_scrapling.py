@@ -13,6 +13,7 @@ sees the seed pages' examples and nothing of the test pages' labels.
 from __future__ import annotations
 
 import concurrent.futures
+import gzip
 import importlib.metadata
 import json
 import os
@@ -25,24 +26,27 @@ from typing import Any
 from scrapling.parser import Selector
 
 
-def read(root: Path, folder: str, page_id: str) -> tuple[str, str | None]:
-    """A page's HTML and address: SWDE writes the address as a ``<base>`` first."""
-    html = (root / folder / f"{page_id}.htm").read_text(
-        encoding="utf-8-sig", errors="replace"
-    )
-    found = re.search(r'<base href="([^"]+)"', html[:4096])
-    return html, found.group(1) if found else None
+def pages_of(root: Path, site: dict[str, Any]) -> dict[str, tuple[str, str | None]]:
+    """Every page of a site with its address, from the site's one bundle: SWDE
+    writes each page's address as a ``<base>`` first."""
+    pages = json.loads(gzip.decompress((root / site["bundle"]).read_bytes()))
+    return {
+        page_id: (html, found.group(1) if found else None)
+        for page_id, html in pages.items()
+        for found in [re.search(r'<base href="([^"]+)"', html[:4096])]
+    }
 
 
 def one_site(root: Path, store: Path, site: dict[str, Any]) -> dict[str, Any]:
     store.unlink(missing_ok=True)
-    first_url = read(root, site["folder"], site["seeds"][0])[1] or site["id"]
+    pages = pages_of(root, site)
+    first_url = pages[site["seeds"][0]][1] or site["id"]
     storage = {"storage_file": str(store), "url": first_url}
     selectors: dict[str, str] = {}
     unlearnt: dict[str, str] = {}
     started = time.perf_counter()
     for name, example in site["examples"].items():
-        html, _ = read(root, site["folder"], example["seed"])
+        html, _ = pages[example["seed"]]
         page = Selector(html, url=first_url, adaptive=True, storage_args=storage)
         found = page.find_by_text(example["value"], first_match=False, partial=False)
         if len(found) == 0:
@@ -57,7 +61,7 @@ def one_site(root: Path, store: Path, site: dict[str, Any]) -> dict[str, Any]:
     for page_id in site["tests"]:
         if not selectors:
             break
-        html, _ = read(root, site["folder"], page_id)
+        html, _ = pages[page_id]
         started = time.perf_counter()
         page = Selector(html, url=first_url, adaptive=True, storage_args=storage)
         row: dict[str, list[Any]] = {}
@@ -88,7 +92,7 @@ def one_site(root: Path, store: Path, site: dict[str, Any]) -> dict[str, Any]:
 
 def main(sites_path: str, out_path: str) -> None:
     sites = json.loads(Path(sites_path).read_text(encoding="utf-8"))
-    root = Path(sites_path).parent / "pages"
+    root = Path(sites_path).parent / "bundles"
     stores = Path(sites_path).parent / "scrapling"
     stores.mkdir(exist_ok=True)
     results: dict[str, Any] = {}

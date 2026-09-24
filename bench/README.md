@@ -155,3 +155,40 @@ benchmark as `bench/products.py` does. A syntax is identical when the two
 answers are equal as JSON, and RDFa when they are the same graph. Every
 difference is put in the first category whose test explains it; one no test
 explains fails the run.
+
+## Extractors learnt from examples, on SWDE
+
+[`docs/scoreboard-swde.md`](../docs/scoreboard-swde.md) measures what
+`sluicer compile --want` promises: point at a value on a few pages of one
+template, and read it on every other page of that template. The pages are
+[SWDE](https://github.com/woailaosang/swde), the Structured Web Data Extraction
+dataset (Hao, Cai, Pang and Zhang, SIGIR 2011, Microsoft Reciprocal License):
+124,291 detail pages from 80 sites in 8 verticals, each labelled with the values
+of three to five attributes. Scrapling's adaptive selectors are asked the same
+thing, as the drift benchmark asks them.
+
+```bash
+uv run bench/swde.py                    # everything, then the scoreboard
+uv run bench/swde.py --tools sluicer    # rerun one tool, reuse the other
+uv run bench/swde.py --score-only       # score the last results again
+```
+
+`swde.py` downloads the nine archives of a GitHub mirror of SWDE's CodePlex
+release at one pinned commit into `bench/cache/swde/` (about 200 MB), stops if
+any does not hash to its pin, and unpacks them. For each site the first three
+pages, in the dataset's order, are the seeds, and each attribute's example is
+its first labelled value on the first seed that has one. The tools are given
+the seeds and the examples, in `sites.json`, and never a test page's labels,
+which only the scorer reads. Sluicer runs from this checkout, installed
+editable; Scrapling from `requirements/scrapling.txt`.
+
+A test page's answer is a hit when it equals one of the page's labels, spaces
+collapsed and separators taken off both ends of both: SWDE labels whole text
+nodes, so `ISBN-13<b>: 9780316125581` is labelled `: 9780316125581`. The labels'
+HTML entities, stored undecoded, are decoded first.
+
+**The sites are split in half, and the split was fixed before any full result
+was read** (commit `fc72378`): in each vertical, in alphabetical order, sites
+alternate between development and held-out. Rules for Sluicer are made while
+reading only the development sites' pages and errors; the held-out sites are
+only scored, and the scoreboard shows both halves.
