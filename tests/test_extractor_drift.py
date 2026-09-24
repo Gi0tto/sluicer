@@ -910,3 +910,48 @@ def test_pages_that_number_a_step_differently_do_not_hold_it_to_a_count():
     run = run_extractor(learnt, *_sections(("Pick", 1), ("All", 8), ("Seen", 1)))
     assert run.ok, failed(run)
     assert Extractor.from_json(learnt.to_json()) == learnt
+
+
+def _item(price, related=(), cls="price", extra=""):
+    """A product page that declares nothing, and a strip of related products."""
+    strip = "".join(
+        f"<li class='rel'><a class='t' href='/p/{n}'>Disc {n}</a>"
+        f"<span class='cost'>{cost}</span></li>"
+        for n, cost in enumerate(related, 1)
+    )
+    return (
+        "<html><body><main><div class='item'><h1 class='name'>Brake pad set</h1>"
+        f"<p><span class='{cls}'>{price}</span>{extra}</p></div>"
+        f"<h2>Related products</h2><ul class='related'>{strip}</ul>"
+        "</main></body></html>",
+        "https://shop.example/p/1",
+    )
+
+
+def test_heal_never_moves_a_page_field_into_another_product_s_place():
+    """After a redesign the product costs £44.50, and a related product costs
+    what it used to: heal moved the price to the related product's, and the
+    healed extractor read another product's price and passed."""
+    learnt = compile_extractor(
+        [_item("£41.90", ("£12.00", "£13.00", "£14.00"))], want={"price": "41.90"}
+    )
+    new = _item("£44.50", ("£41.90", "£13.00", "£14.00"), cls="amount")
+    healed, changes = heal(learnt, [new])
+    assert [(c.kind, c.before) for c in changes] == [("vanished", "price")]
+    assert healed.fields == ()
+    _moved, changes = heal(learnt, [_item("£41.90", ("£41.90",), cls="amount")])
+    assert [(c.kind, c.after) for c in changes] == [
+        ("moved", "html>body>main>div.item>p>span.amount")
+    ]
+
+
+def test_heal_leaves_a_page_field_two_own_places_claim_to_a_person():
+    learnt = compile_extractor([_item("£41.90")], want={"price": "41.90"})
+    both = "<span class='rrp'>{}</span>"
+    new = [
+        _item("£41.90", cls="amount", extra=both.format("£41.90")),
+        (_item("£20.00", cls="amount", extra=both.format("£25.00"))[0], "https://s/2"),
+    ]
+    healed, changes = heal(learnt, new)
+    assert [(c.kind, c.before) for c in changes] == [("ambiguous", "price")]
+    assert healed.fields == ()

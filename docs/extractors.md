@@ -123,7 +123,11 @@ sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
 - `heal` keeps a field where its place still holds a value that reads as it
   did and its label still stands before it, reads it after its label when the
   label moved, moves it to where the new pages show one of its old values,
-  and reports it vanished when none is so.
+  and reports it vanished when none is so. It moves a field only among the
+  page's own places, never into its navigation, asides or listings: the old
+  price in a related products strip is another product's. When two own places
+  hold an old value and read different values on the pages given, the move is
+  `ambiguous`, left for a person.
 
 On books.toscrape.com, whose product pages declare nothing, two product pages
 with `title`, `price` and a `upc` from the product table replay on a third

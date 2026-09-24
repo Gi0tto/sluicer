@@ -593,22 +593,21 @@ def heal(
         except NothingToLearn:
             if found is None:
                 raise
-            fresh = Extractor(
-                learnt_from=tuple(
-                    (names[n - 1] if names else None) or url or f"page {n}"
-                    for n, (_, url) in enumerate(pages, 1)
-                ),
-                summary={},
-                types=(),
-                listing=None,
-            )
+            fresh = _learnt_nothing(pages, names)
         fresh = Extractor(
             fresh.learnt_from, fresh.summary, fresh.types, found, fresh.notes
         )
     else:
-        fresh = compile_extractor(
-            pages, listing=True if extractor.listing else None, names=names
-        )
+        try:
+            fresh = compile_extractor(
+                pages, listing=True if extractor.listing else None, names=names
+            )
+        except NothingToLearn:
+            # Page fields are looked for by their own values, on pages that
+            # declare nothing and repeat nothing as much as on any other.
+            if not extractor.fields:
+                raise
+            fresh = _learnt_nothing(pages, names)
     changes: list[Change] = []
     for question in extractor.summary:
         if question not in fresh.summary:
@@ -641,6 +640,19 @@ def heal(
         fields=fields,
     )
     return healed, changes
+
+
+def _learnt_nothing(pages: Sequence[Page], names: Sequence[str] | None) -> Extractor:
+    """An extractor of ``pages`` that learnt nothing from them."""
+    return Extractor(
+        learnt_from=tuple(
+            (names[n - 1] if names else None) or url or f"page {n}"
+            for n, (_, url) in enumerate(pages, 1)
+        ),
+        summary={},
+        types=(),
+        listing=None,
+    )
 
 
 # -- learning -----------------------------------------------------------------
@@ -1158,12 +1170,14 @@ def _up_to_meet(label: HtmlElement, value: HtmlElement) -> int:
     return len(shared)
 
 
-def _places(doc: Document, example: str) -> list[str]:
+def _places(doc: Document, example: str, own: bool = False) -> list[str]:
     """Every place on the page whose value is ``example``, the deepest first.
 
     An element's text counts when it is the whole of the element's text; an
     ancestor that holds nothing else says the same, and is passed over for
-    the element it holds. Then the attributes, in document order.
+    the element it holds. Then the attributes, in document order. With
+    ``own``, only the page's own places: none in its furniture, its
+    breadcrumb trail or its listings.
     """
     wanted = " ".join(example.split())
     same = _says(example)
@@ -1195,7 +1209,7 @@ def _places(doc: Document, example: str) -> list[str]:
         elif element not in no_text and same(text):
             texts.append(element)
     texts.sort(key=order.__getitem__)
-    attributes: list[str] = []
+    attributes: list[tuple[HtmlElement, str]] = []
     for element in elements:
         if not isinstance(element.tag, str) or element in no_text:
             continue
@@ -1206,7 +1220,7 @@ def _places(doc: Document, example: str) -> list[str]:
             if attribute in ("href", "src"):
                 value = join(base, value)
             if same(value):
-                attributes.append(f"{path_of(element)}@{attribute}")
+                attributes.append((element, attribute))
     holding = set(texts)
     deepest = [
         element
@@ -1229,8 +1243,13 @@ def _places(doc: Document, example: str) -> list[str]:
             any(node in repeated for node in climb),
         )
 
+    if own:
+        deepest = [element for element in deepest if not any(aside(element))]
+        attributes = [(e, a) for e, a in attributes if not any(aside(e))]
     ranked = sorted(range(len(deepest)), key=lambda n: (*aside(deepest[n]), n))
-    return [path_of(deepest[n]) for n in ranked] + attributes
+    return [path_of(deepest[n]) for n in ranked] + [
+        f"{path_of(element)}@{attribute}" for element, attribute in attributes
+    ]
 
 
 def _a_trail(element: HtmlElement) -> bool:
@@ -1720,10 +1739,12 @@ def _heal_fields(
     """Each page field where it still is, or where its old values are now.
 
     A field stays when its place still holds a value that reads as it did;
-    otherwise it moves to where the new pages show one of its old values, the
-    page's own place first, as it was learnt; a field found in neither way is
-    vanished and kept out, since a guess would read the wrong value under the
-    old name.
+    otherwise it moves to where the new pages show one of its old values, and
+    only among the page's own places: in a related products strip the same
+    price is another product's. A field found in neither way is vanished and
+    kept out, since a guess would read the wrong value under the old name; one
+    two own places claim, reading different values, is ambiguous, for a
+    person to decide.
     """
     kept: list[PageField] = []
     changes: list[Change] = []
@@ -1773,19 +1794,27 @@ def _heal_fields(
                     changes.append(Change("moved", f.name, f"after {f.label!r}"))
                     kept.append(_relearnt(f, f.path, found, anchor))
                     continue
-        moved = next(
+        claimed = next(
             (
-                place
+                places
                 for sample in f.samples
                 for doc in docs
-                if (place := next(iter(_places(doc, sample)), None))
+                if (places := _places(doc, sample, own=True))
             ),
             None,
         )
-        if moved is None:
+        if claimed is None:
             changes.append(Change("vanished", f.name, None))
             continue
-        found = [v for doc in docs if (v := _value_at(doc, moved))]
+        moved = claimed[0]
+        read_there = [_value_at(doc, moved) for doc in docs]
+        if any(
+            [_value_at(doc, other) for doc in docs] != read_there
+            for other in claimed[1:]
+        ):
+            changes.append(Change("ambiguous", f.name, moved))
+            continue
+        found = [v for v in read_there if v]
         changes.append(Change("moved", f.name, moved))
         kept.append(_relearnt(f, moved, found, label=_label_before(docs, moved)))
     return tuple(kept), changes

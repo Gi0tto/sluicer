@@ -5,6 +5,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- `heal` never moves a page field into another product's place. After a
+  redesign that also changed the product's price, a related product costing
+  the old price drew the field into the related strip, and the healed
+  extractor read that product's price and passed. A page field now moves only
+  among the page's own places, never its navigation, asides or listings, and
+  a move two own places claim, reading different values, is `ambiguous`. A
+  heal of page fields on pages that declare nothing no longer stops with
+  "nothing to heal from".
 - A box of the same kind inserted before a numbered listing fails the run.
   The listing at `section.box[2]` read the box that became second, 4 rows
   instead of 12, and passed, although the docs promised a strip inserted
