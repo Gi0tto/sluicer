@@ -477,6 +477,41 @@ def test_a_file_that_is_not_a_crawls_output_is_refused(tmp_path):
         run(FakeWeb(shop()), state=state)
 
 
+@pytest.mark.parametrize(
+    "written",
+    [
+        "these are my notes\nand the last line has no newline",
+        '{"url": "https://example.com/", "ok": true}\nsomething else entirely',
+        "no newline at all",
+    ],
+)
+def test_a_file_that_is_not_a_crawls_output_is_left_as_it_was(tmp_path, written):
+    """--resume cut the last line off before it read the file: pointed at
+    someone's notes, it destroyed their last line, then refused them."""
+    state = tmp_path / "notes.txt"
+    state.write_text(written, encoding="utf-8")
+
+    with pytest.raises(StateMismatch):
+        run(FakeWeb(shop()), state=state)
+    with pytest.raises(StateMismatch):
+        extract_many([f"{ROOT}/"], state=state)
+
+    assert state.read_text(encoding="utf-8") == written
+
+
+def test_another_crawls_file_is_refused_before_its_last_line_is_cut(tmp_path):
+    state = tmp_path / "crawl.jsonl"
+    list(run(FakeWeb(shop()), state=state, max_pages=2))
+    with state.open("a", encoding="utf-8") as out:
+        out.write('{"url": "https://example.com/c/2", "ok": tr')
+    written = state.read_bytes()
+
+    with pytest.raises(StateMismatch, match="line 1"):
+        run(FakeWeb(shop()), start=f"{ROOT}/about", state=state)
+
+    assert state.read_bytes() == written
+
+
 def _without_seconds(path):
     lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     for line in lines:

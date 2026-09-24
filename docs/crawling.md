@@ -217,8 +217,9 @@ file as one that ran through, and the live check compares the two. A file
 written by a crawl of another site or with other options is refused, not mixed
 -- with one exception that is safe: a larger `--max-pages` continues where the
 smaller stopped. A last line cut off by a stop mid-write is dropped and its
-page taken again. Without `--resume`, a file that already holds pages is never
-appended to.
+page taken again, once the rest of the file is known to be this crawl's; a
+file that is not is refused and left as it was. Without `--resume`, a file
+that already holds pages is never appended to.
 
 A batch resumes the same way, skipping every address its file holds.
 

@@ -59,6 +59,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   server or the HTTP API, for its whole visit, a second after the site's last
   request. Measured on a local site, four parallel `extract_declared` calls:
   8 requests 0.000 s apart before, 5 requests a second apart now.
+- `crawl --resume` and `batch --resume` read the file before they touch it.
+  They cut an unfinished last line off first and checked the file was a
+  crawl's after: pointed at a file of notes, `--resume` destroyed its last
+  line and then refused it, and a file with no newline at all was emptied and
+  crawled into. The file is now accepted first -- every line a page, the last
+  one the start of a page's line, the order this crawl's -- and only then is a
+  line a stopped crawl left half written cut off. A file refused is left as it
+  was.
 
 ## 0.7.0 - 2026-09-24
 
