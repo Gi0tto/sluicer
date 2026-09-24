@@ -10,7 +10,10 @@ const zlib = require('zlib')
 const metascraper = require('metascraper')([
   require('metascraper-title')(),
   require('metascraper-author')(),
-  require('metascraper-date')()
+  // datePublished asks for the publication date's own rules. Without it,
+  // metascraper's date puts dateModified first, and a publication date scored
+  // against a modified one counted metascraper wrong for how it was called.
+  require('metascraper-date')({ datePublished: true })
 ])
 
 async function main (pagesPath, outPath, modules) {
@@ -32,7 +35,8 @@ async function main (pagesPath, outPath, modules) {
       id: page.id,
       title: found.title || null,
       author: found.author || null,
-      date: found.date || null
+      // Its publication date, and its general date where it finds none.
+      date: found.datePublished || found.date || null
     })
   }
   const version = require('metascraper/package.json').version
