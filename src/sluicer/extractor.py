@@ -27,6 +27,7 @@ import unicodedata
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -958,13 +959,7 @@ def _anchor_for(docs: list[Document], example: str) -> tuple[Anchor, str] | None
     if len(docs) < 2:
         return None
     wanted = " ".join(example.split())
-    worth = amount(wanted)
-
-    def same(text: str | None) -> bool:
-        if text is None:
-            return False
-        return text == wanted or (worth is not None and amount(text) == worth)
-
+    same = _says(example)
     pages = [_text_nodes(doc) for doc in docs]
     once = [
         {text for text, count in Counter(t for t, _ in nodes).items() if count == 1}
@@ -1016,12 +1011,8 @@ def _places(doc: Document, example: str) -> list[str]:
     the element it holds. Then the attributes, in document order.
     """
     wanted = " ".join(example.split())
-    worth = amount(wanted)
+    same = _says(example)
     base = base_url(doc)
-
-    def same(text: str) -> bool:
-        said = " ".join(text.split())
-        return said == wanted or (worth is not None and amount(said) == worth)
 
     # Children before their parents, so a parent whose child's text is already
     # longer than the example -- the body, every wrapper up to it -- is passed
@@ -1164,15 +1155,38 @@ def _replay_fields(
 
 def _holding(rows: list[dict[str, str]], example: str) -> list[str]:
     """Every field path, in row order, whose value is ``example`` in some row."""
-    wanted = " ".join(example.split())
-    worth = amount(wanted)
+    same = _says(example)
     found: dict[str, None] = {}
     for row in rows:
         for path, value in row.items():
-            said = " ".join(value.split())
-            if said == wanted or (worth is not None and amount(said) == worth):
+            if same(value):
                 found.setdefault(path)
     return list(found)
+
+
+def _says(example: str) -> Callable[[str | None], bool]:
+    """Whether a text says what ``example`` says: the same with its spaces
+    collapsed, or the same amount, compared as a number -- ``8`` is ``£8.00``,
+    which ``amount`` gives back as ``8.00``.
+
+    The one comparison every example is found by, on the page, in a listing's
+    rows and after a label."""
+    wanted = " ".join(example.split())
+    worth = _worth(wanted)
+
+    def says(text: str | None) -> bool:
+        if text is None:
+            return False
+        said = " ".join(text.split())
+        return said == wanted or (worth is not None and _worth(said) == worth)
+
+    return says
+
+
+def _worth(text: str) -> Decimal | None:
+    """``text`` as a number, when ``amount`` reads it as one."""
+    read = amount(text)
+    return None if read is None else Decimal(read)
 
 
 def _first_index(

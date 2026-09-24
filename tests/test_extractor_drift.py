@@ -727,3 +727,32 @@ def test_a_file_from_0_3_that_learnt_no_reading_still_loads():
         del f["reads"]
 
     assert Extractor.from_json(json.dumps(body)).listing is not None
+
+
+# -- 0.7.1: the review of the learnt extractors -----------------------------------
+
+
+def _product(price, title="Brake pad set"):
+    return (
+        f"<html><body><main><h1 class='name'>{title}</h1>"
+        f"<p class='cost'><span class='price'>{price}</span></p></main></body></html>",
+        "https://shop.example/p/1",
+    )
+
+
+def test_an_example_is_the_same_amount_however_many_zeros_it_is_written_with():
+    """``8`` and ``8.00`` are one amount; compared as the strings amount()
+    gives back, they were two, and an example written without its cents was
+    found nowhere -- on the page, in a listing, or after a label."""
+    [price] = compile_extractor([_product("£8.00")], want={"price": "8"}).fields
+    assert price.path.endswith("span.price")
+    listed = shop_page(books(6)).replace("£10.99", "£8.00")
+    learnt = compile_extractor([(listed, "https://s/1")], want={"price": "8"})
+    assert [f.path for f in learnt.listing.fields] == ["span.price"]
+    labelled = [
+        (f"<html><body><ul><li><b>Price:</b> {price}</li></ul></body></html>", None)
+        for price in ("$12.00", "$8.50")
+    ]
+    learnt = compile_extractor(labelled, listing=False, want={"price": "12"})
+    [price] = learnt.fields
+    assert price.anchor is not None and price.anchor.label == "Price:"

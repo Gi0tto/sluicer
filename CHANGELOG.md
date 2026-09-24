@@ -2,6 +2,15 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- An example is one amount however many zeros it is written with: `--want
+  price=8` finds the page's `£8.00`, on the page, in a listing's rows and after
+  a label. Amounts were compared as the text `amount` gives back, `8` against
+  `8.00`, and the comparison was written out three times; it is one now, and
+  numeric.
+
 ## 0.7.0 - 2026-09-24
 
 ### Added
