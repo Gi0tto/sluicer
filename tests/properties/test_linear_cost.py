@@ -12,11 +12,16 @@ the same count on any machine, however loaded. A page twice the size of another
 should cost about twice as much, and a path that compares everything with
 everything costs four times as much; a ratio of 2.5 lets through what grows as
 ``n log n`` and stops what grows as the square.
+
+The profiler sees calls and not what happens inside one: a regular expression
+that backtracks or a tuple copied level by level costs one call whatever its
+length. Those are bounded by the clock instead, with margins of a hundred.
 """
 
 from __future__ import annotations
 
 import sys
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -163,3 +168,24 @@ def test_a_page_of_many_listings_costs_in_step_with_how_many(listing, copies):
         return render(Element("html", [], [Element("body", [], [listing] * k)]))
 
     assert growth(build, copies) < _GROWTH
+
+
+def _clocked(html: str) -> float:
+    started = time.perf_counter()
+    extract(html, induce=True)
+    return time.perf_counter() - started
+
+
+def test_a_long_class_on_every_part_is_read_in_a_moment():
+    """Found by review: the pattern that finds a CSS module's hash tried every
+    ``__`` in a class and scanned to the end of the class from each. This
+    page's three classes took about twenty seconds to read.
+    """
+    label = "a__" * 30_000 + "."
+    html = (
+        "<html><body><ul>"
+        + f"<li><span class='{label}'>x</span><b>y</b></li>" * 3
+        + "</ul></body></html>"
+    )
+
+    assert _clocked(html) < 1

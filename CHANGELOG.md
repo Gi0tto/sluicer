@@ -21,6 +21,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   members share one of its rarest paths, which is where any match must be, and
   with at most 64 of those; on the benchmark corpora no child needed more than
   nine, and the groups are the same.
+- Reading a CSS module's class (`Card_title__a1B2c` is `Card_title`) used a
+  pattern that tried every `__` in a class and scanned to its end from each:
+  a 90 KB class took seven seconds, on every row it sat on, in `induce` and
+  in `compile`. The name and hash are now counted, the same answer in
+  milliseconds.
 
 ## 0.7.0 - 2026-09-24
 

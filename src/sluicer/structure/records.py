@@ -35,7 +35,10 @@ from sluicer.declared.merge import Field, Record
 # styled-jsx, a news site's own renderer, Svelte and Astro.
 _UTILITY = frozenset("[]>@:/!()")
 _TOOLING_PREFIXES = ("css-", "sc-", "jsx-", "dcr-", "svelte-", "astro-", "emotion-")
-_CSS_MODULE = re.compile(r"(.+?)__([A-Za-z0-9_-]{5,})")
+# What a CSS module appends to a class after ``__``: letters, digits, ``_``
+# and ``-``, five at least.
+_HASH = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+_HASH_LEAST = 5
 _INTERLEAVED = re.compile(r"[a-z]\d[a-z]|\d[a-z]\d", re.IGNORECASE)
 
 # Which attribute carries the address, per tag. Named without an underscore
@@ -142,12 +145,29 @@ def _written_by_a_person(token: str) -> str | None:
         # ``@container``: styling, not names, and characters a field name and
         # a path both use as separators.
         return None
-    module = _CSS_MODULE.fullmatch(token)
-    if module and _random(module.group(2)):
-        token = module.group(1)
+    module = _css_module(token)
+    if module and _random(module[1]):
+        token = module[0]
     if any(_random(segment) for segment in re.split(r"[-_]+", token)):
         return None
     return token
+
+
+def _css_module(token: str) -> tuple[str, str] | None:
+    """``token`` as a CSS module writes it, the name and the hash after the
+    first ``__`` that only a hash follows, or None.
+
+    Counted rather than matched: the pattern this was, ``(.+?)__([A-Za-z0-9_-]{5,})``,
+    tried every ``__`` and scanned to the end of the class from each, and a
+    90 KB class, thirty thousand ``a__``, took seven seconds to read.
+    """
+    # Where the run of hash characters that ends the class begins.
+    hashed = len(token.rstrip(_HASH))
+    # The name is one character at least, and the hash is all that follows it.
+    at = token.find("__", max(1, hashed - 2))
+    if at < 0 or len(token) - at - 2 < _HASH_LEAST:
+        return None
+    return token[:at], token[at + 2 :]
 
 
 def _random(segment: str) -> bool:

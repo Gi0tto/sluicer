@@ -1,5 +1,6 @@
 import lxml.html
 import pytest
+from hypothesis import given, strategies as st
 
 from sluicer.structure.records import records_from
 
@@ -357,3 +358,16 @@ def test_a_row_a_thousand_deep_is_named_in_a_moment():
     records_from(rows)
 
     assert time.perf_counter() - started < 0.5
+
+
+@given(st.text(alphabet="aZ9_-.#é", max_size=14))
+def test_a_css_module_is_read_as_the_pattern_it_replaced_read_it(token):
+    """The name and hash are now counted rather than matched, since the
+    pattern backtracked over every ``__`` of a long class."""
+    import re
+
+    from sluicer.structure.records import _css_module
+
+    pattern = re.fullmatch(r"(.+?)__([A-Za-z0-9_-]{5,})", token)
+
+    assert _css_module(token) == (pattern.groups() if pattern else None)
