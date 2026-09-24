@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="508" viewBox="0 0 900 508" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<text x="0" y="22" font-size="13" font-weight="600" fill="#8b949e" letter-spacing="1">YOU GIVE IT</text>
+<text x="440" y="22" font-size="13" font-weight="600" fill="#8b949e" letter-spacing="1">IT GIVES YOU BACK</text>
+<rect x="0.5" y="40.0" width="220" height="99.5" rx="8" fill="#161b22" stroke="#30363d"/>
+<text x="16" y="86.8" font-size="15" font-weight="600" fill="#e6edf3">One page</text>
+<text x="16" y="105.8" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8b949e">HTML you have, or a URL</text>
+<path d="M221 89.8 C244 89.8 238 257.0 262 257.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="0.5" y="151.5" width="220" height="99.5" rx="8" fill="#161b22" stroke="#30363d"/>
+<text x="16" y="198.2" font-size="15" font-weight="600" fill="#e6edf3">A whole site</text>
+<text x="16" y="217.2" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8b949e">sluicer map, sluicer crawl</text>
+<path d="M221 201.2 C244 201.2 238 257.0 262 257.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="0.5" y="263.0" width="220" height="99.5" rx="8" fill="#161b22" stroke="#30363d"/>
+<text x="16" y="309.8" font-size="15" font-weight="600" fill="#e6edf3">A list of URLs</text>
+<text x="16" y="328.8" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8b949e">sluicer batch</text>
+<path d="M221 312.8 C244 312.8 238 257.0 262 257.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="0.5" y="374.5" width="220" height="99.5" rx="8" fill="#161b22" stroke="#30363d"/>
+<text x="16" y="421.2" font-size="15" font-weight="600" fill="#e6edf3">Feeds and web archives</text>
+<text x="16" y="440.2" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8b949e">sluicer feed, sluicer warc</text>
+<path d="M221 424.2 C244 424.2 238 257.0 262 257.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="262" y="205.0" width="136" height="104" rx="12" fill="#58a6ff"/>
+<text x="330.0" y="243.0" font-size="20" font-weight="700" fill="#0d1117" text-anchor="middle">sluicer</text>
+<text x="330.0" y="267.0" font-size="12" font-weight="400" fill="#0d1117" text-anchor="middle">no model, no key</text>
+<text x="330.0" y="285.0" font-size="11" font-weight="400" fill="#0d1117" text-anchor="middle">same page, same answer</text>
+<path d="M398 257.0 C422 257.0 416 72.0 440 72.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="440" y="40" width="459.5" height="64" rx="8" fill="#161b22" stroke="#30363d"/>
+<rect x="440" y="40" width="4" height="64" rx="2" fill="#58a6ff"/>
+<text x="458" y="62" font-size="15" font-weight="600" fill="#e6edf3">Every record the page declares</text>
+<text x="458" y="80" font-size="12" fill="#8b949e">Product, Article, Recipe, Event, Person, any schema.org type,</text>
+<text x="458" y="95" font-size="12" fill="#8b949e">8 vocabularies merged, each value with its source and place</text>
+<path d="M398 257.0 C422 257.0 416 146.0 440 146.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="440" y="114" width="459.5" height="64" rx="8" fill="#161b22" stroke="#30363d"/>
+<rect x="440" y="114" width="4" height="64" rx="2" fill="#58a6ff"/>
+<text x="458" y="136" font-size="15" font-weight="600" fill="#e6edf3">A summary of 25 questions</text>
+<text x="458" y="154" font-size="12" fill="#8b949e">title, author, dates, price, currency, availability, GTIN,</text>
+<text x="458" y="169" font-size="12" fill="#8b949e">brand, SKU, rating, breadcrumb, and every conflict between them</text>
+<path d="M398 257.0 C422 257.0 416 220.0 440 220.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="440" y="188" width="459.5" height="64" rx="8" fill="#161b22" stroke="#30363d"/>
+<rect x="440" y="188" width="4" height="64" rx="2" fill="#58a6ff"/>
+<text x="458" y="210" font-size="15" font-weight="600" fill="#e6edf3">Any field you show it once</text>
+<text x="458" y="228" font-size="12" fill="#8b949e">price=41.90, an ISBN, a phone: learnt from 3 pages of a site,</text>
+<text x="458" y="243" font-size="12" fill="#8b949e">then checked on every page it reads</text>
+<path d="M398 257.0 C422 257.0 416 294.0 440 294.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="440" y="262" width="459.5" height="64" rx="8" fill="#161b22" stroke="#30363d"/>
+<rect x="440" y="262" width="4" height="64" rx="2" fill="#58a6ff"/>
+<text x="458" y="284" font-size="15" font-weight="600" fill="#e6edf3">The rows of a listing</text>
+<text x="458" y="302" font-size="12" fill="#8b949e">a category page&#x27;s products, a table&#x27;s lines,</text>
+<text x="458" y="317" font-size="12" fill="#8b949e">on pages that declare nothing (--induce)</text>
+<path d="M398 257.0 C422 257.0 416 368.0 440 368.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="440" y="336" width="459.5" height="64" rx="8" fill="#161b22" stroke="#30363d"/>
+<rect x="440" y="336" width="4" height="64" rx="2" fill="#58a6ff"/>
+<text x="458" y="358" font-size="15" font-weight="600" fill="#e6edf3">The main text as Markdown</text>
+<text x="458" y="376" font-size="12" fill="#8b949e">the article a reader came for,</text>
+<text x="458" y="391" font-size="12" fill="#8b949e">without menus, footers and cards</text>
+<path d="M398 257.0 C422 257.0 416 442.0 440 442.0" fill="none" stroke="#30363d" stroke-width="1.5"/>
+<rect x="440" y="410" width="459.5" height="64" rx="8" fill="#161b22" stroke="#30363d"/>
+<rect x="440" y="410" width="4" height="64" rx="2" fill="#58a6ff"/>
+<text x="458" y="432" font-size="15" font-weight="600" fill="#e6edf3">A loud failure when a site changes</text>
+<text x="458" y="450" font-size="12" fill="#8b949e">exit 3 instead of nulls for weeks, and heal says</text>
+<text x="458" y="465" font-size="12" fill="#8b949e">where each field moved</text>
+</svg>

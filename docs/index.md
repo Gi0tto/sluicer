@@ -8,7 +8,7 @@
 </h1>
 
 <p align="center">
-  <strong>Turn a web page into structured data. No model, no API key, no bill.</strong>
+  <strong>Turn any web page, or a whole site, into structured data.<br>No model, no API key, no bill.</strong>
 </p>
 
 <p align="center">
@@ -30,12 +30,29 @@
 
 ---
 
-Sluicer reads the structured data a web page already declares -- JSON-LD,
-microdata, RDFa, OpenGraph and more -- and merges it into one record per thing,
-every value naming the vocabulary and the place on the page it came from. Where
-a page declares nothing, it learns an extractor from a few pages you point at,
-and says so when the site changes. No model reads the page, so the same page
-always gives the same answer.
+Sluicer reads everything a web page declares about itself -- products,
+articles, recipes, events, people, prices, dates, in JSON-LD, microdata, RDFa,
+OpenGraph and four more vocabularies -- and merges it into one record per
+thing, every value naming the vocabulary and the place on the page it came
+from. Where a page declares nothing, show it one example of the value you want
+and it learns where that value sits on every page of the site, then says so
+when the site changes. One page, a list of URLs, or a whole site: no model
+reads any of them, so the same page always gives the same answer.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/reads-dark.svg">
+    <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/reads-light.svg" alt="You give Sluicer one page, a whole site, a list of URLs, or feeds and web archives. It gives back every record the page declares, of any schema.org type, with each value's source; a summary of 25 questions from title and author to price, GTIN and rating, with every conflict; any field you show it once, learnt from three pages and checked on every page; the rows of a listing; the main text as Markdown; and a loud failure when a site changes" width="900">
+  </picture>
+</p>
+
+> 📏 **Why the scoreboards below talk about title, author and date.** Those are
+> the fields public test sets label by hand, so they are what can be scored
+> against a right answer somebody else wrote. They measure a part of what
+> Sluicer reads, not all of it. The products scoreboard measures prices and
+> availability, and SWDE the fields you teach an extractor: 32 kinds, from
+> prices, ISBNs and engines to phone numbers, addresses and job locations, on
+> 80 sites.
 
 <p align="center">
   <picture>
@@ -43,18 +60,23 @@ always gives the same answer.
     <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/swde-light.svg" alt="Extractors learnt from three pages of each of 80 real sites and read on their other 124,291 pages: Sluicer scores a mean F1 of 0.849 and is right on 0.972 of its answers, with 12,059 wrong answers; Scrapling's adaptive selectors score 0.671 and 0.864, with 56,058" width="760">
   </picture>
 </p>
-<p align="center">
-  <sub>SWDE, 80 sites in 8 verticals. On the half of the sites never read while
-  the rules were made, Sluicer scores 0.845.
-  <a href="scoreboard-swde.md">Every number, and how it was made</a>.</sub>
-</p>
+<p align="center"><em>
+  SWDE: cars, books, cameras, jobs, films, NBA players, restaurants and
+  universities, 32 kinds of field on 80 sites. On the half of the sites never
+  read while the rules were made, Sluicer scores 0.845.
+  <a href="scoreboard-swde.md">Every number, and how it was made</a>.
+</em></p>
 
 ## Which way in
 
 | you have | run | and get |
 |---|---|---|
-| a page, as HTML or a URL | `sluicer extract page.html` | every value it declares, each with where it came from |
-| many pages of one site | `sluicer compile a.html b.html --want price=41.90 -o shop.json`, then `sluicer run shop.json URL` | the same fields from every page, checked, and exit 3 when the site changes |
+| a page, as HTML or a URL | `sluicer extract page.html` | every record it declares, the 25-question summary, its conflicts, each value with where it came from |
+| a page that declares nothing | `sluicer extract page.html --induce` | the rows its markup repeats: a listing's cards, a table's lines |
+| a whole site | `sluicer map URL`, `sluicer crawl URL -o site.jsonl` | its addresses from its sitemaps, or every page it links to, each read as above, politely |
+| a list of URLs, a feed, a web archive | `sluicer batch urls.txt`, `sluicer feed URL`, `sluicer warc crawl.warc.gz` | one JSON line per page |
+| many pages of one template | `sluicer compile a.html b.html c.html --want price=41.90 -o shop.json`, then `sluicer run shop.json URL` | any field you gave an example of, from every page, checked, and exit 3 when the site changes |
+| an article | `sluicer markdown URL` | its main text as Markdown |
 | an AI agent | `claude mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp` | ten read-only tools, in any MCP client |
 | another language | `sluicer serve` | the same tools over HTTP, described at `/openapi.json` |
 
@@ -63,6 +85,9 @@ always gives the same answer.
 - 🧩 **Eight vocabularies, one record.** JSON-LD, microdata, RDFa, Dublin Core,
   OpenGraph, the Twitter card, HTML's meta names and microformats2, merged
   into one record per thing.
+- 🌐 **A page or a whole site.** `map` reads a site's sitemaps, `crawl`
+  follows its links, `batch` reads a list, `feed` and `warc` read feeds and
+  web archives: every page comes out with all it declares, one JSON line each.
 - 📍 **Provenance for every value.** The vocabulary, the key, and the place on the
   page: an XPath, and inside JSON-LD a pointer to the very value.
 - ❓ **A summary of 25 questions** -- title, author, date, price, currency,
@@ -244,7 +269,8 @@ curl -s http://127.0.0.1:8000/v1/tools/extract_declared \
 |---|---|---|---|---|---|
 | Structured data merged into one record per thing | yes | no, one list per vocabulary | for a few metadata fields | no | depends on the prompt |
 | Where each value came from | vocabulary, key and place | no | no | no | no |
-| Bylines and dates from the visible text | no, by design | no | yes | where you write selectors | yes |
+| A whole site, a list of URLs, feeds, web archives | yes, politely | no | sitemaps, feeds and a crawler | with a crawler framework | depends on the service |
+| Bylines and dates from the visible text, where nothing is declared | not in the summary, by design | no | yes | where you write selectors | yes |
 | The same answer for the same page | yes | yes | yes | yes | not guaranteed |
 | A site's changed layout noticed | fails loudly, then `heal` | -- | -- | not by itself | not by itself |
 | A model or an API key needed | no | no | no | no | yes |
@@ -264,8 +290,11 @@ full comparison, and says when another tool is the better choice.
   </picture>
 </p>
 
-Sluicer reads only what a page declares, so it answers less often than tools
-that also read the visible page, and is wrong less often when it answers. A hit
+Five of these scoreboards measure title, author and date, because those are
+the fields their test sets label; products measure price and availability,
+and SWDE the fields you teach an extractor. On the first five Sluicer reads
+only what a page declares, so it answers less often than tools that also read
+the visible page, and is wrong less often when it answers. A hit
 rate is right answers over the pages that carry a label; an invention is an
 answer on a page whose label is empty.
 
