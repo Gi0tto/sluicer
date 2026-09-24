@@ -104,6 +104,8 @@ _UPDATED_WORD = re.compile(
     r"actualizad[oa]|aggiornato|bijgewerkt",
     re.I,
 )
+# Boxes that hold the whole page, not a header.
+_PAGE_BOXES = frozenset({"html", "body", "main"})
 # The most different dates a page may show before it is taken for a listing,
 # whose dates are its cards' and are read only next to its heading.
 _MOST_DATES = 3
@@ -190,6 +192,17 @@ class _Page:
         shown |= {_text(e) for e in self.named_dates if iso_date(_text(e))}
         return len(shown) > _MOST_DATES
 
+    def in_the_header(self, element: HtmlElement) -> bool:
+        """Whether ``element`` shares a box with the page's heading: its
+        parent's or grandparent's, where an article's header puts its date."""
+        if self.heading is None:
+            return False
+        boxes = [self.heading.getparent()]
+        if boxes[0] is not None:
+            boxes.append(boxes[0].getparent())
+        boxes = [b for b in boxes if b is not None and b.tag not in _PAGE_BOXES]
+        return any(box in element.iterancestors() for box in boxes)
+
     @cached_property
     def heading(self) -> HtmlElement | None:
         headings = [h for h in self.tree.iter("h1") if not self.aside(h) and _text(h)]
@@ -240,7 +253,7 @@ def _name(text: str) -> str | None:
     by = _BY.match(text)
     if by:
         text = by.group(1)
-    text = re.split(r"\s*[|•·⋅]\s*|\s+-\s+|,\s*(?=\d)", text)[0].strip(" ,;:")
+    text = re.split(r"\s*[|•·⋅]\s*|\s+-\s+|,\s*(?=\d)|\s+on\s+", text)[0].strip(" ,;:")
     if (
         not text
         or _NOT_A_NAME.search(text)
@@ -529,7 +542,7 @@ def _date(page: _Page) -> Guess | None:
     shown = {t.get("datetime") or _text(t) for t in times}
     if len(shown) > _MOST_DATES:
         near = set(page.near)
-        times = [t for t in times if t in near]
+        times = [t for t in times if t in near and page.in_the_header(t)]
     marked = [
         t
         for t in times
