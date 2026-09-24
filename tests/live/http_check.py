@@ -57,6 +57,17 @@ class Server(http.server.BaseHTTPRequestHandler):
             self._send(302, Location="/page")
         elif self.path == "/to-private":
             self._send(302, Location="http://10.0.0.1/admin")
+        elif self.path == "/drip":
+            # Eight bytes a second, for longer than the deadline the check sets.
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(8 * 6))
+            self.end_headers()
+            with contextlib.suppress(OSError):
+                for _ in range(6):
+                    self.wfile.write(b"<p>drip>")
+                    self.wfile.flush()
+                    time.sleep(1)
         elif self.path.startswith("/to-"):
             port = listener.getsockname()[1]
             targets = {
@@ -128,6 +139,15 @@ def main() -> int:
     if rung(base + "/hop").url != base + "/page":
         failures.append("a redirect was not followed to where it led")
 
+    started = time.monotonic()
+    try:
+        http_rung(timeout=1.5)(base + "/drip")
+        failures.append("a body dripped past the deadline was waited for to its end")
+    except TimeoutError:
+        took = time.monotonic() - started
+        if took > 2.5:
+            failures.append(f"a dripped body was cut after {took:.2f} s, not 1.5")
+
     threading.Thread(target=_record, daemon=True).start()
     for path in ("/to-gopher", "/to-dict", "/to-file"):
         try:
@@ -178,8 +198,8 @@ def main() -> int:
         print("FAIL:", failure)
     if not failures:
         print(
-            "http: charset, identity, redirects, the web only, heavy bodies and "
-            "the pin all hold"
+            "http: charset, identity, redirects, the web only, the deadline, heavy "
+            "bodies and the pin all hold"
         )
     return 1 if failures else 0
 

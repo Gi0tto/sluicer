@@ -13,6 +13,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   addresses allowed or not, curl is told to speak nothing else, the ladder
   refuses an address off the web before any rung, and a page that landed off it
   is refused (`AddressRefused`, `refused_address`).
+- The HTTP rung's twenty seconds now cover the body. curl_cffi turns a timeout
+  on a streamed response into "under a byte a second for that long", so a
+  server sending eight bytes a second held a request for as long as it kept
+  sending, and four of them held every worker of `sluicer serve`, which then
+  answered nothing, calls that fetch nothing included. One address -- connecting,
+  every redirect hop, every byte -- now ends by `HTTP_TIMEOUT_SECONDS` with a
+  `TimeoutError`. SECURITY.md said a map or a crawl took "a minute each"; it
+  stops starting requests after a minute, and now says so, with each request's
+  own bound.
 
 ## 0.7.0 - 2026-09-24
 

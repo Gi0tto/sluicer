@@ -246,6 +246,43 @@ def test_a_page_that_landed_off_the_web_is_refused():
         )
 
 
+def test_curl_is_given_the_whole_deadline_not_a_floor_on_speed(monkeypatch):
+    """curl_cffi's timeout on a stream is "under a byte a second for that
+    long": a body dripped eight bytes a second held a request for as long as
+    it dripped. curl's own TIMEOUT_MS is the whole transfer, body included."""
+    seen = fake_curl(monkeypatch, [(302, b"", {"location": "/q"}), PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung(timeout=7)("https://example.com/p")
+
+    first, second = (s["curl_options"]["timeout_ms"] for s in seen["sessions"])
+    assert 0 < second <= first <= 7000, "each hop gets what is left of one deadline"
+
+
+def test_a_fetch_past_its_deadline_asks_nothing_more(monkeypatch):
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(TimeoutError, match="longer than 0 seconds"):
+        http_rung(timeout=0)("https://example.com/p")
+
+    assert seen["urls"] == []
+
+
+def test_curls_timeout_is_a_timeout(monkeypatch):
+    """Whatever class curl_cffi raises it as, code 28 is the deadline."""
+    timed_out = RuntimeError(
+        "Failed to perform, curl: (28) Operation timed out after 1501 milliseconds"
+    )
+    fake_curl(monkeypatch, [timed_out])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(TimeoutError, match="longer than 20 seconds") as raised:
+        http_rung()("https://example.com/p")
+
+    assert isinstance(raised.value, OSError), "callers catch OSError"
+
+
 def test_a_redirect_loop_ends(monkeypatch):
     loop = [(302, b"", {"location": "/p"}) for _ in range(20)]
     fake_curl(monkeypatch, loop)

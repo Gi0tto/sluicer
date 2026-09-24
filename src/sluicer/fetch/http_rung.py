@@ -5,6 +5,9 @@ It asks for what scrapling's fetcher had no way to be asked for:
 * **A byte bound.** The body is read in chunks and the transfer stops once it
   passes the bound, after decompression, so a small gzip that inflates to
   gigabytes costs the bound and no more.
+* **A deadline.** One fetch, every redirect hop and every byte of the body
+  included, ends by ``HTTP_TIMEOUT_SECONDS``: a server that drips its body a
+  few bytes a second is cut off there, not when it is done.
 * **Redirects one hop at a time.** curl never follows one itself; every
   address a redirect names is judged before it is asked.
 * **The web and nothing else.** Every hop must be http or https, and curl is
@@ -26,6 +29,7 @@ dresses it up as a browser.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -54,7 +58,13 @@ from sluicer.fetch.result import (
 )
 
 HTTP_TIMEOUT_SECONDS = 20
-"""How long the plain HTTP rung waits for one response."""
+"""How long the plain HTTP rung may take for one address: the whole of it,
+connecting, every redirect hop and the body included.
+
+curl_cffi turns a timeout on a streamed response into "less than a byte a
+second for that long", which a body sent eight bytes a second never trips:
+measured, one request was held for as long as the server kept dripping.
+"""
 
 MAX_REDIRECTS = 10
 """How many redirects one fetch follows before it calls the chain a loop."""
@@ -62,6 +72,7 @@ MAX_REDIRECTS = 10
 _REDIRECTS = frozenset({301, 302, 303, 307, 308})
 _PROTOCOLS = ",".join(WEB_SCHEMES)
 _FILESIZE_EXCEEDED = 63
+_TIMED_OUT = 28
 
 
 class TooManyRedirects(Exception):
@@ -90,6 +101,7 @@ def http_responses(
     error: type[MissingExtra] = MissingExtra,
     redirects: Redirects | None = None,
     send: Mapping[str, str] | None = None,
+    timeout: float = HTTP_TIMEOUT_SECONDS,
 ) -> Callable[[str], Response]:
     """Build the HTTP transport: an address in, a ``Response`` out.
 
@@ -104,6 +116,9 @@ def http_responses(
             requested; a hop it refuses raises ``RedirectRefused``.
         send: headers sent with every request beside our User-Agent, which
             they cannot replace: a cache's validators, ``If-None-Match``.
+        timeout: the seconds one address may take, every hop and the body
+            included; past them the transfer is cut and ``TimeoutError``
+            raised.
     """
     requests = import_extra(
         "curl_cffi.requests", "fetch", doing="Fetching a URL", error=error
@@ -114,6 +129,7 @@ def http_responses(
 
     def get(url: str) -> Response:
         current = url
+        deadline = time.monotonic() + timeout
         for _ in range(MAX_REDIRECTS + 1):
             not_web = why_not_web(current)
             if not_web is not None:
@@ -129,7 +145,15 @@ def http_responses(
                 pins = _pins(current, resolve)
                 if pins:
                     options[curl_option.RESOLVE] = pins
-            status, headers, body = _get(requests, current, options, max_bytes, send)
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise TimeoutError(f"{url} took longer than {timeout:g} seconds")
+            # Set after curl_cffi's own, which for a stream is only a floor
+            # on speed: this one is the whole transfer, the body included.
+            options[curl_option.TIMEOUT_MS] = max(1, int(left * 1000))
+            status, headers, body = _get(
+                requests, current, options, max_bytes, send, left, url, timeout
+            )
             location = headers.get("location")
             if status in _REDIRECTS and location:
                 target = urljoin(current, location)
@@ -160,15 +184,18 @@ def http_rung(
     error: type[MissingExtra] = MissingExtra,
     redirects: Redirects | None = None,
     allow_empty: bool = False,
+    timeout: float = HTTP_TIMEOUT_SECONDS,
 ) -> Rung:
     """Build the HTTP rung: ``http_responses``, its body read as a page.
 
-    The first five arguments are ``http_responses``'s. ``allow_empty`` returns
-    an empty body rather than failing on it: a page with no HTML is a rung
-    that failed, but an empty robots.txt or llms.txt is an answer, and
-    ``sluicer.fetch.site`` reads those.
+    The first five arguments and ``timeout`` are ``http_responses``'s.
+    ``allow_empty`` returns an empty body rather than failing on it: a page
+    with no HTML is a rung that failed, but an empty robots.txt or llms.txt is
+    an answer, and ``sluicer.fetch.site`` reads those.
     """
-    get = http_responses(allow_private, resolve, max_bytes, error, redirects)
+    get = http_responses(
+        allow_private, resolve, max_bytes, error, redirects, timeout=timeout
+    )
 
     def http(url: str) -> Fetched:
         response = get(url)
@@ -194,14 +221,19 @@ def _get(
     options: dict[Any, Any],
     max_bytes: int,
     send: Mapping[str, str] | None = None,
+    left: float = HTTP_TIMEOUT_SECONDS,
+    asked: str | None = None,
+    timeout: float = HTTP_TIMEOUT_SECONDS,
 ) -> tuple[int, Any, bytes]:
-    """One request, no redirect followed, the body read up to ``max_bytes``."""
+    """One request, no redirect followed, the body read up to ``max_bytes``
+    within ``left`` seconds; ``asked`` and ``timeout`` are what a timeout's
+    message names."""
     with requests.Session(curl_options=options, impersonate=None) as session:
         try:
             response = session.get(
                 url,
                 headers={**(send or {}), "User-Agent": USER_AGENT},
-                timeout=HTTP_TIMEOUT_SECONDS,
+                timeout=left,
                 allow_redirects=False,
                 stream=True,
             )
@@ -219,11 +251,26 @@ def _get(
         except Exception as failure:
             # curl's own refusal (CURLE_FILESIZE_EXCEEDED), which comes first
             # when the length was announced or the transfer outran our count.
-            if getattr(failure, "code", None) == _FILESIZE_EXCEEDED or (
-                f"curl: ({_FILESIZE_EXCEEDED})" in str(failure)
-            ):
+            if _curl_code(failure) == _FILESIZE_EXCEEDED:
                 raise ResponseTooLarge(url, max_bytes) from failure
+            # CURLE_OPERATION_TIMEDOUT: the deadline, said as a timeout
+            # whatever class curl_cffi raised it as.
+            if _curl_code(failure) == _TIMED_OUT:
+                raise TimeoutError(
+                    f"{asked or url} took longer than {timeout:g} seconds"
+                ) from failure
             raise
+
+
+def _curl_code(failure: Exception) -> int | None:
+    """The libcurl error code a curl_cffi failure carries, or None."""
+    code = getattr(failure, "code", None)
+    if isinstance(code, int) and code:
+        return code
+    for known in (_FILESIZE_EXCEEDED, _TIMED_OUT):
+        if f"curl: ({known})" in str(failure):
+            return known
+    return None
 
 
 def _pins(url: str, resolve: Callable[[str], Iterable[str]]) -> list[str]:

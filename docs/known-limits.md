@@ -405,8 +405,10 @@ page's `rights` and not acted on: a crawl that reads a page is not an index.
 day (`1/5s 0900-1700`) is kept at every hour.
 
 **A time budget stops starting, it does not interrupt.** A page already being
-fetched when the time is up finishes, which under the ladder's own bounds is
-under a minute; an MCP answer can take that much longer than its minute.
+fetched when the time is up finishes, within its requests' own bounds: twenty
+seconds for each plain HTTP request, its robots.txt's included, and thirty for
+each thing a browser waits on. An MCP answer can take that much longer than its
+minute.
 
 **A crawl resumes only with the options it was written with.** The file's
 order is the order those options take the site in, so another start, depth or
@@ -471,7 +473,8 @@ unnoticed. The HTTP door is held to that same list, not to a second one.
 **A call that runs out of time still runs to its end.** The 504 is sent when
 the budget runs out, and whatever the call brings later is dropped: a thread
 cannot be stopped from outside, so a fetch keeps its worker until its own
-timeouts end it, twenty seconds of plain HTTP and thirty of a browser. Four
+timeouts end it: twenty seconds for each plain HTTP request, the body included,
+and thirty for each thing a browser waits on. Four
 workers bound how many such calls there can be, and a call still waiting for
 one when its budget runs out is never started. On SIGTERM, which is what
 `docker stop` sends, uvicorn shuts down and then re-raises the signal, so the

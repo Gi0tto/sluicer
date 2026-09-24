@@ -63,7 +63,9 @@ server by six routes without the guard and by none with it. Set
 `map_site` and `crawl_site` fetch many addresses from one an agent chose: every
 page, every sitemap and every hop of a redirect is judged by the same filter
 before it is requested, a crawl never leaves the site it started on, and both
-are bounded -- ten sitemaps or 25 pages, a minute each. A sitemap is parsed with
+are bounded: ten sitemaps or 25 pages, and no request started after a minute.
+A request already started when the minute is up runs to its own bound, below,
+so an answer can come that much later. A sitemap is parsed with
 no entity resolved and nothing fetched from inside it, and one that declares a
 document type is refused, so neither an external entity nor billion laughs
 reaches the parser.
@@ -114,5 +116,17 @@ It can be large. A fetched page is bounded at 16 MiB (`MAX_RESPONSE_BYTES`):
 the HTTP rung stops reading there, after decompression, and a browser's page
 heavier than that is refused once loaded. Before 0.3.0 there was no bound, and a
 200 MB response was measured holding 1.14 GB. HTML handed to the MCP server
-directly is held to the same bound. What it hands an agent is cut at 200,000
-characters, which bounds the agent's context.
+directly is held to the same bound. What it hands an agent is at most 60,000
+characters of a page or its markdown at a time, and an `extract_declared`
+answer at most 75,000 bytes, which bounds the agent's context.
+
+It can be slow. A plain HTTP request ends twenty seconds after it started,
+connecting, every redirect hop and every byte of the body included
+(`HTTP_TIMEOUT_SECONDS`). Before 0.7.1 that bound did not reach the body: a
+server sending eight bytes a second held a request as long as it kept sending,
+and four such requests held every worker of `sluicer serve`, so it answered
+nothing else. A browser page is bounded by the browser's own timeout, thirty
+seconds for each thing it waits on (`BROWSER_TIMEOUT_MS`). A fetch makes a few
+such requests -- the site's robots.txt, then each rung it climbs -- and each
+keeps its own bound; nothing bounds the name lookups, which are the system
+resolver's.

@@ -38,9 +38,11 @@ __all__ = [
 BROWSER_TIMEOUT_MS = 30_000
 """How long the browser rung waits for one page, in scrapling's milliseconds.
 
-One try per rung and these two bounds keep a slow site under a minute for the
-whole ladder. scrapling's defaults, three tries of thirty seconds a rung, came to
-three minutes, longer than an agent's tool call waits.
+It bounds each thing the browser waits on -- the page's load, then the network
+going quiet -- not the rung as a whole. One try per rung keeps a slow site to
+that and to ``HTTP_TIMEOUT_SECONDS`` for plain HTTP, the body included.
+scrapling's defaults, three tries of thirty seconds a rung, came to three
+minutes, longer than an agent's tool call waits.
 """
 
 
