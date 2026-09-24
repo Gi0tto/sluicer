@@ -1,0 +1,24 @@
+{
+  "page": "tests/fixtures/plain.html",
+  "url": null,
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": null,
+    "summary": {
+      "title": {
+        "value": "Plain page",
+        "source": "html",
+        "key": "<title>",
+        "where": "/html/head/title[1]"
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [],
+    "sources": [],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

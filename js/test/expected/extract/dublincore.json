@@ -1,0 +1,80 @@
+{
+  "page": "js/test/pages/dublincore.html",
+  "url": "https://library.example/hume/taste",
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": "https://library.example/hume/taste",
+    "summary": {
+      "title": {
+        "value": "Of the Standard of Taste",
+        "source": "dublincore",
+        "key": "dc.title",
+        "where": null
+      },
+      "author": {
+        "value": "David Hume",
+        "source": "dublincore",
+        "key": "dc.creator",
+        "where": null
+      },
+      "published": {
+        "value": "1757-01-01",
+        "source": "dublincore",
+        "key": "dc.date",
+        "where": null
+      },
+      "language": {
+        "value": "en",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      }
+    },
+    "normalised": {
+      "published": "1757-01-01"
+    },
+    "conflicts": [],
+    "records": [
+      {
+        "type": null,
+        "types": [],
+        "fields": {
+          "title": {
+            "value": "Of the Standard of Taste",
+            "source": "dublincore",
+            "where": null
+          },
+          "creator": {
+            "value": "David Hume",
+            "source": "dublincore",
+            "where": null
+          },
+          "date": {
+            "value": "1757-01-01",
+            "source": "dublincore",
+            "where": null
+          },
+          "subject": {
+            "value": "aesthetics",
+            "source": "dublincore",
+            "where": null
+          },
+          "language": {
+            "value": "en",
+            "source": "dublincore",
+            "where": null
+          }
+        },
+        "source": null,
+        "where": null
+      }
+    ],
+    "sources": [
+      "dublincore"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

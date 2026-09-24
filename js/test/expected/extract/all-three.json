@@ -1,0 +1,99 @@
+{
+  "page": "tests/fixtures/product_all_three.html",
+  "url": "https://shop.example/p/3",
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": "https://shop.example/p/3",
+    "summary": {
+      "title": {
+        "value": "Brake pad set",
+        "source": "jsonld",
+        "key": "Product.name",
+        "where": "/html/head/script[1]#/name"
+      },
+      "description": {
+        "value": "Described by JSON-LD",
+        "source": "jsonld",
+        "key": "Product.description",
+        "where": "/html/head/script[1]#/description"
+      },
+      "image": {
+        "value": "https://example.com/brake-pad-set.jpg",
+        "source": "opengraph",
+        "key": "og:image",
+        "where": null
+      },
+      "type": {
+        "value": "Product",
+        "source": "jsonld",
+        "key": "@type",
+        "where": "/html/head/script[1]#"
+      },
+      "sku": {
+        "value": "BP-1187",
+        "source": "jsonld",
+        "key": "Product.sku",
+        "where": "/html/head/script[1]#/sku"
+      },
+      "mpn": {
+        "value": "GDB1330",
+        "source": "microdata",
+        "key": "Product.mpn",
+        "where": "/html/body/div[1]/span[1]"
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [
+      {
+        "type": "Product",
+        "types": [
+          "Product"
+        ],
+        "fields": {
+          "name": {
+            "value": "Brake pad set",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/name"
+          },
+          "sku": {
+            "value": "BP-1187",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/sku"
+          },
+          "description": {
+            "value": "Described by JSON-LD",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/description"
+          },
+          "mpn": {
+            "value": "GDB1330",
+            "source": "microdata",
+            "where": "/html/body/div[1]/span[1]"
+          },
+          "title": {
+            "value": "Brake pad set, front axle",
+            "source": "opengraph",
+            "where": null
+          },
+          "image": {
+            "value": "https://example.com/brake-pad-set.jpg",
+            "source": "opengraph",
+            "where": null
+          }
+        },
+        "source": "jsonld",
+        "where": "/html/head/script[1]#"
+      }
+    ],
+    "sources": [
+      "jsonld",
+      "microdata",
+      "opengraph"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "page": "tests/fixtures/drift/shop_prices_gone.html",
+  "url": "https://shop.example/shop_prices_gone.html",
+  "answer": {
+    "url": "https://shop.example/shop_prices_gone.html",
+    "ok": false,
+    "rows": [
+      {
+        "a.title": "A Light in the Attic",
+        "a.title@href": "https://shop.example/book/1",
+        "span.stock": "In stock"
+      },
+      {
+        "a.title": "Tipping the Velvet",
+        "a.title@href": "https://shop.example/book/2",
+        "span.stock": "In stock"
+      },
+      {
+        "a.title": "Soumission",
+        "a.title@href": "https://shop.example/book/3",
+        "span.stock": "In stock"
+      },
+      {
+        "a.title": "Sharp Objects",
+        "a.title@href": "https://shop.example/book/4",
+        "span.stock": "Out of stock"
+      },
+      {
+        "a.title": "Sapiens",
+        "a.title@href": "https://shop.example/book/5",
+        "span.stock": "In stock"
+      },
+      {
+        "a.title": "The Requiem Red",
+        "a.title@href": "https://shop.example/book/6",
+        "span.stock": "In stock"
+      }
+    ],
+    "summary": {
+      "title": "Books | Example Shop",
+      "language": "en"
+    },
+    "checks": [
+      {
+        "name": "summary",
+        "expected": "the summary answers title",
+        "got": "yes",
+        "ok": true
+      },
+      {
+        "name": "summary",
+        "expected": "the summary answers language",
+        "got": "yes",
+        "ok": true
+      },
+      {
+        "name": "listing",
+        "expected": "the listing at html>body>div.page>ol.row",
+        "got": "found",
+        "ok": true
+      },
+      {
+        "name": "rows",
+        "expected": "at least 1 row",
+        "got": "6",
+        "ok": true
+      },
+      {
+        "name": "rows",
+        "expected": "at most 20% of the listing's members empty",
+        "got": "0 of 6 empty",
+        "ok": true
+      },
+      {
+        "name": "field",
+        "expected": "a.title in at least 80% of rows",
+        "got": "in 100%",
+        "ok": true
+      },
+      {
+        "name": "shape",
+        "expected": "a.title shaped L in at least 50% of rows",
+        "got": "100%, e.g. 'A Light in the Attic'",
+        "ok": true
+      },
+      {
+        "name": "values",
+        "expected": "a.title to differ from row to row, as it did",
+        "got": "they do",
+        "ok": true
+      },
+      {
+        "name": "field",
+        "expected": "a.title@href in at least 80% of rows",
+        "got": "in 100%",
+        "ok": true
+      },
+      {
+        "name": "values",
+        "expected": "a.title@href to differ from row to row, as it did",
+        "got": "they do",
+        "ok": true
+      },
+      {
+        "name": "field",
+        "expected": "span.price in at least 80% of rows",
+        "got": "in 0%",
+        "ok": false
+      },
+      {
+        "name": "field",
+        "expected": "span.stock in at least 80% of rows",
+        "got": "in 100%",
+        "ok": true
+      },
+      {
+        "name": "shape",
+        "expected": "span.stock shaped L in at least 50% of rows",
+        "got": "100%, e.g. 'In stock'",
+        "ok": true
+      }
+    ],
+    "fields": {}
+  }
+}

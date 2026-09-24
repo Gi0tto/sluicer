@@ -17,3 +17,12 @@ stderr.txt
 exitcode.txt
 /site/
 .hypothesis/
+# The npm package's build, from js/scripts/build_wheel.py, and its installs.
+# Here and not in js/.gitignore: hatch reads only this file, and the sdist
+# would otherwise carry node_modules.
+/js/node_modules/
+/js/python/
+/js/LICENSE
+/js/NOTICE
+/js/LICENSES/
+/js/*.tgz

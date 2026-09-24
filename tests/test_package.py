@@ -160,10 +160,12 @@ def test_a_submodule_is_importable_in_a_process_that_knows_nothing():
 
 
 def test_every_file_that_states_the_version_or_the_licence_agrees():
-    """The version is written in five files and the licence in four: a release
-    that bumps one and forgets another tells PyPI, the plugin, the skill and
-    a citation four different things. Read with patterns, not ``tomllib``,
-    which Python 3.10 lacks."""
+    """The version is written in six files and the licence in five: a release
+    that bumps one and forgets another tells PyPI, npm, the plugin, the skill
+    and a citation five different things. The npm package carries the wheel
+    built from this checkout, and its build refuses a version other than
+    pyproject's. Read with patterns, not ``tomllib``, which Python 3.10
+    lacks."""
     import json
     import re
     from pathlib import Path
@@ -177,6 +179,7 @@ def test_every_file_that_states_the_version_or_the_licence_agrees():
     )
     skill = (root / "skills" / "sluicer" / "SKILL.md").read_text(encoding="utf-8")
     citation = (root / "CITATION.cff").read_text(encoding="utf-8")
+    npm = json.loads((root / "js" / "package.json").read_text(encoding="utf-8"))
 
     def stated(pattern: str, text: str) -> str:
         found = re.search(pattern, text, re.MULTILINE)
@@ -189,10 +192,14 @@ def test_every_file_that_states_the_version_or_the_licence_agrees():
     # Under metadata: the Agent Skills standard allows no top-level version.
     assert stated(r'^metadata:\n(?:  .+\n)*?  version: "(.+)"$', skill) == version
     assert stated(r"^version: (.+)$", citation) == version
+    assert npm["version"] == version
 
     licence = stated(r'^license = "(.+)"$', pyproject)
     assert licence == "MIT AND CC-BY-SA-3.0 AND Unicode-3.0"
     assert plugin["license"] == licence
+    # The wheel inside the npm package holds the same two files that are not
+    # under MIT.
+    assert npm["license"] == licence
     listed = stated(r"^license:\n((?:  - .+\n)+)", citation).splitlines()
     assert " AND ".join(line.removeprefix("  - ") for line in listed) == licence
 

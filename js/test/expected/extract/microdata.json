@@ -1,0 +1,59 @@
+{
+  "page": "tests/fixtures/product_microdata.html",
+  "url": "https://shop.example/p/2",
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": "https://shop.example/p/2",
+    "summary": {
+      "title": {
+        "value": "Oil filter",
+        "source": "microdata",
+        "key": "Product.name",
+        "where": "/html/body/div[1]/h1[1]"
+      },
+      "type": {
+        "value": "Product",
+        "source": "microdata",
+        "key": "@type",
+        "where": "/html/body/div[1]"
+      },
+      "sku": {
+        "value": "BP-2290",
+        "source": "microdata",
+        "key": "Product.sku",
+        "where": "/html/body/div[1]/span[1]"
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [
+      {
+        "type": "Product",
+        "types": [
+          "Product"
+        ],
+        "fields": {
+          "name": {
+            "value": "Oil filter",
+            "source": "microdata",
+            "where": "/html/body/div[1]/h1[1]"
+          },
+          "sku": {
+            "value": "BP-2290",
+            "source": "microdata",
+            "where": "/html/body/div[1]/span[1]"
+          }
+        },
+        "source": "microdata",
+        "where": "/html/body/div[1]"
+      }
+    ],
+    "sources": [
+      "microdata"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

@@ -1,0 +1,213 @@
+{
+  "page": "examples/brake-pads.html",
+  "url": "https://example.com/p/bp-2210",
+  "as": "bytes",
+  "options": {
+    "headers": {
+      "Link": "<https://example.com/p/bp-2210?v=2>; rel=\"canonical\"",
+      "X-Robots-Tag": "noai, noimageai"
+    }
+  },
+  "answer": {
+    "url": "https://example.com/p/bp-2210",
+    "summary": {
+      "title": {
+        "value": "Brake pad set",
+        "source": "jsonld",
+        "key": "Product.name",
+        "where": "/html/head/script[1]#/name"
+      },
+      "description": {
+        "value": "Front brake pad set for 16-inch discs, with wear sensor.",
+        "source": "html",
+        "key": "meta name=description",
+        "where": null
+      },
+      "image": {
+        "value": "https://example.com/i/pads.jpg",
+        "source": "opengraph",
+        "key": "og:image",
+        "where": null
+      },
+      "language": {
+        "value": "en",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      },
+      "site_name": {
+        "value": "Example Parts",
+        "source": "opengraph",
+        "key": "og:site_name",
+        "where": null
+      },
+      "type": {
+        "value": "Product",
+        "source": "jsonld",
+        "key": "@type",
+        "where": "/html/head/script[1]#"
+      },
+      "price": {
+        "value": "41.90",
+        "source": "jsonld",
+        "key": "Product.offers.price",
+        "where": "/html/head/script[1]#/offers/price"
+      },
+      "currency": {
+        "value": "EUR",
+        "source": "jsonld",
+        "key": "Product.offers.priceCurrency",
+        "where": "/html/head/script[1]#/offers/priceCurrency"
+      },
+      "availability": {
+        "value": "InStock",
+        "source": "jsonld",
+        "key": "Product.offers.availability",
+        "where": "/html/head/script[1]#/offers/availability"
+      },
+      "brand": {
+        "value": "Stopwell",
+        "source": "jsonld",
+        "key": "Product.brand",
+        "where": "/html/head/script[1]#/brand"
+      },
+      "gtin": {
+        "value": "4006381333931",
+        "source": "microdata",
+        "key": "Product.gtin13",
+        "where": "/html/body/div[1]/span[2]"
+      },
+      "mpn": {
+        "value": "BP-2210",
+        "source": "microdata",
+        "key": "Product.mpn",
+        "where": "/html/body/div[1]/span[1]"
+      }
+    },
+    "normalised": {
+      "price": "41.90",
+      "currency": "EUR",
+      "gtin": "4006381333931"
+    },
+    "conflicts": [
+      {
+        "question": "price",
+        "answers": [
+          {
+            "value": "41.90",
+            "source": "jsonld",
+            "key": "Product.offers.price",
+            "where": "/html/head/script[1]#/offers/price"
+          },
+          {
+            "value": "39.90",
+            "source": "opengraph",
+            "key": "product:price:amount",
+            "where": null
+          }
+        ]
+      }
+    ],
+    "records": [
+      {
+        "type": "Product",
+        "types": [
+          "Product"
+        ],
+        "fields": {
+          "name": {
+            "value": "Brake pad set",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/name"
+          },
+          "brand": {
+            "value": {
+              "@type": "Brand",
+              "name": "Stopwell"
+            },
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/brand"
+          },
+          "offers": {
+            "value": {
+              "@type": "Offer",
+              "price": "41.90",
+              "priceCurrency": "EUR",
+              "availability": "https://schema.org/InStock"
+            },
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/offers"
+          },
+          "mpn": {
+            "value": "BP-2210",
+            "source": "microdata",
+            "where": "/html/body/div[1]/span[1]"
+          },
+          "gtin13": {
+            "value": "4006381333931",
+            "source": "microdata",
+            "where": "/html/body/div[1]/span[2]"
+          },
+          "site_name": {
+            "value": "Example Parts",
+            "source": "opengraph",
+            "where": null
+          },
+          "type": {
+            "value": "product",
+            "source": "opengraph",
+            "where": null
+          },
+          "title": {
+            "value": "Brake pad set BP-2210",
+            "source": "opengraph",
+            "where": null
+          },
+          "product:price:amount": {
+            "value": "39.90",
+            "source": "opengraph",
+            "where": null
+          },
+          "product:price:currency": {
+            "value": "EUR",
+            "source": "opengraph",
+            "where": null
+          },
+          "image": {
+            "value": "https://example.com/i/pads.jpg",
+            "source": "opengraph",
+            "where": null
+          },
+          "description": {
+            "value": "Front brake pad set for 16-inch discs, with wear sensor.",
+            "source": "html",
+            "where": null
+          }
+        },
+        "source": "jsonld",
+        "where": "/html/head/script[1]#"
+      }
+    ],
+    "sources": [
+      "jsonld",
+      "microdata",
+      "opengraph",
+      "html"
+    ],
+    "links": {
+      "canonical_conflict": [
+        "https://example.com/p/bp-2210",
+        "https://example.com/p/bp-2210?v=2"
+      ]
+    },
+    "rights": {
+      "http": {
+        "robots": [
+          "noai",
+          "noimageai"
+        ]
+      }
+    },
+    "visible": {}
+  }
+}

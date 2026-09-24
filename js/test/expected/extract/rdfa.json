@@ -1,0 +1,111 @@
+{
+  "page": "js/test/pages/rdfa.html",
+  "url": "https://shop.example/p/1187",
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": "https://shop.example/p/1187",
+    "summary": {
+      "title": {
+        "value": "Brake pad set",
+        "source": "rdfa",
+        "key": "Product.name",
+        "where": "/html/body/div[1]/h1[1]"
+      },
+      "url": {
+        "value": "https://shop.example/p/1187",
+        "source": "rdfa",
+        "key": "Product.url",
+        "where": "/html/body/div[1]/a[1]"
+      },
+      "image": {
+        "value": "https://shop.example/i/1187.jpg",
+        "source": "rdfa",
+        "key": "Product.image",
+        "where": "/html/body/div[1]/img[1]"
+      },
+      "language": {
+        "value": "en",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      },
+      "type": {
+        "value": "Product",
+        "source": "rdfa",
+        "key": "@type",
+        "where": "/html/body/div[1]"
+      },
+      "price": {
+        "value": "29.50",
+        "source": "rdfa",
+        "key": "Product.offers.price",
+        "where": "/html/body/div[1]/div[1]/span[1]"
+      },
+      "currency": {
+        "value": "EUR",
+        "source": "rdfa",
+        "key": "Product.offers.priceCurrency",
+        "where": "/html/body/div[1]/div[1]/meta[1]"
+      },
+      "sku": {
+        "value": "BP-1187",
+        "source": "rdfa",
+        "key": "Product.sku",
+        "where": "/html/body/div[1]/span[1]"
+      }
+    },
+    "normalised": {
+      "price": "29.50",
+      "currency": "EUR"
+    },
+    "conflicts": [],
+    "records": [
+      {
+        "type": "Product",
+        "types": [
+          "Product"
+        ],
+        "fields": {
+          "name": {
+            "value": "Brake pad set",
+            "source": "rdfa",
+            "where": "/html/body/div[1]/h1[1]"
+          },
+          "sku": {
+            "value": "BP-1187",
+            "source": "rdfa",
+            "where": "/html/body/div[1]/span[1]"
+          },
+          "url": {
+            "value": "https://shop.example/p/1187",
+            "source": "rdfa",
+            "where": "/html/body/div[1]/a[1]"
+          },
+          "image": {
+            "value": "https://shop.example/i/1187.jpg",
+            "source": "rdfa",
+            "where": "/html/body/div[1]/img[1]"
+          },
+          "offers": {
+            "value": {
+              "@type": "Offer",
+              "price": "29.50",
+              "priceCurrency": "EUR"
+            },
+            "source": "rdfa",
+            "where": "/html/body/div[1]/div[1]"
+          }
+        },
+        "source": "rdfa",
+        "where": "/html/body/div[1]"
+      }
+    ],
+    "sources": [
+      "rdfa"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

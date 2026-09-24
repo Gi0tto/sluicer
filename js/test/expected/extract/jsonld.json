@@ -1,0 +1,83 @@
+{
+  "page": "tests/fixtures/product_jsonld.html",
+  "url": "https://shop.example/p/1",
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": "https://shop.example/p/1",
+    "summary": {
+      "title": {
+        "value": "Brake pad set",
+        "source": "jsonld",
+        "key": "Product.name",
+        "where": "/html/head/script[1]#/@graph/0/name"
+      },
+      "type": {
+        "value": "Product",
+        "source": "jsonld",
+        "key": "@type",
+        "where": "/html/head/script[1]#/@graph/0"
+      },
+      "price": {
+        "value": "41.99",
+        "source": "jsonld",
+        "key": "Product.offers.price",
+        "where": "/html/head/script[1]#/@graph/0/offers/price"
+      },
+      "currency": {
+        "value": "EUR",
+        "source": "jsonld",
+        "key": "Product.offers.priceCurrency",
+        "where": "/html/head/script[1]#/@graph/0/offers/priceCurrency"
+      },
+      "sku": {
+        "value": "BP-1187",
+        "source": "jsonld",
+        "key": "Product.sku",
+        "where": "/html/head/script[1]#/@graph/0/sku"
+      }
+    },
+    "normalised": {
+      "price": "41.99",
+      "currency": "EUR"
+    },
+    "conflicts": [],
+    "records": [
+      {
+        "type": "Product",
+        "types": [
+          "Product"
+        ],
+        "fields": {
+          "name": {
+            "value": "Brake pad set",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/@graph/0/name"
+          },
+          "sku": {
+            "value": "BP-1187",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/@graph/0/sku"
+          },
+          "offers": {
+            "value": {
+              "@type": "Offer",
+              "price": "41.99",
+              "priceCurrency": "EUR"
+            },
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/@graph/0/offers"
+          }
+        },
+        "source": "jsonld",
+        "where": "/html/head/script[1]#/@graph/0"
+      }
+    ],
+    "sources": [
+      "jsonld"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}
