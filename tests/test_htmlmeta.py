@@ -5,14 +5,14 @@ from sluicer.document import load
 def test_the_standard_metadata_names_are_read():
     doc = load(
         "<html><head>"
-        '<meta name="author" content="Nancy Peyer">'
+        '<meta name="author" content="Jane Doe">'
         '<meta name="description" content="A sentence about the page.">'
         '<meta name="keywords" content="one, two">'
         "</head></html>"
     )
 
     assert read_htmlmeta(doc) == {
-        "author": "Nancy Peyer",
+        "author": "Jane Doe",
         "description": "A sentence about the page.",
         "keywords": "one, two",
     }
@@ -26,9 +26,9 @@ def test_a_site_s_own_meta_name_is_not_metadata_about_the_page():
 
 
 def test_the_name_is_matched_without_regard_to_case():
-    doc = load('<html><head><meta name="Author" content="Nancy Peyer"></head></html>')
+    doc = load('<html><head><meta name="Author" content="Jane Doe"></head></html>')
 
-    assert read_htmlmeta(doc) == {"author": "Nancy Peyer"}
+    assert read_htmlmeta(doc) == {"author": "Jane Doe"}
 
 
 def test_a_browser_directive_is_not_a_statement_about_the_page():

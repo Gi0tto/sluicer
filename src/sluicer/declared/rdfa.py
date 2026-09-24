@@ -14,7 +14,7 @@ every reader uses: under ``vocab="https://schema.org/"`` the property ``name``,
 the CURIE ``schema:name`` and the full IRI all arrive as ``name``. A term from
 another vocabulary keeps its full IRI, so a FOAF ``name`` never collides with
 a schema.org one. A CURIE whose prefix nobody declared (MediaWiki's
-``typeof="mw:Transclusion"`` on every Wikipedia page) is not a term. OpenGraph
+``typeof="mw:Transclusion"`` on every page it renders) is not a term. OpenGraph
 terms are left to the OpenGraph reader, which reads the same ``<meta
 property>`` tags.
 

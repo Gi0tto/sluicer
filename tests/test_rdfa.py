@@ -100,7 +100,7 @@ def test_a_schema_org_type_is_one_name_however_the_page_spelt_it():
 
 
 def test_a_curie_whose_prefix_nobody_declared_is_not_a_term():
-    """Every Wikipedia page carries typeof="mw:Transclusion" and friends."""
+    """MediaWiki writes typeof="mw:Transclusion" and friends on every page."""
     doc = load(
         '<div vocab="https://schema.org/" typeof="Product">'
         '<span property="name">Pad</span>'

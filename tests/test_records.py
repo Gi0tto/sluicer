@@ -174,7 +174,7 @@ def test_a_comment_inside_a_row_is_not_a_slot():
 def test_a_class_a_build_tool_generated_never_names_a_field():
     """CSS-in-JS hashes change with every deploy, and a name must not.
 
-    The Guardian's front page names everything ``dcr-1t2r5md`` and the like, so
+    A news site's front page names everything ``dcr-1t2r5md`` and the like, so
     every field came back under a name that would not survive the next release.
     A generated class is skipped and the next honest label is used: a class a
     person wrote, and failing that the tag.
@@ -243,7 +243,7 @@ def test_a_class_that_only_looks_technical_still_names_its_field():
 
 
 def test_a_wrapper_around_several_children_repeats_none_of_them():
-    """The Guardian's card list: a ``ul`` whose text is its items' run together.
+    """A news site's card list: a ``ul`` whose text is its items' run together.
 
     ``text_content`` joins children with no space, so the wrapper's "AB" never
     equalled its children's "A B" and the wrapper kept a value that was only

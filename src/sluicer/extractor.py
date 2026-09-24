@@ -1108,9 +1108,9 @@ def _a_later_repeat(path: str, paths: set[str]) -> bool:
 
     ``div.tags>a.tag3`` is, when ``div.tags>a.tag1`` was learnt too; so is
     ``div.meta>span2>a@href``, the link in a row's second span, when anything
-    under ``div.meta>span1`` was learnt. Found by the drift benchmark: GitHub's
-    trending rows hold a language, then stars, then forks, each a span, and a
-    row with no language renumbers the rest.
+    under ``div.meta>span1`` was learnt. Found by the drift benchmark: a code
+    host's trending rows hold a language, then stars, then forks, each a span,
+    and a row with no language renumbers the rest.
     """
     head = path.partition("@")[0]
     steps = head.split(">")
@@ -1130,8 +1130,8 @@ def _a_numbered_slot(path: str, paths: set[str]) -> bool:
 
     The first slot shows the group is there, so it is still held to some rows;
     not to every row, since a row with one item fewer shifts what the first
-    slot holds: GitHub's language span, absent from a repository with no
-    language, hands the first slot to the stars.
+    slot holds: a language span, absent from a repository with no language,
+    hands the first slot to the stars.
     """
     head = path.partition("@")[0]
     steps = head.split(">")

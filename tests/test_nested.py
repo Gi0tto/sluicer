@@ -1,8 +1,8 @@
 """Nested values reach the record whole.
 
 Measured on 2026-09-22 across live pages, the fields that matter most are the
-ones a page declares as objects or lists: the author of a Guardian article,
-every ingredient and step of an Allrecipes recipe, the price of a product.
+ones a page declares as objects or lists: the author of a news article,
+every ingredient and step of a recipe, the price of a product.
 Carrying scalars only dropped all of them. A nested value now arrives as the
 JSON it was declared as, with every leaf as text, ``@type`` kept, and a
 reference to another node on the same page replaced by that node.
@@ -29,13 +29,13 @@ def test_a_nested_author_arrives_with_its_type():
         {
             "@type": "NewsArticle",
             "headline": "A headline",
-            "author": {"@type": "Person", "name": "Lily Smith"},
+            "author": {"@type": "Person", "name": "Mara Quill"},
         }
     )
 
     field = extract(html).records[0].fields["author"]
 
-    assert field.value == {"@type": "Person", "name": "Lily Smith"}
+    assert field.value == {"@type": "Person", "name": "Mara Quill"}
     assert field.source == "jsonld"
 
 
@@ -92,7 +92,7 @@ def test_a_reference_to_another_node_is_replaced_by_that_node():
                 {
                     "@type": "Person",
                     "@id": "https://example.com/#/person/1",
-                    "name": "Edwin Toonen",
+                    "name": "Theo Marsh",
                 },
             ],
         }
@@ -100,7 +100,7 @@ def test_a_reference_to_another_node_is_replaced_by_that_node():
 
     author = extract(html).records[0].fields["author"].value
 
-    assert author == {"@type": "Person", "name": "Edwin Toonen"}
+    assert author == {"@type": "Person", "name": "Theo Marsh"}
 
 
 def test_a_reference_nothing_on_the_page_defines_is_kept_as_a_reference():

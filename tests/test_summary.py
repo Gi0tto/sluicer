@@ -24,25 +24,25 @@ def test_an_article_answers_from_the_article():
         {"@type": "BreadcrumbList", "name": "Home > News"},
         {
             "@type": "NewsArticle",
-            "headline": "Tom Daley on knitting",
-            "author": [{"@type": "Person", "name": "Lily Smith"}],
+            "headline": "The diver who knits",
+            "author": [{"@type": "Person", "name": "Mara Quill"}],
             "datePublished": "2026-09-22T14:00:02Z",
-            "publisher": {"@type": "Organization", "name": "The Guardian"},
+            "publisher": {"@type": "Organization", "name": "Example News"},
             "image": {"@type": "ImageObject", "url": "https://i.example/a.jpg"},
         },
-        head='<meta property="og:title" content="Tom Daley | The Guardian">',
+        head='<meta property="og:title" content="The diver who knits | Example News">',
     )
 
     summary = _summary(html)
 
     assert summary["title"] == (
-        "Tom Daley on knitting",
+        "The diver who knits",
         "jsonld",
         "NewsArticle.headline",
     )
-    assert summary["author"] == ("Lily Smith", "jsonld", "NewsArticle.author")
+    assert summary["author"] == ("Mara Quill", "jsonld", "NewsArticle.author")
     assert summary["published"][0] == "2026-09-22T14:00:02Z"
-    assert summary["publisher"][0] == "The Guardian"
+    assert summary["publisher"][0] == "Example News"
     assert summary["image"][0] == "https://i.example/a.jpg"
     assert summary["type"][0] == "NewsArticle"
 
@@ -93,11 +93,11 @@ def test_a_page_with_nothing_at_all_has_an_empty_summary():
 def test_an_author_meta_fills_what_json_ld_did_not_say():
     html = _page(
         {"@type": "Article", "headline": "H"},
-        head='<meta name="author" content="Nancy Peyer">'
+        head='<meta name="author" content="Jane Doe">'
         '<meta property="article:author" content="https://x.example/profile/np">',
     )
 
-    assert _summary(html)["author"] == ("Nancy Peyer", "html", "meta name=author")
+    assert _summary(html)["author"] == ("Jane Doe", "html", "meta name=author")
 
 
 def test_a_profile_address_is_not_an_author():
@@ -335,8 +335,8 @@ def test_the_common_date_and_byline_meta_names_are_read():
 
 def test_the_site_is_not_the_author():
     html = (
-        '<html><head><meta name="author" content="WRAL">'
-        '<meta property="og:site_name" content="WRAL"></head></html>'
+        '<html><head><meta name="author" content="Northside TV">'
+        '<meta property="og:site_name" content="Northside TV"></head></html>'
     )
 
     assert "author" not in _summary(html)
@@ -345,8 +345,8 @@ def test_the_site_is_not_the_author():
 def test_the_site_name_is_not_part_of_the_title():
     html = (
         '<html><head><meta property="og:title" '
-        'content="Brief History of Coffee - Charleston Coffee Roasters">'
-        '<meta property="og:site_name" content="Charleston Coffee Roasters">'
+        'content="Brief History of Coffee - Harbour Coffee Roasters">'
+        '<meta property="og:site_name" content="Harbour Coffee Roasters">'
         "</head></html>"
     )
 
@@ -358,12 +358,12 @@ def test_a_blogger_who_publishes_their_own_posts_is_still_the_author():
         {
             "@type": "BlogPosting",
             "headline": "H",
-            "author": {"@type": "Person", "name": "Edwin Toonen"},
-            "publisher": {"@type": "Person", "name": "Edwin Toonen"},
+            "author": {"@type": "Person", "name": "Theo Marsh"},
+            "publisher": {"@type": "Person", "name": "Theo Marsh"},
         }
     )
 
-    assert _summary(html)["author"][0] == "Edwin Toonen"
+    assert _summary(html)["author"][0] == "Theo Marsh"
 
 
 def test_an_availability_that_is_only_the_vocabulary_is_no_answer():
@@ -553,7 +553,7 @@ def _product(name, **fields):
 
 
 def test_one_product_declared_once_per_colour_is_one_product():
-    """Zara, on Zyte's product benchmark: a Product per colour, one name."""
+    """A shop on Zyte's product benchmark: a Product per colour, one name."""
     colours = "".join(
         _product(
             "Boots",
@@ -577,7 +577,7 @@ def test_one_product_declared_once_per_colour_is_one_product():
 
 
 def test_the_one_product_with_an_offer_among_related_ones_is_the_subject():
-    """Argos: its product with an offer, and four related ones without."""
+    """A shop's product with an offer, and four related ones without."""
     page = _product(
         "Kettle", sku="4667999", offers={"price": "34.99", "priceCurrency": "GBP"}
     )
@@ -599,7 +599,7 @@ def test_a_category_page_is_still_a_listing():
 
 
 def test_a_price_that_holds_two_numbers_gives_way_to_the_next_declaration():
-    """Almedina: microdata price text '71,91 € 79,90 €', and a clean product: tag."""
+    """A bookshop's microdata price text '71,91 € 79,90 €', and a clean product: tag."""
     page = (
         '<div itemscope itemtype="https://schema.org/Product">'
         '<span itemprop="name">Book</span>'
@@ -812,12 +812,12 @@ def _ld(*nodes: object) -> str:
 
 
 def test_the_journal_a_page_is_published_in_is_not_what_it_is_about():
-    """Found on the news scoreboard: Nature declares its Periodical in the
-    footer of every article, and "Nature" was every article's title."""
+    """Found on the news scoreboard: a journal declares its Periodical in
+    the footer of every article, and its name was every article's title."""
     page = (
         '<html><head><meta property="og:title" content="How to fight climate change">'
         "</head><body><footer><div itemscope itemtype='https://schema.org/Periodical'>"
-        "<span itemprop='name'>Nature</span></div></footer></body></html>"
+        "<span itemprop='name'>The Journal</span></div></footer></body></html>"
     )
     summary = extract(page).summary
     assert summary["title"].value == "How to fight climate change"
@@ -825,8 +825,8 @@ def test_the_journal_a_page_is_published_in_is_not_what_it_is_about():
 
 
 def test_beside_an_article_a_record_named_as_the_publisher_is_not_the_subject():
-    """Found on the news scoreboard: Dainik Bhaskar declares its own app, named
-    as the paper is, ahead of the story, and the app was the page's title."""
+    """Found on the news scoreboard: a paper declares its own app, named as
+    the paper is, ahead of the story, and the app was the page's title."""
     page = _ld(
         {"@type": "NewsMediaOrganization", "name": "Daily Paper"},
         {"@type": "MobileApplication", "name": "Daily Paper", "offers": {"price": "0"}},
@@ -842,10 +842,10 @@ def test_a_business_named_as_its_site_stays_the_subject_beside_its_reviews():
     """The rule above is for pages with an article: a landscaper's page declares
     the business, named as the site, and a review of it."""
     page = (
-        '<html><head><meta property="og:site_name" content="Alonso Landscaping">'
+        '<html><head><meta property="og:site_name" content="Green Acre Landscaping">'
         + _ld(
-            {"@type": "LocalBusiness", "name": "Alonso Landscaping"},
-            {"@type": "Review", "name": "Lawn Maintenance", "author": "Lisette"},
+            {"@type": "LocalBusiness", "name": "Green Acre Landscaping"},
+            {"@type": "Review", "name": "Lawn Maintenance", "author": "Pat"},
         )
         + "</head></html>"
     )
@@ -855,31 +855,30 @@ def test_a_business_named_as_its_site_stays_the_subject_beside_its_reviews():
 
 
 def test_an_author_is_a_name_not_a_number_nor_the_site_s_own_address():
-    """Found on the news scoreboard: People's Daily writes an id, 105092, where
-    the author goes, and MDR writes its domain."""
+    """Found on the news scoreboard: one paper writes an id, 105092, where
+    the author goes, and another writes its own domain."""
     numbered = '<html><head><meta name="author" content="105092"></head></html>'
     assert "author" not in extract(numbered).summary
-    domain = '<html><head><meta name="author" content="mdr.de"></head></html>'
-    assert "author" not in extract(domain, url="https://www.mdr.de/news/p").summary
-    person = '<html><head><meta name="author" content="David Straub"></head></html>'
-    assert extract(person, url="https://www.mdr.de/news/p").summary["author"].value == (
-        "David Straub"
-    )
+    url = "https://www.news.example/p"
+    domain = '<html><head><meta name="author" content="news.example"></head></html>'
+    assert "author" not in extract(domain, url=url).summary
+    person = '<html><head><meta name="author" content="John Doe"></head></html>'
+    assert extract(person, url=url).summary["author"].value == "John Doe"
 
 
 def test_a_person_s_own_site_bears_their_name_and_they_sign_it():
-    """Found on the scoreboard as served: rishabhdev.com is Rishabh Dev's, who
-    publishes it as a Person, so the author bearing the site's name is him."""
+    """Found on the scoreboard as served: a blogger publishes their own site
+    as a Person, so the author bearing the site's name is its owner."""
 
     def page(publisher_type: object, *extra: dict[str, object]) -> str:
-        publisher = {"@type": publisher_type, "name": "Rishabh Dev"}
+        publisher = {"@type": publisher_type, "name": "Sam Rivera"}
         return (
-            '<html><head><meta property="og:site_name" content="Rishabh Dev">'
+            '<html><head><meta property="og:site_name" content="Sam Rivera">'
             + _ld(
                 {
                     "@type": "BlogPosting",
                     "headline": "My fitness journey",
-                    "author": {"name": "Rishabh Dev"},
+                    "author": {"name": "Sam Rivera"},
                     "publisher": publisher,
                 },
                 *extra,
@@ -888,37 +887,38 @@ def test_a_person_s_own_site_bears_their_name_and_they_sign_it():
         )
 
     blog = extract(page(["Person", "Organization"])).summary
-    assert blog["author"].value == "Rishabh Dev"
+    assert blog["author"].value == "Sam Rivera"
     assert blog["author"].key == "BlogPosting.author"
     paper = extract(page("NewsMediaOrganization")).summary
     assert "author" not in paper, "a paper signing its own story names no one"
     # WordPress declares a Person for every user, a shared account named as
     # the site included: that alone does not make the site a person's.
-    user = {"@type": "Person", "name": "Rishabh Dev"}
+    user = {"@type": "Person", "name": "Sam Rivera"}
     assert "author" not in extract(page("Organization", user)).summary
 
 
 def test_a_title_ending_in_the_page_s_own_host_has_it_cut():
-    """WCXB: "VolunteerNC | nc.gov", on nc.gov, is VolunteerNC."""
-    page = "<html><head><title>VolunteerNC | nc.gov</title></head></html>"
-    title = extract(page, url="https://www.nc.gov/volunteer").summary["title"]
-    assert title.value == "VolunteerNC"
+    """WCXB: "Volunteer with us | town.example", on town.example, is the first
+    part alone."""
+    page = "<html><head><title>Volunteer with us | town.example</title></head></html>"
+    url = "https://www.town.example/volunteer"
+    assert extract(page, url=url).summary["title"].value == "Volunteer with us"
 
 
 def test_a_page_s_declared_main_entity_is_what_it_is_about():
-    """Found on the news scoreboard: Merkur declares a WebPage whose
+    """Found on the news scoreboard: a news site declares a WebPage whose
     mainEntity is the NewsArticle, and its author went unread."""
     page = (
         "<html><head>"
         + _ld(
             {
                 "@type": "WebPage",
-                "name": "Merkur.de",
+                "name": "Example News",
                 "mainEntity": {
                     "@type": "NewsArticle",
-                    "headline": "Is Charles the rightful heir?",
+                    "headline": "Who inherits the mill?",
                     "datePublished": "2023-04-28T18:16:04+0200",
-                    "author": {"@type": "Person", "name": "Nadja Zinsmeister"},
+                    "author": {"@type": "Person", "name": "Greta Lindner"},
                 },
             }
         )
@@ -926,9 +926,9 @@ def test_a_page_s_declared_main_entity_is_what_it_is_about():
     )
     summary = extract(page).summary
     assert summary["type"].value == "NewsArticle"
-    assert summary["title"].value == "Is Charles the rightful heir?"
+    assert summary["title"].value == "Who inherits the mill?"
     author = summary["author"]
-    assert (author.value, author.key) == ("Nadja Zinsmeister", "NewsArticle.author")
+    assert (author.value, author.key) == ("Greta Lindner", "NewsArticle.author")
     assert author.where == "/html/head/script[1]#/mainEntity/author"
     assert (
         summary["published"].where == "/html/head/script[1]#/mainEntity/datePublished"
@@ -941,11 +941,11 @@ def test_a_main_entity_declared_in_microdata_is_placed_at_its_element():
         '<article itemprop="mainEntity" itemscope '
         'itemtype="https://schema.org/BlogPosting">'
         '<h1 itemprop="headline">Tube amp versus solid state</h1>'
-        '<span itemprop="author">dogmanljk</span></article></body></html>'
+        '<span itemprop="author">valvefan42</span></article></body></html>'
     )
     summary = extract(page).summary
     assert summary["type"].value == "BlogPosting"
-    assert summary["author"].value == "dogmanljk"
+    assert summary["author"].value == "valvefan42"
     assert summary["author"].where == "/html/body/article[1]/span[1]"
 
 
@@ -979,26 +979,26 @@ def test_a_main_entity_that_is_a_list_or_the_site_is_not_the_subject():
 
 
 def test_every_author_tag_is_read_and_the_site_s_own_is_passed_over():
-    """Found on the news scoreboard: Hankook Ilbo's first author tag is the
-    paper, its second the reporter, and the first alone was read."""
+    """Found on the news scoreboard: a paper's first author tag is the paper,
+    its second the reporter, and the first alone was read."""
     paper = (
-        '<html><head><meta property="og:site_name" content="Hankook Ilbo">'
-        '<meta name="author" content="Hankook Ilbo">'
-        '<meta name="author" content="Shin Hyun-ju">'
+        '<html><head><meta property="og:site_name" content="Example Daily">'
+        '<meta name="author" content="Example Daily">'
+        '<meta name="author" content="Han Mi-rae">'
         "</head></html>"
     )
     author = extract(paper).summary["author"]
-    assert (author.value, author.key) == ("Shin Hyun-ju", "meta name=author")
+    assert (author.value, author.key) == ("Han Mi-rae", "meta name=author")
     assert author.where == "/html/head/meta[3]"
     two = (
-        '<html><head><meta name="author" content="Lucy Thornton">'
-        '<meta name="Author" content="Tim Hanlon"></head></html>'
+        '<html><head><meta name="author" content="Lena Voss">'
+        '<meta name="Author" content="Tobias Kern"></head></html>'
     )
     author = extract(two).summary["author"]
-    assert (author.value, author.where) == ("Lucy Thornton, Tim Hanlon", None)
+    assert (author.value, author.where) == ("Lena Voss, Tobias Kern", None)
     alone = (
-        '<html><head><meta property="og:site_name" content="Hankook Ilbo">'
-        '<meta name="author" content="Hankook Ilbo"></head></html>'
+        '<html><head><meta property="og:site_name" content="Example Daily">'
+        '<meta name="author" content="Example Daily"></head></html>'
     )
     assert "author" not in extract(alone).summary
 

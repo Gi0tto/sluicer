@@ -582,9 +582,9 @@ def test_a_lone_surrogate_in_an_xml_declared_string_is_not_a_traceback():
 
 
 def test_the_title_the_page_shows_decides_between_headline_and_name():
-    """Wikipedia's headline is its short description; its name is the title."""
+    """An encyclopedia's headline is its short description, its name the title."""
     html = (
-        "<html><head><title>Sluice - Wikipedia</title>"
+        "<html><head><title>Sluice - Example Encyclopedia</title>"
         '<script type="application/ld+json">'
         '{"@type":"Article","name":"Sluice","headline":"hydraulic structure"}'
         "</script></head></html>"

@@ -56,6 +56,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   change is in this file.
 - The names content systems give an account nobody named -- WordPress's
   `admin`, Joomla's `Super User`, Blogger's `Unknown` -- are no author.
+- The tests, comments, documentation and this changelog name no site or person
+  they do not need to. A fixture is a made-up site on a reserved `.example`
+  domain, and a regression says the shape of the page that showed it, not
+  whose it was. Specifications, the tools compared, the sandboxes built for
+  scraping practice and the benchmarks' own pages are still named, as their
+  sources. `docs/audit.md` audits `examples/brake-pads.html` rather than a
+  table of real sites.
 
 ### Fixed
 - The CI no longer cancels one kind of run with another: dispatching the full
@@ -80,10 +87,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ### Fixed
 - A page's declared main entity is what the summary is about. schema.org's
-  `mainEntity` names the thing a page describes, and Merkur, the Frankfurter
-  Rundschau and Nature declare a WebPage whose main entity is the
-  NewsArticle: their authors went unread, and Nature's came from Dublin Core
-  one name of five. The entity is the subject when it ranks ahead of the
+  `mainEntity` names the thing a page describes, and two news sites and a
+  journal declare a WebPage whose main entity is the NewsArticle: their
+  authors went unread, and the journal's came from Dublin Core one name of
+  five. The entity is the subject when it ranks ahead of the
   record holding it, and only a single one: an FAQ page's questions are its
   parts, an about page's organisation is the site. Each answer read from it
   is placed inside it. On the scoreboards' pages 5 authors and 19 dates
@@ -93,15 +100,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   its author, on 12 of WCXB's pages and 6 of them as served that its labels
   count unsigned.
 - Every `<meta name="author">` is read, and one naming the site is passed
-  over for the next: Hankook Ilbo's first is the paper, its second the
-  reporter, and the first alone was read. Two answers change on the
+  over for the next: a paper whose first names the paper and whose second
+  names the reporter had the first alone read. Two answers change on the
   scoreboards' pages, both right.
 - A blogger's site bears their name, and the author of that name is theirs:
   an author named as the site is still left out, as the site signing its
   own page, unless the page declares a publisher of that name a Person.
-  Rishabh Dev's posts on rishabhdev.com had no author. A Person record
+  A blog published under its owner's name had no author. A Person record
   alone is not enough, since WordPress declares one for every user: on the
-  scoreboards that would have given Lesotho Times and Buzzcube as authors.
+  scoreboards that would have given two sites' own names as authors.
   One answer changes on the scoreboards' pages, and it is right.
 
 ## 0.4.1 - 2026-09-24
@@ -128,28 +135,28 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - Bytes that are valid UTF-8 and hold a character outside ASCII are read as
   UTF-8, whatever the page or the response declares. A page another tool
   saved or re-encoded keeps its old declaration over UTF-8 bytes: fundus's
-  fixtures of People's Daily (`<meta charset=GB2312>`) and El Mundo
+  fixtures of a Chinese paper (`<meta charset=GB2312>`) and a Spanish one
   (`iso-8859-15`) read as mojibake, and now read right. On 1,427 pages as
   their servers sent them, none is read differently. Found by the
   multilingual news scoreboard.
 - The journal or newspaper a page is published in is what the page belongs
   to, not what it is about, as the site and its organisation are: `Periodical`,
-  `Newspaper` and every kind of `...Organization`. Nature declares its
-  Periodical in the footer of every article, and "Nature" was every
-  article's title.
+  `Newspaper` and every kind of `...Organization`. A journal declares its
+  Periodical in the footer of every article, and the journal's name was
+  every article's title.
 - On a page that declares an article, a record named as the site or its
-  publisher comes after the article: Dainik Bhaskar's own app, named as the
-  paper is, was the story's title, type and price ("0 INR"). Beside anything
+  publisher comes after the article: a paper's own app, named as the paper
+  is, was the story's title, type and price ("0 INR"). Beside anything
   but an article such a record keeps its place, so a business's page with
   its reviews still answers the business.
-- An author is a name: one with no letter in it (People's Daily writes an
-  id, `105092`) or that is the page's own host (`mdr.de`) is not answered,
-  and a title from the page's tags ending in its host has it cut:
-  "VolunteerNC | nc.gov" on nc.gov is "VolunteerNC". Measured on the 1,688
-  pages of every scoreboard: 9 answers are righter and 2 fundus labels that
-  name a site's domain as the author are no longer matched. On the
-  scoreboards, WCXB's titles go from 0.725 to 0.727 and the same pages as
-  served from 0.700 to 0.706, with one author fewer invented on each.
+- An author is a name: one with no letter in it (a paper writes an id, `105092`)
+  or that is the page's own host (`news.example`) is not answered, and a title
+  from the page's tags ending in its host has it cut: "Volunteer with us |
+  town.example" on town.example is "Volunteer with us". Measured on the 1,688
+  pages of every scoreboard: 9 answers are righter and 2 fundus labels that name
+  a site's domain as the author are no longer matched. On the scoreboards,
+  WCXB's titles go from 0.725 to 0.727 and the same pages as served from 0.700
+  to 0.706, with one author fewer invented on each.
 - `pytest` collects `tests/` only: a benchmark's cache under `bench/` holds
   other projects' checkouts, with test suites of their own.
 
@@ -462,8 +469,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   nothing is declared, 0 otherwise, 2 when the page could not be read.
 - MCP: `audit_page`, with an output schema like the others. The server has
   nine tools with `map_site` and `crawl_site`.
-- **Crawling, politely** (`sluicer.crawl`, `docs/crawling.md`). `map_site`
-  lists a site's addresses from its sitemaps -- the ones robots.txt names, or
+- **Crawling, politely** (`sluicer.crawl`, `docs/crawling.md`). `map_site` lists
+  a site's addresses from its sitemaps -- the ones robots.txt names, or
   `/sitemap.xml` and `/sitemap_index.xml` -- following an index on the same
   site, gzip told by its bytes, and the start page's links when there is no
   sitemap. `crawl` follows a site's links breadth first and hands back each
@@ -472,11 +479,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   asked one request at a time, no sooner than a second after the last ended or
   its `Crawl-delay` or `Request-rate` if longer -- robots.txt, sitemaps, each
   redirect hop and each rung included, and remembered for the process. A crawl
-  refuses a redirect that leaves its site before the other site is asked,
-  marks where a page landed and its canonical seen, skips links that name a
-  file, and admits nothing from a page that answered 4xx or 5xx. The same site crawled twice gives the same pages in the same order,
-  and the output, one JSON line per page, is the state a crawl resumes from
-  without asking for any page again.
+  refuses a redirect that leaves its site before the other site is asked, marks
+  where a page landed and its canonical seen, skips links that name a file, and
+  admits nothing from a page that answered 4xx or 5xx. The same site crawled
+  twice gives the same pages in the same order, and the output, one JSON line
+  per page, is the state a crawl resumes from without asking for any page again.
 - `sluicer map`, `sluicer crawl` and `sluicer batch`, writing JSON Lines to
   stdout or `--out`, `--resume` to continue, and the grep exit codes over the
   whole run.
@@ -547,15 +554,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   percent-encoded. `href="0<CR>?"` was answered as `https://shop.example/c/0 `,
   with a space the page never wrote -- the return became a space, and the
   empty query took what followed it. Found by the property search.
-- A product declared once per colour or size, as Zara declares it, or beside
-  related products that carry no offer, as Argos does, was taken for a
-  listing, and the page had no subject and no price. Records of one name are
-  now one product, answering only what they all agree on -- the price, not
-  the sku of one colour -- and the one record of a type that carries an offer
-  is the subject. A price whose text holds two numbers (`71,91 € 79,90 €`) is
-  no price and gives way to the next declaration. On two YETI pages the
-  title is now the product's declared name, shorter than the heading WCXB
-  labels, so the served scoreboard counts two titles fewer.
+- A product declared once per colour or size, or beside related products that
+  carry no offer, as two shops on Zyte's benchmark declare theirs, was taken for
+  a listing, and the page had no subject and no price. Records of one name are
+  now one product, answering only what they all agree on -- the price, not the
+  sku of one colour -- and the one record of a type that carries an offer is the
+  subject. A price whose text holds two numbers (`71,91 € 79,90 €`) is no price
+  and gives way to the next declaration. On two of one shop's pages the title is
+  now the product's declared name, shorter than the heading WCXB labels, so the
+  served scoreboard counts two titles fewer.
 - The summary's price followed the page's order, so on markup Google documents
   it answered the wrong one: a strikethrough price or a member price listed
   before the active price was taken for the price, and an `AggregateOffer`
@@ -570,15 +577,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the head are reported as `links.canonical_conflict` and answer no `url`, as
   Google then uses neither.
 - `compile` took page furniture for the listing on 6 of the drift benchmark's 25
-  sites: GitHub's language menu of 491 links, old Reddit's sidebar lists, the
-  paragraphs of one Hackaday post, page sections on the BBC and Ars Technica,
-  and metacpan's three day-tables. Regions the page marks with an ARIA role
-  such as `menu` or `navigation`, or hides, are now furniture; a group whose
-  members are mostly another listing is sections, not rows; and classes that
-  name one item, a position or a state (`id-t3_8gxz1`, `odd`,
-  `category-reviews`, `has-post-thumbnail`) no longer split one listing into as
-  many kinds as rows. All 25 now learn the listing a person would point at, and
-  the benchmark still shows no silent failure and no false alarm.
+  sites: a language menu of 491 links, a forum's sidebar lists, the paragraphs
+  of one blog post, page sections on two news sites, and a package index's three
+  day-tables. Regions the page marks with an ARIA role such as `menu` or
+  `navigation`, or hides, are now furniture; a group whose members are mostly
+  another listing is sections, not rows; and classes that name one item, a
+  position or a state (`id-t3_8gxz1`, `odd`, `category-reviews`,
+  `has-post-thumbnail`) no longer split one listing into as many kinds as rows.
+  All 25 now learn the listing a person would point at, and the benchmark still
+  shows no silent failure and no false alarm.
 - A numbered slot in the middle of a path -- the link in a row's second span --
   was held as a column, so a row with one item fewer, which renumbers the rest,
   failed a page of the same template. A numbered slot at any step is now a
@@ -625,7 +632,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - With `allow_private=False`, every redirect hop is judged before it is asked,
   and the HTTP rung connects only to the addresses it checked, so DNS rebinding
   reaches nothing new there. The browser rung routes every request a page makes
-  -- images, frames, `fetch()`, websockets, each hop of a redirect -- through the
+  (images, frames, `fetch()`, websockets, each hop of a redirect) through the
   same judgement, and gives pages no service workers. Against a local private
   server, a real Chromium reached it by six routes without the guard and by
   none with it (`tests/live/guard_check.py`).
@@ -672,21 +679,22 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `sluicer heal` exited 3 on a page that had not drifted. A field whose place is
   still there, holding values of the shape it was learnt with, is now kept.
 - `heal` moved numbered slots onto each other when one value turned up in
-  another slot: the first Pinboard tag to the fourth place, and an arXiv ninth
-  author who was a first author a month later onto the first-author column,
+  another slot: a bookmarking site's first tag to the fourth place, and a
+  preprint listing's ninth author who was a first author a month later onto
+  the first-author column,
   which it then called vanished. A slot whose own place is still there now
   never moves to another slot of its group. Both were found by the drift
-  benchmark, on Hacker News, Lobsters, arXiv and Pinboard captures a month
-  apart, all of the same template.
-- `run` failed a page of the same template when one row renumbered a step in
-  the middle of a path: one Stack Overflow user with a second kind of badge,
-  or one Verge story with a second author, turned `span>span.badgecount` into
+  benchmark, on four listings captured a month apart, each of the same
+  template.
+- `run` failed a page of the same template when one row renumbered a step in the
+  middle of a path: one user of a question site with a second kind of badge, or
+  one news story with a second author, turned `span>span.badgecount` into
   `span1>span.badgecount` for every row, and the field was found in none.
   Renumbering is now read at every step, not only the last.
 - `heal` called a link vanished when the site tagged it with a new parameter:
-  after IMDb's 2023 redesign every film's link carries `?ref_=chttp_t_1`. A
-  link with the same path, whose parameters are all among the other's, is now
-  the same link; `?id=2` is still another item than `?id=1`.
+  after a film chart's 2023 redesign every film's link carries
+  `?ref_=chttp_t_1`. A link with the same path, whose parameters are all among
+  the other's, is now the same link; `?id=2` is still another item than `?id=1`.
 - A page whose rows had become empty shells -- skeletons waiting for a script
   -- passed as a short page, since a member that carries nothing is not a row.
   An extractor now learns the largest share of empty members its pages had
@@ -706,9 +714,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   spacing gave two answers; and a page mf2py refuses to read raised instead of
   declaring no microformats.
 - `heal` broke a tie between two new places holding a field's old values by
-  their paths' alphabetical order. After SourceForge's redesign a project's
-  name is its heading in every row and its icon's alt text in the rows that
-  have an icon, and heal took the icon. The place more rows carry now wins.
+  their paths' alphabetical order. After a software directory's redesign a
+  project's name is its heading in every row and its icon's alt text in the rows
+  that have an icon, and heal took the icon. The place more rows carry now wins.
 
 ## 0.2.0 - 2026-09-23
 
@@ -789,7 +797,7 @@ Measurement and project
 ### Fixed
 - Bytes are decoded the way a browser decodes them. libxml2 commits to Latin-1
   at the first non-ASCII byte, so any UTF-8 page whose `<title>` came before its
-  `<meta charset>` -- the Guardian's article template -- or that declared no
+  `<meta charset>` -- a news site's article template -- or that declared no
   charset at all came back as mojibake in every field.
 - Three microdata or RDFa products on one page folded into one record, and a
   related product's SKU and price landed on the main product. A vocabulary now
@@ -800,7 +808,7 @@ Measurement and project
   rest). Properties are no longer lost on large pages, where lxml reuses the
   `id()` of freed elements.
 - RDFa resolves terms through `vocab`, `prefix` and the initial context.
-  Wikipedia's `typeof="mw:Transclusion"` produced eleven empty records, and
+  MediaWiki's `typeof="mw:Transclusion"` produced eleven empty records, and
   OpenGraph tags under an `<html typeof>` became RDFa fields that switched
   induction off.
 - JSON-LD with a raw newline inside a string, wrapped in a comment or CDATA,
@@ -838,10 +846,10 @@ Measurement and project
   octal, hex and short numeric hosts, a backslash before an `@`, and IPv4
   addresses inside IPv6 ones (mapped, compatible, NAT64) no longer pass.
 - The summary takes price, currency and availability from one offer, prefers
-  `name` over `headline` when only `name` is in the page's shown title
-  (Wikipedia), and says which reader declared the `type`. Every record has a
-  `source`. JSON-LD `@list` and `@set` are their items. An empty RDFa `vocab`
-  resets the vocabulary.
+  `name` over `headline` when only `name` is in the page's shown title (as an
+  encyclopedia's is), and says which reader declared the `type`. Every record
+  has a `source`. JSON-LD `@list` and `@set` are their items. An empty RDFa
+  `vocab` resets the vocabulary.
 - `HTTPS://` is an address at the command line and in the server.
 - Records carrying no field are no longer reported.
 - Induction reads the whole listing. Members were compared by the classes of
@@ -849,8 +857,8 @@ Measurement and project
   quote with five tags instead of two made a new kind of row: books.toscrape.com
   gave 6 of its 20 books and quotes.toscrape.com 3 of its 10. A member now
   matches its own tag and classes exactly and its inside loosely, by the tag
-  paths it shares with the first member: 20 of 20 and 10 of 10, with Hacker News
-  still 30 of 30.
+  paths it shares with the first member: 20 of 20 and 10 of 10, with a news
+  aggregator's front page still 30 of 30.
 - Induced field names no longer carry classes a build tool generated
   (`dcr-1t2r5md`, `css-1x2y3z`, `sc-bdVaJa`), which change on every deploy; a
   CSS module keeps the part a person wrote. A wrapper around several children,
@@ -876,8 +884,8 @@ Measurement and project
   directly has to widen the call. `extract()` is unaffected. `microformats` is
   an empty list on every call that did not ask for the reader: a reader that is
   off is a reader that found nothing.
-- The stealth rung has left the automatic ladder. `fetch(url, stealth=True)` adds
-  it back for a caller who wants it.
+- The stealth rung has left the automatic ladder. `fetch(url, stealth=True)`
+  adds it back for a caller who wants it.
 - An element whose whole text is its children's no longer carries a text fact of
   its own, so a wrapper around a single value stops reporting that value twice.
 - A bad argument to `sluicer extract` now exits with our own message rather

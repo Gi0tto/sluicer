@@ -32,7 +32,7 @@ from lxml.html import HtmlElement
 from sluicer.declared.merge import Field, Record
 
 # The prefixes CSS-in-JS tools put before a hash: emotion, styled-components,
-# styled-jsx, the Guardian's DCR, Svelte and Astro.
+# styled-jsx, a news site's own renderer, Svelte and Astro.
 _UTILITY = frozenset("[]>@:/!()")
 _TOOLING_PREFIXES = ("css-", "sc-", "jsx-", "dcr-", "svelte-", "astro-", "emotion-")
 _CSS_MODULE = re.compile(r"(.+?)__([A-Za-z0-9_-]{5,})")
@@ -92,8 +92,8 @@ def _says_something(text: str | None) -> bool:
 def _carries_only_its_children(element: HtmlElement) -> bool:
     """True when every word of ``element``'s text already belongs to a child.
 
-    A wrapper is not a fact: Hacker News wraps each rank's ``<span>`` in a
-    ``<td>``, and both would report "1.". An element keeps a text fact only for
+    A wrapper is not a fact: a news aggregator wraps each rank's ``<span>`` in
+    a ``<td>``, and both would report "1.". An element keeps a text fact only for
     text of its own -- its ``text`` and each child's ``tail`` -- as the
     "Price:" in ``<p>Price: <b>18.40</b></p>`` is.
     """

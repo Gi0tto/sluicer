@@ -220,8 +220,8 @@ def test_one_row_with_a_second_tag_does_not_rename_every_row():
 
 
 def test_one_row_with_a_second_badge_does_not_rename_what_is_in_every_badge():
-    # Found by the drift benchmark: Stack Overflow and The Verge a month apart,
-    # same markup. One user with a second kind of badge, or one story with a
+    # Found by the drift benchmark: a question site and a news site a month
+    # apart, same markup. One user with a second kind of badge, or one story with a
     # second author, numbered the step for every row, and the field under it
     # was not found in any.
     gold = '<span><b class="count">3</b> gold</span>'
@@ -383,7 +383,7 @@ def test_a_relative_address_learnt_from_a_file_still_matches_the_site():
 
 
 def test_a_field_found_in_two_new_places_moves_to_the_one_in_every_row():
-    # Found by the drift benchmark: SourceForge's 2024 redesign shows a
+    # Found by the drift benchmark: a software directory's 2024 redesign shows a
     # project's name as its heading in every row and as its icon's alt text in
     # rows that have an icon. The two held the old names equally, and heal took
     # the icon, first in the alphabet, which a quarter of the rows lack.
@@ -405,7 +405,7 @@ def test_a_field_found_in_two_new_places_moves_to_the_one_in_every_row():
 
 
 def test_a_link_that_gained_a_tracking_parameter_is_the_same_link():
-    # Found by the drift benchmark: IMDb's Top 250 before and after its 2023
+    # Found by the drift benchmark: a film chart before and after its 2023
     # redesign tags every link with ?ref_=chttp_t_1, and heal called the title
     # links of the same films vanished.
     extractor = learn(shop_page(books(6)), shop_page(books(6)))
@@ -456,8 +456,8 @@ STOCK = '<span class="stock">In stock</span>'
 
 
 def test_a_field_where_it_was_with_new_items_in_it_is_kept():
-    # Found by the drift benchmark: Hacker News, Lobsters and arXiv a month
-    # apart, same markup, and heal called every title and link vanished.
+    # Found by the drift benchmark: two link aggregators and a preprint listing
+    # a month apart, same markup, and heal called every title and link vanished.
     extractor = learn(shop_page(books(6)), shop_page(books(6)))
     today = [
         li(title, f"/book/{100 + i}", f"£{40 + i}.50", STOCK)
@@ -479,7 +479,7 @@ def test_a_place_that_now_holds_another_kind_of_value_is_not_kept():
 
 
 def test_tags_from_one_vocabulary_that_change_rows_are_not_moves():
-    # Found by the drift benchmark: Pinboard a month apart, same markup, and
+    # Found by the drift benchmark: a bookmarking site a month apart, and
     # heal moved its first tag to the fourth place and its fourth to the fifth.
     words = ["python", "rust", "web", "data", "security", "design", "career"]
 
@@ -498,7 +498,7 @@ def test_tags_from_one_vocabulary_that_change_rows_are_not_moves():
 
 
 def test_an_author_who_turns_up_first_does_not_move_the_first_author():
-    # Found by the drift benchmark: arXiv a month apart, same markup; one ninth
+    # Found by the drift benchmark: a preprint listing a month apart; one ninth
     # author of January was a first author in February, and heal moved the
     # ninth-author column onto the first and called the first vanished.
     def by(names):
@@ -645,7 +645,7 @@ def test_cards_that_carry_fewer_tags_than_before_have_not_drifted():
 
 
 def test_a_numbered_slot_in_the_middle_of_a_path_is_a_count_not_a_column():
-    """GitHub's trending rows: language, stars, forks, each a span. On a page
+    """A code host's trending rows: language, stars, forks, each a span. On a page
     where half the repositories have no language, the stars take the first
     span and the forks the second: the same template, not a drift."""
 

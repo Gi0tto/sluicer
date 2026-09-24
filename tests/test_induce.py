@@ -231,7 +231,7 @@ def test_an_itemscope_with_no_properties_declares_nothing_either():
 
 
 def test_site_level_opengraph_says_nothing_about_the_rows():
-    """The lobste.rs shape: four og tags describing the site, and twenty stories.
+    """A link aggregator: four og tags describing the site, and twenty stories.
 
     The og tags parsed, and ``sources`` says so, because that is true. What they
     describe is the site, not the rows, so they do not stand in for a page that
@@ -254,7 +254,7 @@ def test_site_level_opengraph_says_nothing_about_the_rows():
 def test_a_wrapper_does_not_repeat_its_child_s_text() -> None:
     """A slot whose whole text is its children's carries no fact of its own.
 
-    Hacker News wraps each rank in a ``<td>`` that holds nothing but a
+    A news aggregator wraps each rank in a ``<td>`` that holds nothing but a
     ``<span>``, so the same "1." arrived twice under two names. A caller
     reading that record has to work out that the two are one fact.
     """

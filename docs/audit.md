@@ -284,30 +284,44 @@ nothing to audit, and 0. 2, as everywhere, when the page could not be read. A
 page the site answered with 403 or 404 is audited as the answer it is, and the
 audit says so first.
 
-## On real pages
+## An example
 
-Sixteen public pages of different kinds, audited on 2026-09-23 with the HTTP
-rung and each site's own robots.txt. Where a line says "checked by hand", the
-page's markup was read directly and agrees with the finding.
+The repository's example product page, which declares its product in JSON-LD
+and again in microdata, and leaves out what a merchant listing needs:
 
-| Page | Declared | Found |
-|---|---|---|
-| allrecipes.com, a recipe | JSON-LD `Recipe`/`NewsArticle` | Review snippet, Article and Recipe requirements met; 72 recommendations, among them `bestRating` and `worstRating` on every rating and `name`, `url` and `video` on every step (checked by hand). 18 of the 25 AI agents disallowed, `ClaudeBot`, `PerplexityBot` and `CCBot` among them. |
-| theguardian.com, a news article | JSON-LD `NewsArticle`, `WebPage` | Article met, nothing to add. 11 of 25 agents disallowed; `GPTBot` is not named and falls to the catch-all (checked by hand). |
-| youtube.com, a video | JSON-LD and microdata `VideoObject` | Video met in both vocabularies. |
-| apps.apple.com, an app | JSON-LD `SoftwareApplication`, `Organization`, `BreadcrumbList` | Software app, review snippet, breadcrumb met. |
-| goodreads.com, a book | JSON-LD `Book` | Review snippet met; Book actions not met (`@id`, `url`, `workExample`), reported as notes, since Google reads them from a feed. `GPTBot` and `CCBot` disallowed. |
-| coursera.org, a course | JSON-LD `Course`, `FAQPage`, `BreadcrumbList` | Course list met; the FAQ and Course info features noted as retired. An llms.txt of 8 sections and 44 links, keeping to the format. |
-| catalog.data.gov, a dataset | JSON-LD `Dataset` | Dataset met, with 13 recommendations. |
-| eventbrite.com, an event | JSON-LD `SocialEvent`, `FAQPage`, `WebPage`, `BreadcrumbList` | Event met; FAQ noted as retired. |
-| discuss.python.org, a forum thread | microdata `DiscussionForumPosting`, `BreadcrumbList` | Discussion forum met; 159 recommendations across the comments. |
-| ikea.com, a product | JSON-LD `Product`, `BreadcrumbList`, `3DModel` | Product snippet and merchant listing met; the offer's `shippingDetails` names only a destination, so it lacks `deliveryTime` and `shippingRate` and cannot be used (checked by hand). |
-| autodoc.co.uk, a product | JSON-LD `Product`, `BreadcrumbList` | Both product features met; eight of its ten reviews carry no `reviewRating` and cannot be used (checked by hand). Its llms.txt opens with four `#` comment lines read as four H1s, has no summary and lists its pages as bare text, not in H2 file lists (checked by hand). `GPTBot`, `ClaudeBot` and `CCBot` disallowed; `cohere-ai` named, which no vendor documents. |
-| apple.com/retail, a store | JSON-LD `LocalBusiness`, `BreadcrumbList`; RDFa `BreadcrumbList` | Local business met. The RDFa breadcrumb is an empty `<ol typeof="BreadcrumbList">` in the HTML the server sends, filled in later by script: an error, missing `itemListElement` (checked by hand). |
-| github.com, a profile | microdata `Person` | No feature documented for a bare Person. Its llms.txt has 12 sections and 117 links, with prose and blockquotes inside the sections flagged as text outside a file list (checked by hand); `anthropic-ai` named. |
-| en.wikipedia.org, an article | JSON-LD `Article` | Article met; no meta description, no `og:url`. |
-| job-boards.greenhouse.io, a job | nothing | The served HTML declares no JobPosting; the listing is rendered by script. Exit 1. |
-| stackoverflow.com, a question | nothing | The site answered 403 to both rungs and robots.txt with 418; the audit says it audited the 403. |
+```bash
+sluicer audit examples/brake-pads.html --url https://example.com/p/bp-2210
+```
+
+```text
+page      https://example.com/p/bp-2210
+
+records   2 audited (jsonld 1, microdata 1)
+  Product  (jsonld record 0)
+    Product snippet   requirements met
+                      recommended, missing: aggregateRating, review, offers.priceValidUntil
+    Merchant listing  1 required missing: image
+                      recommended, missing: aggregateRating, audience, category, color, description, gtin|gtin8|gtin12|gtin13|gtin14|isbn, hasAdultConsideration, hasCertification, inProductGroupWithID, isVariantOf, material, mpn, pattern, review, size, sku, subjectOf, offers.hasMerchantReturnPolicy, offers.itemCondition, offers.priceValidUntil, offers.shippingDetails, offers.url, offers.validFrom, offers.validThrough
+  Product  (microdata record 0)
+    Product snippet   1 required missing: review|aggregateRating|offers
+                      recommended, missing: aggregateRating, offers, review
+    Merchant listing  2 required missing: image, offers
+                      recommended, missing: aggregateRating, audience, brand.name, category, color, description, hasAdultConsideration, hasCertification, inProductGroupWithID, isVariantOf, material, pattern, review, size, sku, subjectOf
+
+page      1 finding
+  warning  og:url is absent; OpenGraph requires it on every page  [https://ogp.me/]
+
+not checked
+  The AI agents robots.txt admits, and llms.txt: the site is read only for a URL.
+
+summary   4 errors, 47 warnings, 0 notes
+```
+
+It exits 3: the page breaks rules its documentation states. Each record is
+held to every feature its type is documented for, so the JSON-LD product meets
+the product snippet's requirements and lacks the image a merchant listing
+requires, and the microdata product, which declares no offer, lacks more. Run
+on a page at a URL, the audit also reads the site's robots.txt and llms.txt.
 
 ## What it does not do
 

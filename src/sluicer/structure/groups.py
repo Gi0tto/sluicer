@@ -31,8 +31,8 @@ from sluicer.structure.shape import alike, kind, outline
 # repetition sits.
 _CHROME = frozenset({"head", "nav", "aside", "footer", "template", "dialog"})
 # The same regions, as the page names them with ARIA. Measured on the drift
-# benchmark: GitHub's trending page holds a language menu of 491 links, role
-# "menu", which outweighed the 25 repositories it lists.
+# benchmark: a code host's trending page holds a language menu of 491 links,
+# role "menu", which outweighed the 25 repositories it lists.
 _CHROME_ROLES = frozenset(
     {
         "navigation",

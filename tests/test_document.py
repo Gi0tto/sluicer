@@ -100,9 +100,9 @@ def test_a_parser_that_refuses_bytes_is_still_never_a_traceback(monkeypatch):
 
 # Bytes are decoded the way a browser decodes them, not the way libxml2 guesses.
 # libxml2 settles on Latin-1 at the first non-ASCII byte it meets, so a page
-# whose <title> carries a curly quote before its <meta charset="utf-8"> -- the
-# Guardian's article template, measured on 2026-09-22 -- came back as mojibake
-# in every field. The order below is the one the HTML standard gives: a byte
+# whose <title> carries a curly quote before its <meta charset="utf-8"> -- a
+# news site's article template, measured on 2026-09-22 -- came back as
+# mojibake in every field. The order below is the one the HTML standard gives: a byte
 # order mark, then a declaration, then the bytes themselves.
 
 
@@ -112,11 +112,11 @@ def _title(data: bytes) -> str | None:
 
 def test_a_character_before_the_charset_declaration_does_not_decide_it():
     page = (
-        "<!doctype html><html><head><title>Tom Daley: \u2018I am obsessed\u2019</title>"
+        "<!doctype html><html><head><title>The diver: \u2018I am obsessed\u2019</title>"
         '<meta charset="utf-8"></head><body></body></html>'
     )
 
-    assert _title(page.encode("utf-8")) == "Tom Daley: \u2018I am obsessed\u2019"
+    assert _title(page.encode("utf-8")) == "The diver: \u2018I am obsessed\u2019"
 
 
 def test_a_page_that_declares_nothing_and_is_utf8_is_read_as_utf8():
@@ -147,7 +147,7 @@ def test_a_byte_order_mark_outranks_the_declaration():
 
 
 def test_a_declaration_after_a_long_head_is_still_found():
-    """Allrecipes declares its charset at byte 3,996, past the standard's 1,024.
+    """A recipe site declares its charset at byte 3,996, past the standard's 1,024.
 
     A browser would find it by re-parsing; reading the whole head before the
     body starts gets the same answer without a second parse.
@@ -268,10 +268,15 @@ def test_an_xml_declaration_on_bytes_is_still_honoured():
 def test_the_base_url_is_the_page_s_own_base_resolved_against_its_address():
     from sluicer.document import base_url
 
-    doc = load('<html><head><base href="/shop/"></head></html>', url="https://x.eu/a/b")
+    doc = load(
+        '<html><head><base href="/shop/"></head></html>', url="https://shop.example/a/b"
+    )
 
-    assert base_url(doc) == "https://x.eu/shop/"
-    assert base_url(load("<p>", url="https://x.eu/a/b")) == "https://x.eu/a/b"
+    assert base_url(doc) == "https://shop.example/shop/"
+    assert (
+        base_url(load("<p>", url="https://shop.example/a/b"))
+        == "https://shop.example/a/b"
+    )
     assert base_url(load("<p>")) is None
 
 

@@ -8,7 +8,7 @@ The class attribute is most of what a page says about what a thing is, and it
 is what keeps a story row apart from the subtext row beside it. Not every class
 says what a thing is, though: ``id-t3_8gxz1`` and ``post-4121`` name one item,
 ``odd`` and ``even`` alternate, ``category-reviews`` and ``has-post-thumbnail``
-change from post to post. Those are left out, or old Reddit's front page and
+change from post to post. Those are left out, or a forum's front page and
 every WordPress blog would be as many kinds as rows.
 
 What is inside it is compared loosely. Its outline is the set of tag paths down

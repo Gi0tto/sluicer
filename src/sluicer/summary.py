@@ -137,8 +137,8 @@ _FURNITURE = frozenset(
 # The site and whoever runs it are what a page belongs to, not what it is
 # about: a homepage declaring only its Organization is titled by og:title and
 # <title>, not by the company's name. So is the journal or newspaper a page
-# is published in: Nature declares its Periodical in the footer of every
-# article, and "Nature" was every article's title.
+# is published in: a journal that declares its Periodical in the footer of
+# every article had the journal's name as every article's title.
 _ABOUT_THE_SITE = frozenset(
     {"WebSite", "Organization", "Person", "Corporation", "Periodical", "Newspaper"}
 )
@@ -411,7 +411,7 @@ def read_summary(
         "breadcrumb": [_breadcrumb(records)],
     }
 
-    # An author is a name: not the site, and not a number -- People's Daily
+    # An author is a name: not the site, and not a number -- a news site
     # writes an id, 105092, where the author goes. But a person's own site
     # bears their name: when a publisher of that name is declared a Person,
     # the site is theirs and so is the story. A Person record alone is not
@@ -480,8 +480,8 @@ def _subject(
     Two are allowed: a product and the one related product beside it.
 
     On a page that declares an article, a record bearing one of
-    ``site_names`` comes after the article: Dainik Bhaskar declares its own
-    app, named as the paper is, ahead of the story, and the app was the
+    ``site_names`` comes after the article: a paper that declares its own
+    app, named as the paper is, ahead of the story had the app as the
     page's title. Only beside an article: a landscaper's page declares the
     business, named as its site, and reviews of it, and the business is what
     that page is about. It is never left out, so a page whose only record is
@@ -508,12 +508,11 @@ def _subject(
 def _main_entity(record: Record | None) -> Record | None:
     """The thing ``record`` declares its ``mainEntity``, when it ranks ahead.
 
-    schema.org's word for the primary entity a page describes: Merkur and
-    Nature declare a WebPage whose ``mainEntity`` is the NewsArticle, author
-    and all, and the article is what the page is about. Only one item, not a
-    list -- an FAQ page's questions are its parts, not its subject -- and
-    only what could have been the subject itself: an about page's
-    Organization is the site's.
+    schema.org's word for the primary entity a page describes: a news page
+    that declares a WebPage whose ``mainEntity`` is the NewsArticle, author
+    and all, is about the article. Only one item, not a list -- an FAQ page's
+    questions are its parts, not its subject -- and only what could have been
+    the subject itself: an about page's Organization is the site's.
     """
     declared = record.fields.get("mainEntity") if record is not None else None
     if (
@@ -569,7 +568,7 @@ def _variants(records: list[Record], subject: Record | None) -> list[Record]:
     """The other records that describe ``subject`` under its own name.
 
     Only where the page declares the subject's type a listing's worth of times
-    and every one of them bears the subject's name: Zara's Product per colour.
+    and every one of them bears the subject's name: a shop's Product per colour.
     """
     if subject is None or "name" not in subject.fields:
         return []
@@ -740,9 +739,9 @@ def _one_of_many(records: list[Record], name: str) -> Record | None:
     """The one record the page is about among many of type ``name``, if there is.
 
     Two shapes of product page declare a type three times or more and are
-    still about one thing, both measured on Zyte's product benchmark. Zara
-    declares a Product per colour, each with the same name: one product, and
-    the first is it. Argos declares its product with an offer and four
+    still about one thing, both measured on Zyte's product benchmark. One
+    shop declares a Product per colour, each with the same name: one product,
+    and the first is it. Another declares its product with an offer and four
     related products with only a name and a rating: the one with the offer is
     it. A category page, whose products differ in name and each carry an
     offer, is still a listing.
@@ -1104,8 +1103,8 @@ _NUMBER = re.compile(r"\d(?:[\d.,'\s]*\d)?")
 def _one_amount(found: SummaryField | None) -> SummaryField | None:
     """``found`` if it holds one number, which is what a price is.
 
-    Almedina's microdata ``price`` is the text of an element holding the price
-    and the price it replaced, ``71,91 € 79,90 €``, and MediaMarkt's is
+    One shop's microdata ``price`` is the text of an element holding the
+    price and the price it replaced, ``71,91 € 79,90 €``, and another's is
     ``109€109€109``: two and three numbers, which no reader can call one price.
     Refused here, the question falls to the next declaration, which on both
     pages is a clean ``product:price:amount``.
@@ -1208,10 +1207,10 @@ def _headline_or_name(
 ) -> list[SummaryField | None]:
     """``headline`` then ``name``, unless the page's own title says otherwise.
 
-    Wikipedia puts its short description in ``headline`` -- "hydraulic
-    structure" -- and the article's title in ``name``. When only one of the two
-    appears in the title the page shows, in ``<title>`` or ``og:title``, that
-    one is the title.
+    An encyclopedia site puts its short description in ``headline`` --
+    "hydraulic structure" -- and the article's title in ``name``. When only
+    one of the two appears in the title the page shows, in ``<title>`` or
+    ``og:title``, that one is the title.
     """
     if headline is None or name is None:
         return [headline, name]
@@ -1245,8 +1244,9 @@ def _named(
     ``names`` is tried in its own order, not the page's. With ``join``, every
     tag of the winning name is read -- a paper lists each author in one -- and
     the names are joined once each, in the order written. A text in
-    ``unless``, casefolded, is passed over for the next: Hankook Ilbo's first
-    author tag is the paper, its second the reporter.
+    ``unless``, casefolded, is passed over for the next: a paper whose first
+    author tag is the paper and whose second is the reporter has the
+    reporter as its author.
     """
     found: dict[str, list[tuple[str, HtmlElement]]] = {}
     for meta in doc.tree.xpath("//meta[@name][@content]"):

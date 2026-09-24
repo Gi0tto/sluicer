@@ -234,7 +234,7 @@ def test_a_varying_number_of_tags_does_not_split_the_listing():
 
 
 def test_rows_of_another_class_between_the_rows_stay_out_of_the_group():
-    """Hacker News interleaves each story with a subtext row and a spacer."""
+    """A news aggregator interleaves each story with a subtext row and a spacer."""
     rows = "".join(
         f"<tr class='athing'><td><span class='rank'>{n}.</span></td>"
         f"<td><span><a href='/s{n}'>Story {n}</a></span></td></tr>"
@@ -291,7 +291,7 @@ def _stories(n, cls="story"):
 
 
 def test_a_menu_the_page_marks_with_its_role_is_furniture():
-    """GitHub's trending page: a language menu of 491 links, role "menu"."""
+    """A trending page's language menu of 491 links, role "menu"."""
     menu = "".join(
         f"<a role='menuitem' href='/l{i}'>Language {i}</a>" for i in range(60)
     )
@@ -316,7 +316,7 @@ def test_what_the_page_hides_is_furniture():
 
 
 def test_sections_holding_listings_are_not_rows():
-    """The BBC and Ars Technica: three page sections outweighed their stories."""
+    """Two news sites: three page sections outweighed their stories."""
     sections = "".join(
         f"<section class='column'><h2>Column {c}</h2><ol>{_stories(6)}</ol></section>"
         for c in range(3)
@@ -330,7 +330,7 @@ def test_sections_holding_listings_are_not_rows():
 
 
 def test_classes_that_name_one_item_or_a_position_do_not_split_a_listing():
-    """Old Reddit and WordPress: id-t3_…, odd/even, category-… on every row."""
+    """A forum and WordPress: id-t3_…, odd/even, category-… on every row."""
     rows = "".join(
         f"<div class='thing link id-t3_a{i} {'odd' if i % 2 else 'even'} "
         f"category-c{i % 3}'><a href='/p{i}'>Post {i} with a title</a>"

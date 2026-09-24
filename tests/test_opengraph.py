@@ -67,7 +67,7 @@ def test_the_protocol_s_vertical_namespaces_are_opengraph_too():
         "<html><head>"
         '<meta property="og:type" content="article">'
         '<meta property="article:published_time" content="2018-07-10T09:00:00Z">'
-        '<meta property="article:author" content="Kimber Streams">'
+        '<meta property="article:author" content="Ines Varga">'
         '<meta property="article:section" content="Laptops">'
         "</head></html>"
     )
@@ -76,7 +76,7 @@ def test_the_protocol_s_vertical_namespaces_are_opengraph_too():
 
     assert got["type"] == "article"
     assert got["article:published_time"] == "2018-07-10T09:00:00Z"
-    assert got["article:author"] == "Kimber Streams"
+    assert got["article:author"] == "Ines Varga"
     assert got["article:section"] == "Laptops"
 
 

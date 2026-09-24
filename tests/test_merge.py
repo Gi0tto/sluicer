@@ -426,13 +426,13 @@ def test_html_s_own_metadata_names_come_last_and_say_so():
         dublincore={},
         opengraph={"description": "From OpenGraph"},
         twitter={},
-        html={"description": "From the bare meta tag", "author": "Nancy Peyer"},
+        html={"description": "From the bare meta tag", "author": "Jane Doe"},
     )
 
     assert records[0].fields["description"] == Field(
         value="From OpenGraph", source="opengraph"
     )
-    assert records[0].fields["author"] == Field(value="Nancy Peyer", source="html")
+    assert records[0].fields["author"] == Field(value="Jane Doe", source="html")
 
 
 def test_a_bare_meta_name_alone_still_produces_one_record():

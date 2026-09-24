@@ -276,7 +276,7 @@ def test_a_bare_meta_name_fills_what_no_vocabulary_declared():
     html = (
         "<html><head>"
         '<meta property="og:title" content="From OpenGraph">'
-        '<meta name="author" content="Nancy Peyer">'
+        '<meta name="author" content="Jane Doe">'
         "</head></html>"
     )
 
@@ -284,7 +284,7 @@ def test_a_bare_meta_name_fills_what_no_vocabulary_declared():
 
     assert result.sources == ["opengraph", "html"]
     assert result.records[0].fields["author"] == sluicer.Field(
-        value="Nancy Peyer", source="html"
+        value="Jane Doe", source="html"
     )
 
 
