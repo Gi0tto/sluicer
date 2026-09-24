@@ -133,7 +133,7 @@ with all three read, the title from its `<h1>`.
 
 | check | fails when |
 |---|---|
-| `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it |
+| `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it -- or, where the path counts places, `section.box[2]`, there are more or fewer of them than on every learnt page: a box inserted before the second makes another box the second |
 | `rows` | there are no rows, or on a listing of five members or more, more of them are empty shells than the learnt pages had, plus 20% -- skeletons waiting for a script |
 | `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row; a page field is not found, or its label now stands before something else |
 | `shape` | fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket" -- or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
@@ -203,6 +203,10 @@ moved: span.stock -> span.availability (2 of 2 learnt values found there; the ne
 - The listing's place is an exact path. Any new wrapper or renamed class above
   the rows fails the `listing` check; that is the point, and `heal` finds the new
   place.
+- A numbered step is held to the number of its kind the learnt pages had, so a
+  box of the same kind added after the listing fails it too: the path cannot
+  tell after from before. Where the learnt pages had different numbers, the
+  step is not held to one.
 - One listing per extractor: the page's most promising repeated group, or the
   one the examples point at.
 - A page field is an element's whole text, or one attribute. A value written

@@ -121,6 +121,12 @@ class Listing:
     chosen: bool = False
     """The columns were chosen by examples (``compile --want``): ``heal``
     finds the listing again by the values its columns held, and adds none."""
+    siblings: tuple[int | None, ...] = ()
+    """For each step of ``container`` below ``<html>``, how many elements
+    matched it on every page learnt, or None where the pages differed. A
+    numbered step, ``section.box[2]``, is only the second box while there are
+    as many boxes: a box of the same kind inserted before it makes another
+    the second. Empty for a file from before 0.7.1, which learnt none."""
 
 
 @dataclass(frozen=True)
@@ -206,6 +212,11 @@ class Extractor:
                 "rows": list(self.listing.rows),
                 "empty": self.listing.empty,
                 **({"chosen": True} if self.listing.chosen else {}),
+                **(
+                    {"siblings": list(self.listing.siblings)}
+                    if self.listing.siblings
+                    else {}
+                ),
                 "fields": [
                     {
                         "name": f.name,
@@ -275,6 +286,9 @@ def _extractor_of(body: Any) -> Extractor:
             # Absent from a 0.2 file, which learnt nothing about empty rows.
             empty=float(raw.get("empty", 0.0)),
             chosen=raw.get("chosen", False) is True,
+            siblings=tuple(
+                None if n is None else int(n) for n in raw.get("siblings", [])
+            ),
             fields=tuple(
                 ListingField(
                     name=_text(f["name"]),
@@ -691,7 +705,12 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
         _profile(path, path, [row.get(path) for row in rows]) for path in paths
     )
     rows_range = (min(counts), max(counts))
-    return Listing(container, member, rows_range, fields, empty), notes
+    siblings = _siblings(
+        [doc for c, m, _, doc in found if (c, m) == (container, member)], container
+    )
+    return Listing(
+        container, member, rows_range, fields, empty, siblings=siblings
+    ), notes
 
 
 def _learn_wanted(
@@ -767,7 +786,13 @@ def _learn_wanted(
         for name, path in columns.items()
     )
     listing = Listing(
-        container, member, (min(counts), max(counts)), fields, empty, chosen=True
+        container,
+        member,
+        (min(counts), max(counts)),
+        fields,
+        empty,
+        chosen=True,
+        siblings=_siblings(docs, container),
     )
     return listing, notes
 
@@ -834,7 +859,14 @@ def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
     fields = tuple(
         _profile(path, path, [row.get(path) for row in rows]) for path in paths
     )
-    return Listing(container, member, (min(counts), max(counts)), fields, empty)
+    return Listing(
+        container,
+        member,
+        (min(counts), max(counts)),
+        fields,
+        empty,
+        siblings=_siblings(docs, container),
+    )
 
 
 # Elements whose text is not the page's: a script's JSON can hold the price,
@@ -1411,28 +1443,59 @@ def _step_label(element: HtmlElement) -> str:
     return f"{element.tag}.{written}" if written else str(element.tag)
 
 
-def _find(doc: Document, path: str) -> tuple[HtmlElement | None, str]:
+def _find(
+    doc: Document, path: str, siblings: Sequence[int | None] = ()
+) -> tuple[HtmlElement | None, str]:
     """The element at ``path``, or None and why.
 
     A step written without ``[n]`` was the only one of its kind when learnt, so
     it must still be the only one: a second listing of the same kind inserted
-    before it -- a sponsored strip -- is ambiguous, not the first match.
+    before it -- a sponsored strip -- is ambiguous, not the first match. A
+    step written with one is held to ``siblings``, how many of its kind there
+    were at each step, where known: a strip inserted before the second of two
+    boxes makes three, and another box the second.
     """
     steps = path.split(">")
     root = doc.tree
     if _step_label(root) != steps[0].split("[")[0]:
         return None, "not found"
     node = root
-    for step in steps[1:]:
+    for depth, step in enumerate(steps[1:]):
         label, _, ordinal = step.partition("[")
         same = [c for c in node if isinstance(c.tag, str) and _step_label(c) == label]
         if not ordinal and len(same) > 1:
             return None, f"{len(same)} places that match {label}, where there was one"
+        learnt = siblings[depth] if depth < len(siblings) else None
+        if ordinal and same and learnt is not None and len(same) != learnt:
+            matching = "place that matches" if len(same) == 1 else "places that match"
+            return None, f"{len(same)} {matching} {label}, where there were {learnt}"
         index = int(ordinal.rstrip("]")) - 1 if ordinal else 0
         if index >= len(same):
             return None, "not found"
         node = same[index]
     return node, "found"
+
+
+def _siblings(docs: Sequence[Document], path: str) -> tuple[int | None, ...]:
+    """How many elements match each step of ``path`` below ``<html>``, on the
+    pages that have it: the number where they agree, None where they do not."""
+    seen: list[list[int]] = []
+    for doc in docs:
+        if _find(doc, path)[0] is None:
+            continue
+        counts, node = [], doc.tree
+        for step in path.split(">")[1:]:
+            label, _, ordinal = step.partition("[")
+            same = [
+                c for c in node if isinstance(c.tag, str) and _step_label(c) == label
+            ]
+            counts.append(len(same))
+            node = same[int(ordinal.rstrip("]")) - 1 if ordinal else 0]
+        seen.append(counts)
+    return tuple(
+        column[0] if len(set(column)) == 1 else None
+        for column in zip(*seen, strict=True)
+    )
 
 
 def _members(container: HtmlElement, member: str) -> list[HtmlElement]:
@@ -1550,7 +1613,7 @@ def _unnumbered(path: str) -> str:
 def _replay_listing(
     listing: Listing, doc: Document, checks: list[Check]
 ) -> list[dict[str, str]]:
-    container, found = _find(doc, listing.container)
+    container, found = _find(doc, listing.container, listing.siblings)
     if container is None:
         checks.append(
             Check("listing", f"the listing at {listing.container}", found, False)
@@ -1879,7 +1942,13 @@ def _heal_listing(
         sorted(fields, key=lambda f: (position.get(f.name, len(position)), f.name))
     )
     listing = Listing(
-        new.container, new.member, new.rows, fields, new.empty, chosen=old.chosen
+        new.container,
+        new.member,
+        new.rows,
+        fields,
+        new.empty,
+        chosen=old.chosen,
+        siblings=new.siblings,
     )
     return listing, changes
 

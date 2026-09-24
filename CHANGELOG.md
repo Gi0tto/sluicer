@@ -5,6 +5,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- A box of the same kind inserted before a numbered listing fails the run.
+  The listing at `section.box[2]` read the box that became second, 4 rows
+  instead of 12, and passed, although the docs promised a strip inserted
+  before a listing is caught. An extractor now learns how many elements
+  matched each step of its listing's path on the pages learnt (`siblings`),
+  and a numbered step with more or fewer of its kind fails the `listing`
+  check. A file from 0.7.0 has none and is read as before. The drift
+  benchmark's outcomes are unchanged: 23 survived, 21 failed loudly, none
+  silently, no false alarm.
 - `diff` reports a price in another currency as `changed`, not `rewritten`:
   `£41.90` and `$41.90` are the same number, and were read as noise. A price's
   currency is the one its sign or code names, `£` and `GBP` alike, else the

@@ -862,3 +862,51 @@ def test_heal_reads_a_row_that_moved_after_its_label():
     run = run_extractor(healed, *_specs("Ferodo", "9.00", "BP-5", "5 kg", order))
     assert run.ok, failed(run)
     assert run.fields == {"sku": "BP-5"}
+
+
+def _sections(*boxes):
+    """A page of boxes of one kind, each a heading and a list of products."""
+    html = "".join(
+        f"<section class='box'><h2>{title}</h2><ul class='items'>"
+        + "".join(
+            f"<li class='item'><a class='name' href='/{title[0]}/{n}'>{title} {n}</a>"
+            f"<span class='price'>£{n}.99</span></li>"
+            for n in range(1, rows + 1)
+        )
+        + "</ul></section>"
+        for title, rows in boxes
+    )
+    return f"<html><body><main>{html}</main></body></html>", "https://shop.example/c"
+
+
+def test_a_box_of_the_same_kind_inserted_before_a_numbered_listing_fails():
+    """The listing was the second box, section.box[2]; a sponsored box put
+    before it made the pick of the week the second, and the run read its one
+    row and passed. The page now has three boxes where it had two."""
+    learnt = compile_extractor([_sections(("Pick", 1), ("All", 12))], listing=True)
+    assert learnt.listing.container == "html>body>main>section.box[2]>ul.items"
+    run = run_extractor(learnt, *_sections(("Sponsored", 4), ("Pick", 1), ("All", 12)))
+    assert not run.ok
+    assert failed(run) == ["listing"]
+    [check] = [c for c in run.checks if not c.ok]
+    assert check.got == "3 places that match section.box, where there were 2"
+    assert run_extractor(learnt, *_sections(("Pick", 1), ("All", 9))).ok
+    wanted = compile_extractor(
+        [_sections(("Pick", 1), ("All", 12))], want={"n": "All 3"}
+    )
+    run = run_extractor(wanted, *_sections(("Sponsored", 4), ("Pick", 1), ("All", 12)))
+    assert failed(run) == ["listing"]
+
+
+def test_pages_that_number_a_step_differently_do_not_hold_it_to_a_count():
+    learnt = compile_extractor(
+        [
+            _sections(("Pick", 1), ("All", 12)),
+            _sections(("Pick", 1), ("All", 10), ("Recently viewed", 2)),
+        ],
+        want={"n": "All 3"},
+    )
+    assert learnt.listing.siblings[-2:] == (None, 1)
+    run = run_extractor(learnt, *_sections(("Pick", 1), ("All", 8), ("Seen", 1)))
+    assert run.ok, failed(run)
+    assert Extractor.from_json(learnt.to_json()) == learnt
