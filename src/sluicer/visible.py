@@ -177,6 +177,12 @@ class _Page:
         return [e for e, names in self.named if _DATE.search(names) and _small(e)]
 
     @cached_property
+    def texts(self) -> list[str]:
+        """The page's text nodes of more than one character, in order, each
+        knowing its element: where a "By" or a "Published" line opens."""
+        return self.tree.xpath("//text()[string-length(normalize-space()) > 1]")
+
+    @cached_property
     def listing(self) -> bool:
         """Whether the page shows more different dates than an article's
         header does: a listing's, whose dates are its cards'."""
@@ -303,7 +309,7 @@ def _author(page: _Page) -> Guess | None:
                 return Guess(name, _where(element), "byline")
     # A "By X" line: looked for from the text that opens it, since reading
     # every container's whole text to find the short ones costs the most.
-    for opening in page.tree.xpath("//text()[string-length(normalize-space()) > 1]"):
+    for opening in page.texts:
         if not _OPENS_BY.match(opening):
             continue
         element = opening.getparent()
@@ -381,7 +387,7 @@ def _date_in_a_line(page: _Page, updates: bool) -> Guess | None:
                 return Guess(value, _where(element), rule)
     if updates or page.listing:
         return None
-    for opening in page.tree.xpath("//text()[string-length(normalize-space()) > 8]"):
+    for opening in page.texts:
         if not _PUBLISHED_LINE.match(opening):
             continue
         element = opening.getparent()
