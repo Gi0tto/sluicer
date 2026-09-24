@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
+## 0.6.0 - 2026-09-24
 
 ### Added
 - A date's month is read by its name in any of the 430 languages and regions
