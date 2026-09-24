@@ -30,7 +30,7 @@ import subprocess
 import tarfile
 import time
 import urllib.request
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -147,6 +147,34 @@ def _by_language(runs, per_page, pages, languages, field: str) -> list[str]:
     return lines
 
 
+def _letters(text: str) -> str:
+    return re.sub(r"[\W\d_]+", "", text).lower()
+
+
+def _paper_as_author(per_page, pages) -> tuple[int, int]:
+    """Of the pages where another tool finds the author and Sluicer does not,
+    how many are labelled with the publisher's own name: the label's letters
+    hold the publisher's, or the publisher's hold the label's. A name written
+    in another script than fundus's publisher key is not counted, so this is
+    at least that many."""
+    if "sluicer" not in per_page:
+        return 0, 0
+    others = [tool for tool in per_page if tool != "sluicer"]
+    missed = [
+        page_id
+        for page_id, fields in per_page["sluicer"].items()
+        if fields["author"] in ("wrong", "silent")
+        and any(per_page[tool][page_id]["author"] == "hit" for tool in others)
+    ]
+    paper = 0
+    for page_id in missed:
+        label = _letters(score.as_text(pages[page_id]["author"]) or "")
+        publisher = _letters(pages[page_id]["publisher"])
+        named = bool(label and publisher)
+        paper += named and (label in publisher or publisher in label)
+    return len(missed), paper
+
+
 def _document(pages_list, pages, runs, per_page, languages) -> str:
     labelled = {
         field: sum(1 for p in pages_list if score.as_text(p[field]))
@@ -154,6 +182,9 @@ def _document(pages_list, pages, runs, per_page, languages) -> str:
     }
     groups = len({p["country"] for p in pages_list})
     declared = {lang for lang in languages.values() if lang != "none"}
+    missed, paper = _paper_as_author(per_page, pages)
+    most_spoken, spoken = Counter(languages.values()).most_common(1)[0]
+    per_publisher = Counter(p["publisher"] for p in pages_list).values()
     today = datetime.date.today().isoformat()
     commit = board._git("rev-parse", "--short", "HEAD")
     own = ":!docs/scoreboard-news.md"
@@ -186,11 +217,15 @@ def _document(pages_list, pages, runs, per_page, languages) -> str:
         "    declared, so a disagreement is counted here as wrong even when the",
         "    declaration is the page's own. Where the page names no one else,",
         "    fundus's labels count the paper itself the author, which Sluicer",
-        "    does not, as WCXB's labels do not: that is most of the authors",
-        "    another tool finds here and Sluicer does not (see the known",
-        "    limits). Many of fundus's parsers read the",
-        "    page's JSON-LD themselves, so part of the agreement is circular. And",
-        "    the pages are one or two per publisher, German-heavy: read a",
+        f"    does not, as WCXB's labels do not: of the {missed} pages where another",
+        "    tool finds the author and Sluicer does not, at least "
+        f"{paper} are labelled",
+        "    with the publisher's own name (see the known limits). Many of",
+        "    fundus's parsers read the page's JSON-LD themselves, so part of the",
+        f"    agreement is circular. And the pages are {min(per_publisher)} to "
+        f"{max(per_publisher)} per",
+        f"    publisher, {spoken} of {len(pages_list)} declaring `{most_spoken}`: "
+        "read a",
         "    language's row as a handful of pages, not a rate.",
         "",
         "## Results",

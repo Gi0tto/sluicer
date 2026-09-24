@@ -213,6 +213,64 @@ def _losses(runs, per_page, pages) -> list[str]:
     return lines
 
 
+def _inventions(counts: dict[str, Any]) -> list[str]:
+    """What each tool answered where the label is empty, counted from this run.
+
+    It said "Sluicer gives none where the page states none" whatever the run,
+    beside a table in which Sluicer invented 42 authors.
+    """
+    said = []
+    for tool in counts:
+        made = [
+            f"{n} {field}{'' if n == 1 else 's'}"
+            for field in score.FIELDS
+            if (n := counts[tool][field]["invention"])
+        ]
+        said.append(f"{tool} {_listed(made) if made else 'nothing'}")
+    return [
+        "Right when answering counts every answer a tool gives, inventions",
+        "included. Where a page's label is empty, the tools answered all the",
+        f"same: {'; '.join(said)}. On a product or category page with no",
+        "publication date, a date is not a small error but a fact that is not",
+        "there.",
+    ]
+
+
+def _listed(items: list[str]) -> str:
+    """``a, b and c``."""
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _gaps(per_page, pages) -> str:
+    """Where Sluicer's hit rate is below another tool's, widest gap first."""
+    counts = {tool: score.tally(per_page[tool], pages) for tool in per_page}
+    gaps = []
+    for field in score.FIELDS:
+        best = max(
+            (tool for tool in counts if tool != "sluicer"),
+            key=lambda tool: score.hit_rate(counts[tool][field]),
+            default=None,
+        )
+        if best is None:
+            continue
+        ours = score.hit_rate(counts["sluicer"][field])
+        theirs = score.hit_rate(counts[best][field])
+        if theirs > ours:
+            gaps.append((theirs - ours, field, best, ours, theirs))
+    if not gaps:
+        return "Sluicer's hit rate is the highest on every field."
+    return (
+        "Sluicer's hit rate is below another tool's on "
+        + _listed(
+            [
+                f"{field} ({ours:.3f} against {best}'s {theirs:.3f})"
+                for _, field, best, ours, theirs in sorted(gaps, reverse=True)
+            ]
+        )
+        + "."
+    )
+
+
 def _wins(runs, per_page, pages) -> list[str]:
     """What Sluicer does better, stated only where this run shows it."""
     if "sluicer" not in per_page:
@@ -238,13 +296,7 @@ def _wins(runs, per_page, pages) -> list[str]:
             f"- **{field.capitalize()}**, right when answering: {cells}. Fewest "
             f"inventions: {fewest}."
         )
-    lines += [
-        "",
-        "Right when answering counts every answer a tool gives, inventions",
-        "included. Sluicer gives none where the page states none; on a product or",
-        "category page with no publication date, a date is not a small error but a",
-        "fact that is not there.",
-    ]
+    lines += ["", *_inventions(counts)]
     # A tie would make "smallest" mean "first listed"; name every one.
     fastest = min(runs, key=lambda tool: runs[tool]["seconds"])
     least = min(run["packages"] for run in runs.values())
@@ -282,8 +334,12 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "[`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).",
         "",
         '!!! warning "Read this before the numbers"',
-        "    WCXB removed every `<script>` from its pages: of the "
-        f"{len(pages_list)} test",
+        (
+            "    WCXB removed every `<script>` from its pages: of the "
+            if scripts == 0
+            else "    WCXB removed `<script>` elements from its pages: of the "
+        )
+        + f"{len(pages_list)} test",
         f"    pages, {scripts} carry a `<script>` and {json_ld} carry JSON-LD. JSON-LD "
         "is the",
         "    vocabulary Sluicer reads first, and the one many pages declare their",
@@ -326,11 +382,12 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "",
         *_losses(runs, per_page, pages),
         "",
-        "Authors and dates are where the gap is. The other tools also read bylines",
-        "and dates from the visible text of the page, where no vocabulary declares",
-        "them; Sluicer reads only what the page states in markup that means",
-        "something, and answers nothing rather than guess from prose. That is a",
-        "choice with a cost, and this is the cost.",
+        *([_gaps(per_page, pages), ""] if "sluicer" in per_page else []),
+        "The other tools also read bylines and dates from the visible text of",
+        "the page, where no vocabulary declares them; Sluicer reads only what the",
+        "page states in markup that means something, and answers nothing rather",
+        "than guess from prose. That is a choice with a cost, and the gap above",
+        "is the cost.",
         "",
         "## Where it wins",
         "",

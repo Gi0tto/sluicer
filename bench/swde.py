@@ -539,7 +539,7 @@ READING: list[str] = [
     "example was on the first, and could not learn a value that shares its",
     "element with its label.",
     "",
-    "## Reading the errors",
+    "## Reading the errors, by hand, at 0.7.0",
     "",
     "The wrong answers were read by hand on the development sites only, looking",
     "for rules Sluicer had wrong rather than for rules that would fit these",

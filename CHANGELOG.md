@@ -44,6 +44,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   exit 2, as a wrong option does.
 
 ### Changed
+- Every sentence a scoreboard's generator writes about its results is
+  counted from them. `bench/run.py` wrote "Sluicer gives none where the page
+  states none" beside a table in which it invented 42 authors and 8 dates,
+  and "authors and dates are where the gap is" whatever the run; the products
+  scoreboard's error classes, the news scoreboard's "most of the authors",
+  trafilatura's set's "nearly every snippet", the extruct page's "raises on
+  none" and "for the same reasons", and the served scoreboard's capture
+  scores were written once by hand and printed on every run. The scoreboards
+  show it when they are next regenerated.
 - `sluicer --help` lists the commands in four sections -- Read a page, Whole
   sites, Extractors, Servers -- instead of one alphabetical list.
 - The suite runs in a random order (pytest-randomly, now a development
