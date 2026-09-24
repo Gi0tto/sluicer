@@ -129,16 +129,121 @@ declares and what `--visible` adds. A
 guess read off the visible page is never part of the summary, and every
 invention it makes is counted in its own column.
 
+## How sure a number is, and how a difference is called
+
+Fixed on 2026-09-24, before any interval or verdict was computed on a
+scoreboard's results. `bench/stats.py` computes both, and its tests hold it to
+hand computations.
+
+- **A rate.** Every hit rate and share right when answering a scoreboard
+  prints carries its 95% Wilson score interval. For k hits in n trials,
+  p = k/n and z = 1.959963984540054, the normal's 97.5th percentile:
+  centre (p + z²/2n) / (1 + z²/n), half-width
+  z / (1 + z²/n) · √(p(1 − p)/n + z²/4n²). Wilson rather than p ± z·√(p(1−p)/n),
+  since it stays inside 0 and 1 and is not zero wide at either, where several
+  rates sit (the news dates are 1.000 right when answering). It is printed
+  beside the rate, its bounds to two places rounded outwards, the lower down
+  and the upper up, so what is printed always holds what was computed:
+  `0.727 (0.68–0.77)`. A rate over no trials has no interval.
+- **The trials are pages**, taken as independent: a hit rate's trials are the
+  labelled pages, a share's the answers. Where they are not independent the
+  interval is bootstrapped over what is: over sites for SWDE, since one
+  extractor is learnt per site and its pages stand or fall together; over
+  pages for trafilatura's main-text snippets, several of which sit on one page.
+  A bootstrapped interval is the percentile interval below.
+- **A difference.** Sluicer against another tool on the same pages, a page as
+  served against the same page as WCXB kept it, and Sluicer today against the
+  baseline its floors were written from are paired comparisons: both sides
+  are scored on the same pages, so the pages are resampled together.
+  - 10,000 samples of n pages drawn with replacement from the n scored, by
+    Python's `random.Random(20260924).choices`, the pages listed in the order
+    of their ids. Every comparison starts again from the seed, so each can be
+    reproduced alone, whatever else the page compares.
+  - On each sample the statistic is recomputed: the difference of the two hit
+    rates, of the two shares right when answering, of two F1s (products, by
+    Zyte's evaluator's own matching and formula), or of two mean F1s over
+    sites (SWDE), always Sluicer's minus the other's, the served page's minus
+    the stripped one's, today's minus the baseline's. A rate over no trials
+    in a sample counts 0, as `bench/score.py` counts it.
+  - The interval is the 95% percentile interval: of the 10,000 differences in
+    ascending order, the 251st and the 9,750th.
+  - The verdict: **better** when the interval's lower bound is above zero,
+    **worse** when its upper bound is below zero, **inconclusive** otherwise,
+    a bound of exactly zero included. A scoreboard's prose calls Sluicer ahead
+    of or behind a tool only where the verdict does, and names an
+    inconclusive difference as one.
+  - No correction for making many comparisons. A scoreboard makes eighteen,
+    three fields by three other tools by two rates; where the tools did not
+    differ at all, about one in twenty would still be called better or worse.
+    The verdicts are read as a table, not one at a time, and each page says
+    so.
+- Zyte's evaluator prints its own bootstrap standard deviation of each F1
+  (1,000 resamples, seed 42); that ± is Zyte's and is kept as it is. The
+  paired comparison beside it is this file's.
+
+## How a second is measured
+
+Fixed on 2026-09-24, after commit `b8f525e` re-timed Sluicer alone "on a
+quieter machine" and published its new time beside the other tools' old ones.
+`bench/timing.py` measures, and a generator publishes no second it did not
+measure this way.
+
+- Every tool in a table is timed in one run of `bench/timing.py`, on one
+  machine, on the same pages: five rounds, each running every tool once, the
+  tools' order turned by one place each round, so that a machine that slows
+  down weighs on all of them.
+- Each run is a fresh process in the tool's own environment. It reads every
+  page once untimed, a warm-up that is thrown away, then times one pass over
+  every page, the extraction call only.
+- Printed: the median of the five timed passes, the fastest and the slowest
+  beside it; pages per second is the pages over the median. Peak memory is
+  the largest peak resident size (`getrusage`) of the five processes.
+- Written on the page: the day it was measured, the platform, the CPU model,
+  its cores and the machine's memory, the Python version, each tool's version,
+  and the commit of this checkout.
+- A generator refuses to publish a timing that is not all one run: a tool of
+  its table missing from the record, a tool timed in another run than the
+  others, a tool's version other than the one whose answers the page scores,
+  a commit other than the one the page names, or a tree with uncommitted
+  changes. A timing is reused only when none of these holds.
+- SWDE takes 13 minutes of one pass for Sluicer and 28 for Scrapling; five
+  rounds of a warm-up and a timed pass would take nearly seven hours, so its
+  scoreboard prints no seconds. The drift benchmark prints none either: its
+  run time is mostly reading the archive's captures.
+
 ## What counts as worse
 
 `bench/floors.json` holds, for every scoreboard, Sluicer's hit rate and share
-right when answering per field, its inventions, SWDE's mean F1 per half and
-its silent wrong answers. `uv run bench/gate.py --require` fails when a hit
-rate or a share is below its floor or a count of inventions or silent wrong
-answers is above its ceiling. It is run after every scoreboard before a
-release is tagged. Floors rise with `--raise` when the numbers do, and are
-lowered only with `--allow-regression`, in a commit that says why.
+right when answering per field, its inventions, the products' F1s, SWDE's
+mean F1 per half and its silent wrong answers; `bench/floors-pages.json`
+holds the outcome of every page (every site-attribute for SWDE) the floors
+were written from, the baseline. `uv run bench/gate.py --require` pairs
+today's outcomes with the baseline's, page by page, and a floor is breached
+when either holds:
 
-Planned, not yet done: a paired bootstrap over pages, with a fixed seed, so
-that a difference between two versions or two tools is called better, worse
-or inconclusive by a rule written here rather than by eye.
+1. **The drop is significant**: the paired comparison above calls today
+   worse than the baseline. However small, the pages that got worse
+   outnumber those that got better by more than resampling explains.
+2. **The drop is past the floor's tolerance**: a rate or an F1 more than
+   0.010 below its floor, or a count of inventions or silent wrong answers
+   above its ceiling by more than 1% of what it is counted over (the pages
+   scored; SWDE's labelled page-attributes of that half), whatever the
+   comparison says, so a large change on few pages is never waved through
+   as inconclusive.
+
+A number past its floor but within the tolerance and not called worse is
+reported as held within noise, and passes. The reason: Sluicer is
+deterministic, so a number moves only when pages change outcome, and what the
+gate asks is whether a change makes Sluicer worse beyond the pages that
+happened to be sampled. On these corpora a page is 0.1 to 0.4 points, and the
+Wilson interval of a rate over 500 pages is about eight points wide; a floor
+missed by one page traded for another says nothing, yet it made a release
+choose between failing and `--allow-regression`, and a gate lowered by hand
+each time is no gate. The tolerance bounds what such trades can add up to:
+`--raise` never lowers a floor, so small drops one after another can never
+take a number more than 0.010 below it. `--raise` rewrites a scoreboard's
+baseline only when every one of its numbers is at or above its floor (or with
+`--allow-regression`), so a drop within the tolerance is compared with the
+outcomes before it, not with itself. The gate is run after every scoreboard
+before a release is tagged; floors rise with `--raise` when the numbers do,
+and are lowered only with `--allow-regression`, in a commit that says why.
