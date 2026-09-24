@@ -177,6 +177,14 @@ class _Page:
         return [e for e, names in self.named if _DATE.search(names) and _small(e)]
 
     @cached_property
+    def listing(self) -> bool:
+        """Whether the page shows more different dates than an article's
+        header does: a listing's, whose dates are its cards'."""
+        shown = {t.get("datetime") or _text(t) for t in self.tree.iter("time")}
+        shown |= {_text(e) for e in self.named_dates if iso_date(_text(e))}
+        return len(shown) > _MOST_DATES
+
+    @cached_property
     def heading(self) -> HtmlElement | None:
         headings = [h for h in self.tree.iter("h1") if not self.aside(h) and _text(h)]
         return headings[0] if len(headings) == 1 else None
@@ -334,7 +342,97 @@ def _modified(page: _Page) -> Guess | None:
         )
         if value:
             return Guess(value, _where(element), "updated")
+    return _date_in_a_line(page, updates=True)
+
+
+# The longest a line a date is read from inside may be: a byline with its
+# date, "By Lisa Jennings on Dec. 19, 2025", not a paragraph.
+_LINE_MOST = 160
+# A line that says it opens with its publication date.
+_PUBLISHED_LINE = re.compile(r"^\s*(?:published|posted|first published)\b", re.I)
+_YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
+_WORD_START = re.compile(r"(?:^|(?<=\s))\S")
+
+
+def _date_in_a_line(page: _Page, updates: bool) -> Guess | None:
+    """A date written inside a short line of the article's header: its
+    byline's box, an element named as a date's, a line that opens with
+    "Published", or one of the few round the heading. A date the line says is
+    an update's is ``modified``'s, and read only when ``updates``."""
+    lines: list[HtmlElement] = []
+    if not page.listing:
+        lines += [e for e, names in page.named if _BYLINE.search(names) and _small(e)]
+        lines += page.named_dates
+    lines += [e for e in page.near if _small(e)]
+    seen: set[HtmlElement] = set()
+    for element in lines:
+        if element in seen:
+            continue
+        seen.add(element)
+        text = _text(element)
+        if not 8 <= len(text) <= _LINE_MOST:
+            continue
+        if page.aside(element) or _hidden(element) or _in_a_link(element, page.doc):
+            continue
+        labelled = _an_update(element)
+        for start, value in _dates_in(text):
+            if (labelled or _said_updated(text[:start])) is updates:
+                rule = "updated, in a line" if updates else "in a line"
+                return Guess(value, _where(element), rule)
+    if updates or page.listing:
+        return None
+    for opening in page.tree.xpath("//text()[string-length(normalize-space()) > 8]"):
+        if not _PUBLISHED_LINE.match(opening):
+            continue
+        element = opening.getparent()
+        if opening.is_tail and element is not None:
+            element = element.getparent()
+        if element is None or not _small(element) or page.aside(element):
+            continue
+        text = _text(element)
+        if len(text) <= _LINE_MOST:
+            for start, value in _dates_in(text):
+                if not _said_updated(text[:start]):
+                    return Guess(value, _where(element), "published line")
     return None
+
+
+def _dates_in(text: str) -> list[tuple[int, str]]:
+    """The dates written in ``text``, each with where it starts: for every
+    year, the longest run of two to five words ending with it that
+    ``iso_date`` reads, and every ISO 8601 date."""
+    found: list[tuple[int, str]] = []
+    starts = [m.start() for m in _WORD_START.finditer(text)]
+    for year in _YEAR.finditer(text):
+        end = year.end()
+        before = [at for at in starts if at < year.start()][-5:]
+        for at in before:
+            words = text[at:end].lstrip("•|·-\u2013\u2014,:;( ")
+            value = iso_date(words)
+            if value:
+                found.append((end - len(words), value))
+                break
+    for iso in re.finditer(
+        r"\d{4}-\d{2}-\d{2}(?:T[\d:.]+(?:Z|[+-]\d{2}:?\d{2})?)?", text
+    ):
+        value = iso_date(iso.group())
+        if value:
+            found.append((iso.start(), value))
+    return sorted(found)
+
+
+# An update's word a few words before a date, glued to a name before it or
+# not: "ZamanUpdated on", "We updated this article on", "Modified: 10:31am On".
+_SAID_UPDATED = re.compile(
+    r"(?:updated?|modified|revised|edited|aktualisiert|ge(?:ä|ae)ndert|mis à jour|"
+    r"actualizad[oa]|aggiornato|bijgewerkt)\b[^.!?]{0,28}$",
+    re.I,
+)
+
+
+def _said_updated(before: str) -> bool:
+    """Whether the words just before a date say it is an update's."""
+    return bool(_SAID_UPDATED.search(before[-40:]))
 
 
 def _date_places(page: _Page) -> list[HtmlElement]:
@@ -414,6 +512,9 @@ def _date(page: _Page) -> Guess | None:
     near = _date_near_heading(page)
     if near is not None:
         return near
+    written = _date_in_a_line(page, updates=False)
+    if written is not None:
+        return written
     address = doc.url or ""
     found = _URL_DATE.search(urlsplit(address).path)
     if found:
