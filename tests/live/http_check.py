@@ -13,13 +13,19 @@ from __future__ import annotations
 import contextlib
 import gzip
 import http.server
+import socket
 import socketserver
 import sys
 import threading
+import time
 
 LIMIT = 1024 * 1024
 BIG = 3 * LIMIT
 seen: dict[str, dict[str, str]] = {}
+# Where a redirect off the web points: a bare socket that records what reaches
+# it, as a Redis or a memcached on this machine would.
+listener = socket.create_server(("127.0.0.1", 0))
+reached: list[bytes] = []
 
 
 class Server(http.server.BaseHTTPRequestHandler):
@@ -51,6 +57,14 @@ class Server(http.server.BaseHTTPRequestHandler):
             self._send(302, Location="/page")
         elif self.path == "/to-private":
             self._send(302, Location="http://10.0.0.1/admin")
+        elif self.path.startswith("/to-"):
+            port = listener.getsockname()[1]
+            targets = {
+                "/to-gopher": f"gopher://127.0.0.1:{port}/_SET%20pwned%201%0D%0A",
+                "/to-dict": f"dict://127.0.0.1:{port}/info",
+                "/to-file": "file:///etc/hosts",
+            }
+            self._send(302, Location=targets[self.path])
         elif self.path == "/announced":
             self._send(200, b"a" * BIG, Content_Type="text/html")
         elif self.path == "/bomb":
@@ -82,6 +96,15 @@ class _Quiet(socketserver.ThreadingTCPServer):
         pass  # a client that stops reading at the bound resets the connection
 
 
+def _record() -> None:
+    while True:
+        connection, _ = listener.accept()
+        connection.settimeout(2)
+        with contextlib.suppress(OSError):
+            reached.append(connection.recv(1000))
+        connection.close()
+
+
 def main() -> int:
     from sluicer.fetch import address
     from sluicer.fetch.address import AddressRefused
@@ -104,6 +127,17 @@ def main() -> int:
 
     if rung(base + "/hop").url != base + "/page":
         failures.append("a redirect was not followed to where it led")
+
+    threading.Thread(target=_record, daemon=True).start()
+    for path in ("/to-gopher", "/to-dict", "/to-file"):
+        try:
+            off = rung(base + path)
+            failures.append(f"{path}: followed to {off.url}: {off.html[:40]!r}")
+        except AddressRefused:
+            pass
+    time.sleep(0.2)
+    if reached:
+        failures.append(f"a redirect off the web reached a socket with {reached}")
 
     for path in ("/announced", "/chunked", "/bomb"):
         try:
@@ -143,7 +177,10 @@ def main() -> int:
     for failure in failures:
         print("FAIL:", failure)
     if not failures:
-        print("http: charset, identity, redirects, heavy bodies and the pin all hold")
+        print(
+            "http: charset, identity, redirects, the web only, heavy bodies and "
+            "the pin all hold"
+        )
     return 1 if failures else 0
 
 

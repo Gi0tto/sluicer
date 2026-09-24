@@ -56,7 +56,14 @@ def fake_curl(monkeypatch, replies, chunk=None):
             return Response(reply)
 
     curl = types.ModuleType("curl_cffi")
-    curl.CurlOpt = types.SimpleNamespace(MAXFILESIZE_LARGE="max", RESOLVE="resolve")
+    curl.CurlOpt = types.SimpleNamespace(
+        MAXFILESIZE_LARGE="max",
+        RESOLVE="resolve",
+        PROTOCOLS_STR="protocols",
+        REDIR_PROTOCOLS_STR="redir_protocols",
+        TIMEOUT_MS="timeout_ms",
+        PROXY="proxy",
+    )
     requests = types.ModuleType("curl_cffi.requests")
     requests.Session = Session
     monkeypatch.setitem(sys.modules, "curl_cffi", curl)
@@ -169,6 +176,74 @@ def test_a_redirect_into_a_private_address_is_refused_before_it_is_asked(
 
     assert refused.value.url == "http://10.0.0.1/admin"
     assert seen["urls"] == ["https://example.com/p"]
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "gopher://127.0.0.1:6379/_SET%20pwned%201%0D%0A",
+        "dict://127.0.0.1:11211/stats",
+        "file:///etc/hosts",
+        "ftp://example.com/file",
+    ],
+)
+def test_a_redirect_off_the_web_is_refused_before_it_is_asked(monkeypatch, target):
+    """curl speaks gopher, dict and file too. Measured before this was refused:
+    a 302 to gopher:// sent ``SET pwned 1`` to whatever listened on that port,
+    and a 302 to file:///etc/hosts returned the file as the page, with the
+    defaults every command line fetch has."""
+    seen = fake_curl(monkeypatch, [(302, b"", {"location": target}), PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(AddressRefused, match="only http and https") as refused:
+        http_rung()("https://example.com/p")
+
+    assert refused.value.url == target
+    assert seen["urls"] == ["https://example.com/p"]
+
+
+def test_curl_is_told_to_speak_only_http_and_https(monkeypatch):
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung()("https://example.com/p")
+
+    options = seen["sessions"][0]["curl_options"]
+    assert options["protocols"] == "http,https"
+    assert options["redir_protocols"] == "http,https"
+
+
+def test_an_address_off_the_web_is_never_asked_by_the_rung(monkeypatch):
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(AddressRefused, match="not file"):
+        http_rung()("file:///etc/hosts")
+
+    assert seen["urls"] == []
+
+
+def test_the_ladder_refuses_an_address_off_the_web_whatever_it_allows():
+    browser = _rung("browser")
+
+    with pytest.raises(AddressRefused, match="not file"):
+        fetch("file:///etc/hosts", rungs=[("browser", browser)], allow_private=True)
+
+    assert browser.calls == []
+
+
+def test_a_page_that_landed_off_the_web_is_refused():
+    """A rung that follows redirects itself is judged where it landed."""
+
+    def landed_elsewhere(url):
+        return Fetched(url="file:///etc/hosts", html="<p>ok</p>", status=200, rung="x")
+
+    with pytest.raises(AddressRefused, match="not file"):
+        fetch(
+            "https://example.com/p",
+            rungs=[("x", landed_elsewhere)],
+            robots_reader=lambda url: None,
+        )
 
 
 def test_a_redirect_loop_ends(monkeypatch):

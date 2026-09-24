@@ -27,7 +27,10 @@ Sluicer holds no credentials. There is no API key to leak because no feature
 takes one, which is a deliberate design constraint rather than an oversight.
 
 When the optional `fetch` extra is installed, page content is fetched and, on
-the higher rungs, rendered in a browser. That browser executes page JavaScript
+the higher rungs, rendered in a browser. Only over http and https: an address
+or a redirect to any other scheme -- `file://`, `gopher://`, `dict://` -- is
+refused before it is asked, whoever the caller is, and curl is told to speak
+nothing else. That browser executes page JavaScript
 in its own process. Treat fetching an untrusted URL with the same care you would
 treat opening it in your own browser.
 

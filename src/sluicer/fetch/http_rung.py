@@ -7,6 +7,9 @@ It asks for what scrapling's fetcher had no way to be asked for:
   gigabytes costs the bound and no more.
 * **Redirects one hop at a time.** curl never follows one itself; every
   address a redirect names is judged before it is asked.
+* **The web and nothing else.** Every hop must be http or https, and curl is
+  told to speak nothing else, so a redirect to ``gopher://``, ``dict://`` or
+  ``file://`` is refused, not followed.
 * **A pinned connection.** With ``allow_private`` false, curl is told which
   addresses the host has -- the ones just checked -- and never looks the name
   up itself, so a name that answers differently the second time (DNS
@@ -31,7 +34,14 @@ from urllib.parse import urljoin, urlsplit
 from sluicer.declared.headers import charset
 from sluicer.document import sniff_encoding
 from sluicer.extras import MissingExtra, import_extra
-from sluicer.fetch.address import _numeric, _resolve, public_addresses
+from sluicer.fetch.address import (
+    WEB_SCHEMES,
+    AddressRefused,
+    _numeric,
+    _resolve,
+    public_addresses,
+    why_not_web,
+)
 from sluicer.fetch.identity import USER_AGENT
 from sluicer.fetch.result import (
     MAX_RESPONSE_BYTES,
@@ -50,6 +60,7 @@ MAX_REDIRECTS = 10
 """How many redirects one fetch follows before it calls the chain a loop."""
 
 _REDIRECTS = frozenset({301, 302, 303, 307, 308})
+_PROTOCOLS = ",".join(WEB_SCHEMES)
 _FILESIZE_EXCEEDED = 63
 
 
@@ -104,7 +115,16 @@ def http_responses(
     def get(url: str) -> Response:
         current = url
         for _ in range(MAX_REDIRECTS + 1):
-            options: dict[Any, Any] = {curl_option.MAXFILESIZE_LARGE: max_bytes}
+            not_web = why_not_web(current)
+            if not_web is not None:
+                raise AddressRefused(current, not_web)
+            options: dict[Any, Any] = {
+                curl_option.MAXFILESIZE_LARGE: max_bytes,
+                # Ours is the check that refuses; curl's own list is there so
+                # that no path we did not think of reaches another protocol.
+                curl_option.PROTOCOLS_STR: _PROTOCOLS,
+                curl_option.REDIR_PROTOCOLS_STR: _PROTOCOLS,
+            }
             if not allow_private:
                 pins = _pins(current, resolve)
                 if pins:
@@ -113,6 +133,9 @@ def http_responses(
             location = headers.get("location")
             if status in _REDIRECTS and location:
                 target = urljoin(current, location)
+                not_web = why_not_web(target)
+                if not_web is not None:
+                    raise AddressRefused(target, not_web)
                 refused = redirects(current, target) if redirects else None
                 if refused is not None:
                     raise RedirectRefused(current, target, refused)

@@ -82,7 +82,12 @@ def fake_scrapling(
 
     curl = types.ModuleType("curl_cffi")
     curl.CurlOpt = types.SimpleNamespace(
-        MAXFILESIZE_LARGE="maxfilesize", RESOLVE="resolve"
+        MAXFILESIZE_LARGE="maxfilesize",
+        RESOLVE="resolve",
+        PROTOCOLS_STR="protocols",
+        REDIR_PROTOCOLS_STR="redir_protocols",
+        TIMEOUT_MS="timeout_ms",
+        PROXY="proxy",
     )
     requests = types.ModuleType("curl_cffi.requests")
     requests.Session = Session

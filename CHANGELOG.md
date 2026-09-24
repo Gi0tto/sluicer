@@ -2,6 +2,18 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- A redirect can no longer take a fetch off the web. The HTTP rung followed a
+  `Location` to any scheme its libcurl speaks: with the defaults every command
+  has, a server answering `302 gopher://127.0.0.1:6379/_SET...` had Sluicer send
+  those bytes to a Redis on the same machine, and `302 file:///etc/hosts` made
+  `sluicer markdown` print the file. Every hop must now be http or https, private
+  addresses allowed or not, curl is told to speak nothing else, the ladder
+  refuses an address off the web before any rung, and a page that landed off it
+  is refused (`AddressRefused`, `refused_address`).
+
 ## 0.7.0 - 2026-09-24
 
 ### Added

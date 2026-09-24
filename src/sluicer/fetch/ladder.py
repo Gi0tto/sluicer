@@ -22,7 +22,12 @@ from urllib.parse import urlsplit
 from sluicer.api import extract
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import load
-from sluicer.fetch.address import AddressRefused, _resolve, why_not_public
+from sluicer.fetch.address import (
+    AddressRefused,
+    _resolve,
+    why_not_public,
+    why_not_web,
+)
 from sluicer.fetch.identity import (
     UNAVAILABLE,
     UNREACHABLE,
@@ -164,8 +169,8 @@ def fetch(
 
     Raises:
         RobotsRefused: the site's robots.txt disallows the URL.
-        AddressRefused: ``allow_private`` is false and the address, or one a
-            redirect led to, is private.
+        AddressRefused: the address, or one a redirect led to, is not http
+            or https; or ``allow_private`` is false and it is private.
         ResponseTooLarge: the page is heavier than ``max_bytes``.
         RedirectRefused: an injected rung was given a rule for redirects, and a
             hop broke it.
@@ -190,10 +195,11 @@ def fetch(
             url, [], f"{url!r} is not a valid address: {invalid}"
         ) from None
 
-    if not allow_private:
+    refused = why_not_web(url)
+    if refused is None and not allow_private:
         refused = why_not_public(url, resolve)
-        if refused is not None:
-            raise AddressRefused(url, refused)
+    if refused is not None:
+        raise AddressRefused(url, refused)
 
     read = (
         robots_reader if robots_reader is not None else robots_reader_from(rungs[0][1])
@@ -259,10 +265,11 @@ def _checked(
     read: Callable[[str], str | None],
 ) -> Fetched:
     """``result``, once the address its redirects ended at is allowed too."""
-    if not allow_private:
+    refused = why_not_web(result.url)
+    if refused is None and not allow_private:
         refused = why_not_public(result.url, resolve)
-        if refused is not None:
-            raise AddressRefused(result.url, refused)
+    if refused is not None:
+        raise AddressRefused(result.url, refused)
     if obey_robots and _origin(result.url) != _origin(asked):
         refusal = _robots(result.url, read)
         if refusal is not None:
