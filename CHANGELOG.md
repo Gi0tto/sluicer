@@ -17,6 +17,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   without the label, or with it twice, fails the run, and `heal` follows a
   field to its new label by its old values. An extractor with such a field is
   written as format 2, which 0.6 refuses rather than reading the place alone.
+  On SWDE's half of sites never read while it was built, `compile --want`
+  goes from F1 0.686 to 0.845 and answers 37,801 more pages right. Its silent
+  wrong answers there rise in number, from 7,372 to 8,797, and fall as a share
+  of its answers, from 4.2% to 4.1%; `bench/floors.json` was raised for that
+  one count on purpose.
 - A sixth scoreboard, on SWDE: 80 sites, 124,291 pages, `compile --want` given
   three pages of each site and one example per attribute, beside Scrapling's
   adaptive selectors. Its sites were split into a development and a held-out
