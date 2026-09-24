@@ -36,11 +36,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   that leaves a parameter unexplained is refused when the server starts.
 - `heal` leaves a move to a person when two new places have equal claim to
   a field: as many of its old values, on as many rows, in the same kind of
-  element. It reported the runner-up but moved anyway, by page order, which
+  element, and they read other values. It reported the runner-up but moved anyway, by page order, which
   is a guess; the change is now `ambiguous`, the field is left out, and heal
   does not write the extractor without `--force`. A tie the old element's
   kind decides -- the old title was a link, and only one place is -- is
-  still a move.
+  still a move, and so is one between two places that read the same values,
+  as a film's poster and its title both linking to the film.
 - `sluicer mcp --tools extract_declared,page_markdown`, or
   `SLUICER_MCP_TOOLS`, registers only the tools named: each registered tool
   costs an agent context whether it is called or not. A name that is not a

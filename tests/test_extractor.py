@@ -942,9 +942,10 @@ def _books(item: str) -> tuple[str, str]:
 
 
 def test_heal_refuses_a_move_two_new_places_have_equal_claim_to():
-    """The title's old values are in two new places on every row, as many in
-    each, both the same kind of element: which one is the title is a guess,
-    and heal says so instead of making it, leaving the field out."""
+    """The title's old values are in two new places, as many in each, both
+    the same kind of element, and on the other redesigned page those places
+    say different things: which one is the title is a guess, and heal says so
+    instead of making it, leaving the field out."""
     before = (
         '<li class="book"><span class="title">{title}</span>'
         '<span class="price">£{n}.00</span></li>'
@@ -953,12 +954,17 @@ def test_heal_refuses_a_move_two_new_places_have_equal_claim_to():
         '<li class="book"><span class="name">{title}</span>'
         '<span class="also">{title}</span><span class="price">£{n}.00</span></li>'
     )
+    other = after.replace('<span class="also">{title}', '<span class="also">Series {n}')
     learnt = compile_extractor([_books(before)], listing=True)
-    healed, changes = heal(learnt, [_books(after)])
+    newer = [
+        _books(after),
+        (_books(other)[0].replace("Sapiens", "Dune"), "https://shop.example/2"),
+    ]
+    healed, changes = heal(learnt, newer)
     [title] = [c for c in changes if c.before == "span.title"]
     assert title.kind == "ambiguous"
     assert title.evidence is not None
-    assert title.evidence["seen"] == title.evidence["runner_up"] == 5
+    assert title.evidence["seen"] == title.evidence["runner_up"]
     assert "span.title" not in [f.name for f in healed.listing.fields]
     from sluicer.extractor import LOSSES
 
@@ -980,3 +986,22 @@ def test_a_tie_the_old_element_s_kind_decides_is_a_move():
     _healed, changes = heal(learnt, [_books(after)])
     [title] = [c for c in changes if c.before == "a.title"]
     assert (title.kind, title.after) == ("moved", "a.name")
+
+
+def test_two_new_places_holding_the_same_values_are_no_tie_to_refuse():
+    """A film's poster and its title both link to the film: the two new links
+    hold the same addresses, so either reads the old link's values right."""
+    before = (
+        '<li class="film"><a class="poster" href="/f/{n}"><img alt="p"></a>'
+        '<a class="title" href="/f/{n}">{title}</a></li>'
+    )
+    after = (
+        '<li class="film"><a class="pic" href="/f/{n}"><img alt="p"></a>'
+        '<a class="name" href="/f/{n}">{title}</a></li>'
+    )
+    learnt = compile_extractor([_books(before)], listing=True)
+    _healed, changes = heal(learnt, [_books(after)])
+    links = [c for c in changes if c.before and c.before.endswith("@href")]
+    assert links and all(c.kind == "moved" for c in links), [
+        (c.kind, c.before, c.after) for c in links
+    ]

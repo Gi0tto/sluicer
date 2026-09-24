@@ -1663,13 +1663,16 @@ def _heal_listing(
             "runner_up": max(others, default=0),
         }
         # A move is a guess when another new place holds as many of the old
-        # values, on as many rows, in the same kind of element: the tie the
-        # ranking breaks by page order. The field is left out, for a person.
+        # values, on as many rows, in the same kind of element, and would read
+        # other values: the tie the ranking breaks by page order. The field is
+        # left out, for a person. Two places reading the same values -- a
+        # film's poster and its title both link to the film -- are no guess.
         if kind_ == "moved" and any(
             path != place
             and seen_in(f, path) == evidence["seen"]
             and fresh[path].missing == fresh[place].missing
             and _element_kind(path) == _element_kind(place)
+            and values.get(path) != values.get(place)
             for path in fresh
         ):
             kind_ = "ambiguous"
