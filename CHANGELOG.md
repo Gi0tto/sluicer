@@ -11,6 +11,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   person can point to, leaving out the options already given.
 
 ### Fixed
+- The README's facts: the dates chart's alt text said metascraper found 0.384
+  of the dates and was right on 0.271 where the chart and the scoreboard say
+  0.811 and 0.573; the README said WCXB's pages are read in 1.4 s where the
+  scoreboard says 1.50; and "five of these scoreboards" measure title, author
+  and date where four do. `scripts/readme_assets.py` now writes both charts'
+  alt texts and the timings from the scoreboards it draws the charts from, and
+  a test fails when the README falls behind them.
+- SECURITY.md and the skill said `fetch_page` returns up to 200,000
+  characters; it has returned at most 60,000 since 0.7.0.
 - The README said exit code 1 meant "nothing declared", and a page with only a
   `<title>` exits 0. The code is what was meant: the title is declared, read
   into the summary with its source, and a script handed the page has an

@@ -12,8 +12,15 @@
 ``docs/assets/inspect.svg`` is ``sluicer inspect`` run on
 ``examples/brake-pads.html``, drawn as a terminal: the output itself, not a
 mock-up of it. ``docs/assets/dates-light.svg`` and ``dates-dark.svg`` chart the
-date columns of ``docs/scoreboard-served.md`` as published, so the picture and
-the table cannot say two things.
+date columns of ``docs/scoreboard-served.md`` as published, and ``swde-*.svg``
+the rows of ``docs/scoreboard-swde.md``, so the picture and the table cannot
+say two things.
+
+The README's words about those numbers are rewritten from the same rows: each
+chart's alt text, and the WCXB timings from ``docs/scoreboard.md``. Written by
+hand, the dates chart's alt text said metascraper found 0.384 of the dates
+while the chart said 0.811, and the README said 1.4 s where the scoreboard
+said 1.50. ``tests/test_docs_in_step.py`` fails when the README falls behind.
 """
 
 from __future__ import annotations
@@ -24,9 +31,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-from rich.console import Console
-from rich.text import Text
-
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "docs" / "assets"
 PAGE = "examples/brake-pads.html"
@@ -34,6 +38,11 @@ URL = "https://example.com/p/bp-2210"
 
 
 def inspect_svg() -> None:
+    # Imported here: the suite reads the README's numbers with this module and
+    # has no rich, which only the picture needs.
+    from rich.console import Console
+    from rich.text import Text
+
     command = [
         str(Path(sys.executable).parent / "sluicer"),
         "inspect",
@@ -337,6 +346,91 @@ def reads_svg(dark: bool) -> str:
     return "\n".join(parts) + "\n"
 
 
+def _label(name: str) -> str:
+    """A tool as a sentence names it: "sluicer 0.7.0" is Sluicer."""
+    bare = re.sub(r"\s+\d[\w.]*(, adaptive)?$", "", name)
+    return "Sluicer" if bare == "sluicer" else bare
+
+
+def dates_alt() -> str:
+    """The dates chart in words, from the rows it is drawn from."""
+    rows = _served_dates()
+    said = []
+    for index, (name, hit, correct, invented) in enumerate(rows):
+        opening = f"{_label(name)} finds {hit:.3f} and is right on {correct:.3f}"
+        said.append(
+            f"{opening} of its answers, with {invented} dates invented"
+            if index == 0
+            else f"{opening}, with {invented} invented"
+        )
+    return "Publication dates on 360 pages as served: " + "; ".join(said)
+
+
+def swde_alt() -> str:
+    """The SWDE chart in words, from the rows it is drawn from."""
+    rows = _swde_rows()
+    said = []
+    for index, (name, f1, correct, wrong) in enumerate(rows):
+        if index == 0:
+            said.append(
+                f"{_label(name)} scores a mean F1 of {f1:.3f} and is right on "
+                f"{correct:.3f} of its answers, with {wrong:,} wrong answers"
+            )
+        else:
+            who = (
+                f"{_label(name)}'s adaptive selectors"
+                if "adaptive" in name
+                else (_label(name))
+            )
+            said.append(f"{who} score {f1:.3f} and {correct:.3f}, with {wrong:,}")
+    return (
+        "Extractors learnt from three pages of each of 80 real sites and read on "
+        "their other 124,291 pages: " + "; ".join(said)
+    )
+
+
+def _wcxb_seconds() -> dict[str, str]:
+    """Each tool's seconds for WCXB's test pages, as the scoreboard writes them."""
+    table = (ROOT / "docs" / "scoreboard.md").read_text(encoding="utf-8")
+    speed = table.split("## Speed and size", 1)[1].split("\n## ", 1)[0]
+    seconds = {}
+    for line in speed.splitlines():
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) == 3 and re.fullmatch(r"\d+\.\d+", cells[1]):
+            seconds[cells[0]] = cells[1]
+    return seconds
+
+
+def readme(text: str) -> str:
+    """The README with its numbers taken from the scoreboards: the two charts'
+    alt texts, the seconds WCXB's pages take, and that table's column."""
+    for picture, alt in (
+        ("dates-light.svg", dates_alt()),
+        ("swde-light.svg", swde_alt()),
+    ):
+        text = re.sub(
+            rf'(<img src="[^"]*/{re.escape(picture)}" alt=")[^"]*"',
+            lambda found, alt=alt: (
+                found.group(1) + alt.replace("&", "&amp;").replace('"', "&quot;") + '"'
+            ),
+            text,
+        )
+    seconds = _wcxb_seconds()
+    ours = next(value for name, value in seconds.items() if name.startswith("sluicer"))
+    text = re.sub(r"(test set are read in )[\d.]+( s)", rf"\g<1>{ours}\g<2>", text)
+    lines = text.split("\n")
+    for index, line in enumerate(lines):
+        cells = line.split("|")
+        # The tool-by-tool table: | tool | title | author | date | dates
+        # invented | seconds | packages |, the tool's name perhaps in bold.
+        if len(cells) == 9 and cells[1].strip().strip("*") in seconds:
+            old = cells[6].strip()
+            bold = "**" if old.startswith("**") else ""
+            cells[6] = f" {bold}{seconds[cells[1].strip().strip('*')]}{bold} "
+            lines[index] = "|".join(cells)
+    return "\n".join(lines)
+
+
 def main() -> None:
     inspect_svg()
     ASSETS.joinpath("dates-light.svg").write_text(
@@ -349,7 +443,14 @@ def main() -> None:
         ASSETS.joinpath(f"reads-{theme}.svg").write_text(
             reads_svg(dark=dark), encoding="utf-8"
         )
-    print("wrote docs/assets/inspect.svg, dates-*.svg, swde-*.svg, reads-*.svg")
+    readme_path = ROOT / "README.md"
+    readme_path.write_text(
+        readme(readme_path.read_text(encoding="utf-8")), encoding="utf-8"
+    )
+    print(
+        "wrote docs/assets/inspect.svg, dates-*.svg, swde-*.svg, reads-*.svg and "
+        "the README's numbers; now run: uv run scripts/docs_home.py"
+    )
 
 
 if __name__ == "__main__":

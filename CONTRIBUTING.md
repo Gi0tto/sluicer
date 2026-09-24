@@ -106,7 +106,7 @@ before a release.
 |---|---|---|
 | `docs/index.md` | `README.md` | `uv run scripts/docs_home.py` |
 | `docs/reference/*.md` | the commands' help, the MCP server's tools, the public docstrings | `uv run scripts/reference.py` |
-| `docs/assets/inspect.svg`, `dates-*.svg` | `examples/brake-pads.html`, `docs/scoreboard-served.md` | `uv run scripts/readme_assets.py` |
+| `docs/assets/inspect.svg`, `dates-*.svg`, `swde-*.svg`, and the README's charts' alt texts and WCXB timings | `examples/brake-pads.html`, `docs/scoreboard-served.md`, `docs/scoreboard-swde.md`, `docs/scoreboard.md` | `uv run scripts/readme_assets.py` |
 | `docs/assets/demo.cast`, `demo.gif` | four Wayback Machine captures of a software directory, named in the script | `uv run scripts/demo.py`, with [agg](https://github.com/asciinema/agg) |
 | `docs/assets/social-preview.png` | the card's words, in the script | `uv run scripts/social_card.py` |
 | `src/sluicer/calendar_names.py` | the Unicode CLDR, at a pinned release | `uv run scripts/cldr_calendar.py` |
