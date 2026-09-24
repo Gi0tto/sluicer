@@ -9,8 +9,9 @@ nothing added here.
 
 What this module adds is what a socket needs and stdio does not: a status for
 every answer (``STATUS``), a bearer token, a refusal to listen beyond loopback
-without one, a bound on the body, a time budget per request, and an answer
-only to requests addressed to this machine when that is where it listens.
+without one, a bound on the body, a time budget per request, workers that keep
+a call which fetches nothing from waiting behind calls that fetch, and an
+answer only to requests addressed to this machine when that is where it listens.
 
 Importable in a base install, as the command line imports it: nothing optional
 is imported until an app is built.
@@ -27,7 +28,14 @@ import json
 import logging
 import os
 import sys
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Mapping,
+    Sequence,
+)
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from typing import Any
@@ -58,10 +66,25 @@ MAX_BODY_BYTES = MAX_RESPONSE_BYTES
 """The largest request body read, 16 MiB: the bound a fetched page is held to."""
 
 MAX_CALLS = 4
-"""Tool calls running at once, a timed-out one included until it ends.
+"""Tool calls that may fetch running at once, a timed-out one included until it ends.
 
 Each may hold a browser. A call beyond these waits for a worker, inside its own
 time budget, and one that runs out while waiting is never started.
+"""
+
+MAX_READS = 4
+"""Tool calls that fetch nothing running at once, on workers of their own.
+
+A call whose every page is handed in (``may_fetch``) never waits behind the
+calls that fetch: four slow sites held every worker, and ``extract_declared``
+on HTML handed in waited about 65 s behind them, its budget before 0.7.1. It
+only parses, so it waits at most for other calls that only parse.
+"""
+
+PAGE_ARGUMENTS = ("html_or_url", "url", "url_or_text", "pages")
+"""The arguments the tools take a page through, a URL or the page itself.
+
+A test holds every tool to naming its page with one of these.
 """
 
 MAX_CONNECTIONS = 64
@@ -224,7 +247,34 @@ def _modules() -> SimpleNamespace:
     )
 
 
-def _run_tool(server: Any, name: str, arguments: dict[str, Any]) -> Any:
+def may_fetch(arguments: Mapping[str, Any]) -> bool:
+    """Whether a call with these arguments may reach the network.
+
+    Read as the tools read a page (``sluicer.mcp_server``): a string that
+    starts with ``http://`` or ``https://`` is fetched, and anything else in
+    ``PAGE_ARGUMENTS`` is the page itself. A call that names no page there,
+    or names one that is not a string, is taken to fetch: that is the side
+    on which a wrong guess only makes the call wait.
+    """
+    pages: list[Any] = []
+    for name in PAGE_ARGUMENTS:
+        given = arguments.get(name)
+        if isinstance(given, list):
+            pages.extend(given)
+        elif given is not None:
+            pages.append(given)
+    return not pages or any(
+        not isinstance(page, str)
+        or page.strip().lower().startswith(("http://", "https://"))
+        for page in pages
+    )
+
+
+def _run_tool(
+    call_tool: Callable[..., Coroutine[Any, Any, Any]],
+    name: str,
+    arguments: dict[str, Any],
+) -> Any:
     """One tool call through the SDK, on a worker thread with a loop of its own.
 
     The SDK runs a tool on an anyio worker of the calling loop, and anyio holds
@@ -233,9 +283,10 @@ def _run_tool(server: Any, name: str, arguments: dict[str, Any]) -> Any:
     at 2.01 s by a 0.3 s ``anyio.move_on_after``, and at 0.30 s by
     ``asyncio.wait_for`` only because asyncio's own cancel is not held. On a
     pool of this module's, the budget does not rest on that difference, and
-    ``MAX_CALLS`` bounds the calls still running after their answer was sent.
+    ``MAX_CALLS`` and ``MAX_READS`` bound the calls still running after their
+    answer was sent. ``call_tool`` is the server's own, the SDK's.
     """
-    return asyncio.run(server.call_tool(name, arguments))
+    return asyncio.run(call_tool(name, arguments))
 
 
 async def _body(request: Any, limit: int) -> bytes | None:
@@ -265,19 +316,35 @@ def build_app(
     timeout: float = TIME_BUDGET_SECONDS,
     max_body: int = MAX_BODY_BYTES,
     max_calls: int = MAX_CALLS,
+    max_reads: int = MAX_READS,
 ) -> Any:
     """Build the HTTP app over ``server``'s tools, the MCP server's by default.
 
     ``token``: when given, every request but ``GET /health`` must carry
     ``Authorization: Bearer <token>``. ``local_only``: answer only requests
     whose ``Host`` is a loopback name; on by default, and turned off by
-    ``serve`` only when it listens beyond loopback. Returns a Starlette app,
-    typed ``Any`` because starlette is never imported at module level.
+    ``serve`` only when it listens beyond loopback. ``max_calls`` calls that
+    may fetch and ``max_reads`` that fetch nothing run at once, each kind on
+    workers of its own. Returns a Starlette app, typed ``Any`` because
+    starlette is never imported at module level.
     """
     web = _modules()
     if server is None:
         server = mcp_server.build_server()
-    calls = ThreadPoolExecutor(max_workers=max_calls, thread_name_prefix="sluicer")
+    fetching = ThreadPoolExecutor(
+        max_workers=max_calls, thread_name_prefix="sluicer-fetch"
+    )
+    reading = ThreadPoolExecutor(
+        max_workers=max_reads, thread_name_prefix="sluicer-read"
+    )
+    direct = server.call_tool
+
+    async def run(name: str, arguments: dict[str, Any]) -> Any:
+        """One call on a worker of the pool its arguments choose."""
+        pool = fetching if may_fetch(arguments) else reading
+        return await asyncio.wrap_future(
+            pool.submit(_run_tool, direct, name, arguments)
+        )
 
     def send(
         answer: Mapping[str, Any],
@@ -369,9 +436,7 @@ def build_app(
                 "the body must be a JSON object, the tool's arguments by name",
             )
         try:
-            result = await asyncio.wrap_future(
-                calls.submit(_run_tool, server, name, arguments)
-            )
+            result = await run(name, arguments)
         except web.tool_errors.UnexpectedToolError:
             logger.exception("the tool %s raised", name)
             return refuse(
@@ -402,7 +467,8 @@ def build_app(
     @contextlib.asynccontextmanager
     async def lifespan(app: Any) -> AsyncIterator[None]:
         yield
-        calls.shutdown(wait=False, cancel_futures=True)
+        for pool in (fetching, reading):
+            pool.shutdown(wait=False, cancel_futures=True)
 
     route = web.routing.Route
     return web.applications.Starlette(

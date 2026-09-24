@@ -470,6 +470,97 @@ def test_a_call_over_its_budget_is_answered_and_a_queued_one_never_starts(
     ]
 
 
+def _holding_every_fetch_worker(monkeypatch, calls, many=http_api.MAX_CALLS):
+    """Start ``many`` fetches that hang until released, once each has started.
+
+    ``calls(url)`` sends one call that fetches ``url``; each goes to a site of
+    its own, so no site's turn is what holds them. Returns the event that
+    releases them and the threads sending them.
+    """
+    fetch = fake_fetch(monkeypatch, html=PAGE)
+    released = threading.Event()
+    started = threading.Semaphore(0)
+
+    def slow(url, **options):
+        started.release()
+        released.wait(10)
+        return fetch(url, **options)
+
+    monkeypatch.setattr("sluicer.fetch.fetch", slow)
+    senders = [
+        threading.Thread(target=calls, args=(f"https://s{n}.example/slow",))
+        for n in range(many)
+    ]
+    for sender in senders:
+        sender.start()
+    for _ in senders:
+        assert started.acquire(timeout=10), "a slow fetch never started"
+    return released, senders
+
+
+def test_a_call_that_fetches_nothing_never_waits_behind_calls_that_fetch(
+    client, monkeypatch
+):
+    """Four slow sites held every worker, and extract_declared on HTML handed
+    in, which reaches no network, waited behind them: 504 at its budget here,
+    about 65 s of HTTP, browser and robots.txt deadlines in a real server."""
+    import time
+
+    http = client(timeout=3)
+    with http:
+        released, senders = _holding_every_fetch_worker(
+            monkeypatch,
+            lambda url: http.post("/v1/tools/fetch_page", json={"url": url}),
+        )
+        try:
+            began = time.monotonic()
+            answer = http.post("/v1/tools/extract_declared", json={"html_or_url": PAGE})
+            took = time.monotonic() - began
+        finally:
+            released.set()
+            for sender in senders:
+                sender.join(10)
+
+    assert answer.status_code == 200
+    assert answer.json()["summary"]["title"]["value"] == "Pad"
+    assert took < 0.5
+
+
+@pytest.mark.parametrize(
+    ("arguments", "fetches"),
+    [
+        ({"html_or_url": PAGE}, False),
+        ({"html_or_url": "https://example.com/p"}, True),
+        ({"html_or_url": "  HTTP://example.com/p"}, True),
+        ({"url": "https://example.com/p", "limit": 5}, True),
+        ({"url": PAGE}, False),
+        ({"url_or_text": "<rss/>"}, False),
+        ({"pages": [PAGE, PAGE]}, False),
+        ({"pages": [PAGE, "https://example.com/p"]}, True),
+        (
+            {"extractor": {"learnt_from": ["https://example.com/p"]}, "pages": [PAGE]},
+            False,
+        ),
+        ({"html_or_url": 12}, True),
+        ({"words": "hello"}, True),
+        ({}, True),
+    ],
+)
+def test_a_call_may_fetch_unless_every_page_it_names_is_handed_in(arguments, fetches):
+    """Read as the tools read a page: an http(s) URL is fetched, anything else
+    is the page. A call that names no page is taken to fetch, the safe side."""
+    assert http_api.may_fetch(arguments) is fetches
+
+
+def test_every_tool_names_its_page_where_the_door_looks_for_it():
+    """A tool whose page came in under another name would be taken to fetch,
+    and wait behind the calls that do, even with its page handed in."""
+    server = _real_server()
+    for tool in asyncio.run(server.list_tools()):
+        named = set(tool.input_schema["properties"]) & set(http_api.PAGE_ARGUMENTS)
+        assert named, tool.name
+
+
 def test_a_real_bug_in_a_tool_is_a_500_that_keeps_its_traceback_in_the_log(
     client, monkeypatch, caplog
 ):

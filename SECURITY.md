@@ -119,7 +119,9 @@ user's own browser included. So it starts closed:
   never from the command line where `ps` shows it, and compared in constant
   time. Only `GET /health`, which says the version, answers without it.
 - A body over 16 MiB is refused, a request past its time budget (120 seconds
-  by default) is answered 504, and four tool calls run at once.
+  by default) is answered 504, and four tool calls that may fetch run at
+  once. A call that fetches nothing, its every page handed in, runs on four
+  workers of its own, so slow sites cannot hold it back.
 
 What it does not do: it speaks plain HTTP, so beyond one machine the token
 crosses the network in the clear unless TLS is put in front of it; there is one

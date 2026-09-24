@@ -59,6 +59,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   answer for answer, and the drift benchmark's results.
 
 ### Fixed
+- `sluicer serve`: a call that fetches nothing no longer waits behind calls
+  that fetch. Four slow sites held every worker, and `extract_declared` on
+  HTML handed in waited behind them, about 65 s with 0.7.1's fetch deadlines
+  and until the sites answered before them. A call whose every page is handed
+  in now runs on four workers of its own (`MAX_READS`).
 - The scoreboards say which pages Sluicer's rules were made on. Five of the
   six, and the drift benchmark, had rules written, measured on their pages and
   kept because the numbers there rose -- `b86aa19` was "Measured on WCXB's

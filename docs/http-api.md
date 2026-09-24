@@ -182,12 +182,18 @@ machinery in between.
   [Security](security.md) for what that filter covers.
 - **Bounds.** A body over 16 MiB is refused, from its declared length before a
   byte is read, or as it arrives when sent in chunks. A request past its time
-  budget is answered 504. Four tool calls run at once (`MAX_CALLS`), and one
-  waiting for a worker is inside its own budget; uvicorn answers 503 beyond 64
-  connections.
+  budget is answered 504. Four tool calls that may fetch run at once
+  (`MAX_CALLS`), and one waiting for a worker is inside its own budget;
+  uvicorn answers 503 beyond 64 connections.
+- **A call that fetches nothing never waits behind one that does.** A call
+  whose every page is handed in -- `html_or_url`, `url`, `url_or_text` or
+  `pages` holding the page, not an `http(s)://` address -- runs on four
+  workers of its own (`MAX_READS`). Before, four slow sites held every worker,
+  and `extract_declared` on HTML handed in waited behind them for about 65
+  seconds of HTTP, browser and robots.txt deadlines.
 
-The body bound and the four workers are arguments of
-`sluicer.http_api.build_app` (`max_body`, `max_calls`), and the 64 connections
+The body bound and the workers are arguments of
+`sluicer.http_api.build_app` (`max_body`, `max_calls`, `max_reads`), and the 64 connections
 are `MAX_CONNECTIONS`, which `serve` hands uvicorn. None is an option of the
 command.
 
@@ -206,8 +212,9 @@ budget does not rest on how the SDK's worker takes a cancel. The SDK runs a
 tool on a worker of the loop that called it, and anyio holds a cancel from its
 own scopes until that worker returns: measured, a two-second page under a
 0.3-second `anyio.move_on_after` ended at 2.01 s, and under `asyncio.wait_for`
-at 0.30 s, only because asyncio's own cancel is not held. The pool is also what
-bounds the calls still running after their 504 to four.
+at 0.30 s, only because asyncio's own cancel is not held. The pools are also
+what bound the calls still running after their 504: four that fetch, and four
+that only parse.
 
 The suite reaches the app through starlette's TestClient, with the real SDK and
 no socket, and CI runs it with the network taken away. `tests/live/api_check.py`
