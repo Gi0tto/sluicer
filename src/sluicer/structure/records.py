@@ -12,7 +12,9 @@ hashes such as ``dcr-1t2r5md``) are skipped, since they change every deploy.
 
 Nothing repeated is dropped: three ``<span class="tag">`` in a card are
 ``span.tag1``, ``span.tag2``, ``span.tag3``, numbered once for the whole group
-from the member that holds the most.
+from the member that holds the most. No two slots share a name: where a number
+would spell another slot's name -- a card's own ``<span class="tag1">`` -- the
+numbers are written after a ``#``, ``span.tag#1``, ``span.tag#2``.
 
 A part can carry two facts: an anchor is a name and a link, an image its alt
 text and its source. The text takes the slot's name and the address takes the
@@ -23,6 +25,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import defaultdict
 from collections.abc import Iterator
 from itertools import pairwise
 from typing import TypeAlias
@@ -230,18 +233,57 @@ def _steps(
 
 
 def _segments(slots: dict[_Slot, int]) -> list[str]:
-    """The last step of each slot's name, by number, numbered where the group
-    needs it numbered: where some row fills the slot more than once."""
+    """The last step of each slot's name, by number.
+
+    A slot is numbered where the group needs it numbered: where some row fills
+    it more than once. Two slots under one parent never share a name, or one
+    value would overwrite the other: a numbered ``span.tag1`` is also what a
+    card's own ``<span class="tag1">`` is called, and twelve ``span.tag`` make
+    a ``span.tag12`` as two ``span.tag1`` do. The numbers of a slot whose name
+    would clash are written after a ``#``, ``span.tag#1``, and the class the
+    page wrote keeps its name. What still clashes -- libxml2 keeps any tag a
+    page writes, ``a@href`` and ``span.x`` among them -- takes ``~2``, ``~3``,
+    in the order the walk met it. A group whose names do not clash is named as
+    it always was.
+    """
+    steps = list(slots)
     repeated = {
-        (parent, tag, label) for parent, tag, label, ordinal in slots if ordinal > 1
+        (parent, tag, label) for parent, tag, label, ordinal in steps if ordinal > 1
     }
     segments = []
-    for parent, tag, label, ordinal in slots:
+    for parent, tag, label, ordinal in steps:
         segment = f"{tag}.{label}" if label else tag
         if (parent, tag, label) in repeated:
             segment += str(ordinal)
         segments.append(segment)
+    owners: dict[tuple[int, str], set[int]] = defaultdict(set)
+    for number, (parent, tag, _, _) in enumerate(steps):
+        for name in _names(segments[number], tag):
+            owners[parent, name].add(number)
+    clashing = {number for held in owners.values() if len(held) > 1 for number in held}
+    if not clashing:
+        return segments
+    renumbered = {steps[number][:3] for number in clashing} & repeated
+    taken: dict[int, set[str]] = defaultdict(set)
+    tried: dict[tuple[int, str], int] = {}
+    for number, (parent, tag, label, ordinal) in enumerate(steps):
+        segment = segments[number]
+        if (parent, tag, label) in renumbered:
+            segment = (f"{tag}.{label}" if label else tag) + f"#{ordinal}"
+        written, again = segment, tried.get((parent, segment), 1)
+        while any(name in taken[parent] for name in _names(written, tag)):
+            again += 1
+            written = f"{segment}~{again}"
+        tried[parent, segment] = again
+        taken[parent].update(_names(written, tag))
+        segments[number] = written
     return segments
+
+
+def _names(segment: str, tag: str) -> tuple[str, ...]:
+    """Every name a slot's facts can take: its text's, and its address's."""
+    attribute = ADDRESS.get(tag)
+    return (segment, f"{segment}@{attribute}") if attribute else (segment,)
 
 
 # What one group's records may hold -- every name and every value they copy --

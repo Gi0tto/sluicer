@@ -30,6 +30,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   level and hashed again to number it, so every wrapper around a row cost
   every part below it once more: forty thousand parts under two thousand
   wrappers took 1.4 seconds to name, and take 0.1.
+- Two slots of an induced row could share a name, and one value overwrote the
+  other: two `<span class="tag">` are numbered `span.tag1` and `span.tag2`,
+  and a card's own `<span class="tag1">` is `span.tag1` too. The class the
+  page wrote keeps its name and the numbers of the slot that would clash are
+  written after a `#`: `span.tag#1`, `span.tag#2`. What still clashes, a tag
+  such as `a@href` that libxml2 keeps as written, takes `~2`. Names that do not
+  clash are as they were; on the benchmark corpora two pages' first groups
+  are renamed, where `div.col-12` named both the second of three `div.col-1`
+  and a `div.col-12`, and no page's `induce` output changes.
 
 ## 0.7.0 - 2026-09-24
 
