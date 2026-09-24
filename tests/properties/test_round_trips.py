@@ -9,7 +9,7 @@ read and rewritten never shows a diff.
 
 from __future__ import annotations
 
-from hypothesis import assume, given, strategies as st
+from hypothesis import given, strategies as st
 from strategies import pages
 
 from sluicer.extractor import (
@@ -83,14 +83,4 @@ def test_so_does_every_extractor_learnt_from_drawn_pages(drawn):
         extractor = compile_extractor([(page.html(), page.url) for page in drawn])
     except NothingToLearn:
         return
-    # A known defect, reported and left to extractor.py: an answer or a column
-    # made only of characters with no letter, digit, punctuation or symbol in
-    # them (a combining accent, an escape) is learnt with the empty shape, and
-    # from_json refuses the file to_json wrote. Delete this line with the fix.
-    assume(
-        "" not in extractor.summary.values()
-        and not (
-            extractor.listing and any(f.shape == "" for f in extractor.listing.fields)
-        )
-    )
     _assert_round_trip(extractor)

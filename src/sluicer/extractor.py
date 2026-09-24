@@ -481,7 +481,9 @@ def shape(text: str) -> str:
     """The character classes a value is made of: L letters, N digits,
     P punctuation, S symbols such as currency signs, in that order.
 
-    ``£51.77`` is ``NPS``, ``In stock`` is ``L``, ``2026-09-22`` is ``NP``.
+    ``£51.77`` is ``NPS``, ``In stock`` is ``L``, ``2026-09-22`` is ``NP``. A
+    value of none of them -- a combining accent alone -- is the empty shape,
+    which says nothing, and no field or answer is learnt with it.
     """
     classes = {unicodedata.category(char)[0] for char in text if not char.isspace()}
     return "".join(c for c in "LNPS" if c in classes)
@@ -760,7 +762,7 @@ def _learn_summary(
     for question in (q for q in summaries[0] if q in answered):
         shapes = {shape(s[question].value) for s in summaries}
         keep = pages >= 2 and len(shapes) == 1 and question in _SHAPED
-        learnt[question] = shapes.pop() if keep else None
+        learnt[question] = (shapes.pop() or None) if keep else None
     return learnt
 
 
@@ -1064,7 +1066,7 @@ def _learn_fields(
             PageField(
                 name=name,
                 path=path,
-                shape=shapes.pop()
+                shape=(shapes.pop() or None)
                 if len(shapes) == 1 and len(values) >= _SHAPE_EVIDENCE
                 else None,
                 samples=tuple(present[:_SAMPLES]),
@@ -1507,7 +1509,7 @@ def _profile(name: str, path: str, values: list[str | None]) -> ListingField:
         name=name,
         path=path,
         missing=round(1 - len(present) / len(values), 4) if values else 1.0,
-        shape=shapes.pop() if shaped and not _is_address(path) else None,
+        shape=(shapes.pop() or None) if shaped and not _is_address(path) else None,
         samples=tuple(dict.fromkeys(present))[:_SAMPLES],
         reads=_reads(present) if not _is_address(path) else None,
     )
@@ -1943,7 +1945,7 @@ def _relearnt(
     return PageField(
         name=f.name,
         path=path,
-        shape=shapes.pop()
+        shape=(shapes.pop() or None)
         if f.shape and len(shapes) == 1 and len(values) >= _SHAPE_EVIDENCE
         else None,
         samples=tuple(dict.fromkeys(values))[:_SAMPLES] or f.samples,

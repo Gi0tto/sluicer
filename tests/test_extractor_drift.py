@@ -1138,3 +1138,14 @@ def test_run_refuses_a_file_whose_check_was_edited_away(tmp_path):
     assert result.exit_code == 2
     assert "not an extractor" in result.stderr
     assert "missing is a share from 0 to 1" in result.stderr
+
+
+def test_a_column_of_no_letter_digit_or_sign_learns_no_shape():
+    """A combining accent alone has none of the classes a shape is made of:
+    learnt as the empty shape, the file to_json wrote was one from_json
+    refused."""
+    marked = books(6, stock=lambda i: '<span class="mark">́</span>')
+    learnt = learn(shop_page(marked))
+    fields = {f.name: f for f in learnt.listing.fields}
+    assert fields["span.mark"].shape is None
+    assert Extractor.from_json(learnt.to_json()) == learnt

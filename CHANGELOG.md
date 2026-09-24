@@ -5,6 +5,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- A column or an answer made only of characters with no letter, digit,
+  punctuation or symbol in them, a combining accent alone, is learnt with no
+  shape. It was learnt with the empty one, and `compile` wrote a file that
+  `run` refused.
 - An extractor file is checked value by value when it is read. Edited by hand
   to `"missing": "nan"`, a field's presence was never checked again: no
   comparison is true of NaN, and the run passed a page without the field. So
