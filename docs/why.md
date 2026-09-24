@@ -27,6 +27,39 @@ another tool is the better choice. It is a map, not a race.
 tags on its way to the text, an LLM scraper's behaviour is its prompt's, and a
 hand-written scraper does whatever its author wrote.
 
+## Beside the tools people star most
+
+The same questions, asked of the scraping projects with the most stars and of
+the two libraries nearest Sluicer's job. They do different work: Scrapling,
+Crawl4AI and Firecrawl fetch and crawl, and Sluicer reads what any of them
+fetched ([with other tools](agents.md#with-other-tools)). A `?` is a cell that
+could not be checked from the project's own code or README.
+
+| | Sluicer 0.6.0 | Scrapling 0.4.15 | Crawl4AI 0.9.4 | Firecrawl | extruct 0.18.0 | trafilatura 2.2.0 |
+|---|---|---|---|---|---|---|
+| Built for | reading what a page declares | fetching past defences, and parsing | crawling into markdown for models | a hosted API to scrape, crawl and search | the structured data syntaxes | a page's main text and metadata |
+| Licence | MIT; two data files their own | BSD-3-Clause | Apache-2.0 | AGPL-3.0 | BSD-3-Clause | Apache-2.0 |
+| JSON-LD, microdata, RDFa, OpenGraph | all, merged into one record per thing | none; you select elements | meta tags and OpenGraph; raw JSON-LD in its URL seeder | meta tags, OpenGraph and Dublin Core | all, one list per syntax | JSON-LD and meta tags, for its metadata fields |
+| Where each value came from | vocabulary, key and place | -- | -- | -- | its syntax | -- |
+| A model for structured output | never | never | optional; CSS and XPath strategies need none | for its JSON output | never | never |
+| robots.txt, by default | obeyed, and not fetched when it cannot be read | not obeyed unless `robots_txt_obey` | not checked unless `check_robots_txt` | obeyed in a crawl; a single scrape only under a team setting | does not fetch | obeyed by its spider |
+| Bot protection | none: it announces itself | its fetchers bypass anti-bot systems, its README says | a stealth mode, its README says | the service's job, its README says | does not fetch | does not fetch |
+| When a site's layout changes | fails loudly, exit 3; `heal` says what moved | relocates an element by similarity, when asked | ? | ? | -- | -- |
+| MCP server | ten tools, each annotated read-only | yes | in its Docker server | yes | no | no |
+| Where it runs | your machine | your machine | your machine, or its Docker server | its cloud with a key, or self-hosted | your machine | your machine |
+
+Read from each project at one commit on 2026-09-24 -- Scrapling `0b85f7e`,
+Crawl4AI `86e6464`, Firecrawl `fd9c74c`, extruct `a31daaa`, trafilatura
+`c852cae` -- among them Scrapling's `spiders/spider.py`
+(`robots_txt_obey: bool = False`) and `parser.py` (`relocate`), Crawl4AI's
+`async_configs.py` (`check_robots_txt: bool = False`), `utils.py`
+(`extract_metadata`) and `async_url_seeder.py`, Firecrawl's
+`controllers/v2/types.ts` (`ignoreRobotsTxt` defaulting to false),
+`scrapeURL/shouldCheckRobots.ts`, `scrapeURL/lib/extractMetadata.ts` and
+`scrapeURL/transformers/llmExtract.ts`, and trafilatura's `spider.py` and
+`metadata.py`. The bot-protection row repeats
+what each README claims; it was not tested here.
+
 ## What Sluicer adds
 
 **One record per thing, with its provenance.** A page that describes the same
