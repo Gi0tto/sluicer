@@ -20,12 +20,14 @@ their own.
 
 from __future__ import annotations
 
-from collections import defaultdict
+import heapq
+from collections import Counter, defaultdict
+from collections.abc import Callable
 
 from lxml.html import HtmlElement
 
 from sluicer.structure.records import address_of
-from sluicer.structure.shape import alike, kind, outline
+from sluicer.structure.shape import alike, kind, outline, telling
 
 # Regions a reader skips on the way to the content, wherever inside them the
 # repetition sits.
@@ -55,6 +57,18 @@ _CHROME_ROLES = frozenset(
 _SECTION = 0.5
 # Elements that are code rather than content, and are never a record.
 _CODE = frozenset({"script", "style"})
+
+# How many groups of one kind a parent's children are compared with one by one.
+# Past this many, a child is compared only with groups whose first members
+# share one of its telling paths, and with the earliest ``_COMPARED`` of those.
+# On the 3,948 pages of the benchmark corpora no parent held more than forty
+# groups of one kind, and no child needed more than nine comparisons once the
+# groups were found by their paths. A page of thousands of children that share
+# most of their parts and are still not alike would otherwise compare each
+# child with every one before it; past the limit, a child that matched none
+# begins a group of its own.
+_SCANNED = 16
+_COMPARED = 64
 
 # An address carries no text to measure, so it is counted as one short word.
 # The number matters far less than the fact that it is not zero: a member that
@@ -111,23 +125,116 @@ def _same_shape_siblings(parent: HtmlElement) -> list[list[HtmlElement]]:
     A child joins the first group whose first member it matches, so the answer
     depends on nothing but the page.
     """
-    groups: dict[str, list[tuple[frozenset[str], list[HtmlElement]]]] = defaultdict(
-        list
-    )
+    children = [
+        (child, kind(child), outline(child)) for child in parent if _member(child)
+    ]
+    outlines: dict[str, list[frozenset[str]]] = {}
+
+    def of_kind(own: str) -> list[frozenset[str]]:
+        # Asked only of a kind with many groups, and gathered for all kinds
+        # at once, so the children are looked through once whatever the page.
+        if not outlines:
+            for _, other, inside in children:
+                outlines.setdefault(other, []).append(inside)
+        return outlines[own]
+
+    kinds: dict[str, _Kind] = {}
     ordered: list[list[HtmlElement]] = []
-    for child in parent:
-        if not _member(child):
-            continue
-        own, inside = kind(child), outline(child)
-        for first, members in groups[own]:
-            if alike(first, inside):
-                members.append(child)
-                break
-        else:
-            members = [child]
-            groups[own].append((inside, members))
+    for child, own, inside in children:
+        found = kinds.get(own)
+        if found is None:
+            found = kinds[own] = _Kind(own, of_kind)
+        members = found.place(child, inside)
+        if members is not None:
             ordered.append(members)
     return ordered
+
+
+class _Kind:
+    """The groups begun so far among one parent's children of one kind.
+
+    A child is compared with each group's first member in turn, while there
+    are few groups. Past ``_SCANNED`` groups, only the groups whose first
+    members share one of its telling paths can match it (``telling``), ranked
+    rarest first among the children of this kind, and it is compared with the
+    earliest ``_COMPARED`` of those. Two thousand children none of which was
+    alike, each compared with every group before it, took seconds.
+    """
+
+    def __init__(
+        self, own: str, of_kind: Callable[[str], list[frozenset[str]]]
+    ) -> None:
+        self.own = own
+        self.of_kind = of_kind
+        self.groups: list[tuple[frozenset[str], list[HtmlElement]]] = []
+        self.by_path: dict[str, list[int]] | None = None
+        self.held: dict[str, int] = {}
+        # The first group begun by a child with no paths below it.
+        self.blank: list[HtmlElement] | None = None
+
+    def place(
+        self, child: HtmlElement, inside: frozenset[str]
+    ) -> list[HtmlElement] | None:
+        """Add ``child`` to the first group it matches, or begin a group with it.
+
+        Returns the group begun, or None when ``child`` joined one.
+        """
+        if self.by_path is None:
+            for first, members in self.groups:
+                if alike(first, inside):
+                    members.append(child)
+                    return None
+        elif self._joined(child, inside):
+            return None
+        members = [child]
+        self.groups.append((inside, members))
+        if not inside and self.blank is None:
+            self.blank = members
+        if self.by_path is not None:
+            self._index(len(self.groups) - 1)
+        elif len(self.groups) == _SCANNED:
+            self.held = Counter(
+                path for paths in self.of_kind(self.own) for path in paths
+            )
+            self.by_path = defaultdict(list)
+            for number in range(len(self.groups)):
+                self._index(number)
+        return members
+
+    def _rank(self, path: str) -> tuple[int, str]:
+        return self.held[path], path
+
+    def _index(self, number: int) -> None:
+        assert self.by_path is not None
+        for path in telling(self.groups[number][0], self._rank):
+            self.by_path[path].append(number)
+
+    def _joined(self, child: HtmlElement, inside: frozenset[str]) -> bool:
+        assert self.by_path is not None
+        if not inside:
+            # An outline with no paths is alike only to another with none.
+            if self.blank is None:
+                return False
+            self.blank.append(child)
+            return True
+        paths = telling(inside, self._rank)
+        compared = 0
+        last = -1
+        # Each list holds the numbers of groups in the order they were begun,
+        # so the merge meets the groups in that order, and meets a group that
+        # two lists hold twice in a row.
+        for number in heapq.merge(*(self.by_path.get(path, []) for path in paths)):
+            if number == last:
+                continue
+            last = number
+            first, members = self.groups[number]
+            if alike(first, inside):
+                members.append(child)
+                return True
+            compared += 1
+            if compared == _COMPARED:
+                break
+        return False
 
 
 def repeating_groups(

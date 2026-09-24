@@ -84,6 +84,30 @@ def _table(n: int) -> str:
     return f"<html><body><table>{rows}</table></body></html>"
 
 
+def _strangers(n: int) -> str:
+    """``n`` siblings of one kind, no two of them alike inside, then ``n``
+    with nothing inside."""
+    return (
+        "<html><body><div>"
+        + "".join(f"<p><t{i}>x</t{i}></p>" for i in range(n))
+        + "<p></p>" * n
+        + "</div></body></html>"
+    )
+
+
+def _near_strangers(n: int) -> str:
+    """``n`` siblings of one kind that share most of their parts, and are
+    still not alike: three parts in common and one of their own."""
+    return (
+        "<html><body><div>"
+        + "".join(
+            f"<p><a href='/{i}'>x</a><b>y</b><i>z</i><t{i}>w</t{i}></p>"
+            for i in range(n)
+        )
+        + "</div></body></html>"
+    )
+
+
 def _nested(n: int) -> str:
     """Listings ``n`` deep, each of three sections, the first holding the next."""
     leaf = "<div><div><div>x</div></div></div>"
@@ -114,6 +138,8 @@ def _wide_rows(n: int) -> str:
 PATHOLOGICAL = {
     "two thousand small lists": (_boxes, 500),
     "a table of a thousand rows": (_table, 500),
+    "siblings of one kind, none alike": (_strangers, 1000),
+    "siblings that share most of their parts": (_near_strangers, 1000),
     "listings nested inside listings": (_nested, 150),
     "rows a thousand deep": (_deep_rows, 500),
     "rows a thousand parts wide": (_wide_rows, 1000),

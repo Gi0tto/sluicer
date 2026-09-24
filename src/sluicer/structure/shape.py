@@ -22,16 +22,19 @@ Text is never part of a shape.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from lxml.html import HtmlElement
 
 _MAX_CLASSES = 3
 
 # How much of their outlines two members must share, as the size of what they
-# have in common over the size of both together. Two thirds lets one optional
-# part through in a card of a few parts, and stops a card whose inner element
-# is a different one: {p, p/span, p/span/b} against {p, p/span, p/span/i} share
-# half.
-_ALIKE = 2 / 3
+# have in common over the size of both together: ``_SHARED`` in ``_OF``. Two
+# thirds lets one optional part through in a card of a few parts, and stops a
+# card whose inner element is a different one: {p, p/span, p/span/b} against
+# {p, p/span, p/span/i} share half. Kept as two integers so that ``telling``
+# can count with it exactly.
+_SHARED, _OF = 2, 3
 
 
 # Classes that differ between rows of one listing by design.
@@ -93,7 +96,21 @@ def alike(one: frozenset[str], other: frozenset[str]) -> bool:
     union = one | other
     if not union:
         return True
-    return len(one & other) / len(union) >= _ALIKE
+    return len(one & other) * _OF >= len(union) * _SHARED
+
+
+def telling(paths: frozenset[str], rank: Callable[[str], tuple[int, str]]) -> list[str]:
+    """The paths of an outline that every outline alike to it shares one of.
+
+    Two alike outlines share two thirds of the larger one at least, so they
+    share one of the first ``n - ceil(2n / 3) + 1`` paths of each, taken in
+    any one order both use: this is the prefix filter of set-similarity joins.
+    ``rank`` is that order; putting a group's rarest paths first keeps the
+    outlines that share one of them few.
+    """
+    ordered = sorted(paths, key=rank)
+    shared = -(-len(paths) * _SHARED // _OF)
+    return ordered[: len(paths) - shared + 1]
 
 
 def same_kind(one: HtmlElement, other: HtmlElement, depth: int = 3) -> bool:

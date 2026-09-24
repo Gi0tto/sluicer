@@ -14,6 +14,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   corpora. `induce` runs on pages nobody vouches for, through the MCP server's
   `extract_declared` and the HTTP API, and a call that times out still runs to
   its end on its worker: this was also a way to hold a worker for minutes.
+- Gathering a parent's children into groups compared each child with every
+  group of its kind begun before it, so two thousand children that share three
+  parts and differ in a fourth made two million comparisons. Past sixteen
+  groups of one kind, a child is now compared only with the groups whose first
+  members share one of its rarest paths, which is where any match must be, and
+  with at most 64 of those; on the benchmark corpora no child needed more than
+  nine, and the groups are the same.
 
 ## 0.7.0 - 2026-09-24
 
