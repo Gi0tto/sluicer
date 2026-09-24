@@ -308,28 +308,64 @@ def _author(page: _Page) -> Guess | None:
             if name := _first_name(element):
                 return Guess(name, _where(element), "byline")
     # A "By X" line: looked for from the text that opens it, since reading
-    # every container's whole text to find the short ones costs the most.
+    # every container's whole text to find the short ones costs the most. A
+    # page with more than three of them, each naming somebody else, is a
+    # listing of other pages' cards.
+    lines: list[Guess] = []
     for opening in page.texts:
         if not _OPENS_BY.match(opening):
             continue
         element = opening.getparent()
         if opening.is_tail and element is not None:
             element = element.getparent()
-        for _ in range(5):
-            if element is None or not isinstance(element.tag, str):
-                break
-            text = _text(element)
-            if len(text) > 80:
-                break
-            if (
-                element.tag in ("p", "span", "div", "address")
-                and _BY.match(text)
-                and not page.aside(element)
-                and (name := _name(text))
-            ):
+        found = _by_line(page, opening, element)
+        if found is not None:
+            lines.append(found)
+            if len({line.value for line in lines}) > _MOST_BYLINES:
+                return None
+    return lines[0] if lines else None
+
+
+# Somebody a line names who is not the author: "Medically reviewed by".
+_NOT_THE_AUTHOR = re.compile(
+    r"(?:review|edit|fact|check|photo|illustrat|image|video|translat|sponsor|"
+    r"present|power|host|design|develop|built|made)\w*\s*(?:by)?\s*:?\s*$",
+    re.I,
+)
+
+
+def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | None:
+    """The author a "By X" line starting with ``opening`` names, climbing
+    from its element to the short box that holds the whole line."""
+    for _ in range(5):
+        if element is None or not isinstance(element.tag, str):
+            return None
+        text = _text(element)
+        if len(text) > 80:
+            return None
+        if element.tag in ("p", "span", "div", "address") and not page.aside(element):
+            before = (
+                text[: text.find(opening.strip())] if opening.strip() in text else ""
+            )
+            if _NOT_THE_AUTHOR.search(before):
+                return None
+            if _BY.match(text) and (name := _name(text)):
                 return Guess(name, _where(element), "by-line")
-            element = element.getparent()
+            # "Written by" and the name in two texts, glued by text_content.
+            if _LABEL_ONLY.match(opening) and (name := _name_after(element, opening)):
+                return Guess(name, _where(element), "by-line")
+        element = element.getparent()
     return None
+
+
+def _name_after(element: HtmlElement, label: str) -> str | None:
+    """The name in the text right after ``label`` inside ``element``."""
+    pieces = [" ".join(t.split()) for t in element.itertext()]
+    pieces = [piece for piece in pieces if piece]
+    at = next((n for n, piece in enumerate(pieces) if piece == label.strip()), None)
+    if at is None or at + 1 >= len(pieces):
+        return None
+    return _name(pieces[at + 1])
 
 
 def _modified(page: _Page) -> Guess | None:
