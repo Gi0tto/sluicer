@@ -5,6 +5,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## 0.7.0 - 2026-09-24
 
 ### Added
+- `--visible`: `sluicer extract --visible`, `inspect --visible`,
+  `extract(..., visible=True)` and `extract_declared`'s `visible` guess the
+  heading, byline, publication date and update date a page shows a reader, by
+  Sluicer's own rules and no model or clock (`sluicer.visible`,
+  `read_visible`). Each guess names its element and rule and goes in a field
+  of its own, `visible`, never in the summary; a date the page calls an
+  update's is `modified`, never `published`, and a page showing more than
+  three bylines or dates is taken for a listing. Made on WCXB's development
+  pages only: there, what is declared and then the guesses find the author on
+  0.701 of pages, right on 0.849 of answers, 58 invented (trafilatura 0.698,
+  0.756, 86), and the date on 0.736, 0.779, 83 (trafilatura 0.833, 0.441,
+  630), in 3.4 ms a page. The scoreboards do not measure it yet.
 - A page field is read after its label when the pages it was learnt from
   contradict its place. `compile --want` still learns where the example sits;
   when that place holds nothing on another of the pages given, or a value that

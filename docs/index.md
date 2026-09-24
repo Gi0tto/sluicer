@@ -100,6 +100,9 @@ reads any of them, so the same page always gives the same answer.
   of the 3% they get wrong pass their checks: the SWDE scoreboard says which.
 - ⚡ **Deterministic and light.** No model and no key: the 511 pages of the WCXB
   test set are read in 1.4 s, and the base install is three packages.
+- 👀 **What the page shows, when you ask.** `--visible` guesses the heading,
+  byline and dates a page shows a reader, by rules and no model, each guess
+  naming its element and rule and kept apart from what is declared.
 - 🤝 **Polite by construction.** It announces itself, obeys robots.txt and
   `Crawl-delay`, waits a site's `Retry-After` in a crawl, and honours TDMRep
   reservations when asked.
@@ -270,7 +273,7 @@ curl -s http://127.0.0.1:8000/v1/tools/extract_declared \
 | Structured data merged into one record per thing | yes | no, one list per vocabulary | for a few metadata fields | no | depends on the prompt |
 | Where each value came from | vocabulary, key and place | no | no | no | no |
 | A whole site, a list of URLs, feeds, web archives | yes, politely | no | sitemaps, feeds and a crawler | with a crawler framework | depends on the service |
-| Bylines and dates from the visible text, where nothing is declared | not in the summary, by design | no | yes | where you write selectors | yes |
+| Bylines and dates from the visible text, where nothing is declared | with `--visible`, as guesses kept apart | no | yes | where you write selectors | yes |
 | The same answer for the same page | yes | yes | yes | yes | not guaranteed |
 | A site's changed layout noticed | fails loudly, then `heal` | -- | -- | not by itself | not by itself |
 | A model or an API key needed | no | no | no | no | yes |
@@ -383,10 +386,17 @@ Korean write.
 <details>
 <summary><b>Can I get a guess from the visible page when nothing is declared?</b></summary>
 
-Not in the summary: there such an answer would look exactly like a declared one.
-[`examples/04_a_guess_from_the_visible_page.py`](https://github.com/Gi0tto/sluicer/blob/main/examples/04_a_guess_from_the_visible_page.py)
-puts trafilatura's guess beside what the page declares, named a guess, and the
-known limits say how often it is right.
+Yes, when you ask: `sluicer extract --visible`, `extract(..., visible=True)`
+or `extract_declared` with `visible` read the heading, the byline and the
+publication and update dates the page shows, by Sluicer's own rules and no
+model. Each answer is a guess naming its element and rule, in a field of its
+own, `visible`, never in the summary, where it would look exactly like a
+declared one. An update date is never given as a publication date. On WCXB's
+development pages, the only ones the rules were made on, what is declared and
+then the guesses find the author on 0.701 of pages, right on 0.849 of answers
+with 58 invented, where trafilatura finds 0.698, right on 0.756, with 86; and
+the date on 0.736, right on 0.779 with 83 invented, where trafilatura finds
+0.833, right on 0.441, with 630. The scoreboards have not measured it yet.
 </details>
 
 <details>

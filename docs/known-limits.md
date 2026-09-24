@@ -65,9 +65,13 @@ still believed. When only text is available and lxml cannot parse it, the
 retry reads it as UTF-8 whatever the document claims, because the text has
 already been decoded.
 
-**No guess from the visible page, measured.** Sluicer answers what a page
-declares and never guesses from what it shows, though trafilatura, which
-`sluicer[markdown]` installs, can: `examples/04_a_guess_from_the_visible_page.py`
+**A guess from the visible page only when asked, and not yet on the
+scoreboards.** The summary holds only what a page declares. `--visible`
+(`extract(..., visible=True)`, `extract_declared`'s `visible`) guesses the
+heading, byline and dates a page shows, in `visible`, each with its element
+and rule; its rules were made on WCXB's development pages only, and no
+scoreboard has measured it yet (`bench/PREREG.md`). Trafilatura, which
+`sluicer[markdown]` installs, can guess too: `examples/04_a_guess_from_the_visible_page.py`
 puts its guess beside Sluicer's answer, named a guess, when the page declares
 no author or date. Measured where Sluicer answers nothing, the guess is right
 on 48 of the 114 WCXB pages where it names an author and on 76 of the 312
