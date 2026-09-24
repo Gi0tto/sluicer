@@ -212,9 +212,10 @@ sluicer feed https://blog.example/                  # a feed's items, from the p
 
 </details>
 
-Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
-for a page that broke its extractor, a heal that lost a field, or an audit that
-found a documented rule broken. A drifted page never exits 0.
+Exit codes follow grep: 0 found -- a record or a summary answer, a `<title>`
+alone included -- 1 the page gives neither, 2 could not read, and 3 for a page
+that broke its extractor, a heal that lost a field, or an audit that found a
+documented rule broken. A drifted page never exits 0.
 
 ### In your agent
 

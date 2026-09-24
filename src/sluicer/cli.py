@@ -1,9 +1,10 @@
 """Command line front door.
 
 Exit codes follow grep: 0 when something was found -- a record, or at least one
-summary answer -- 1 when the page was read and gives nothing at all, 2 when it
-could not be read. A script can tell "this page gives nothing" from "the fetch
-failed" without parsing English. ``run`` and ``heal`` add 3: a page broke the
+summary answer, a ``<title>`` alone included, or with ``--visible`` a guess --
+1 when the page was read and gives nothing at all, 2 when it could not be
+read. A script can tell "this page gives nothing" from "the fetch failed"
+without parsing English. ``run`` and ``heal`` add 3: a page broke the
 extractor's contract, or healing lost a field, and that is never a success.
 ``audit`` uses 3 in the same sense: the page was read and breaks a rule it is
 held to, here one its documentation states.

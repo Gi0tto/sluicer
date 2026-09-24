@@ -5,6 +5,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- The README said exit code 1 meant "nothing declared", and a page with only a
+  `<title>` exits 0. The code is what was meant: the title is declared, read
+  into the summary with its source, and a script handed the page has an
+  answer. The README and the skill now say a `<title>` alone counts.
 - No MCP answer weighs more than 75,000 bytes of JSON (`MOST_ANSWER_BYTES`),
   whatever the page. Only `extract_declared`'s records were bounded: a
   200,000-character `<title>` made a 200 KB answer even with `records=False`,

@@ -171,8 +171,8 @@ sluicer map https://example.com/ --plain         # a site's addresses, one a lin
 sluicer crawl https://example.com/ --max-pages 50 -o site.jsonl   # --resume continues it
 ```
 
-Exit codes: 0 something found (a record or a summary answer), 1 the page gives
-nothing at all, 2 could not be read, 3 a page broke an extractor's contract, or
+Exit codes: 0 something found (a record or a summary answer, a `<title>` alone
+included), 1 the page gives nothing at all, 2 could not be read, 3 a page broke an extractor's contract, or
 an audit found a documented rule broken.
 
 When the same kind of page will be read again and again -- a listing checked

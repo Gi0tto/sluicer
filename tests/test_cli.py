@@ -47,6 +47,22 @@ def test_a_page_with_only_a_title_still_prints_its_summary():
     assert payload["summary"]["title"]["value"] == "Plain page"
 
 
+def test_the_readme_says_what_exits_one_as_extract_decides_it(tmp_path):
+    """The README said 1 meant "nothing declared", and a page with only a
+    <title> exits 0: the title is declared, read into the summary. The README
+    now says a <title> alone is an answer."""
+    import re
+
+    readme = (Path(__file__).parent.parent / "README.md").read_text(encoding="utf-8")
+    said = re.search(r"Exit codes follow grep:(.*?)\n\n", readme, re.S)
+    assert said is not None and "`<title>`" in said.group(1)
+    title_only = CliRunner().invoke(main, ["extract", str(FIXTURES / "plain.html")])
+    bare = tmp_path / "bare.html"
+    bare.write_text("<html><body><p>Words.</p></body></html>", encoding="utf-8")
+    assert title_only.exit_code == 0
+    assert CliRunner().invoke(main, ["extract", str(bare)]).exit_code == 1
+
+
 def test_an_empty_file_is_reported_not_crashed(tmp_path):
     empty_file = tmp_path / "empty.html"
     empty_file.write_text("   \n\n   ", encoding="utf-8")
