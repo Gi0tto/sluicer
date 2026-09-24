@@ -3,6 +3,8 @@ name: Docs
 on:
   push:
     branches: [main]
+    # A release publishes the site. Path filters are not applied to tags.
+    tags: ["v*"]
     # The site is built from more than docs/: it links the root's changelog,
     # roadmap, contributing and security files, and scripts/docs_demo.py adds
     # the examples' site. A change to any of them changes the published site.
@@ -55,7 +57,13 @@ jobs:
     needs: build
     # Pages refuses a private repository on the free plan with a 404 that reads
     # like a missing artifact. Skipping is the honest report: nothing is wrong.
-    if: github.event.repository.visibility == 'public'
+    # Only a release, or a hand-started run, publishes: a push to main built
+    # the site for 0.6.0's readers with options only main had. The
+    # github-pages environment admits main, tags v* and branches docs-*, the
+    # last for corrections to a release's pages.
+    if: >-
+      github.event.repository.visibility == 'public' &&
+      (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
