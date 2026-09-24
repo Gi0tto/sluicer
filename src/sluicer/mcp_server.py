@@ -69,7 +69,9 @@ runs on a machine that can reach both.
 
 
 MAP_LIMIT = 1000
-"""The most addresses ``map_site`` hands an agent: a thousand is about 80 KB."""
+"""The most addresses ``map_site`` hands an agent. A thousand short ones are
+about 80 KB, over ``MOST_ANSWER_BYTES``: the answer keeps the first that fit
+and counts the rest in ``urls_left_out``."""
 
 MAP_SITEMAPS = 10
 """The most sitemap files one ``map_site`` reads."""
