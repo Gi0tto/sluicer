@@ -45,6 +45,25 @@ jobs:
       - name: Run the suite
         run: uv run --python ${{ matrix.python }} --extra api pytest -q
 
+  systems:
+    # Every other job runs on Linux, and people install Sluicer on macOS and
+    # Windows too: a path, an encoding or a line ending that holds on one
+    # system can break on another. One Python each; the matrix above covers
+    # the versions.
+    name: Tests on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - name: Run the suite
+        run: uv run --python 3.13 --extra api pytest -q
+
   quality:
     # Separate from the matrix above on purpose: a red cross here names which
     # gate refused the commit, and each step names which of the three it was.
