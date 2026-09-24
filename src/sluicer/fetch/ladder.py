@@ -15,6 +15,7 @@ no" and "the site had nothing" must never look alike.
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable, Iterable, Sequence
 from urllib.parse import urlsplit
@@ -100,9 +101,13 @@ def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
       a comment naming the reason; ``robots_refusal`` reads it, raises
       ``RobotsUnreachable`` and does not cache it.
 
-    The body goes through ``load(...).tree.text_content()`` because scrapling
-    wraps a plain-text robots.txt as ``<html><body>User-agent: ...``, and
-    protego, handed that, parses no rules and allows everything.
+    The body is the rules as they came, text and never markup, only a BOM
+    taken off: read through an HTML parser, ``Disallow: /a<b`` opened a tag
+    that swallowed every rule after it. The one exception is a body that is a
+    whole HTML document, which is how a browser shows a plain-text file; a
+    ladder that starts at a browser would hand protego ``<html><body>User-
+    agent: ...``, which it reads as no rules and allows everything, so its
+    text is taken out.
     """
 
     def read(url: str) -> str | None:
@@ -122,11 +127,22 @@ def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
             return _stay_out(UNAVAILABLE, f"status {response.status}")
         if response.status >= 400:
             return None
-        # str(...) because lxml ships no types: this asserts at runtime what
-        # the signature claims.
-        return str(load(response.html).tree.text_content())
+        return _rules_in(response.html)
 
     return read
+
+
+_DOCUMENT = re.compile(r"\s*<(?:!doctype\s+html|html)[\s>]", re.IGNORECASE)
+
+
+def _rules_in(body: str) -> str:
+    """The text of a robots.txt body: itself, or a browser's document's text."""
+    text = body.removeprefix("\ufeff")
+    if not _DOCUMENT.match(text):
+        return text
+    # str(...) because lxml ships no types: this asserts at runtime what the
+    # signature claims.
+    return str(load(text).tree.text_content())
 
 
 def _stay_out(marker: str, reason: str) -> str:

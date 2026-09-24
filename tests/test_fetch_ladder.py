@@ -252,17 +252,16 @@ def test_robots_can_be_turned_off_deliberately():
     assert result.rung == "http"
 
 
-def test_the_default_reader_takes_the_text_out_of_the_markup():
-    """The real rung wraps a plain-text robots.txt body in HTML.
+def test_the_default_reader_takes_the_text_out_of_a_browsers_markup():
+    """A browser shows a plain-text robots.txt as an HTML document.
 
-    Measured against httpbin.org/robots.txt by the person reviewing this
-    round: scrapling's ``Fetched.html`` for a plain-text response is not the
-    bare directives, it is
-    ``<html><body>User-agent: *\\nDisallow: /deny\\n</body></html>``. A
-    reader that hands that straight to protego gets a first "line" of
-    ``<html><body>User-agent: *``, which protego does not recognise as a
-    directive, so it parses no rules at all and allows everything -- the
-    exact defect this test is written to catch.
+    Measured against httpbin.org/robots.txt when the cheapest rung was
+    scrapling's: its ``Fetched.html`` for a plain-text response was
+    ``<html><body>User-agent: *\\nDisallow: /deny\\n</body></html>``, and a
+    reader handing that to protego got a first "line" of
+    ``<html><body>User-agent: *``, parsed no rules and allowed everything.
+    The cheapest rung is plain HTTP now; a ladder that starts at a browser
+    still gets this shape, and only a whole document is read so.
     """
     from sluicer.fetch.ladder import robots_reader_from
 
@@ -308,6 +307,29 @@ def test_a_site_that_refuses_us_is_obeyed_through_the_real_reader_shape():
     # never asserted, which left "we obeyed" and "we fetched it anyway and
     # then raised" indistinguishable.
     assert calls == ["https://example.com/robots.txt"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "User-agent: *\nDisallow: /a<b\nDisallow: /private/\n",
+        "# see <a href=x>\nUser-agent: *\nDisallow: /private/\n",
+        "# <script>\nUser-agent: *\nDisallow: /private/\n",
+        "User-agent: *\nDisallow: /q&amp;x\nDisallow: /private/\n",
+        "\ufeffUser-agent: *\nDisallow: /private/\n",
+    ],
+)
+def test_a_robots_txt_is_read_as_text_whatever_markup_its_lines_hold(text):
+    """Read through the HTML parser, ``Disallow: /a<b`` opened a tag that
+    swallowed every rule after it, and ``/private/`` was fetched; ``&amp;``
+    became ``&``. A robots.txt is text, and only a BOM is taken off it."""
+    from sluicer.fetch.identity import robots_refusal
+    from sluicer.fetch.ladder import robots_reader_from
+
+    read = robots_reader_from(rung("http", text))
+
+    assert read("https://example.com/robots.txt") == text.lstrip("\ufeff")
+    assert robots_refusal("https://example.com/private/x", read, cache={})
 
 
 def test_a_robots_file_that_answers_200_is_read_as_the_rules_it_publishes():

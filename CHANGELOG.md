@@ -22,6 +22,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `TimeoutError`. SECURITY.md said a map or a crawl took "a minute each"; it
   stops starting requests after a minute, and now says so, with each request's
   own bound.
+- robots.txt is read as text. The fetch ladder passed it through the HTML
+  parser, so a line like `Disallow: /a<b` opened a tag that swallowed every
+  rule after it, and pages the site disallowed were fetched; `&amp;` in a rule
+  became `&`. The audit already read the file raw, so the two could disagree
+  about one robots.txt. Only a body that is a whole HTML document, a browser's
+  rendering of a text file, has its text taken out.
 
 ## 0.7.0 - 2026-09-24
 
