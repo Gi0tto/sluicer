@@ -96,7 +96,9 @@ def test_no_source_file_imports_a_network_or_model_client():
     offenders = sorted(
         f"{path.relative_to(SRC)} imports {module}"
         for path in sources
-        for module in _imported_modules(path.read_text(), filename=str(path))
+        for module in _imported_modules(
+            path.read_text(encoding="utf-8"), filename=str(path)
+        )
         if _is_forbidden(module)
         and (path.relative_to(SRC).as_posix(), module) not in ALLOWED
     )
@@ -145,7 +147,9 @@ def test_the_extras_this_package_really_loads_are_seen_and_allowed():
     loaded = {
         module
         for path in SRC.rglob("*.py")
-        for module in _imported_modules(path.read_text(), filename=str(path))
+        for module in _imported_modules(
+            path.read_text(encoding="utf-8"), filename=str(path)
+        )
     }
 
     assert {

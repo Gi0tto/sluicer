@@ -17,6 +17,8 @@ Ctrl-C exits 130 with what it wrote intact, and ``--resume`` continues it.
 
 from __future__ import annotations
 
+import codecs
+import io
 import json
 import logging
 import re
@@ -80,7 +82,25 @@ def main() -> None:
 
     SOURCE is a URL, a saved HTML file, or - for standard input.
     """
+    _speak_utf8(sys.stdin, sys.stdout, sys.stderr)
     _quiet_scrapling()
+
+
+def _speak_utf8(*streams: object) -> None:
+    """Read and write UTF-8 on the standard streams, whatever the system's default.
+
+    JSON is UTF-8, and so are the markdown and the pages' own text. Windows
+    gives a pipe or a file its ANSI code page, cp1252 across most of Europe:
+    ``sluicer extract URL > out.json`` on a page titled in Chinese raised
+    UnicodeEncodeError, and a list of addresses piped in was read in cp1252.
+    A console there, and every stream on Linux and macOS, is UTF-8 already and
+    is left alone, as is a stream a program embedding this one put in place.
+    """
+    for stream in streams:
+        if isinstance(stream, io.TextIOWrapper) and (
+            codecs.lookup(stream.encoding).name != "utf-8"
+        ):
+            stream.reconfigure(encoding="utf-8")
 
 
 def _quiet_scrapling() -> None:
@@ -949,7 +969,7 @@ def mcp_command() -> None:
     """Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
 
     For a client that starts a package's own command, as the MCP Registry's
-    entry does: uvx --with 'sluicer[mcp]' sluicer mcp.
+    entry does: uvx --with "sluicer[mcp]" sluicer mcp.
     """
     from sluicer.mcp_server import main as run
 

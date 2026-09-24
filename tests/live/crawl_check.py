@@ -255,7 +255,7 @@ def main() -> int:
             failures.append(f"resume: asked again after resuming: {again}")
         written = [
             line.split('"url": "', 1)[1].split('"', 1)[0].removeprefix(MAIN)
-            for line in state.read_text().splitlines()
+            for line in state.read_text(encoding="utf-8").splitlines()
         ]
         if written != EXPECTED or resumed.resumed != 4:
             failures.append(f"resume: the file holds {written}, the rest was {rest}")

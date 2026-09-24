@@ -7,7 +7,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_extract_reports_records_and_which_readers_fired():
-    html = (FIXTURES / "product_jsonld.html").read_text()
+    html = (FIXTURES / "product_jsonld.html").read_text(encoding="utf-8")
 
     result = sluicer.extract(html, url="https://example.com/p")
 
@@ -20,14 +20,14 @@ def test_extract_reports_records_and_which_readers_fired():
 
 
 def test_a_page_declaring_nothing_extracts_nothing_and_says_so():
-    result = sluicer.extract((FIXTURES / "plain.html").read_text())
+    result = sluicer.extract((FIXTURES / "plain.html").read_text(encoding="utf-8"))
 
     assert result.records == []
     assert result.sources == []
 
 
 def test_extraction_is_deterministic():
-    html = (FIXTURES / "product_jsonld.html").read_text()
+    html = (FIXTURES / "product_jsonld.html").read_text(encoding="utf-8")
 
     first = sluicer.extract(html)
     second = sluicer.extract(html)
@@ -58,7 +58,7 @@ def test_a_page_whose_type_is_a_list_extracts_instead_of_crashing():
 
 
 def test_all_three_readers_fold_into_one_record_and_each_keeps_its_source():
-    html = (FIXTURES / "product_all_three.html").read_text()
+    html = (FIXTURES / "product_all_three.html").read_text(encoding="utf-8")
 
     result = sluicer.extract(html, url="https://example.com/p")
 
@@ -91,7 +91,7 @@ def test_all_three_readers_fold_into_one_record_and_each_keeps_its_source():
 
 
 def test_an_xhtml_page_with_an_encoding_declaration_still_extracts():
-    html = (FIXTURES / "product_xhtml.html").read_text()
+    html = (FIXTURES / "product_xhtml.html").read_text(encoding="utf-8")
 
     result = sluicer.extract(html)
 

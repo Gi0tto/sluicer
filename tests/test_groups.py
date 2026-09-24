@@ -8,7 +8,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def tree_of(name):
-    return lxml.html.fromstring((FIXTURES / name).read_text())
+    return lxml.html.fromstring((FIXTURES / name).read_text(encoding="utf-8"))
 
 
 def test_a_listing_page_yields_its_rows():

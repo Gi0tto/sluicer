@@ -23,7 +23,7 @@ _INTERPRETER = {"pip", "setuptools", "wheel"}
 
 def main(pages_path: str, out_path: str) -> None:
     root = Path(pages_path).parent
-    pages = json.loads(Path(pages_path).read_text())
+    pages = json.loads(Path(pages_path).read_text(encoding="utf-8"))
     results, seconds = [], 0.0
     for page in pages:
         html = gzip.decompress((root / page["path"]).read_bytes())
@@ -48,7 +48,8 @@ def main(pages_path: str, out_path: str) -> None:
                 ),
                 "results": results,
             }
-        )
+        ),
+        encoding="utf-8",
     )
     print(f"sluicer {sluicer.__version__}: {len(results)} pages, {seconds:.2f} s")
 

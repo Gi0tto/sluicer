@@ -53,7 +53,9 @@ def main(checkout: str, out_path: str) -> None:
                     "date": str(date) if date else None,
                 }
             )
-    out.write_text(json.dumps(pages, indent=1, ensure_ascii=False) + "\n")
+    out.write_text(
+        json.dumps(pages, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print(f"{len(pages)} fixtures from {len({p['country'] for p in pages})} groups")
 
 

@@ -271,10 +271,10 @@ def _in_window(timestamp: str) -> bool:
 
 def _cached_json(path: Path, make: Any) -> Any:
     if path.exists():
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     value = make()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value))
+    path.write_text(json.dumps(value), encoding="utf-8")
     return value
 
 
@@ -394,7 +394,7 @@ def fetch(page_id: str, capture: dict[str, Any]) -> tuple[bytes, dict[str, Any]]
     body_file, meta_file = path.with_suffix(".html.gz"), path.with_suffix(".json")
     if body_file.exists() and meta_file.exists():
         return gzip.decompress(body_file.read_bytes()), json.loads(
-            meta_file.read_text()
+            meta_file.read_text(encoding="utf-8")
         )
     try:
         if capture["archive"] == WAYBACK:
@@ -406,7 +406,7 @@ def fetch(page_id: str, capture: dict[str, Any]) -> tuple[bytes, dict[str, Any]]
     meta["sha256"] = hashlib.sha256(body).hexdigest()
     path.parent.mkdir(parents=True, exist_ok=True)
     body_file.write_bytes(gzip.compress(body, mtime=0))
-    meta_file.write_text(json.dumps(meta))
+    meta_file.write_text(json.dumps(meta), encoding="utf-8")
     return body, meta
 
 
@@ -537,7 +537,9 @@ class Evidence:
     @classmethod
     def of(cls, page: dict[str, Any]) -> Evidence:
         truth = json.loads(
-            (corpus.CORPUS / "test" / "ground-truth" / f"{page['id']}.json").read_text()
+            (corpus.CORPUS / "test" / "ground-truth" / f"{page['id']}.json").read_text(
+                encoding="utf-8"
+            )
         )
         main = shingles((truth.get("ground_truth") or {}).get("main_content") or "")
         wcxb = gzip.decompress((corpus.CACHE / page["path"]).read_bytes())
@@ -737,7 +739,7 @@ def _pages_files(manifest: dict[str, Any], pages: dict[str, Any]) -> dict[str, P
     files = {}
     for side, entries in listed.items():
         files[side] = CACHE / f"{side}.json"
-        files[side].write_text(json.dumps(entries, indent=1) + "\n")
+        files[side].write_text(json.dumps(entries, indent=1) + "\n", encoding="utf-8")
     return files
 
 
@@ -1006,7 +1008,7 @@ def _non_utf8(manifest: dict[str, Any]) -> int:
 
 
 def publish(manifest: dict[str, Any]) -> None:
-    pages_list = json.loads(corpus.PAGES.read_text())
+    pages_list = json.loads(corpus.PAGES.read_text(encoding="utf-8"))
     everything = {page["id"]: page for page in pages_list}
     included = {e["id"] for e in manifest["pages"] if e["included"]}
     pages = {page_id: everything[page_id] for page_id in included}
@@ -1015,7 +1017,9 @@ def publish(manifest: dict[str, Any]) -> None:
     sources: dict[str, dict[str, list[str]]] = {}
     for side in SIDES:
         runs[side] = {
-            tool: json.loads((_results(side) / f"{tool}.json").read_text())
+            tool: json.loads(
+                (_results(side) / f"{tool}.json").read_text(encoding="utf-8")
+            )
             for tool in board.TOOLS
             if (_results(side) / f"{tool}.json").exists()
         }
@@ -1023,9 +1027,12 @@ def publish(manifest: dict[str, Any]) -> None:
             tool: score.outcomes(found["results"], pages)
             for tool, found in runs[side].items()
         }
-        sources[side] = json.loads((_results(side) / "sources.json").read_text())
+        sources[side] = json.loads(
+            (_results(side) / "sources.json").read_text(encoding="utf-8")
+        )
     SCOREBOARD.write_text(
-        _document(manifest, everything, pages, runs, per_page, sources)
+        _document(manifest, everything, pages, runs, per_page, sources),
+        encoding="utf-8",
     )
     print(f"wrote {SCOREBOARD.relative_to(ROOT)}")
 
@@ -1184,15 +1191,17 @@ def main() -> None:
     )
     args = parser.parse_args()
     started = time.perf_counter()
-    pages_list = json.loads(corpus.ensure().read_text())
+    pages_list = json.loads(corpus.ensure().read_text(encoding="utf-8"))
     pages = {page["id"]: page for page in pages_list}
     if args.discover:
         print(f"searching the archives for {len(pages_list)} pages", flush=True)
         manifest = discover_all(pages_list)
-        MANIFEST.write_text(json.dumps(manifest, indent=1, ensure_ascii=False) + "\n")
+        MANIFEST.write_text(
+            json.dumps(manifest, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
         print(f"wrote {MANIFEST.relative_to(ROOT)}")
     else:
-        manifest = json.loads(MANIFEST.read_text())
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         refetch(manifest)
     files = _pages_files(manifest, pages)
     tools = [tool.strip() for tool in args.tools.split(",") if tool.strip()]

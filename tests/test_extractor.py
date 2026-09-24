@@ -226,13 +226,16 @@ def test_compile_writes_an_extractor_and_says_what_it_learnt(tmp_path):
     )
 
     assert result.exit_code == 0, result.stderr
-    assert Extractor.from_json(out.read_text()).listing.member == "li.product"
+    assert (
+        Extractor.from_json(out.read_text(encoding="utf-8")).listing.member
+        == "li.product"
+    )
     assert "4 fields" in result.stderr
 
 
 def test_run_exits_zero_when_the_page_keeps_its_contract(tmp_path):
     out = tmp_path / "shop.json"
-    out.write_text(shop().to_json())
+    out.write_text(shop().to_json(), encoding="utf-8")
 
     result = _cli("run", str(out), str(DRIFT / "shop_v1.html"))
 
@@ -244,7 +247,7 @@ def test_run_exits_zero_when_the_page_keeps_its_contract(tmp_path):
 
 def test_run_exits_three_when_a_page_breaks_its_contract(tmp_path):
     out = tmp_path / "shop.json"
-    out.write_text(shop().to_json())
+    out.write_text(shop().to_json(), encoding="utf-8")
 
     result = _cli(
         "run",
@@ -262,7 +265,7 @@ def test_run_exits_three_when_a_page_breaks_its_contract(tmp_path):
 
 def test_heal_prints_what_moved_and_writes_only_when_asked(tmp_path):
     out = tmp_path / "shop.json"
-    out.write_text(shop().to_json())
+    out.write_text(shop().to_json(), encoding="utf-8")
     healed = tmp_path / "healed.json"
 
     dry = _cli("heal", str(out), str(DRIFT / "shop_redesigned.html"))
@@ -280,14 +283,14 @@ def test_heal_prints_what_moved_and_writes_only_when_asked(tmp_path):
         "evidence": {"seen": 5, "samples": 5, "runner_up": 0},
     } in moved
     assert "span.price -> div.cost" in dry.stderr
-    assert Extractor.from_json(healed.read_text()).listing.container.endswith(
-        "section.grid"
-    )
+    assert Extractor.from_json(
+        healed.read_text(encoding="utf-8")
+    ).listing.container.endswith("section.grid")
 
 
 def test_heal_exits_three_when_a_field_is_lost_for_good(tmp_path):
     out = tmp_path / "shop.json"
-    out.write_text(shop().to_json())
+    out.write_text(shop().to_json(), encoding="utf-8")
 
     result = _cli("heal", str(out), str(DRIFT / "shop_prices_gone.html"))
 
@@ -297,7 +300,7 @@ def test_heal_exits_three_when_a_field_is_lost_for_good(tmp_path):
 
 def test_compile_with_nothing_to_learn_exits_one(tmp_path):
     bare = tmp_path / "bare.html"
-    bare.write_text("<html><body><p>x</p></body></html>")
+    bare.write_text("<html><body><p>x</p></body></html>", encoding="utf-8")
 
     result = _cli("compile", str(bare), "-o", str(tmp_path / "x.json"))
 
@@ -365,7 +368,7 @@ def test_a_path_that_does_not_start_at_the_root_finds_nothing():
 
 def test_run_refuses_a_file_that_is_not_an_extractor(tmp_path):
     bad = tmp_path / "bad.json"
-    bad.write_text("{}")
+    bad.write_text("{}", encoding="utf-8")
 
     result = _cli("run", str(bad), str(DRIFT / "shop_v1.html"))
 
@@ -375,9 +378,9 @@ def test_run_refuses_a_file_that_is_not_an_extractor(tmp_path):
 
 def test_heal_from_pages_with_nothing_on_them_exits_three(tmp_path):
     out = tmp_path / "shop.json"
-    out.write_text(shop().to_json())
+    out.write_text(shop().to_json(), encoding="utf-8")
     bare = tmp_path / "bare.html"
-    bare.write_text("<html><body><p>x</p></body></html>")
+    bare.write_text("<html><body><p>x</p></body></html>", encoding="utf-8")
 
     result = _cli("heal", str(out), str(bare))
 
@@ -392,7 +395,7 @@ def test_compile_names_what_it_learnt_from_a_declared_page(tmp_path):
 
     assert result.exit_code == 0, result.stderr
     assert "declared Product" in result.stderr
-    assert Extractor.from_json(out.read_text()).learnt_from == (
+    assert Extractor.from_json(out.read_text(encoding="utf-8")).learnt_from == (
         str(DRIFT / "product.html"),
     )
 
@@ -604,7 +607,7 @@ def test_a_healed_listing_keeps_the_share_of_empty_rows_it_learnt():
 
 def test_compile_takes_examples_on_the_command_line(tmp_path):
     source = tmp_path / "books.html"
-    source.write_text(_two_listings()[0])
+    source.write_text(_two_listings()[0], encoding="utf-8")
     out = tmp_path / "books.json"
     result = _cli(
         "compile",
@@ -617,7 +620,7 @@ def test_compile_takes_examples_on_the_command_line(tmp_path):
         "price=£54.23",
     )
     assert result.exit_code == 0, result.stderr
-    learnt = Extractor.from_json(out.read_text())
+    learnt = Extractor.from_json(out.read_text(encoding="utf-8"))
     assert [f.name for f in learnt.listing.fields] == ["title", "price"]
     bad = _cli("compile", str(source), "-o", str(out), "--want", "title")
     assert bad.exit_code == 2
@@ -752,7 +755,7 @@ def test_heal_keeps_moves_or_loses_each_page_field():
 
 def test_a_run_says_its_page_fields_on_the_command_line(tmp_path):
     source = tmp_path / "p.html"
-    source.write_text(_product()[0])
+    source.write_text(_product()[0], encoding="utf-8")
     out = tmp_path / "p.json"
     result = _cli("compile", str(source), "-o", str(out), "--want", "price=41.90")
     assert result.exit_code == 0, result.stderr

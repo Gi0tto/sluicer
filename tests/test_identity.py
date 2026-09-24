@@ -147,7 +147,7 @@ def test_a_missing_protego_says_the_fetch_extra_is_what_installs_it(absent):
         robots_allows("https://example.com/private/p", read=lambda url: REFUSE_US)
 
     assert raised.value.extra == "fetch"
-    assert "uv pip install 'sluicer[fetch]'" in str(raised.value)
+    assert 'uv pip install "sluicer[fetch]"' in str(raised.value)
 
 
 def test_the_process_cache_forgets_the_least_recently_used_site_past_its_bound(

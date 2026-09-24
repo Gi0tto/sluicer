@@ -9,7 +9,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_reads_itemprops_of_one_itemscope():
-    doc = load((FIXTURES / "product_microdata.html").read_text())
+    doc = load((FIXTURES / "product_microdata.html").read_text(encoding="utf-8"))
 
     found = read_microdata(doc)
 

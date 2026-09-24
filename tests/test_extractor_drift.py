@@ -584,32 +584,37 @@ def _cli(*args):
 def test_heal_does_not_overwrite_the_extractor_when_it_lost_a_field(tmp_path):
     out = tmp_path / "shop.json"
     before = learn(shop_page(books(10))).to_json()
-    out.write_text(before)
+    out.write_text(before, encoding="utf-8")
     gone = tmp_path / "gone.html"
-    gone.write_text(shop_page([li(TITLES[i], f"/book/{i}", "") for i in range(10)]))
+    gone.write_text(
+        shop_page([li(TITLES[i], f"/book/{i}", "") for i in range(10)]),
+        encoding="utf-8",
+    )
 
     result = _cli("heal", str(out), str(gone), "-o", str(out))
 
     assert result.exit_code == 3
-    assert out.read_text() == before
+    assert out.read_text(encoding="utf-8") == before
     assert "--force" in result.stderr
 
 
 def test_heal_writes_a_lossy_extractor_when_forced(tmp_path):
     out = tmp_path / "shop.json"
-    out.write_text(learn(shop_page(books(10))).to_json())
+    out.write_text(learn(shop_page(books(10))).to_json(), encoding="utf-8")
     gone = tmp_path / "gone.html"
-    gone.write_text(shop_page([li(TITLES[i], f"/b/{i}", "") for i in range(10)]))
+    gone.write_text(
+        shop_page([li(TITLES[i], f"/b/{i}", "") for i in range(10)]), encoding="utf-8"
+    )
 
     result = _cli("heal", str(out), str(gone), "-o", str(out), "--force")
 
     assert result.exit_code == 3
-    assert "span.price" not in out.read_text()
+    assert "span.price" not in out.read_text(encoding="utf-8")
 
 
 def test_compile_into_a_folder_that_does_not_exist_is_a_message(tmp_path):
     page = tmp_path / "p.html"
-    page.write_text(shop_page(books(6)))
+    page.write_text(shop_page(books(6)), encoding="utf-8")
 
     result = _cli("compile", str(page), "-o", str(tmp_path / "missing" / "x.json"))
 

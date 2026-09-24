@@ -142,6 +142,7 @@ def start(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
     )
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
@@ -298,13 +299,18 @@ def main() -> int:
         )
         if audited.get("ok") is not True or not audited.get("records"):
             check.failures.append(f"audit_page audited nothing: {audited}")
-        v1 = (DRIFT / "shop_v1.html").read_text()
+        v1 = (DRIFT / "shop_v1.html").read_text(encoding="utf-8")
         learnt = check.expect(
             "compile_extractor",
             call(
                 a,
                 "compile_extractor",
-                {"pages": [v1, (DRIFT / "shop_v1_page2.html").read_text()]},
+                {
+                    "pages": [
+                        v1,
+                        (DRIFT / "shop_v1_page2.html").read_text(encoding="utf-8"),
+                    ]
+                },
                 headers=auth,
             ),
             200,
@@ -333,7 +339,9 @@ def main() -> int:
                 "run_extractor",
                 {
                     "extractor": extractor,
-                    "html_or_url": (DRIFT / "shop_prices_gone.html").read_text(),
+                    "html_or_url": (DRIFT / "shop_prices_gone.html").read_text(
+                        encoding="utf-8"
+                    ),
                 },
                 headers=auth,
             ),
@@ -351,7 +359,9 @@ def main() -> int:
                 "heal_extractor",
                 {
                     "extractor": extractor,
-                    "pages": [(DRIFT / "shop_redesigned.html").read_text()],
+                    "pages": [
+                        (DRIFT / "shop_redesigned.html").read_text(encoding="utf-8")
+                    ],
                 },
                 headers=auth,
             ),
@@ -367,7 +377,9 @@ def main() -> int:
                 "heal_extractor",
                 {
                     "extractor": extractor,
-                    "pages": [(DRIFT / "shop_prices_gone.html").read_text()],
+                    "pages": [
+                        (DRIFT / "shop_prices_gone.html").read_text(encoding="utf-8")
+                    ],
                 },
                 headers=auth,
             ),

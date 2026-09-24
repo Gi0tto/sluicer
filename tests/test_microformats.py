@@ -84,7 +84,7 @@ def _read(html="<html><body></body></html>", url=None):
 def test_a_top_level_item_becomes_one_record(monkeypatch):
     fake_mf2py(monkeypatch)
 
-    found = _read((FIXTURES / "entry_microformats.html").read_text())
+    found = _read((FIXTURES / "entry_microformats.html").read_text(encoding="utf-8"))
 
     assert len(found) == 1
     assert found[0]["@type"] == "h-entry"
@@ -302,7 +302,7 @@ def test_extract_reads_microformats_only_when_asked(monkeypatch):
     import sluicer
 
     fake_mf2py(monkeypatch)
-    html = (FIXTURES / "entry_microformats.html").read_text()
+    html = (FIXTURES / "entry_microformats.html").read_text(encoding="utf-8")
 
     assert sluicer.extract(html).sources == []
     assert sluicer.extract(html, microformats=True).sources == ["microformats"]
@@ -323,7 +323,8 @@ def test_a_microformats_field_says_where_it_came_from(monkeypatch):
     fake_mf2py(monkeypatch)
 
     result = sluicer.extract(
-        (FIXTURES / "entry_microformats.html").read_text(), microformats=True
+        (FIXTURES / "entry_microformats.html").read_text(encoding="utf-8"),
+        microformats=True,
     )
 
     assert result.records[0].type == "h-entry"
@@ -369,7 +370,7 @@ def test_a_page_declaring_only_microformats_is_not_induced_over(monkeypatch):
     from sluicer.api import _declared_about_its_things
 
     fake_mf2py(monkeypatch)
-    html = (FIXTURES / "entry_microformats.html").read_text()
+    html = (FIXTURES / "entry_microformats.html").read_text(encoding="utf-8")
 
     result = sluicer.extract(html, induce=True, microformats=True)
 

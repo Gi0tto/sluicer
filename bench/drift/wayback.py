@@ -48,14 +48,14 @@ def snapshot(url: str, when: str) -> Snapshot | None:
     """
     meta, body = _paths(url, when)
     if meta.exists():
-        record = json.loads(meta.read_text())
+        record = json.loads(meta.read_text(encoding="utf-8"))
         if record.get("missing"):
             return None
         return Snapshot(url, record["timestamp"], record["landed"], body.read_bytes())
     CACHE.mkdir(parents=True, exist_ok=True)
     landed, encoding, raw = _get(f"https://web.archive.org/web/{when}id_/{url}")
     if raw is None or landed is None or "id_/" not in landed:
-        meta.write_text(json.dumps({"missing": True}))
+        meta.write_text(json.dumps({"missing": True}), encoding="utf-8")
         return None
     timestamp = landed.split("/web/", 1)[1].split("id_/", 1)[0]
     original = landed.split("id_/", 1)[1]
@@ -64,7 +64,8 @@ def snapshot(url: str, when: str) -> Snapshot | None:
         meta, body = _paths(url, key)
         body.write_bytes(html)
         meta.write_text(
-            json.dumps({"url": url, "timestamp": timestamp, "landed": original})
+            json.dumps({"url": url, "timestamp": timestamp, "landed": original}),
+            encoding="utf-8",
         )
     return Snapshot(url, timestamp, original, html)
 

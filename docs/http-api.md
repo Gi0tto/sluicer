@@ -11,7 +11,7 @@ served here with nothing else to change.
 It needs the `api` extra, which brings the other three:
 
 ```bash
-uv tool install 'sluicer[api]'
+uv tool install "sluicer[api]"
 sluicer serve
 ```
 

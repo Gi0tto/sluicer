@@ -448,13 +448,15 @@ def test_a_bigger_budget_resumed_continues_where_the_smaller_stopped(tmp_path):
 def test_a_line_cut_off_by_a_stop_mid_write_is_dropped_and_redone(tmp_path):
     state = tmp_path / "crawl.jsonl"
     list(run(FakeWeb(shop()), state=state, max_pages=2))
-    with state.open("a") as out:
+    with state.open("a", encoding="utf-8") as out:
         out.write('{"url": "https://example.com/c/2", "ok": tr')
 
     rest = list(run(FakeWeb(shop()), state=state))
 
     assert urls(rest)[0] == f"{ROOT}/c/2"
-    assert all(json.loads(line) for line in state.read_text().splitlines())
+    assert all(
+        json.loads(line) for line in state.read_text(encoding="utf-8").splitlines()
+    )
 
 
 def test_a_file_from_another_crawl_is_refused_not_mixed(tmp_path):
@@ -469,14 +471,14 @@ def test_a_file_from_another_crawl_is_refused_not_mixed(tmp_path):
 
 def test_a_file_that_is_not_a_crawls_output_is_refused(tmp_path):
     state = tmp_path / "notes.jsonl"
-    state.write_text("these are my notes\n")
+    state.write_text("these are my notes\n", encoding="utf-8")
 
     with pytest.raises(StateMismatch, match="not a page's JSON"):
         run(FakeWeb(shop()), state=state)
 
 
 def _without_seconds(path):
-    lines = [json.loads(line) for line in path.read_text().splitlines()]
+    lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     for line in lines:
         if "fetch" in line:
             line["fetch"]["seconds"] = 0
@@ -639,7 +641,7 @@ def test_a_batch_resumed_reads_a_redirects_target_it_had_not_reached(tmp_path):
             "target": "https://other.example/",
         },
     }
-    state.write_text(json.dumps(line) + "\n")
+    state.write_text(json.dumps(line) + "\n", encoding="utf-8")
     fake = FakeWeb(shop())
 
     rest = extract_many(
@@ -669,7 +671,7 @@ def test_a_batch_resumed_skips_what_its_file_holds(tmp_path):
 
     assert urls(rest) == [f"{ROOT}/p/3"]
     assert rest.resumed == 2
-    assert len(state.read_text().splitlines()) == 3
+    assert len(state.read_text(encoding="utf-8").splitlines()) == 3
 
 
 def test_a_batch_out_of_time_hands_back_an_unbroken_prefix():
@@ -732,7 +734,9 @@ def test_an_off_site_redirect_as_a_line_names_where_it_pointed():
 def test_blank_lines_in_a_state_file_are_nothing(tmp_path):
     state = tmp_path / "crawl.jsonl"
     list(run(FakeWeb(shop()), state=state, max_pages=2))
-    state.write_text(state.read_text().replace("\n", "\n\n", 1))
+    state.write_text(
+        state.read_text(encoding="utf-8").replace("\n", "\n\n", 1), encoding="utf-8"
+    )
 
     assert urls(run(FakeWeb(shop()), state=state, max_pages=3)) == [f"{ROOT}/c/2"]
 

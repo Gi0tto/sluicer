@@ -56,7 +56,11 @@ _LANG = re.compile(rb"<html\b[^>]*?\blang\s*=\s*[\"']?([A-Za-z]{2,3})", re.I)
 def ensure() -> Path:
     """The page list at the pinned commit, downloading and pairing it once."""
     marker = CACHE / "COMMIT"
-    if PAGES.exists() and marker.exists() and marker.read_text().strip() == COMMIT:
+    if (
+        PAGES.exists()
+        and marker.exists()
+        and marker.read_text(encoding="utf-8").strip() == COMMIT
+    ):
         return PAGES
     CACHE.mkdir(parents=True, exist_ok=True)
     archive = CACHE / f"fundus-{COMMIT[:12]}.tar.gz"
@@ -77,7 +81,7 @@ def ensure() -> Path:
         str(CHECKOUT), str(PAGES),
     ]  # fmt: skip
     subprocess.run(command, cwd=ROOT, check=True)
-    marker.write_text(COMMIT + "\n")
+    marker.write_text(COMMIT + "\n", encoding="utf-8")
     return PAGES
 
 
@@ -103,16 +107,18 @@ def _language(page: dict[str, Any]) -> str:
 
 
 def publish() -> None:
-    pages_list = json.loads(PAGES.read_text())
+    pages_list = json.loads(PAGES.read_text(encoding="utf-8"))
     pages = {page["id"]: page for page in pages_list}
     runs = {
-        tool: json.loads((RESULTS / f"{tool}.json").read_text())
+        tool: json.loads((RESULTS / f"{tool}.json").read_text(encoding="utf-8"))
         for tool in board.TOOLS
         if (RESULTS / f"{tool}.json").exists()
     }
     per_page = {tool: score.outcomes(r["results"], pages) for tool, r in runs.items()}
     languages = {page["id"]: _language(page) for page in pages_list}
-    SCOREBOARD.write_text(_document(pages_list, pages, runs, per_page, languages))
+    SCOREBOARD.write_text(
+        _document(pages_list, pages, runs, per_page, languages), encoding="utf-8"
+    )
     print(f"wrote {SCOREBOARD.relative_to(ROOT)}")
 
 

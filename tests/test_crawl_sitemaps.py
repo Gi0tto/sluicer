@@ -91,7 +91,7 @@ def test_a_broken_or_cut_gzip_says_so():
 def test_an_external_entity_is_never_read(tmp_path):
     """XXE: the entity names a local file. Resolved, its words would be a URL."""
     secret = tmp_path / "secret.txt"
-    secret.write_text("the-secret-words")
+    secret.write_text("the-secret-words", encoding="utf-8")
     body = (
         '<?xml version="1.0"?>'
         f'<!DOCTYPE urlset [<!ENTITY x SYSTEM "file://{secret}">]>'

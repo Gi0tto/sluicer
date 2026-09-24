@@ -111,6 +111,7 @@ def record() -> Path:
             capture_output=True,
             text=True,
             check=False,
+            encoding="utf-8",
         )
         output = (result.stderr + result.stdout).replace(str(PAGES) + os.sep, "")
         for out_line in output.splitlines():

@@ -86,7 +86,7 @@ def test_nothing_outside_the_fetch_package_reaches_past_its_surface():
         path.relative_to(root).as_posix()
         for path in sorted(root.rglob("*.py"))
         if "fetch" not in path.relative_to(root).parts
-        and "sluicer.fetch.ladder" in path.read_text()
+        and "sluicer.fetch.ladder" in path.read_text(encoding="utf-8")
     ]
 
     assert offenders == [], f"these import past the fetch surface: {offenders}"
@@ -150,7 +150,10 @@ def test_a_submodule_is_importable_in_a_process_that_knows_nothing():
         " assert sluicer.structure.records.records_from",
     ):
         done = subprocess.run(
-            [sys.executable, "-c", statement], capture_output=True, text=True
+            [sys.executable, "-c", statement],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         )
 
         assert done.returncode == 0, f"{statement}\n{done.stderr}"
@@ -168,10 +171,12 @@ def test_every_file_that_states_the_version_or_the_licence_agrees():
     import sluicer
 
     root = Path(__file__).resolve().parent.parent
-    pyproject = (root / "pyproject.toml").read_text()
-    plugin = json.loads((root / ".claude-plugin" / "plugin.json").read_text())
-    skill = (root / "skills" / "sluicer" / "SKILL.md").read_text()
-    citation = (root / "CITATION.cff").read_text()
+    pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
+    plugin = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    skill = (root / "skills" / "sluicer" / "SKILL.md").read_text(encoding="utf-8")
+    citation = (root / "CITATION.cff").read_text(encoding="utf-8")
 
     def stated(pattern: str, text: str) -> str:
         found = re.search(pattern, text, re.MULTILINE)
@@ -202,7 +207,9 @@ def test_the_plugin_counts_the_tools_the_server_registers():
     import sluicer.mcp_server
 
     root = Path(__file__).resolve().parent.parent
-    plugin = json.loads((root / ".claude-plugin" / "plugin.json").read_text())
+    plugin = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
     counted = re.match(
         r"(\w+) tools -- ", (sluicer.mcp_server.__doc__ or "").split("\n\n")[1]
     )
@@ -219,7 +226,7 @@ def test_the_skill_keeps_to_the_agent_skills_standard():
 
     root = Path(__file__).resolve().parent.parent
     skill = root / "skills" / "sluicer" / "SKILL.md"
-    front = skill.read_text().split("---\n", 2)[1]
+    front = skill.read_text(encoding="utf-8").split("---\n", 2)[1]
     fields = dict(
         line.split(":", 1)
         for line in front.splitlines()
@@ -245,8 +252,8 @@ def test_the_mcp_registry_entry_is_the_package_it_names():
     import sluicer
 
     root = Path(__file__).resolve().parent.parent
-    entry = json.loads((root / "server.json").read_text())
-    readme = (root / "README.md").read_text()
+    entry = json.loads((root / "server.json").read_text(encoding="utf-8"))
+    readme = (root / "README.md").read_text(encoding="utf-8")
     marker = re.search(r"<!-- mcp-name: (\S+) -->", readme)
     assert marker and marker[1] == entry["name"] == "io.github.Gi0tto/sluicer"
     assert len(entry["description"]) <= 100, "the registry refuses a longer one"
@@ -254,7 +261,7 @@ def test_the_mcp_registry_entry_is_the_package_it_names():
     version = sluicer.__version__
     assert entry["version"] == package["version"] == version
     assert package["identifier"] == "sluicer" and package["runtimeHint"] == "uvx"
-    # uvx --with 'sluicer[mcp]==VERSION' sluicer mcp: the command this suite
+    # uvx --with "sluicer[mcp]==VERSION" sluicer mcp: the command this suite
     # tests, with the extra it needs, at the version listed.
     assert package["runtimeArguments"] == [
         {

@@ -62,7 +62,7 @@ def pages() -> list[dict[str, Any]]:
          "path": str(path), "url": None}
         for path in sorted((ROOT / "tests" / "fixtures").rglob("*.html"))
     ]  # fmt: skip
-    manifest = json.loads((HERE / "realweb-manifest.json").read_text())
+    manifest = json.loads((HERE / "realweb-manifest.json").read_text(encoding="utf-8"))
     bodies = HERE / "cache" / "realweb" / "bodies"
     missing = []
     for entry in manifest["pages"]:
@@ -83,7 +83,9 @@ def pages() -> list[dict[str, Any]]:
     import products
 
     bench = products.ensure()
-    truth = json.loads((bench / "dataset" / "ground-truth.json").read_text())
+    truth = json.loads(
+        (bench / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
+    )
     for page_id, labels in truth.items():
         path = bench / "dataset" / "html" / f"{page_id}.html.gz"
         found.append(
@@ -107,7 +109,7 @@ def run_extruct(pages_file: Path, out: Path) -> dict[str, Any]:
         "python", str(HERE / "tools" / "extruct_tool.py"), str(pages_file), str(out),
     ]  # fmt: skip
     subprocess.run(command, cwd=ROOT, check=True)
-    loaded: dict[str, Any] = json.loads(out.read_text())
+    loaded: dict[str, Any] = json.loads(out.read_text(encoding="utf-8"))
     return loaded
 
 
@@ -460,12 +462,12 @@ def _short(url: str) -> str:
 
 
 def publish(section: str) -> None:
-    text = DOC.read_text()
+    text = DOC.read_text(encoding="utf-8")
     before, found_start, rest = text.partition(START)
     _old, found_end, after = rest.partition(END)
     if not (found_start and found_end):
         raise SystemExit(f"{DOC} has lost its markers {START!r} and {END!r}")
-    DOC.write_text(f"{before}{START}\n{section}\n{END}{after}")
+    DOC.write_text(f"{before}{START}\n{section}\n{END}{after}", encoding="utf-8")
 
 
 def show(report: dict[str, Any]) -> None:
@@ -485,14 +487,14 @@ def main() -> None:
     CACHE.mkdir(parents=True, exist_ok=True)
     found = pages()
     pages_file = CACHE / "pages.json"
-    pages_file.write_text(json.dumps(found, indent=1) + "\n")
+    pages_file.write_text(json.dumps(found, indent=1) + "\n", encoding="utf-8")
     theirs_file = CACHE / "extruct.json"
     if args.reuse and theirs_file.exists():
-        theirs = json.loads(theirs_file.read_text())
+        theirs = json.loads(theirs_file.read_text(encoding="utf-8"))
     else:
         theirs = run_extruct(pages_file, theirs_file)
     ours = run_compat(found)
-    (CACHE / "sluicer.json").write_text(json.dumps(ours))
+    (CACHE / "sluicer.json").write_text(json.dumps(ours), encoding="utf-8")
     report = compare(found, ours, theirs)
     show(report)
     unexplained = [

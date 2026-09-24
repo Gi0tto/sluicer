@@ -12,7 +12,7 @@ data["json-ld"], data["microdata"], data["opengraph"], data["rdfa"]
 ```
 
 ```bash
-uv pip install 'sluicer[microformats]'  # mf2py, for the microformat syntax
+uv pip install "sluicer[microformats]"  # mf2py, for the microformat syntax
 uv pip install sluicer                  # without it: syntaxes=[...] leaving it out
 ```
 

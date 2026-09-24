@@ -165,7 +165,7 @@ def test_an_entry_that_is_broken_or_not_this_pages_is_no_entry(tmp_path):
     cache = Cache(tmp_path, clock=Clock())
     Site().fetch(cache)
     [path] = list(tmp_path.glob("*.json"))
-    entry = json.loads(path.read_text())
+    entry = json.loads(path.read_text(encoding="utf-8"))
     for broken in (
         "not json",
         json.dumps([1]),
@@ -173,7 +173,7 @@ def test_an_entry_that_is_broken_or_not_this_pages_is_no_entry(tmp_path):
         json.dumps({**entry, "url": "https://other.example/"}),
         json.dumps({**entry, "html": None}),
     ):
-        path.write_text(broken)
+        path.write_text(broken, encoding="utf-8")
         assert cache.read(URL) is None
 
 

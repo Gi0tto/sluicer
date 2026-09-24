@@ -60,8 +60,8 @@ def test_two_identical_readings_differ_in_nothing():
 
 def test_the_diff_command_exits_as_diff_does(tmp_path):
     a, b = tmp_path / "a.html", tmp_path / "b.html"
-    a.write_text(_product("41.90"))
-    b.write_text(_product("39.90"))
+    a.write_text(_product("41.90"), encoding="utf-8")
+    b.write_text(_product("39.90"), encoding="utf-8")
 
     same = CliRunner().invoke(main, ["diff", str(a), str(a)])
     changed = CliRunner().invoke(main, ["diff", str(a), str(b)])

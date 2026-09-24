@@ -18,12 +18,12 @@ import sluicer
 
 def main(pages_path: str, out_path: str) -> None:
     root = Path(pages_path).parent
-    pages = json.loads(Path(pages_path).read_text())
+    pages = json.loads(Path(pages_path).read_text(encoding="utf-8"))
     found = {}
     for page in pages:
         html = gzip.decompress((root / page["path"]).read_bytes())
         found[page["id"]] = sluicer.extract(html, url=page["url"]).sources
-    Path(out_path).write_text(json.dumps(found))
+    Path(out_path).write_text(json.dumps(found), encoding="utf-8")
     print(f"sluicer sources: {len(found)} pages")
 
 

@@ -101,6 +101,7 @@ def test_the_answer_does_not_depend_on_the_process(drawn):
             text=True,
             env=environment,
             check=True,
+            encoding="utf-8",
         )
         assert run.stdout.strip() == here, f"PYTHONHASHSEED={seed}"
 

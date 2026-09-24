@@ -8,7 +8,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_load_parses_html_and_keeps_the_source():
-    html = (FIXTURES / "plain.html").read_text()
+    html = (FIXTURES / "plain.html").read_text(encoding="utf-8")
 
     doc = load(html, url="https://example.com/a")
 

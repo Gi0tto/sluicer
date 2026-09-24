@@ -32,7 +32,9 @@ AUTHORISED = {"Authorization": f"Bearer {TOKEN}"}
 def _drift(name):
     from pathlib import Path
 
-    return (Path(__file__).parent / "fixtures" / "drift" / name).read_text()
+    return (Path(__file__).parent / "fixtures" / "drift" / name).read_text(
+        encoding="utf-8"
+    )
 
 
 @pytest.fixture
@@ -638,7 +640,7 @@ def test_without_the_extra_building_the_app_says_how_to_install_it(absent):
     with pytest.raises(http_api.ApiExtraMissing) as raised:
         http_api.build_app()
 
-    assert "uv pip install 'sluicer[api]'" in str(raised.value)
+    assert 'uv pip install "sluicer[api]"' in str(raised.value)
     assert raised.value.extra == "api"
 
 
@@ -790,4 +792,4 @@ def test_the_command_without_the_extra_is_a_message_not_a_traceback(
     result = CliRunner().invoke(cli.main, ["serve"])
 
     assert result.exit_code == 2
-    assert "uv pip install 'sluicer[api]'" in result.stderr
+    assert 'uv pip install "sluicer[api]"' in result.stderr

@@ -135,7 +135,7 @@ def test_inspect_shows_a_conflict_under_the_summary(tmp_path):
     from sluicer.cli import main
 
     page = tmp_path / "page.html"
-    page.write_text(_page(PRODUCT, ("product:price:amount", "39.90")))
+    page.write_text(_page(PRODUCT, ("product:price:amount", "39.90")), encoding="utf-8")
     output = CliRunner().invoke(main, ["inspect", str(page)]).output
     assert "conflict: price is declared two ways" in output
     assert "39.90  [opengraph product:price:amount]" in output

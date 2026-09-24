@@ -7,7 +7,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_reads_a_product_block():
-    doc = load((FIXTURES / "product_jsonld.html").read_text())
+    doc = load((FIXTURES / "product_jsonld.html").read_text(encoding="utf-8"))
 
     found = read_jsonld(doc)
 

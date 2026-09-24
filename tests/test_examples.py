@@ -4,6 +4,7 @@ Each runs as its own process, as a reader runs it, against the small made-up
 site that ``examples/_site.py`` serves on this machine from ``examples/site``.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +26,9 @@ def _run(example: str) -> str:
         text=True,
         timeout=120,
         check=False,
+        # print() writes a pipe in the locale's code page, cp1252 on Windows.
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        encoding="utf-8",
     )
     assert done.returncode == 0, done.stderr
     return done.stdout

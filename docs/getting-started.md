@@ -8,18 +8,18 @@ page, understand what came back, and do the same from Python and from an agent.
 As a command, in an environment of its own:
 
 ```bash
-uv tool install 'sluicer[fetch,markdown]'
+uv tool install "sluicer[fetch,markdown]"
 sluicer --version
 ```
 
-With pipx instead: `pipx install 'sluicer[fetch,markdown]'`. As a library, in
+With pipx instead: `pipx install "sluicer[fetch,markdown]"`. As a library, in
 your project's environment:
 
 ```bash
-uv pip install 'sluicer[fetch,markdown]'
+uv pip install "sluicer[fetch,markdown]"
 ```
 
-With pip instead: `pip install 'sluicer[fetch,markdown]'`.
+With pip instead: `pip install "sluicer[fetch,markdown]"`.
 
 The two extras add fetching pages from the web and turning them into markdown.
 Without them Sluicer still reads every page you already have on disk, with
@@ -154,8 +154,8 @@ reads: a page whose layout changed exits 3 instead of returning nulls.
 ## 7. Give it to your agent
 
 ```bash
-claude mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp    # Claude Code
-codex mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp     # Codex
+claude mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp    # Claude Code
+codex mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp     # Codex
 ```
 
 The agent then has ten tools, every one of which only reads. Cursor, VS Code,

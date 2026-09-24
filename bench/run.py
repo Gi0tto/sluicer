@@ -71,9 +71,9 @@ def _command(tool: str, pages: Path, out: Path) -> tuple[list[str], dict[str, st
 def _install_metascraper() -> Path:
     """``npm ci`` from the committed lockfile into the cache, once per lockfile."""
     target = corpus.CACHE / "metascraper"
-    lock = (HERE / "metascraper" / "package-lock.json").read_text()
+    lock = (HERE / "metascraper" / "package-lock.json").read_text(encoding="utf-8")
     stamp = target / "installed-from.lock"
-    if not (stamp.exists() and stamp.read_text() == lock):
+    if not (stamp.exists() and stamp.read_text(encoding="utf-8") == lock):
         target.mkdir(parents=True, exist_ok=True)
         for name in ("package.json", "package-lock.json"):
             shutil.copy(HERE / "metascraper" / name, target / name)
@@ -82,7 +82,7 @@ def _install_metascraper() -> Path:
             cwd=target,
             check=True,
         )
-        stamp.write_text(lock)
+        stamp.write_text(lock, encoding="utf-8")
     return target / "node_modules"
 
 
@@ -97,7 +97,12 @@ def run(tools: list[str]) -> None:
 def _git(*args: str) -> str:
     try:
         found = subprocess.run(
-            ["git", *args], cwd=ROOT, capture_output=True, text=True, check=True
+            ["git", *args],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+            encoding="utf-8",
         )
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
@@ -115,15 +120,17 @@ def _corpus_scripts(pages: list[dict[str, Any]]) -> tuple[int, int]:
 
 
 def publish() -> None:
-    pages_list = json.loads(corpus.PAGES.read_text())
+    pages_list = json.loads(corpus.PAGES.read_text(encoding="utf-8"))
     pages = {page["id"]: page for page in pages_list}
     runs = {
-        tool: json.loads((RESULTS / f"{tool}.json").read_text())
+        tool: json.loads((RESULTS / f"{tool}.json").read_text(encoding="utf-8"))
         for tool in TOOLS
         if (RESULTS / f"{tool}.json").exists()
     }
     per_page = {tool: score.outcomes(r["results"], pages) for tool, r in runs.items()}
-    SCOREBOARD.write_text(_document(pages_list, pages, runs, per_page))
+    SCOREBOARD.write_text(
+        _document(pages_list, pages, runs, per_page), encoding="utf-8"
+    )
     print(f"wrote {SCOREBOARD.relative_to(ROOT)}")
 
 
@@ -261,7 +268,9 @@ def _document(pages_list, pages, runs, per_page) -> str:
     # Its own output does not make the tree it measured dirty.
     changed = _git("status", "--porcelain", "--", ".", ":!docs/scoreboard.md")
     dirty = " (with uncommitted changes)" if changed else ""
-    node = subprocess.run(["node", "--version"], capture_output=True, text=True)
+    node = subprocess.run(
+        ["node", "--version"], capture_output=True, text=True, encoding="utf-8"
+    )
     lines = [
         "# Scoreboard",
         "",

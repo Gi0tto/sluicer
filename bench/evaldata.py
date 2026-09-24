@@ -61,7 +61,11 @@ MAX_CHUNKS = 6
 def ensure() -> Path:
     """The page lists at the pinned commit, downloading and unpacking them once."""
     marker = CACHE / "COMMIT"
-    if PAGES.exists() and marker.exists() and marker.read_text().strip() == COMMIT:
+    if (
+        PAGES.exists()
+        and marker.exists()
+        and marker.read_text(encoding="utf-8").strip() == COMMIT
+    ):
         return PAGES
     CACHE.mkdir(parents=True, exist_ok=True)
     archive = CACHE / f"trafilatura-{COMMIT[:12]}.tar.gz"
@@ -108,9 +112,13 @@ def ensure() -> Path:
             # author; the others say nothing about it.
             if "author" in item:
                 labelled.append(page)
-    PAGES.write_text(json.dumps(pages, indent=1, ensure_ascii=False) + "\n")
-    LABELLED.write_text(json.dumps(labelled, indent=1, ensure_ascii=False) + "\n")
-    marker.write_text(COMMIT + "\n")
+    PAGES.write_text(
+        json.dumps(pages, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    LABELLED.write_text(
+        json.dumps(labelled, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    marker.write_text(COMMIT + "\n", encoding="utf-8")
     print(f"{len(pages)} pages, {len(labelled)} with their metadata annotated")
     return PAGES
 
@@ -133,16 +141,18 @@ def run(tools: list[str]) -> None:
 
 
 def publish() -> None:
-    labelled = json.loads(LABELLED.read_text())
+    labelled = json.loads(LABELLED.read_text(encoding="utf-8"))
     pages = {page["id"]: page for page in labelled}
     runs = {
-        tool: json.loads((RESULTS / f"{tool}.json").read_text())
+        tool: json.loads((RESULTS / f"{tool}.json").read_text(encoding="utf-8"))
         for tool in board.TOOLS
         if (RESULTS / f"{tool}.json").exists()
     }
     per_page = {tool: score.outcomes(r["results"], pages) for tool, r in runs.items()}
-    body = json.loads(BODY.read_text())
-    SCOREBOARD.write_text(_document(labelled, pages, runs, per_page, body))
+    body = json.loads(BODY.read_text(encoding="utf-8"))
+    SCOREBOARD.write_text(
+        _document(labelled, pages, runs, per_page, body), encoding="utf-8"
+    )
     print(f"wrote {SCOREBOARD.relative_to(ROOT)}")
 
 

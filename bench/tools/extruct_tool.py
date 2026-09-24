@@ -33,7 +33,7 @@ def attempt(html: bytes, url: str | None, **options: Any) -> Any:
 
 
 def main(pages_path: str, out_path: str) -> None:
-    pages = json.loads(Path(pages_path).read_text())
+    pages = json.loads(Path(pages_path).read_text(encoding="utf-8"))
     results: dict[str, Any] = {}
     seconds = 0.0
     for page in pages:
@@ -54,7 +54,8 @@ def main(pages_path: str, out_path: str) -> None:
         results[page["key"]] = found
     version = importlib.metadata.version("extruct")
     Path(out_path).write_text(
-        json.dumps({"version": version, "seconds": seconds, "pages": results})
+        json.dumps({"version": version, "seconds": seconds, "pages": results}),
+        encoding="utf-8",
     )
     print(f"extruct {version}: {len(results)} pages, {seconds:.1f} s")
 

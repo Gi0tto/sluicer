@@ -72,7 +72,9 @@ def availability(value: str | None) -> str:
 
 def predict(bench: Path) -> tuple[dict[str, dict[str, str]], float]:
     """Sluicer's answer for every page, keyed as the ground truth is."""
-    truth = json.loads((bench / "dataset" / "ground-truth.json").read_text())
+    truth = json.loads(
+        (bench / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
+    )
     predictions: dict[str, dict[str, str]] = {}
     started = time.perf_counter()
     for page_id, labels in truth.items():
@@ -113,7 +115,7 @@ def evaluate(bench: Path) -> dict[str, Any]:
         check=True,
         stdout=subprocess.DEVNULL,
     )
-    return json.loads(metrics.read_text())
+    return json.loads(metrics.read_text(encoding="utf-8"))
 
 
 def publish(metrics: dict[str, Any], seconds: float, pages: int) -> None:
@@ -123,6 +125,7 @@ def publish(metrics: dict[str, Any], seconds: float, pages: int) -> None:
         capture_output=True,
         text=True,
         check=False,
+        encoding="utf-8",
     ).stdout.strip()
     systems = ["sluicer", "extruct", "Diffbot", "Zyte"]
     labels = {
@@ -200,14 +203,16 @@ def publish(metrics: dict[str, Any], seconds: float, pages: int) -> None:
         "was taken for a listing with no subject.",
         "",
     ]
-    SCOREBOARD.write_text("\n".join(lines))
+    SCOREBOARD.write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> None:
     bench = ensure()
     predictions, seconds = predict(bench)
     output = bench / "dataset" / "output" / "sluicer.json"
-    output.write_text(json.dumps(predictions, indent=4, sort_keys=True) + "\n")
+    output.write_text(
+        json.dumps(predictions, indent=4, sort_keys=True) + "\n", encoding="utf-8"
+    )
     metrics = evaluate(bench)
     publish(metrics, seconds, len(predictions))
     for attribute in ("price", "sku", "availability"):

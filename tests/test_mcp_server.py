@@ -390,7 +390,7 @@ def test_extract_declared_without_the_fetch_extra_returns_the_sentence(monkeypat
 
     result = registered["extract_declared"]("https://example.com/p")
 
-    assert "uv pip install 'sluicer[fetch]'" in result["error"]["message"]
+    assert 'uv pip install "sluicer[fetch]"' in result["error"]["message"]
     assert result["error"] | {"message": ""} == {
         "code": "missing_extra",
         "message": "",
@@ -408,7 +408,7 @@ def test_fetch_page_without_the_fetch_extra_returns_the_sentence(monkeypatch):
 
     result = registered["fetch_page"]("https://example.com/p")
 
-    assert "uv pip install 'sluicer[fetch]'" in result["error"]["message"]
+    assert 'uv pip install "sluicer[fetch]"' in result["error"]["message"]
     assert result["error"] | {"message": ""} == {
         "code": "missing_extra",
         "message": "",
@@ -433,7 +433,7 @@ def test_page_markdown_without_the_markdown_extra_reports_it_as_an_error(monkeyp
 
     result = registered["page_markdown"]("<html><body>hi</body></html>")
 
-    assert "uv pip install 'sluicer[markdown]'" in result["error"]["message"]
+    assert 'uv pip install "sluicer[markdown]"' in result["error"]["message"]
     assert result["error"] | {"message": ""} == {
         "code": "missing_extra",
         "message": "",
@@ -526,7 +526,7 @@ def test_a_missing_extra_is_never_mistakable_for_content(monkeypatch):
     for name, result in results.items():
         assert isinstance(result, Mapping), f"{name} returned {type(result).__name__}"
         assert "error" in result, f"{name} carries no error key: {result!r}"
-        assert "uv pip install 'sluicer[" in result["error"]["message"], name
+        assert 'uv pip install "sluicer[' in result["error"]["message"], name
 
 
 def test_the_fetch_fake_matches_the_real_fetch_signature(monkeypatch):
@@ -705,7 +705,9 @@ def test_the_server_reports_its_own_version(monkeypatch):
 def _drift(name):
     from pathlib import Path
 
-    return (Path(__file__).parent / "fixtures" / "drift" / name).read_text()
+    return (Path(__file__).parent / "fixtures" / "drift" / name).read_text(
+        encoding="utf-8"
+    )
 
 
 def test_an_agent_compiles_an_extractor_and_replays_it(monkeypatch):

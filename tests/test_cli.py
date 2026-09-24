@@ -1,8 +1,13 @@
+import io
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from click.testing import CliRunner
 
+from sluicer import cli
 from sluicer.cli import main
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -21,7 +26,9 @@ def test_extract_prints_json_records():
 
 def test_a_page_that_gives_nothing_at_all_exits_one(tmp_path):
     page = tmp_path / "bare.html"
-    page.write_text("<html><body><p>Nothing declared here.</p></body></html>")
+    page.write_text(
+        "<html><body><p>Nothing declared here.</p></body></html>", encoding="utf-8"
+    )
 
     result = CliRunner().invoke(main, ["extract", str(page)])
 
@@ -42,7 +49,7 @@ def test_a_page_with_only_a_title_still_prints_its_summary():
 
 def test_an_empty_file_is_reported_not_crashed(tmp_path):
     empty_file = tmp_path / "empty.html"
-    empty_file.write_text("   \n\n   ")
+    empty_file.write_text("   \n\n   ", encoding="utf-8")
 
     result = CliRunner().invoke(main, ["extract", str(empty_file)])
 
@@ -118,7 +125,7 @@ def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
     def fake_fetch(url, rungs=None, **kwargs):
         raise FetchExtraMissing(
             "Fetching a URL needs scrapling, which is not installed. "
-            "Install it with: uv pip install 'sluicer[fetch]'"
+            'Install it with: uv pip install "sluicer[fetch]"'
         )
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
@@ -126,7 +133,7 @@ def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
     assert result.exit_code == 2
-    assert "uv pip install 'sluicer[fetch]'" in result.stderr
+    assert 'uv pip install "sluicer[fetch]"' in result.stderr
     assert isinstance(result.exception, SystemExit)
 
 
@@ -267,7 +274,7 @@ def test_markdown_prints_the_main_content(monkeypatch, tmp_path):
         "sluicer.cli.to_markdown", lambda html, url=None: "# Title\n\nBody."
     )
     page = tmp_path / "page.html"
-    page.write_text("<html><body><h1>Title</h1></body></html>")
+    page.write_text("<html><body><h1>Title</h1></body></html>", encoding="utf-8")
 
     result = CliRunner().invoke(main, ["markdown", str(page)])
 
@@ -284,12 +291,12 @@ def test_markdown_without_the_extra_explains_itself(monkeypatch, tmp_path):
     def refuse(html, url=None):
         raise MarkdownExtraMissing(
             "Turning a page into markdown needs trafilatura, which is not installed. "
-            "Install it with: uv pip install 'sluicer[markdown]'"
+            'Install it with: uv pip install "sluicer[markdown]"'
         )
 
     monkeypatch.setattr("sluicer.cli.to_markdown", refuse)
     page = tmp_path / "page.html"
-    page.write_text("<html><body>hi</body></html>")
+    page.write_text("<html><body>hi</body></html>", encoding="utf-8")
 
     result = CliRunner().invoke(main, ["markdown", str(page)])
 
@@ -305,7 +312,7 @@ def test_markdown_of_a_page_with_nothing_to_say_exits_one(monkeypatch, tmp_path)
 
     monkeypatch.setattr("sluicer.cli.to_markdown", lambda html, url=None: "")
     page = tmp_path / "page.html"
-    page.write_text("<html><body></body></html>")
+    page.write_text("<html><body></body></html>", encoding="utf-8")
 
     result = CliRunner().invoke(main, ["markdown", str(page)])
 
@@ -409,7 +416,7 @@ def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
     assert result.exit_code == 2
-    assert "uv pip install 'sluicer[fetch]'" in result.stderr
+    assert 'uv pip install "sluicer[fetch]"' in result.stderr
     assert isinstance(result.exception, SystemExit), (
         f"reached the user as {result.exception!r}"
     )
@@ -438,7 +445,8 @@ def test_a_file_is_not_its_own_address_unless_one_is_given(tmp_path):
     page = tmp_path / "page.html"
     page.write_text(
         '<div itemscope itemtype="https://schema.org/Product">'
-        '<a itemprop="url" href="/p/1">x</a></div>'
+        '<a itemprop="url" href="/p/1">x</a></div>',
+        encoding="utf-8",
     )
 
     bare = CliRunner().invoke(main, ["extract", str(page)])
@@ -465,7 +473,8 @@ def test_induction_is_reachable_from_the_command_line(tmp_path):
             f"<span class='price'>{n}.99</span></li>"
             for n in range(5)
         )
-        + "</ul>"
+        + "</ul>",
+        encoding="utf-8",
     )
 
     plain = CliRunner().invoke(main, ["extract", str(page)])
@@ -546,7 +555,7 @@ def test_inspect_is_the_same_report_every_time():
 def test_inspect_says_what_the_fetch_cost(monkeypatch):
     from sluicer.fetch.result import Climb, Fetched
 
-    page = (FIXTURES / "drift" / "product.html").read_text()
+    page = (FIXTURES / "drift" / "product.html").read_text(encoding="utf-8")
 
     def fetched(url, **options):
         return Fetched(
@@ -571,7 +580,9 @@ def test_inspect_says_what_the_fetch_cost(monkeypatch):
 
 def test_inspect_of_a_page_that_gives_nothing_exits_one(tmp_path):
     page = tmp_path / "bare.html"
-    page.write_text("<html><body><p>Nothing declared here.</p></body></html>")
+    page.write_text(
+        "<html><body><p>Nothing declared here.</p></body></html>", encoding="utf-8"
+    )
 
     result = CliRunner().invoke(main, ["inspect", str(page)])
 
@@ -596,7 +607,8 @@ def test_inspect_shows_what_a_date_means_beside_what_the_page_wrote(tmp_path):
     page = tmp_path / "dated.html"
     page.write_text(
         '<html><head><meta property="article:published_time" content="Jun 16, 2025">'
-        "<title>A post</title></head></html>"
+        "<title>A post</title></head></html>",
+        encoding="utf-8",
     )
 
     result = CliRunner().invoke(main, ["inspect", str(page)])
@@ -609,7 +621,8 @@ def test_inspect_shows_the_link_relations(tmp_path):
     page.write_text(
         '<html><head><link rel="canonical" href="https://s.example/p">'
         '<link rel="alternate" hreflang="de" href="https://s.example/de/p">'
-        "<title>P</title></head></html>"
+        "<title>P</title></head></html>",
+        encoding="utf-8",
     )
 
     out = CliRunner().invoke(main, ["inspect", str(page)]).stdout
@@ -622,10 +635,11 @@ def test_inspect_says_whether_the_page_declares_how_it_may_be_used(tmp_path):
     page = tmp_path / "reserved.html"
     page.write_text(
         '<html><head><meta name="robots" content="noai">'
-        '<meta name="tdm-reservation" content="1"><title>T</title></head></html>'
+        '<meta name="tdm-reservation" content="1"><title>T</title></head></html>',
+        encoding="utf-8",
     )
     bare = tmp_path / "bare.html"
-    bare.write_text("<html><head><title>T</title></head></html>")
+    bare.write_text("<html><head><title>T</title></head></html>", encoding="utf-8")
 
     reserved = CliRunner().invoke(main, ["inspect", str(page)]).stdout
     silent = CliRunner().invoke(main, ["inspect", str(bare)]).stdout
@@ -685,7 +699,7 @@ AUDITED_WELL = (
 
 def test_audit_of_a_page_that_keeps_to_the_rules_exits_zero(tmp_path):
     page = tmp_path / "home.html"
-    page.write_text(AUDITED_WELL)
+    page.write_text(AUDITED_WELL, encoding="utf-8")
 
     result = CliRunner().invoke(main, ["audit", str(page)])
 
@@ -714,7 +728,8 @@ def test_audit_names_each_refused_value_with_its_rule(tmp_path):
     page = tmp_path / "p.html"
     page.write_text(
         '<script type="application/ld+json">{"@type":"Product","name":"Pad",'
-        '"offers":{"price":"41,90","priceCurrency":"EUR"}}</script>'
+        '"offers":{"price":"41,90","priceCurrency":"EUR"}}</script>',
+        encoding="utf-8",
     )
 
     result = CliRunner().invoke(main, ["audit", str(page)])
@@ -729,7 +744,9 @@ def test_audit_names_each_refused_value_with_its_rule(tmp_path):
 
 def test_audit_of_a_page_that_declares_nothing_exits_one(tmp_path):
     page = tmp_path / "bare.html"
-    page.write_text(AUDITED_WELL.split("<script")[0] + "</head></html>")
+    page.write_text(
+        AUDITED_WELL.split("<script")[0] + "</head></html>", encoding="utf-8"
+    )
 
     result = CliRunner().invoke(main, ["audit", str(page)])
 
@@ -739,7 +756,7 @@ def test_audit_of_a_page_that_declares_nothing_exits_one(tmp_path):
 
 def test_audit_json_is_the_audit_itself(tmp_path):
     page = tmp_path / "home.html"
-    page.write_text(AUDITED_WELL)
+    page.write_text(AUDITED_WELL, encoding="utf-8")
 
     result = CliRunner().invoke(main, ["audit", str(page), "--json"])
 
@@ -898,7 +915,8 @@ def test_audit_reports_retired_limited_unchecked_and_featureless_records(tmp_pat
         "".join(
             f'<script type="application/ld+json">{json.dumps(node)}</script>'
             for node in nodes
-        )
+        ),
+        encoding="utf-8",
     )
 
     out = CliRunner().invoke(main, ["audit", str(page)]).stdout
@@ -941,7 +959,10 @@ def test_audit_folds_what_every_item_of_a_list_lacks_into_one_entry(tmp_path):
         "review": reviews,
     }
     page = tmp_path / "p.html"
-    page.write_text(f'<script type="application/ld+json">{json.dumps(node)}</script>')
+    page.write_text(
+        f'<script type="application/ld+json">{json.dumps(node)}</script>',
+        encoding="utf-8",
+    )
 
     out = CliRunner().invoke(main, ["audit", str(page)]).stdout
 
@@ -951,7 +972,7 @@ def test_audit_folds_what_every_item_of_a_list_lacks_into_one_entry(tmp_path):
 
 def test_sluicer_mcp_runs_the_mcp_server_as_sluicer_mcp_does(monkeypatch):
     """The MCP Registry starts a package's own command: uvx --with
-    'sluicer[mcp]' sluicer mcp."""
+    "sluicer[mcp]" sluicer mcp."""
     ran = []
     monkeypatch.setattr("sluicer.mcp_server.main", lambda: ran.append(True))
     result = CliRunner().invoke(main, ["mcp"])
@@ -977,3 +998,36 @@ def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):
     result = CliRunner().invoke(main, ["mcp"])
     assert result.exit_code == 1
     assert "sluicer[mcp]" in result.stderr and "Traceback" not in result.stderr
+
+
+def test_the_output_is_utf8_where_the_system_would_give_another_code_page(tmp_path):
+    """Windows gives a pipe cp1252, and a Chinese title printed to one raised.
+
+    Run as a user runs it, a process of its own, with its streams set to the
+    code page a Windows pipe gets.
+    """
+    page = tmp_path / "page.html"
+    page.write_text(
+        "<html><head><title>2023年5月10日 新闻</title></head></html>", encoding="utf-8"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", "from sluicer.cli import main; main()", "extract", page],
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
+    title = json.loads(done.stdout.decode("utf-8"))["summary"]["title"]["value"]
+    assert title == "2023年5月10日 新闻"
+
+
+def test_text_piped_in_is_read_as_utf8_whatever_the_code_page():
+    piped = io.TextIOWrapper(
+        io.BytesIO("https://例え.jp/\n".encode()), encoding="cp1252"
+    )
+    shown = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+
+    cli._speak_utf8(piped, shown)
+
+    assert piped.read() == "https://例え.jp/\n"
+    assert shown.encoding == "utf-8"

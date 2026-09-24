@@ -248,7 +248,7 @@ def test_the_audit_report_says_which_capture_it_audited(archived):
 
 def test_at_needs_an_address_and_no_stealth(tmp_path):
     page = tmp_path / "p.html"
-    page.write_text(PAGE)
+    page.write_text(PAGE, encoding="utf-8")
     on_a_file = CliRunner().invoke(main, ["extract", str(page), "--at", "2020"])
     assert on_a_file.exit_code == 2
     assert "is not one" in on_a_file.stderr

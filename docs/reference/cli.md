@@ -331,7 +331,7 @@ Usage: sluicer mcp [OPTIONS]
   Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
 
   For a client that starts a package's own command, as the MCP Registry's entry does:
-  uvx --with 'sluicer[mcp]' sluicer mcp.
+  uvx --with "sluicer[mcp]" sluicer mcp.
 
 Options:
   --help  Show this message and exit.

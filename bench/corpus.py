@@ -32,11 +32,15 @@ _WANTED = ("test/", "metadata.json", "LICENSE", "README.md")
 def ensure() -> Path:
     """The page list for the pinned test split, downloading it the first time."""
     marker = CORPUS / "COMMIT"
-    if PAGES.exists() and marker.exists() and marker.read_text().strip() == COMMIT:
+    if (
+        PAGES.exists()
+        and marker.exists()
+        and marker.read_text(encoding="utf-8").strip() == COMMIT
+    ):
         return PAGES
     _download()
-    marker.write_text(COMMIT + "\n")
-    PAGES.write_text(json.dumps(_pages(), indent=1) + "\n")
+    marker.write_text(COMMIT + "\n", encoding="utf-8")
+    PAGES.write_text(json.dumps(_pages(), indent=1) + "\n", encoding="utf-8")
     return PAGES
 
 
@@ -68,13 +72,15 @@ def _download() -> None:
 
 def _pages() -> list[dict[str, str | None]]:
     """Every test page: its id, address, type, HTML path and three labels."""
-    metadata = json.loads((CORPUS / "metadata.json").read_text())
+    metadata = json.loads((CORPUS / "metadata.json").read_text(encoding="utf-8"))
     pages = []
     for file_id, info in sorted(metadata["files"].items()):
         if info.get("split") != "test":
             continue
         truth = json.loads(
-            (CORPUS / "test" / "ground-truth" / f"{file_id}.json").read_text()
+            (CORPUS / "test" / "ground-truth" / f"{file_id}.json").read_text(
+                encoding="utf-8"
+            )
         )
         labels = truth.get("ground_truth") or {}
         pages.append(

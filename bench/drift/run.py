@@ -527,7 +527,7 @@ def _scrapling_version(scr: list[dict[str, Any]]) -> str:
 def _archive_errors() -> list[str]:
     """The pages whose captures the archive kept failing to give."""
     failed = []
-    for line in (HERE / "discover.log").read_text().splitlines():
+    for line in (HERE / "discover.log").read_text(encoding="utf-8").splitlines():
         if line.startswith("{"):
             row = json.loads(line)
             roles = {"A": "A", "A2": "A2", "B_short": "short B", "B_long": "long B"}
@@ -546,7 +546,7 @@ def _count(items: list[str]) -> dict[str, int]:
 
 
 def write_page(results: list[dict[str, Any]], seconds: float) -> None:
-    written = json.loads((HERE / "explanations.json").read_text())
+    written = json.loads((HERE / "explanations.json").read_text(encoding="utf-8"))
     explained, notes = written["losses"], written["notes"]
     ok = [r for r in results if "error" not in r]
     commit = subprocess.run(
@@ -554,6 +554,7 @@ def write_page(results: list[dict[str, Any]], seconds: float) -> None:
         capture_output=True,
         text=True,
         cwd=ROOT,
+        encoding="utf-8",
     ).stdout.strip()
     tally = _count([r["outcome"] for r in ok])
     drift = [r for r in ok if r["oracle"] == "drift"]
@@ -673,7 +674,7 @@ def write_page(results: list[dict[str, Any]], seconds: float) -> None:
             f"{r['outcome']} | {heal_txt} | {_cell(scr_txt)} |"
         )
     lines += ["", *_method_and_limits(ok)]
-    (ROOT / "docs" / "drift.md").write_text("\n".join(lines) + "\n")
+    (ROOT / "docs" / "drift.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _cell(text: str) -> str:
@@ -787,7 +788,7 @@ def main() -> None:
     parser.add_argument("--no-scrapling", action="store_true")
     parser.add_argument("--only", nargs="*", default=[])
     args = parser.parse_args()
-    pairs = json.loads((HERE / "pairs.json").read_text())
+    pairs = json.loads((HERE / "pairs.json").read_text(encoding="utf-8"))
     if args.only:
         pairs = [p for p in pairs if any(o in p["id"] for o in args.only)]
     started = time.perf_counter()
@@ -802,7 +803,9 @@ def main() -> None:
             flush=True,
         )
     seconds = time.perf_counter() - started
-    (CACHE / "results.json").write_text(json.dumps(results, indent=2, default=str))
+    (CACHE / "results.json").write_text(
+        json.dumps(results, indent=2, default=str), encoding="utf-8"
+    )
     if not args.only:
         write_page(results, seconds)
 

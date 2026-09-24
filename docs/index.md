@@ -64,11 +64,11 @@ model reads the page, so the same page always gives the same answer.
 ## Install
 
 ```bash
-uv pip install 'sluicer[fetch,markdown,mcp]'
+uv pip install "sluicer[fetch,markdown,mcp]"
 ```
 
-With pip, `pip install 'sluicer[fetch,markdown,mcp]'`; as a command in an
-environment of its own, `uv tool install 'sluicer[fetch,markdown,mcp]'`. The
+With pip, `pip install "sluicer[fetch,markdown,mcp]"`; as a command in an
+environment of its own, `uv tool install "sluicer[fetch,markdown,mcp]"`. The
 base install, `uv pip install sluicer`, reads HTML you already have with `lxml`
 and `click` alone. Each extra adds one job:
 
@@ -80,7 +80,7 @@ and `click` alone. Each extra adds one job:
 | `api` | the HTTP API, with `mcp` |
 | `microformats` | microformats2, which is off by default |
 
-For the browser rung, once: `uvx --from 'sluicer[fetch]' scrapling install`.
+For the browser rung, once: `uvx --from "sluicer[fetch]" scrapling install`.
 Without it, plain HTTP still works, and a page that wanted a browser comes back
 from the HTTP rung with the failed climb recorded.
 
@@ -154,8 +154,8 @@ found a documented rule broken. A drifted page never exits 0.
 ### In your agent
 
 ```bash
-claude mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp   # Claude Code
-codex mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp    # Codex
+claude mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp   # Claude Code
+codex mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp    # Codex
 ```
 
 Cursor, VS Code, Gemini CLI, Claude Desktop and Zed, and LangChain, the OpenAI

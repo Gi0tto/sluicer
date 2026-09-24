@@ -83,7 +83,7 @@ def test_a_crawl_written_to_a_file_resumes_without_asking_again(fake, tmp_path):
     assert "Resuming after the 2 pages" in second.stderr
     assert "3 pages: 3 read." in second.stderr
     assert [r[0] for r in fake.requests[asked:]] == [f"{ROOT}/b"]
-    assert [line["url"] for line in lines(out.read_text())] == [
+    assert [line["url"] for line in lines(out.read_text(encoding="utf-8"))] == [
         f"{ROOT}/",
         f"{ROOT}/a",
         f"{ROOT}/b",
@@ -92,7 +92,7 @@ def test_a_crawl_written_to_a_file_resumes_without_asking_again(fake, tmp_path):
 
 def test_a_file_that_holds_pages_is_not_written_over(fake, tmp_path):
     out = tmp_path / "pages.jsonl"
-    out.write_text('{"url": "https://example.com/"}\n')
+    out.write_text('{"url": "https://example.com/"}\n', encoding="utf-8")
 
     result = invoke("crawl", f"{ROOT}/", "--out", str(out))
 
@@ -151,7 +151,9 @@ def test_ctrl_c_keeps_what_was_written_and_says_how_to_go_on(fake, tmp_path):
 
     assert result.exit_code == 130
     assert "--resume continues" in result.stderr
-    assert [line["url"] for line in lines(out.read_text())] == [f"{ROOT}/"]
+    assert [line["url"] for line in lines(out.read_text(encoding="utf-8"))] == [
+        f"{ROOT}/"
+    ]
 
 
 def test_a_file_that_cannot_be_written_exits_two(fake, tmp_path):
@@ -167,7 +169,7 @@ def test_a_crawl_without_the_fetch_extra_says_how_to_install_it(monkeypatch):
     def missing(*args, **kwargs):
         raise FetchExtraMissing(
             "Fetching a URL needs scrapling, which is not installed. "
-            "Install it with: uv pip install 'sluicer[fetch]'"
+            'Install it with: uv pip install "sluicer[fetch]"'
         )
 
     monkeypatch.setattr("sluicer.cli.crawl_site", missing)
@@ -199,7 +201,9 @@ def test_a_missing_extra_found_mid_crawl_says_so_too(monkeypatch):
 
 def test_a_batch_reads_its_list_in_order_and_answers_every_line(fake, tmp_path):
     listed = tmp_path / "urls.txt"
-    listed.write_text(f"# products\n{ROOT}/b\n\n  {ROOT}/a  \nnot a url\n")
+    listed.write_text(
+        f"# products\n{ROOT}/b\n\n  {ROOT}/a  \nnot a url\n", encoding="utf-8"
+    )
 
     result = invoke("batch", str(listed))
 
@@ -219,7 +223,7 @@ def test_a_batch_reads_standard_input_and_resumes_from_its_file(fake, tmp_path):
     )
 
     assert result.exit_code == 0, result.stderr
-    assert [line["url"] for line in lines(out.read_text())] == [
+    assert [line["url"] for line in lines(out.read_text(encoding="utf-8"))] == [
         f"{ROOT}/a",
         f"{ROOT}/b",
     ]
@@ -227,7 +231,7 @@ def test_a_batch_reads_standard_input_and_resumes_from_its_file(fake, tmp_path):
 
 def test_a_batch_with_nothing_to_read_exits_two(fake, tmp_path):
     empty = tmp_path / "urls.txt"
-    empty.write_text("# nothing yet\n\n")
+    empty.write_text("# nothing yet\n\n", encoding="utf-8")
 
     assert invoke("batch", str(empty)).exit_code == 2
     assert invoke("batch", str(tmp_path / "missing.txt")).exit_code == 2
@@ -295,7 +299,7 @@ def test_a_batch_without_the_fetch_extra_says_how_to_install_it(monkeypatch):
     from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
     def missing(*args, **kwargs):
-        raise FetchExtraMissing("Install it with: uv pip install 'sluicer[fetch]'")
+        raise FetchExtraMissing('Install it with: uv pip install "sluicer[fetch]"')
 
     monkeypatch.setattr("sluicer.cli.extract_many", missing)
 

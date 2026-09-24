@@ -8,7 +8,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def listing():
-    return load((FIXTURES / "listing_no_declared_data.html").read_text())
+    return load(
+        (FIXTURES / "listing_no_declared_data.html").read_text(encoding="utf-8")
+    )
 
 
 def test_a_page_that_declares_nothing_still_yields_records():
@@ -53,14 +55,14 @@ def test_a_link_keeps_its_address():
 
 
 def test_induction_is_off_unless_asked():
-    html = (FIXTURES / "listing_no_declared_data.html").read_text()
+    html = (FIXTURES / "listing_no_declared_data.html").read_text(encoding="utf-8")
 
     assert sluicer.extract(html).records == []
     assert sluicer.extract(html, induce=True).records
 
 
 def test_a_page_that_declares_data_is_not_second_guessed():
-    html = (FIXTURES / "product_jsonld.html").read_text()
+    html = (FIXTURES / "product_jsonld.html").read_text(encoding="utf-8")
 
     result = sluicer.extract(html, induce=True)
 
@@ -74,7 +76,7 @@ def test_a_declaration_beats_a_list_on_the_same_page():
     declaration is what the page says about itself, and it is what comes back;
     the rows are what we would have noticed, and they are not induced.
     """
-    html = (FIXTURES / "product_jsonld_and_a_listing.html").read_text()
+    html = (FIXTURES / "product_jsonld_and_a_listing.html").read_text(encoding="utf-8")
 
     result = sluicer.extract(html, induce=True)
 
@@ -100,7 +102,7 @@ def test_a_page_with_nothing_to_induce_claims_nothing():
 
 def test_induction_says_so_when_it_is_what_answered():
     """A caller has to be able to tell which kind of claim they are holding."""
-    html = (FIXTURES / "listing_no_declared_data.html").read_text()
+    html = (FIXTURES / "listing_no_declared_data.html").read_text(encoding="utf-8")
 
     assert sluicer.extract(html, induce=True).sources == ["induced"]
     assert sluicer.extract(html).sources == []
@@ -108,7 +110,9 @@ def test_induction_says_so_when_it_is_what_answered():
 
 def test_a_crowded_head_does_not_silence_the_page():
     """The reviewer's first constructed page: 14 metas must not be the answer."""
-    doc = load((FIXTURES / "listing_under_a_crowded_head.html").read_text())
+    doc = load(
+        (FIXTURES / "listing_under_a_crowded_head.html").read_text(encoding="utf-8")
+    )
 
     records = induce(doc)
 
@@ -118,7 +122,11 @@ def test_a_crowded_head_does_not_silence_the_page():
 
 def test_the_sidebar_is_not_the_content():
     """The reviewer's second constructed page: the articles, not the widgets."""
-    doc = load((FIXTURES / "listing_between_sidebar_and_footer.html").read_text())
+    doc = load(
+        (FIXTURES / "listing_between_sidebar_and_footer.html").read_text(
+            encoding="utf-8"
+        )
+    )
 
     records = induce(doc)
 
@@ -238,7 +246,9 @@ def test_site_level_opengraph_says_nothing_about_the_rows():
     declared its list -- and the record they made is kept beside the induced
     ones rather than replaced by them.
     """
-    html = (FIXTURES / "site_opengraph_and_a_story_list.html").read_text()
+    html = (FIXTURES / "site_opengraph_and_a_story_list.html").read_text(
+        encoding="utf-8"
+    )
 
     result = sluicer.extract(html, induce=True)
 

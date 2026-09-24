@@ -288,7 +288,9 @@ def test_sluicer_feed_follows_the_feed_a_page_declares(monkeypatch):
 
 def test_sluicer_feed_says_what_is_not_a_feed_and_an_empty_one(tmp_path, monkeypatch):
     page = tmp_path / "page.html"
-    page.write_text("<html><head><title>No feed</title></head></html>")
+    page.write_text(
+        "<html><head><title>No feed</title></head></html>", encoding="utf-8"
+    )
     refused = CliRunner().invoke(main, ["feed", str(page)])
     assert refused.exit_code == 2 and "is not RSS, Atom or JSON Feed" in refused.stderr
     empty = tmp_path / "empty.xml"

@@ -4,12 +4,12 @@ Sluicer's MCP server is one command, and every client that speaks MCP can
 start it:
 
 ```bash
-uvx --with 'sluicer[mcp]' sluicer mcp
+uvx --with "sluicer[mcp]" sluicer mcp
 ```
 
 It needs [uv](https://docs.astral.sh/uv/) on the `PATH`; `uvx` fetches Sluicer
 and its `mcp` extra, which brings fetching and markdown, the first time.
-`sluicer-mcp`, after `uv pip install 'sluicer[mcp]'`, is the same server.
+`sluicer-mcp`, after `uv pip install "sluicer[mcp]"`, is the same server.
 
 Every one of its ten tools only reads -- the page it is given, or the web --
 and says so in its MCP annotations (`readOnlyHint`, not `destructiveHint`), so
@@ -24,7 +24,7 @@ metadata endpoint unless it is started with `SLUICER_ALLOW_PRIVATE=1`.
 ## Claude Code
 
 ```bash
-claude mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp
+claude mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp
 ```
 
 Or install the repository as a plugin, which brings the server and a skill
@@ -44,7 +44,7 @@ passes the repository's manifests. Installing from the marketplace was not run.
 ## Codex
 
 ```bash
-codex mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp
+codex mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp
 ```
 
 This writes the server into `~/.codex/config.toml`:
@@ -111,7 +111,7 @@ code --add-mcp '{"name":"sluicer","command":"uvx","args":["--with","sluicer[mcp]
 **Gemini CLI** -- run on 2026-09-24:
 
 ```bash
-gemini mcp add -s user sluicer uvx --with 'sluicer[mcp]' sluicer mcp
+gemini mcp add -s user sluicer uvx --with "sluicer[mcp]" sluicer mcp
 ```
 
 writes this into `~/.gemini/settings.json` (or `.gemini/settings.json` in a

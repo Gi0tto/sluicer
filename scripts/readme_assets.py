@@ -42,7 +42,7 @@ def inspect_svg() -> None:
         URL,
     ]
     output = subprocess.run(
-        command, cwd=ROOT, check=True, capture_output=True, text=True
+        command, cwd=ROOT, check=True, capture_output=True, text=True, encoding="utf-8"
     ).stdout
     # As wide as the longest line, so no line wraps as a terminal would not.
     width = max(len(line) for line in output.splitlines()) + 1

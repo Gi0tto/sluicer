@@ -164,7 +164,9 @@ def test_the_file_is_left_alone_where_robots_txt_refuses_it():
 
 def test_respect_tdm_refuses_a_page_that_reserves_its_rights(tmp_path):
     reserved = tmp_path / "reserved.html"
-    reserved.write_text(f"<html><head>{RESERVED}<title>T</title></head></html>")
+    reserved.write_text(
+        f"<html><head>{RESERVED}<title>T</title></head></html>", encoding="utf-8"
+    )
     refused = CliRunner().invoke(main, ["extract", str(reserved), "--respect", "tdm"])
     assert refused.exit_code == 2
     assert "reserves its text and data mining rights (TDMRep, by its meta)" in (

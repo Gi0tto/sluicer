@@ -40,7 +40,7 @@ def _sentence(doing: str, package: str, extra: str) -> str:
     useful thing."""
     return (
         f"{doing} needs {package}, which is not installed. "
-        f"Install it with: uv pip install 'sluicer[{extra}]'"
+        f'Install it with: uv pip install "sluicer[{extra}]"'
     )
 
 

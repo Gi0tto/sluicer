@@ -74,8 +74,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   scraping practice and the benchmarks' own pages are still named, as their
   sources. `docs/audit.md` audits `examples/brake-pads.html` rather than a
   table of real sites.
+- The suite runs on macOS and Windows too, where it had only ever run on
+  Linux. Every text the repository reads or writes names its encoding, and a
+  test reads every Python file to hold it so: on Windows the default is the
+  ANSI code page, and eleven tests read UTF-8 as cp1252. The install commands
+  are quoted with double quotes, which cmd, PowerShell and every POSIX shell
+  read alike.
 
 ### Fixed
+- On Windows the command line wrote its JSON and markdown to a file or a pipe
+  in the ANSI code page: `sluicer extract URL > out.json` on a page titled in
+  Chinese raised UnicodeEncodeError, and addresses piped to `batch` were read
+  in cp1252. Its standard streams are UTF-8 on every system now.
 - The CI no longer cancels one kind of run with another: dispatching the full
   run on main cancelled the push's run of the same commit, and 0.5.0's commit
   showed as failed though every check had passed.

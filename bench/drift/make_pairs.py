@@ -17,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 
 def main() -> None:
     pairs = []
-    for line in (HERE / "discover.log").read_text().splitlines():
+    for line in (HERE / "discover.log").read_text(encoding="utf-8").splitlines():
         if not line.startswith("{"):
             continue
         row = json.loads(line)
@@ -49,7 +49,9 @@ def main() -> None:
                     },
                 }
             )
-    (HERE / "pairs.json").write_text(json.dumps(pairs, indent=2) + "\n")
+    (HERE / "pairs.json").write_text(
+        json.dumps(pairs, indent=2) + "\n", encoding="utf-8"
+    )
     print(len(pairs), "pairs")
 
 
