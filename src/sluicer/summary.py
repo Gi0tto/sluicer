@@ -161,6 +161,12 @@ _DATE_NAMES = (
     "pubdate",
     "date",
 )
+# The names content systems give an account nobody named: WordPress's "admin",
+# Joomla's "Super User", Blogger's "Unknown". None is a person: on the
+# scoreboards' pages and trafilatura's evaluation set they gave seven answers,
+# six wrong or where the label has no author, and one where the label itself
+# reads "Unknown".
+_NO_ONE = frozenset({"admin", "administrator", "super user", "unknown"})
 _AUTHOR_NAMES = ("citation_author", "parsely-author", "sailthru.author", "byl")
 _TITLE_NAMES = ("citation_title",)
 _BYLINE = re.compile(r"^\s*by\s+", re.IGNORECASE)
@@ -428,6 +434,7 @@ def read_summary(
             answer.value.casefold() not in site_names
             or answer.value.casefold() in people
         )
+        and answer.value.casefold() not in _NO_ONE
         and any(c.isalpha() for c in answer.value)
     ]
     questions["title"] = [

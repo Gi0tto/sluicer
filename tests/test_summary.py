@@ -1001,3 +1001,13 @@ def test_every_author_tag_is_read_and_the_site_s_own_is_passed_over():
         '<meta name="author" content="Hankook Ilbo"></head></html>'
     )
     assert "author" not in extract(alone).summary
+
+
+def test_the_names_content_systems_give_nobody_are_no_author():
+    """Found on trafilatura's evaluation set: Blogger writes "Unknown" and
+    Joomla "Super User" where the author goes, and WordPress "admin"."""
+    for placeholder in ("admin", "Administrator", "Super User", "Unknown"):
+        page = f'<html><head><meta name="author" content="{placeholder}"></head></html>'
+        assert "author" not in extract(page).summary, placeholder
+    named = '<html><head><meta name="author" content="Anna Admin"></head></html>'
+    assert extract(named).summary["author"].value == "Anna Admin"
