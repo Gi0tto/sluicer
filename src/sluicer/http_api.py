@@ -1,11 +1,13 @@
-"""Sluicer over HTTP: the MCP server's tools, each at an address of its own.
+"""Sluicer over HTTP: the MCP server's tools, each at an address of its own,
+and the MCP server itself at ``/mcp``.
 
 ``sluicer serve`` runs it; it needs the ``api`` extra. No tool is written here
 a second time. The app is built from the server ``build_server`` returns,
 through the SDK's own ``list_tools`` and ``call_tool``, so an HTTP call gets the
 same argument validation, the same output-schema check and the same answer as
 an MCP call, and a tool registered there is at ``POST /v1/tools/<name>`` with
-nothing added here.
+nothing added here. ``/mcp`` is the SDK's own streamable HTTP transport over
+that same server, for a client that speaks MCP and not stdio (n8n, Dify).
 
 What this module adds is what a socket needs and stdio does not: a status for
 every answer (``STATUS``), a bearer token, a refusal to listen beyond loopback
@@ -87,6 +89,9 @@ PAGE_ARGUMENTS = ("html_or_url", "url", "url_or_text", "pages")
 A test holds every tool to naming its page with one of these.
 """
 
+MCP_PATH = "/mcp"
+"""Where ``serve`` answers MCP over streamable HTTP."""
+
 MAX_CONNECTIONS = 64
 """Connections uvicorn holds at once before it answers 503 itself."""
 
@@ -114,6 +119,7 @@ DOOR_STATUS: dict[str, int] = {
     "method_not_allowed": 405,
     "unsupported_media_type": 415,
     "misdirected": 421,
+    "cross_origin": 403,
     "internal_error": 500,
     "timed_out": 504,
 }
@@ -122,7 +128,7 @@ DOOR_STATUS: dict[str, int] = {
 It also answers ``bad_input`` (a body that is not a JSON object, or arguments
 that do not fit the tool's input schema) and ``too_large`` (a body over
 ``MAX_BODY_BYTES``) with the tools' own statuses. ``timed_out`` is the only
-retryable one here.
+retryable one here. Only ``/mcp`` answers ``cross_origin``.
 """
 
 STATUS: dict[str, int] = {**TOOL_STATUS, **DOOR_STATUS}
@@ -196,6 +202,26 @@ def _addressed_locally(host_header: str | None) -> bool:
     return bool(name) and (not port or port.isdigit()) and is_loopback(name)
 
 
+def _from_here(origin: str | None, host: str | None) -> bool:
+    """Whether a request's ``Origin``, when it sends one, is this server's own.
+
+    MCP's streamable HTTP transport must refuse an ``Origin`` that is not valid
+    with a 403 (spec 2026-07-28, "Security Warning"). A browser sends one with
+    every POST; a client that is not a browser, as n8n's and Dify's are not,
+    sends none. This server serves no page, so the only origin a browser could
+    rightly name is its own: the scheme and the very ``Host`` it was asked by.
+    ``null``, a sandboxed or local file's origin, is not.
+    """
+    if origin is None:
+        return True
+    scheme, _, place = origin.strip().lower().partition("://")
+    return (
+        scheme in ("http", "https")
+        and bool(place)
+        and place == (host or "").strip().lower()
+    )
+
+
 def _bearer_matches(header: str | None, token: str) -> bool:
     scheme, _, given = (header or "").partition(" ")
     return scheme.lower() == "bearer" and hmac.compare_digest(
@@ -222,7 +248,7 @@ def _unfit(name: str, refused: Exception) -> str:
 
 
 def _modules() -> SimpleNamespace:
-    """Starlette and the SDK's tool errors, or say the ``api`` extra is missing.
+    """Starlette and the SDK's parts, or say the ``api`` extra is missing.
 
     Only an absent top-level package counts as the extra missing; a broken
     install keeps its traceback, as everywhere else (``sluicer.extras``).
@@ -241,6 +267,9 @@ def _modules() -> SimpleNamespace:
     return SimpleNamespace(
         applications=applications,
         tool_errors=tool_errors,
+        types=importlib.import_module("mcp.types"),
+        transport_security=importlib.import_module("mcp.server.transport_security"),
+        datastructures=importlib.import_module("starlette.datastructures"),
         exceptions=importlib.import_module("starlette.exceptions"),
         responses=importlib.import_module("starlette.responses"),
         routing=importlib.import_module("starlette.routing"),
@@ -327,6 +356,12 @@ def build_app(
     may fetch and ``max_reads`` that fetch nothing run at once, each kind on
     workers of its own. Returns a Starlette app, typed ``Any`` because
     starlette is never imported at module level.
+
+    ``/mcp`` is ``server``'s own streamable HTTP app, stateless, behind the
+    same checks and an ``Origin`` check of its own. So that an MCP call runs on
+    the same workers within the same budget, ``server.call_tool`` is replaced
+    by one that does, the SDK's own kept as its ``__wrapped__``: the server
+    handed in is changed, and stays so.
     """
     web = _modules()
     if server is None:
@@ -337,7 +372,9 @@ def build_app(
     reading = ThreadPoolExecutor(
         max_workers=max_reads, thread_name_prefix="sluicer-read"
     )
-    direct = server.call_tool
+    # A second app over the same server must not run its calls through the
+    # first app's workers, which it would reach through the first's stand-in.
+    direct = getattr(server.call_tool, "__wrapped__", server.call_tool)
 
     async def run(name: str, arguments: dict[str, Any]) -> Any:
         """One call on a worker of the pool its arguments choose."""
@@ -345,6 +382,41 @@ def build_app(
         return await asyncio.wrap_future(
             pool.submit(_run_tool, direct, name, arguments)
         )
+
+    async def call_over_mcp(
+        name: str, arguments: dict[str, Any], context: Any = None
+    ) -> Any:
+        """The SDK's ``call_tool`` for ``/mcp``: on the workers, within the budget.
+
+        The SDK maps what this raises -- arguments that do not fit, a bug --
+        as it does over stdio. A call that runs out of time is a tool error,
+        MCP's own way to say a call failed: ``timed_out`` is no code of a
+        tool's output schema, which a client checks structured content by.
+        """
+        try:
+            return await asyncio.wait_for(run(name, arguments), timeout)
+        except asyncio.TimeoutError:
+            said = web.types.TextContent(
+                type="text",
+                text=f"timed_out: the call took longer than its {timeout:g} "
+                "seconds; the same call may finish in time later",
+            )
+            return web.types.CallToolResult(content=[said], is_error=True)
+
+    call_over_mcp.__wrapped__ = direct  # type: ignore[attr-defined]
+    server.call_tool = call_over_mcp
+    # The checks are this module's (``barred``), so the SDK's are turned off:
+    # its list of hosts would refuse a Host of "localhost" with no port, and
+    # every Host at all when listening beyond loopback.
+    streamable = server.streamable_http_app(
+        streamable_http_path=MCP_PATH,
+        stateless_http=True,
+        json_response=True,
+        max_request_body_size=max_body,
+        transport_security=web.transport_security.TransportSecuritySettings(
+            enable_dns_rebinding_protection=False
+        ),
+    )
 
     def send(
         answer: Mapping[str, Any],
@@ -366,26 +438,45 @@ def build_app(
     ) -> Any:
         return send(refusal(code, message, retryable=retryable), STATUS[code], headers)
 
+    def barred(
+        headers: Mapping[str, str], *, open_to_all: bool = False, origin: bool = False
+    ) -> tuple[str, str, dict[str, str] | None] | None:
+        """What the door refuses a request for before reading it, if anything:
+        its code, its sentence and the headers it is sent with."""
+        if local_only and not _addressed_locally(headers.get("host")):
+            return (
+                "misdirected",
+                "this server answers only requests addressed to this machine "
+                "(localhost, 127.0.0.1 or [::1])",
+                None,
+            )
+        if origin and not _from_here(headers.get("origin"), headers.get("host")):
+            return (
+                "cross_origin",
+                "this server answers no page from another origin; a client that "
+                "is not a browser sends no Origin",
+                None,
+            )
+        if (
+            token is not None
+            and not open_to_all
+            and not _bearer_matches(headers.get("authorization"), token)
+        ):
+            return (
+                "unauthorized",
+                "this server needs the header Authorization: Bearer <token>",
+                {"WWW-Authenticate": 'Bearer realm="sluicer"'},
+            )
+        return None
+
     def guarded(
         handler: Callable[[Any], Awaitable[Any]], *, open_to_all: bool = False
     ) -> Callable[[Any], Awaitable[Any]]:
         async def endpoint(request: Any) -> Any:
-            if local_only and not _addressed_locally(request.headers.get("host")):
-                return refuse(
-                    "misdirected",
-                    "this server answers only requests addressed to this machine "
-                    "(localhost, 127.0.0.1 or [::1])",
-                )
-            if (
-                token is not None
-                and not open_to_all
-                and not _bearer_matches(request.headers.get("authorization"), token)
-            ):
-                return refuse(
-                    "unauthorized",
-                    "this server needs the header Authorization: Bearer <token>",
-                    headers={"WWW-Authenticate": 'Bearer realm="sluicer"'},
-                )
+            refused = barred(request.headers, open_to_all=open_to_all)
+            if refused is not None:
+                code, message, headers = refused
+                return refuse(code, message, headers=headers)
             try:
                 return await asyncio.wait_for(handler(request), timeout)
             except asyncio.TimeoutError:
@@ -464,11 +555,35 @@ def build_app(
     async def crashed(request: Any, failure: Exception) -> Any:
         return refuse("internal_error", "the server failed; its log has the traceback")
 
+    async def mcp(scope: Any, receive: Any, send: Any) -> None:
+        """``/mcp``, once the door lets the request through.
+
+        A refusal is a JSON-RPC error with no ``id``, as the transport's own
+        are, with the door's code in its ``data``.
+        """
+        refused = barred(web.datastructures.Headers(scope=scope), origin=True)
+        if refused is None:
+            await streamable(scope, receive, send)
+            return
+        code, message, headers = refused
+        error = {"code": -32600, "message": message, "data": {"code": code}}
+        answer = web.responses.JSONResponse(
+            {"jsonrpc": "2.0", "id": None, "error": error},
+            status_code=STATUS[code],
+            headers=headers,
+        )
+        await answer(scope, receive, send)
+
     @contextlib.asynccontextmanager
     async def lifespan(app: Any) -> AsyncIterator[None]:
-        yield
-        for pool in (fetching, reading):
-            pool.shutdown(wait=False, cancel_futures=True)
+        try:
+            # The SDK's own lifespan for its app: the task group every
+            # request to /mcp runs in.
+            async with streamable.router.lifespan_context(streamable):
+                yield
+        finally:
+            for pool in (fetching, reading):
+                pool.shutdown(wait=False, cancel_futures=True)
 
     route = web.routing.Route
     return web.applications.Starlette(
@@ -477,6 +592,9 @@ def build_app(
             route("/v1/tools", guarded(listing), methods=["GET"]),
             route("/v1/tools/{name}", guarded(call), methods=["POST"]),
             route("/openapi.json", guarded(openapi), methods=["GET"]),
+            # An ASGI app, not a function, so every method reaches the SDK,
+            # which answers each as the transport says.
+            route(MCP_PATH, _Asgi(mcp)),
         ],
         exception_handlers={
             web.exceptions.HTTPException: unrouted,
@@ -484,6 +602,19 @@ def build_app(
         },
         lifespan=lifespan,
     )
+
+
+class _Asgi:
+    """An ASGI callable Starlette routes to as it is, every method included.
+
+    A plain function would be taken for an endpoint that answers a request.
+    """
+
+    def __init__(self, app: Callable[[Any, Any, Any], Awaitable[None]]) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        await self.app(scope, receive, send)
 
 
 async def _described(server: Any) -> list[dict[str, Any]]:
@@ -643,7 +774,7 @@ def _json(description: str, schema: str) -> dict[str, Any]:
 
 def _error_responses(*, secured: bool, local_only: bool) -> dict[str, Any]:
     """One response per status a request that reached a tool's address can get."""
-    unreachable = {"not_found", "method_not_allowed"}
+    unreachable = {"not_found", "method_not_allowed", "cross_origin"}
     if not secured:
         unreachable.add("unauthorized")
     if not local_only:
