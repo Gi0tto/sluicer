@@ -183,7 +183,7 @@ that carry a label; an invention is an answer on a page whose label is empty.
 
 | | title | author | date | dates invented | seconds | packages |
 |---|---|---|---|---|---|---|
-| **sluicer 0.5.0** | 0.727 | 0.532 | 0.581 | **8** | **1.4** | **3** |
+| **sluicer 0.6.0** | 0.727 | 0.532 | 0.581 | **8** | **1.4** | **3** |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.2 | 17 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.5 | 125 |
@@ -194,7 +194,7 @@ holds as their servers sent them, scripts intact:
 
 | as served | title | author | date | right when it answers a date | dates invented |
 |---|---|---|---|---|---|
-| **sluicer 0.5.0** | 0.708 | 0.690 | 0.780 | **0.734** | **36** |
+| **sluicer 0.6.0** | 0.708 | 0.690 | 0.780 | **0.734** | **36** |
 | trafilatura 2.2.0 | 0.756 | 0.860 | 0.855 | 0.393 | 187 |
 | newspaper4k 0.9.6 | 0.767 | 0.705 | 0.786 | 0.658 | 54 |
 | metascraper 5.58.1 | 0.667 | 0.845 | 0.384 | 0.271 | 80 |
@@ -224,6 +224,15 @@ never wrong when it answers one; trafilatura finds more authors, 0.879 against
 name, which Sluicer does not count an author. See
 [the scoreboard on news in many languages](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md),
 with a table per language.
+
+On trafilatura's own evaluation set -- 990 pages it annotated to measure
+itself, 851 with their title, author and date -- Sluicer's titles are again
+the most often right of the four tools, 0.776 against trafilatura's 0.738; the
+authors and dates the annotators read off the visible page are trafilatura's,
+0.669 and 0.865 against 0.468 and 0.584. Sluicer's markdown, trafilatura's
+extraction written with its links kept, holds 2,670 of the 2,951 text snippets
+where trafilatura's plain text holds 2,785, the difference the links' own
+syntax. See [the scoreboard on trafilatura's evaluation set](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-evaldata.md).
 
 Extractors are measured too: learnt on Wayback Machine captures of 25 sites and
 replayed on later ones, 44 pairs, none failed silently and none raised a false
