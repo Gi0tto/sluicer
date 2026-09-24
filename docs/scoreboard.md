@@ -3,7 +3,7 @@
 How often Sluicer's `summary` gets a page's title, author and publication
 date right, measured beside the tools people use for the same job, on a
 public annotated corpus, with the losses in the same table as the wins.
-Regenerated on 2026-09-24 from commit `c94088c` by
+Regenerated on 2026-09-24 from commit `2d39953` by
 `uv run bench/run.py`; the method and every pin are in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -26,7 +26,7 @@ All 511 test pages:
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.5.0 | 0.727 | 0.532 | 0.581 | 42 | 8 |
+| sluicer 0.6.0 | 0.727 | 0.532 | 0.581 | 42 | 8 |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 98 | 216 |
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 125 | 84 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 50 | 52 |
@@ -35,7 +35,7 @@ The 359 article, listing, collection and product pages:
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.5.0 | 0.748 | 0.532 | 0.598 | 18 | 3 |
+| sluicer 0.6.0 | 0.748 | 0.532 | 0.598 | 18 | 3 |
 | trafilatura 2.2.0 | 0.723 | 0.750 | 0.866 | 45 | 124 |
 | metascraper 5.58.1 | 0.661 | 0.787 | 0.321 | 62 | 47 |
 | newspaper4k 0.9.6 | 0.748 | 0.532 | 0.625 | 21 | 27 |
@@ -44,7 +44,7 @@ The 359 article, listing, collection and product pages:
 
 | tool | seconds for all pages | packages installed |
 |---|---|---|
-| sluicer 0.5.0 | 1.44 | 3 |
+| sluicer 0.6.0 | 1.42 | 3 |
 | trafilatura 2.2.0 | 16.19 | 17 |
 | metascraper 5.58.1 | 2.53 | 125 |
 | newspaper4k 0.9.6 | 29.61 | 22 |
@@ -86,9 +86,9 @@ All 511 test pages:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.5.0 | title | 370 | 139 | 0 | 1 | 1 | 0.727 | 0.725 |
-| sluicer 0.5.0 | author | 100 | 11 | 77 | 281 | 42 | 0.532 | 0.654 |
-| sluicer 0.5.0 | date | 154 | 6 | 105 | 238 | 8 | 0.581 | 0.917 |
+| sluicer 0.6.0 | title | 370 | 139 | 0 | 1 | 1 | 0.727 | 0.725 |
+| sluicer 0.6.0 | author | 100 | 11 | 77 | 281 | 42 | 0.532 | 0.654 |
+| sluicer 0.6.0 | date | 154 | 6 | 105 | 238 | 8 | 0.581 | 0.917 |
 | trafilatura 2.2.0 | title | 379 | 130 | 0 | 1 | 1 | 0.745 | 0.743 |
 | trafilatura 2.2.0 | author | 141 | 17 | 30 | 225 | 98 | 0.750 | 0.551 |
 | trafilatura 2.2.0 | date | 222 | 42 | 1 | 30 | 216 | 0.838 | 0.463 |
@@ -103,9 +103,9 @@ The 359 article, listing, collection and product pages:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.5.0 | title | 267 | 90 | 0 | 1 | 1 | 0.748 | 0.746 |
-| sluicer 0.5.0 | author | 100 | 11 | 77 | 153 | 18 | 0.532 | 0.775 |
-| sluicer 0.5.0 | date | 134 | 3 | 87 | 132 | 3 | 0.598 | 0.957 |
+| sluicer 0.6.0 | title | 267 | 90 | 0 | 1 | 1 | 0.748 | 0.746 |
+| sluicer 0.6.0 | author | 100 | 11 | 77 | 153 | 18 | 0.532 | 0.775 |
+| sluicer 0.6.0 | date | 134 | 3 | 87 | 132 | 3 | 0.598 | 0.957 |
 | trafilatura 2.2.0 | title | 258 | 99 | 0 | 1 | 1 | 0.723 | 0.721 |
 | trafilatura 2.2.0 | author | 141 | 17 | 30 | 126 | 45 | 0.750 | 0.695 |
 | trafilatura 2.2.0 | date | 194 | 29 | 1 | 11 | 124 | 0.866 | 0.559 |
