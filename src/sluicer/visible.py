@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass
 from functools import cached_property
 from itertools import islice
+from typing import Any
 from urllib.parse import urlsplit
 
 from lxml.html import HtmlElement
@@ -179,10 +180,10 @@ class _Page:
         return [e for e, names in self.named if _DATE.search(names) and _small(e)]
 
     @cached_property
-    def texts(self) -> list[str]:
+    def texts(self) -> list[Any]:
         """The page's text nodes of more than one character, in order, each
         knowing its element: where a "By" or a "Published" line opens."""
-        return self.tree.xpath("//text()[string-length(normalize-space()) > 1]")
+        return list(self.tree.xpath("//text()[string-length(normalize-space()) > 1]"))
 
     @cached_property
     def listing(self) -> bool:
@@ -328,9 +329,7 @@ def _author(page: _Page) -> Guess | None:
     for opening in page.texts:
         if not _OPENS_BY.match(opening):
             continue
-        element = opening.getparent()
-        if opening.is_tail and element is not None:
-            element = element.getparent()
+        element = _box_of(opening)
         found = _by_line(page, opening, element)
         if found is not None:
             lines.append(found)
@@ -369,6 +368,15 @@ def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | 
                 return Guess(name, _where(element), "by-line")
         element = element.getparent()
     return None
+
+
+def _box_of(text: Any) -> HtmlElement | None:
+    """The element whose text ``text``, a text node lxml gave, is: its
+    parent's, when it is the tail after a child."""
+    element: HtmlElement | None = text.getparent()
+    if text.is_tail and element is not None:
+        element = element.getparent()
+    return element
 
 
 def _name_after(element: HtmlElement, label: str) -> str | None:
@@ -439,9 +447,7 @@ def _date_in_a_line(page: _Page, updates: bool) -> Guess | None:
     for opening in page.texts:
         if not _PUBLISHED_LINE.match(opening):
             continue
-        element = opening.getparent()
-        if opening.is_tail and element is not None:
-            element = element.getparent()
+        element = _box_of(opening)
         if element is None or not _small(element) or page.aside(element):
             continue
         text = _text(element)
@@ -564,9 +570,9 @@ def _date(page: _Page) -> Guess | None:
         )
         if value:
             return Guess(value, _where(element), "date-text")
-    near = _date_near_heading(page)
-    if near is not None:
-        return near
+    beside = _date_near_heading(page)
+    if beside is not None:
+        return beside
     written = _date_in_a_line(page, updates=False)
     if written is not None:
         return written
