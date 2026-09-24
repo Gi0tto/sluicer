@@ -1342,3 +1342,21 @@ def test_the_server_reads_the_tools_asked_for_from_its_environment(monkeypatch):
     server_module.main()
     server_module.main(tools=["read_feed"])
     assert asked == [["extract_declared", "map_site"], None, ["read_feed"]]
+
+
+def test_a_tool_that_does_not_exist_stops_the_server_in_one_line(monkeypatch, capsys):
+    """The documented message, and exit 2 as for any wrong option: a
+    traceback put the list of the ten under thirty lines of click's frames."""
+    fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    for asked in (["bogus"], None):
+        if asked is None:
+            monkeypatch.setenv("SLUICER_MCP_TOOLS", "bogus")
+        with pytest.raises(SystemExit) as raised:
+            server_module.main(tools=asked)
+        assert raised.value.code == 2
+        said = capsys.readouterr().err
+        assert "no such tool: 'bogus'" in said
+        assert all(name in said for name in TOOLS)
+        assert "Traceback" not in said

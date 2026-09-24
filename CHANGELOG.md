@@ -4,6 +4,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Fixed
+- `sluicer mcp --tools bogus`, and `SLUICER_MCP_TOOLS=bogus sluicer-mcp`,
+  printed a traceback; they print the one line that lists the ten tools and
+  exit 2, as a wrong option does.
+
 ### Changed
 - The suite runs in a random order (pytest-randomly, now a development
   dependency), and CI seeds the order with the run's id. Two tests passed only

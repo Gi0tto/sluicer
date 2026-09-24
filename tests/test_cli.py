@@ -982,6 +982,21 @@ def test_sluicer_mcp_runs_the_mcp_server_as_sluicer_mcp_does(monkeypatch):
     assert ran == [None, ["extract_declared", "map_site"]]
 
 
+def test_sluicer_mcp_with_a_tool_that_does_not_exist_is_an_error_not_a_traceback(
+    monkeypatch,
+):
+    """`sluicer mcp --tools bogus` printed thirty lines of traceback."""
+    from test_mcp_server import fake_mcp
+
+    fake_mcp(monkeypatch)
+    result = CliRunner().invoke(main, ["mcp", "--tools", "extract_declared,bogus"])
+    assert result.exit_code == 2
+    assert "no such tool: 'bogus'" in result.stderr
+    assert "crawl_site" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert isinstance(result.exception, SystemExit)
+
+
 def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):
     import sys
 

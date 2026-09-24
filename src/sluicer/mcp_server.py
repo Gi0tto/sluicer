@@ -86,6 +86,10 @@ class McpExtraMissing(MissingExtra):
     """The optional ``mcp`` extra is not installed, as opposed to broken."""
 
 
+class UnknownTool(ValueError):
+    """A tool asked for by name is not one of the ten."""
+
+
 def _server_class() -> Any:
     """Return the SDK's ``MCPServer`` class, or say the extra is not installed.
 
@@ -283,7 +287,8 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
 
     ``tools`` names the ones to register, when a client wants fewer: each
     registered tool costs an agent context whether it is called or not. A
-    name that is not one of the ten is a ``ValueError`` that lists them.
+    name that is not one of the ten is an ``UnknownTool``, a ``ValueError``,
+    that lists them.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
@@ -784,7 +789,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
 
     unknown = [name for name in wanted or () if name not in seen]
     if unknown:
-        raise ValueError(
+        raise UnknownTool(
             f"no such tool: {', '.join(map(repr, unknown))}; "
             f"the tools are {', '.join(seen)}"
         )
@@ -875,8 +880,9 @@ def main(tools: Iterable[str] | None = None) -> None:
     """Run the server over stdio, or explain a missing ``mcp`` extra in one line.
 
     ``tools`` names the tools to register, or ``SLUICER_MCP_TOOLS`` does; all
-    ten when neither says. A broken install, as opposed to a missing one,
-    keeps its traceback.
+    ten when neither says. A name that is not a tool exits 2, as a wrong
+    option does, with the list of the ten. A broken install, as opposed to a
+    missing one, keeps its traceback.
     """
     if tools is None and os.environ.get(TOOLS_ENV, "").strip():
         tools = [n.strip() for n in os.environ[TOOLS_ENV].split(",") if n.strip()]
@@ -887,6 +893,9 @@ def main(tools: Iterable[str] | None = None) -> None:
         # the one line that says what to install is ever written.
         print(str(missing), file=sys.stderr, flush=True)
         raise SystemExit(1) from missing
+    except UnknownTool as unknown:
+        print(str(unknown), file=sys.stderr, flush=True)
+        raise SystemExit(2) from unknown
     # scrapling logs every request at INFO into the server's stderr, and sets
     # its level when first imported; a filter outlives that.
     logging.getLogger("scrapling").addFilter(
