@@ -1005,3 +1005,22 @@ def test_two_new_places_holding_the_same_values_are_no_tie_to_refuse():
     assert links and all(c.kind == "moved" for c in links), [
         (c.kind, c.before, c.after) for c in links
     ]
+
+
+def test_links_to_the_same_places_with_other_tracking_tags_read_alike():
+    """IMDb's poster links carry ?ref_=chttp_i_1 and its title links
+    ?ref_=chttp_t_1: both go to the film."""
+    before = (
+        '<li class="film"><a class="poster" href="/f/{n}"><img alt="p"></a>'
+        '<a class="title" href="/f/{n}">{title}</a></li>'
+    )
+    after = (
+        '<li class="film"><a class="pic" href="/f/{n}?ref_=i_{n}"><img alt="p"></a>'
+        '<a class="name" href="/f/{n}?ref_=t_{n}">{title}</a></li>'
+    )
+    learnt = compile_extractor([_books(before)], listing=True)
+    _healed, changes = heal(learnt, [_books(after)])
+    links = [c for c in changes if c.before and c.before.endswith("@href")]
+    assert links and all(c.kind == "moved" for c in links), [
+        (c.kind, c.before, c.after) for c in links
+    ]

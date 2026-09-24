@@ -1672,7 +1672,7 @@ def _heal_listing(
             and seen_in(f, path) == evidence["seen"]
             and fresh[path].missing == fresh[place].missing
             and _element_kind(path) == _element_kind(place)
-            and values.get(path) != values.get(place)
+            and not _read_alike(path, place, values)
             for path in fresh
         ):
             kind_ = "ambiguous"
@@ -1708,6 +1708,20 @@ def _heal_listing(
         new.container, new.member, new.rows, fields, new.empty, chosen=old.chosen
     )
     return listing, changes
+
+
+def _read_alike(one: str, other: str, values: dict[str, list[str]]) -> bool:
+    """Whether two places read the same values on the pages given: addresses
+    by where they go, their parameters aside, since a poster and a title that
+    both link to the film carry different tracking tags."""
+
+    def read(path: str) -> set[str]:
+        held = values.get(path, [])
+        if _is_address(path):
+            return {value.partition("?")[0] for value in held}
+        return set(held)
+
+    return read(one) == read(other)
 
 
 def _element_kind(path: str) -> tuple[str, str]:
