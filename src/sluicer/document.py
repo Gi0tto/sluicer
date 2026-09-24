@@ -6,7 +6,8 @@ import codecs
 import functools
 import re
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 from urllib.parse import quote, urljoin
 
 import lxml.etree
@@ -66,6 +67,10 @@ _BODY = re.compile(rb"<body\b", re.IGNORECASE)
 _SNIFF_LIMIT = 64 * 1024
 # What the URL standard strips from an address's ends: C0 controls and space.
 _C0_OR_SPACE = "".join(chr(code) for code in range(0x21))
+# ``str.isspace``'s characters, as one search in C: asked character by character
+# in Python of every address on a page, it was a tenth of the time a page took.
+# The two agree on every code point.
+_ANY_SPACE = re.compile(r"\s")
 
 
 def sniff_encoding(data: bytes, transport: str | None = None) -> str:
@@ -228,6 +233,13 @@ class Document:
     url: str | None = None
     base: str | None = None
     """What relative links resolve against, worked out once by ``load``."""
+    memo: dict[str, Any] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+    """What several readers scan the page for, scanned once: the ``<meta>``
+    tags, read by five of them. The tree is never changed after ``load``, so
+    a scan stays true of it; what is kept here is never handed out to be
+    changed."""
 
 
 def load(
@@ -374,7 +386,7 @@ def clean_address(address: str) -> str:
     """
     text = address.strip(_C0_OR_SPACE)
     text = text.replace("\t", "").replace("\n", "").replace("\r", "")
-    if any(c.isspace() for c in text):
+    if _ANY_SPACE.search(text):
         text = "".join(quote(c, safe="") if c.isspace() else c for c in text)
     return text
 

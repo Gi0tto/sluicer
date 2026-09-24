@@ -332,3 +332,36 @@ def test_an_extraction_carries_the_arrays_and_answers_with_the_first():
     ]
     assert record.fields["article:tag"].value == ["brakes", "pads"]
     assert result.summary["image"].value == "https://example.com/a.jpg"
+
+
+def test_the_meta_tags_are_scanned_once_a_page_whoever_asks(monkeypatch):
+    from sluicer import extract
+    from sluicer.declared import meta
+
+    scans = []
+    real = meta._scan
+
+    def counting(doc):
+        scans.append(doc)
+        return real(doc)
+
+    monkeypatch.setattr(meta, "_scan", counting)
+    result = extract(
+        '<meta property="og:title" content="Pad"><meta name="twitter:card"'
+        ' content="summary"><meta name="description" content="Brake pads">'
+    )
+
+    assert len(scans) == 1
+    assert result.summary["title"].value == "Pad"
+    assert result.records[0].fields["card"].value == "summary"
+
+
+def test_a_caller_changing_the_keys_it_was_given_changes_no_other_reading():
+    from sluicer.declared.meta import meta_tags
+    from sluicer.document import load
+
+    doc = load('<meta property="og:title" content="Pad">')
+    first = list(meta_tags(doc))
+    first[0][0].append("og:description")
+
+    assert [keys for keys, _, _ in meta_tags(doc)] == [["og:title"]]

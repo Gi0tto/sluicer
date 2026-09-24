@@ -461,3 +461,16 @@ def test_a_page_s_newlines_are_normalised_as_a_browser_normalises_them():
         assert fields["description"] == "one\ntwo\nthree"
         assert fields["reviewBody"] == "good\nvalue"
         assert fields["keywords"] == "brakes\npads"
+
+
+def test_an_address_s_spaces_are_found_as_str_isspace_finds_them():
+    """``clean_address`` searches with ``\\s``: it must be ``str.isspace``'s set."""
+    import sys
+
+    from sluicer.document import _ANY_SPACE
+
+    assert [
+        code
+        for code in range(sys.maxunicode + 1)
+        if bool(_ANY_SPACE.match(chr(code))) != chr(code).isspace()
+    ] == []

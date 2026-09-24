@@ -1305,12 +1305,7 @@ def _named(
     author tag is the paper and whose second is the reporter has the
     reporter as its author.
     """
-    found: dict[str, list[tuple[str, HtmlElement]]] = {}
-    for meta in doc.tree.xpath("//meta[@name][@content]"):
-        text = _clean(meta.get("content"))
-        if text:
-            name = (meta.get("name") or "").strip().lower()
-            found.setdefault(name, []).append((text, meta))
+    found = _meta_names(doc)
     for name in names:
         if name in found:
             # Each name once, at the first tag that gives it. Never empty: a
@@ -1332,15 +1327,38 @@ def _named(
     return None
 
 
+def _meta_names(doc: Document) -> dict[str, list[tuple[str, HtmlElement]]]:
+    """Every ``<meta name>`` with a text, by its name lowercased, in page order.
+
+    Read once per page: the summary asks it four times, for a title, two kinds
+    of author and a date.
+    """
+    found: dict[str, list[tuple[str, HtmlElement]]] | None = doc.memo.get(
+        "summary.meta_names"
+    )
+    if found is None:
+        found = doc.memo["summary.meta_names"] = {}
+        for meta in doc.tree.xpath("//meta[@name][@content]"):
+            text = _clean(meta.get("content"))
+            if text:
+                name = (meta.get("name") or "").strip().lower()
+                found.setdefault(name, []).append((text, meta))
+    return found
+
+
 def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
     """A ``<meta itemprop>`` outside any item, as templates put in the head.
 
     The microdata standard ignores it, having no item to give it to, so the
-    microdata reader does too. It is still the page stating the value.
+    microdata reader does too. It is still the page stating the value. The
+    tags are found once per page, for the three questions that ask.
     """
-    for meta in doc.tree.xpath(
-        "//meta[@itemprop][@content][not(ancestor::*[@itemscope])]"
-    ):
+    orphans: list[HtmlElement] | None = doc.memo.get("summary.orphan_itemprops")
+    if orphans is None:
+        orphans = doc.memo["summary.orphan_itemprops"] = doc.tree.xpath(
+            "//meta[@itemprop][@content][not(ancestor::*[@itemscope])]"
+        )
+    for meta in orphans:
         if prop in (meta.get("itemprop") or "").split():
             text = _clean(meta.get("content"))
             if text:
