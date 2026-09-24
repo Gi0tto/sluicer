@@ -103,8 +103,9 @@ What it does not do: it speaks plain HTTP, so beyond one machine the token
 crosses the network in the clear unless TLS is put in front of it; there is one
 token, not an identity per caller, no rate limit and no log beyond uvicorn's
 access log. A caller holding the token can make the machine fetch any public
-URL, as fast as four workers allow. Put it where you would put a `curl` that
-anyone holding the token may point.
+URL, four calls at once, one request at a time and a second apart to any one
+site. Put it where you would put a `curl` that anyone holding the token may
+point.
 
 ## What a page can still do to you
 

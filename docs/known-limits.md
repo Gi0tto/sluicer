@@ -387,11 +387,17 @@ request. The HTTP rung, and the browser when guarded, refuse the hop before it
 is asked.
 
 **Pacing is kept per process.** When each site was last asked is remembered for
-the whole process, so one crawl after another keeps the delay; two processes
-do not share it, and neither do `sluicer map --plain | sluicer batch -`, whose
-second command starts as the first ends. One request at a time per site holds
-within a crawl; two crawls of one site running at once in one process each
-keep their own.
+the whole process, and a site is asked by one caller at a time, so one crawl
+after another, two at once, and single fetches beside them keep the delay; two
+processes do not share it, and neither do `sluicer map --plain | sluicer batch
+-`, whose second command starts as the first ends.
+
+**A single fetch waits a second, not a site's `Crawl-delay`.** A crawl reads a
+site's `Crawl-delay` and waits it; a single fetch -- the command line, an MCP or
+HTTP API call -- waits a second after the site's last request, whoever made
+it, and then asks robots.txt, the page and any climb one after another, as one
+visit. A redirect to another site inside that fetch is asked in the first
+site's turn, not its own.
 
 **A site is a host, not a domain.** `shop.example.com` and `blog.example.com`
 are two sites, paced apart and, for a crawl kept to its site, not followed

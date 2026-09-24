@@ -502,11 +502,8 @@ class _Visitor:
                 robots_refusal(address, self.polite.reader, now=self.polite.clock)
                 is None
             ):
-                self.polite.wait(address, self.polite.delay_for(address))
-                try:
+                with self.polite.turn(address, self.polite.delay_for(address)):
                     response = self.web.get(address)
-                finally:
-                    self.polite.ended(address)
                 if 200 <= response.status < 300:
                     rules = read_tdmrep(response.body.decode("utf-8", "replace"))
         # Deliberately blind: a file that could not be read, however, is a

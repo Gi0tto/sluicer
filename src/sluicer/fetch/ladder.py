@@ -31,6 +31,7 @@ from sluicer.fetch.address import (
     why_not_public,
     why_not_web,
 )
+from sluicer.fetch.gate import GATE, after
 from sluicer.fetch.identity import (
     UNAVAILABLE,
     UNREACHABLE,
@@ -205,7 +206,11 @@ def fetch(
     Args:
         url: an http(s) address.
         rungs: ``(name, rung)`` pairs, cheapest first; plain HTTP then a
-            browser by default. Injected so tests stay off the network.
+            browser by default. Injected so tests stay off the network. The
+            default rungs are the real web, so a fetch with them holds the
+            site in ``sluicer.fetch.gate`` for its whole length -- robots.txt,
+            the page, any climb -- a second after anyone's last request to it.
+            Injected rungs are the caller's to pace, as a crawl paces its own.
         obey_robots: ask the site's robots.txt first (the default), and again
             for the host a redirect ended on.
         stealth: append the stealth rung, which does not announce itself.
@@ -237,6 +242,7 @@ def fetch(
             could not be read.
         FetchExtraMissing: the ``fetch`` extra is not installed.
     """
+    gated = rungs is None
     if rungs is None:
         from sluicer.fetch.scrapling_rungs import default_rungs
 
@@ -263,6 +269,30 @@ def fetch(
     read = (
         robots_reader if robots_reader is not None else robots_reader_from(rungs[0][1])
     )
+    if not gated:
+        return _climb(url, rungs, obey_robots, read, allow_private, resolve, max_bytes)
+    with GATE.turn(url) as ready:
+        return _climb(
+            url,
+            [(name, after(ready, rung)) for name, rung in rungs],
+            obey_robots,
+            after(ready, read),
+            allow_private,
+            resolve,
+            max_bytes,
+        )
+
+
+def _climb(
+    url: str,
+    rungs: Sequence[tuple[str, Rung]],
+    obey_robots: bool,
+    read: Callable[[str], str | None],
+    allow_private: bool,
+    resolve: Callable[[str], Iterable[str]],
+    max_bytes: int,
+) -> Fetched:
+    """``fetch``'s requests: robots.txt, then the rungs, cheapest first."""
     if obey_robots:
         refusal = _robots(url, read)
         if refusal is not None:

@@ -256,7 +256,7 @@ Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 **Arguments**
 
 - `url`: an http(s) address.
-- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default. Injected so tests stay off the network.
+- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default. Injected so tests stay off the network. The default rungs are the real web, so a fetch with them holds the site in ``sluicer.fetch.gate`` for its whole length -- robots.txt, the page, any climb -- a second after anyone's last request to it. Injected rungs are the caller's to pace, as a crawl paces its own.
 - `obey_robots`: ask the site's robots.txt first (the default), and again for the host a redirect ended on.
 - `stealth`: append the stealth rung, which does not announce itself. Never automatic.
 - `robots_reader`: how robots.txt is read; built from the cheapest rung by default.

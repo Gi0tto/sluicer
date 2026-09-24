@@ -34,6 +34,7 @@ from sluicer.declared.headers import charset
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import sniff_encoding
 from sluicer.fetch.address import _resolve
+from sluicer.fetch.gate import GATE, after, ungated
 from sluicer.fetch.http_rung import Response
 from sluicer.fetch.ladder import (
     FetchFailed,
@@ -158,25 +159,52 @@ def fetch_cached(
         age = max(0.0, now - float(entry["stored"]))
         if cache.max_age is not None and age <= cache.max_age:
             return _kept(entry, CacheHit(round(age, 3), revalidated=False))
+    # The real web is asked in the site's turn, the question and the whole
+    # ladder after it as one fetch; an injected one is the caller's to pace.
+    real = rungs is None and transport is None
+    with GATE.turn(url) if real else ungated() as ready:
+        return _asked(
+            url,
+            cache,
+            entry,
+            now,
+            ready,
+            obey_robots,
+            stealth,
+            allow_private,
+            resolve,
+            max_bytes,
+            rungs,
+            transport,
+        )
+
+
+def _asked(
+    url: str,
+    cache: Cache,
+    entry: dict[str, Any] | None,
+    now: float,
+    ready: Callable[[], None],
+    obey_robots: bool,
+    stealth: bool,
+    allow_private: bool,
+    resolve: Callable[[str], Iterable[str]],
+    max_bytes: int,
+    rungs: Sequence[tuple[str, Rung]] | None,
+    transport: Transport | None,
+) -> Fetched:
+    """``fetch_cached``, once the kept page is not young enough to give back."""
+    if entry is not None:
         validators = _validators(entry["headers"])
         if validators and entry["rung"] == "http":
+            asking = _asking(validators, transport, allow_private, resolve, max_bytes)
+            plain = rungs[0][1] if rungs else _plain(allow_private, resolve, max_bytes)
             try:
                 answered = fetch(
                     url,
-                    rungs=[
-                        (
-                            "http",
-                            _asking(
-                                validators, transport, allow_private, resolve, max_bytes
-                            ),
-                        )
-                    ],
+                    rungs=[("http", after(ready, asking))],
                     obey_robots=obey_robots,
-                    robots_reader=robots_reader_from(
-                        rungs[0][1]
-                        if rungs
-                        else _plain(allow_private, resolve, max_bytes)
-                    ),
+                    robots_reader=robots_reader_from(after(ready, plain)),
                     allow_private=allow_private,
                     resolve=resolve,
                     max_bytes=max_bytes,

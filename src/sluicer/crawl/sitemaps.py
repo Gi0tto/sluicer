@@ -405,9 +405,9 @@ def _fetch_sitemap(
             f"its site asks for {delay:g} s between requests, "
             f"longer than the {max_delay:g} s this map waits"
         )
-    polite.wait(address, delay)
     try:
-        response = web.get(address)
+        with polite.turn(address, delay):
+            response = web.get(address)
     except MissingExtra:
         raise
     # Deliberately blind, as the ladder is about its rungs: every way a
@@ -415,8 +415,6 @@ def _fetch_sitemap(
     # sitemap was not read, and the sentence says why.
     except Exception as failure:  # noqa: BLE001
         return f"{type(failure).__name__}: {failure}"
-    finally:
-        polite.ended(address)
     if response.status != 200:
         return f"it answered {response.status}"
     try:

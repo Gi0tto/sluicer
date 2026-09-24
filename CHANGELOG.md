@@ -49,6 +49,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   again. Any rung answered 402 now raises `PaymentRequired`, a `FetchFailed`,
   and no other rung is asked; the MCP server, the HTTP API (402) and a crawl's
   page say `payment_required`, not retryable. Sluicer never pays.
+- One request at a time per site now holds for the whole process. Two crawls
+  of one site at once asked it in pairs 0.000 s apart, and parallel MCP
+  `extract_declared` calls -- the SDK runs each on a thread -- arrived within
+  3 ms of each other, each reading robots.txt again, while the docs promised
+  one request at a time with its delay. Every fetch of the real web now holds
+  its site in `sluicer.fetch.gate`: a crawl, a map or a batch for each
+  request, with its delay; a single fetch, from the command line, the MCP
+  server or the HTTP API, for its whole visit, a second after the site's last
+  request. Measured on a local site, four parallel `extract_declared` calls:
+  8 requests 0.000 s apart before, 5 requests a second apart now.
 
 ## 0.7.0 - 2026-09-24
 

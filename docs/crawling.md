@@ -51,7 +51,15 @@ A page that failed is an answer like any other: it comes back with its
   `www.`, over http or https, with its port when that is not the default:
   `www.example.com` and `example.com` are usually the same machines, and
   pacing them apart would ask them twice as often. Several sites are asked at
-  once, four by default, never more than once each.
+  once, four by default, never more than once each. One at a time holds for
+  the whole process, not only for one crawl: two crawls of one site, a map
+  beside them, or an agent's parallel `extract_declared` calls wait for each
+  other (`sluicer.fetch.gate`). A single fetch -- `sluicer extract`, an MCP or
+  HTTP API call -- is one visit: its `robots.txt`, the page and any climb follow
+  each other, and the next caller waits a second after it ends. Measured on a
+  local site, two crawls and four fetches at once: before, pairs of requests
+  0.000 s apart and two in flight at once; now none closer than the site's
+  `Crawl-delay`, never two at once.
 - **A delay counted from the end.** No request to a site starts sooner than a
   second (`--delay`, `min_delay`) after the last one ended, or its
   `Crawl-delay` when that is longer, or the interval its `Request-rate`
