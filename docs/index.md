@@ -234,7 +234,7 @@ invention is an answer on a page whose label is empty:
 | **sluicer 0.6.0** | 0.727 | 0.532 | 0.581 | **8** | **1.4** | **3** |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.2 | 17 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
-| metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.5 | 125 |
+| metascraper 5.58.1 | 0.654 | 0.787 | 0.725 | 84 | 2.8 | 125 |
 
 WCXB strips every `<script>`, and with it JSON-LD, the vocabulary Sluicer reads
 first. The same labels on the 360 of those pages a web archive holds as their
@@ -245,7 +245,7 @@ servers sent them, scripts intact:
 | **sluicer 0.6.0** | 0.708 | 0.690 | 0.780 | **0.734** | **36** |
 | trafilatura 2.2.0 | 0.756 | 0.860 | 0.855 | 0.393 | 187 |
 | newspaper4k 0.9.6 | 0.767 | 0.705 | 0.786 | 0.658 | 54 |
-| metascraper 5.58.1 | 0.667 | 0.845 | 0.384 | 0.271 | 80 |
+| metascraper 5.58.1 | 0.667 | 0.845 | 0.811 | 0.573 | 80 |
 
 33 of Sluicer's 36 invented dates are dates the page declares in its own
 JSON-LD and does not show a reader, which is what the labels describe. The

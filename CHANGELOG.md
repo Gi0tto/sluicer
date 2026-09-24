@@ -4,6 +4,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Fixed
+- The scoreboards asked metascraper for the wrong date. Its `date` puts
+  `dateModified` first, and the scoreboards score publication dates, so on
+  every page declaring both it was scored wrong for how it was called. It is
+  now asked for its publication date, and its dates go from 0.374 to 0.725 on
+  WCXB and from 0.384 to 0.811 on the pages as served; Sluicer's answers are
+  still the most often right when it answers a date, 0.734 against 0.573.
+
 ### Added
 - Every parameter of every MCP tool says what it is in the schema a client
   reads, taken word for word from the tool's own description: all 28 said
