@@ -38,6 +38,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   with how often it is right where nothing is declared.
 
 ### Changed
+- The README is rewritten to be read in a minute: highlights, install, a quick
+  start whose every line a test runs, the uses by audience, a comparison
+  table, and the scoreboards with a chart. Its pictures are generated, not
+  drawn: `scripts/readme_assets.py` runs `sluicer inspect` on
+  `examples/brake-pads.html` and charts the published scoreboard. The
+  documentation's home is the README (`scripts/docs_home.py`), held to it by a
+  test, since a copy kept by hand fell behind twice.
 - Development status is Beta. The public interface -- `extract`, the
   summary's questions, the MCP tools -- may still change before 1.0; every
   change is in this file.

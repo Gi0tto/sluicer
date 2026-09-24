@@ -13,93 +13,102 @@
 
 <p align="center">
   <a href="https://pypi.org/project/sluicer/"><img src="https://img.shields.io/pypi/v/sluicer" alt="PyPI"></a>
-  <a href="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml"><img src="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/network%20in%20tests-none-blue" alt="no network in tests">
-  <img src="https://img.shields.io/badge/LLM%20calls-none-blue" alt="no LLM calls">
-  <a href="https://github.com/Gi0tto/sluicer/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT%2C%20one%20file%20CC%20BY--SA%203.0-yellow.svg" alt="MIT, one file CC BY-SA 3.0"></a>
   <a href="https://pypi.org/project/sluicer/"><img src="https://img.shields.io/pypi/pyversions/sluicer" alt="Python versions"></a>
+  <a href="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml"><img src="https://github.com/Gi0tto/sluicer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Gi0tto/sluicer/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT%2C%20two%20data%20files%20their%20own-yellow.svg" alt="MIT, two data files under their own licences"></a>
+  <img src="https://img.shields.io/badge/LLM%20calls-none-blue" alt="no LLM calls">
+</p>
+
+<p align="center">
+  <a href="https://gi0tto.github.io/sluicer/"><b>Documentation</b></a> ·
+  <a href="https://github.com/Gi0tto/sluicer/blob/main/docs/agents.md"><b>In your agent</b></a> ·
+  <a href="https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md"><b>Scoreboards</b></a> ·
+  <a href="https://github.com/Gi0tto/sluicer/blob/main/docs/why.md"><b>Why Sluicer</b></a> ·
+  <a href="https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md"><b>Changelog</b></a>
 </p>
 
 ---
 
 Sluicer reads the structured data a web page already declares -- JSON-LD,
-microdata, RDFa, OpenGraph, the Twitter card, HTML's own meta names -- and
-merges it into one record per thing, every value naming the vocabulary, the key
-and the place on the page it came from. No model reads the page, so the same
-page always gives the same answer and a run costs CPU. Learn an extractor from
-a few pages of a template and every replay checks the page still keeps to it: a
-site that changed its layout fails loudly, and `heal` says what moved where.
+microdata, RDFa, OpenGraph and more -- and merges it into one record per thing,
+every value naming the vocabulary and the place on the page it came from. No
+model reads the page, so the same page always gives the same answer.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/inspect.svg" alt="sluicer inspect on a product page: one record merged from JSON-LD, microdata and OpenGraph; a summary in which every answer names its source; and the page's two prices, 41.90 and 39.90, reported as a conflict" width="860">
+</p>
+
+## Highlights
+
+- **Eight vocabularies, one record.** JSON-LD, microdata, RDFa, Dublin Core,
+  OpenGraph, the Twitter card, HTML's meta names and microformats2, merged
+  into one record per thing.
+- **Provenance for every value.** The vocabulary, the key, and the place on the
+  page: an XPath, and inside JSON-LD a pointer to the very value.
+- **A summary of 25 questions** -- title, author, date, price, currency,
+  availability, GTIN and the rest -- each answer naming where it came from, and
+  a **conflict** reported when the page answers one of them two ways.
+- **Extractors that fail loudly.** Learn one from a few pages of a template; a
+  page that drifted exits 3 instead of returning nulls for weeks, and `heal`
+  says what moved where.
+- **Deterministic and light.** No model and no key: the 511 pages of the WCXB
+  test set are read in 1.4 s, and the base install is three packages.
+- **Polite by construction.** It announces itself, obeys robots.txt and
+  `Crawl-delay`, waits a site's `Retry-After` in a crawl, and honours TDMRep
+  reservations when asked.
+- **Made for agents.** An MCP server with ten read-only tools, tried in Claude
+  Code, Codex and Gemini CLI, and the same tools over HTTP for any language.
+- **Measured in public, losses included.** Five scoreboards against
+  trafilatura, newspaper4k, metascraper, extruct, Zyte and Diffbot.
+
+## Install
 
 ```bash
-uv tool install 'sluicer[fetch,markdown,mcp]'
-sluicer extract product.html --url https://example.com/product
+uv pip install 'sluicer[fetch,markdown,mcp]'    # or pip install 'sluicer[fetch,markdown,mcp]'
 ```
 
-It prints, abridged:
+The base install, `uv pip install sluicer`, reads HTML you already have with
+`lxml` and `click` alone. Each extra adds one job:
 
-```json
-{
-  "summary": {
-    "title":    { "value": "Brake pad set", "source": "jsonld", "key": "Product.name",
-                  "where": "/html/head/script[1]#/name" },
-    "price":    { "value": "41.90", "source": "jsonld", "key": "Product.offers.price",
-                  "where": "/html/head/script[1]#/offers/price" },
-    "currency": { "value": "EUR", "source": "jsonld", "key": "Product.offers.priceCurrency",
-                  "where": "/html/head/script[1]#/offers/priceCurrency" },
-    "image":    { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "key": "og:image",
-                  "where": null }
-  },
-  "normalised": { "price": "41.90", "currency": "EUR" },
-  "records": [
-    {
-      "type": "Product",
-      "fields": {
-        "name":   { "value": "Brake pad set", "source": "jsonld", "where": "/html/head/script[1]#/name" },
-        "offers": { "value": { "@type": "Offer", "price": "41.90", "priceCurrency": "EUR" }, "source": "jsonld",
-                    "where": "/html/head/script[1]#/offers" },
-        "mpn":    { "value": "BP-2210", "source": "microdata", "where": "/html/body/div[1]/span[1]" },
-        "image":  { "value": "https://example.com/i/pads.jpg", "source": "opengraph", "where": null }
-      }
-    }
-  ],
-  "sources": ["jsonld", "microdata", "opengraph"]
-}
+| extra | adds |
+|---|---|
+| `fetch` | fetching: plain HTTP first, a browser only when a measurement says the page needs one |
+| `markdown` | a page's main content as markdown, by trafilatura |
+| `mcp` | the MCP server, with `fetch` and `markdown` |
+| `api` | the HTTP API, with `mcp` |
+| `microformats` | microformats2, which is off by default |
+
+For the browser rung, once: `uvx --from 'sluicer[fetch]' scrapling install`.
+Without it, plain HTTP still works, and a page that wanted a browser comes back
+from the HTTP rung with the failed climb recorded.
+
+## Quick start
+
+The product page in the picture above is
+[`examples/brake-pads.html`](https://github.com/Gi0tto/sluicer/blob/main/examples/brake-pads.html).
+
+```python
+>>> import sluicer
+>>> page = open("examples/brake-pads.html", "rb").read()
+>>> result = sluicer.extract(page, url="https://example.com/p/bp-2210")
+>>> price = result.summary["price"]
+>>> price.value, price.source, price.key
+('41.90', 'jsonld', 'Product.offers.price')
+>>> price.where
+'/html/head/script[1]#/offers/price'
+>>> result.normalised
+{'price': '41.90', 'currency': 'EUR', 'gtin': '4006381333931'}
+>>> [(answer.value, answer.source) for answer in result.conflicts[0].answers]
+[('41.90', 'jsonld'), ('39.90', 'opengraph')]
 ```
 
-That page described one product three times, in three vocabularies. You get one
-record, a summary of the questions you came with, and the provenance of every
-value: the vocabulary, and where on the page -- an XPath, and inside JSON-LD a
-pointer to the value, even one a reference fetched from elsewhere in the page.
-A meta tag's place is its key. When the page answers one question two ways
--- a price of 41.90 in JSON-LD and 39.90 in OpenGraph -- `conflicts` says so,
-both answers with their places. `sluicer inspect` prints the same reading laid
-out for a person.
-
-## How it differs
-
-- **From extruct**, which returns each vocabulary as the page wrote it: Sluicer
-  merges them into one record per thing, keeps where each field came from,
-  answers a summary with its reader and key, and resolves JSON-LD references.
-  `from sluicer.compat import extruct` answers extruct's own calls, in its
-  shapes, for code written against it -- see
-  [moving from extruct](https://github.com/Gi0tto/sluicer/blob/main/docs/extruct.md).
-- **From trafilatura and newspaper4k**, which read authors and dates from the
-  visible text: Sluicer reads only what the page declares. It answers less
-  often, and is wrong less often -- see [the numbers](#measured-losses-included).
-- **From a scraper of CSS selectors**: an extractor checks every page it reads
-  against what it learnt, and a page that drifted fails with exit code 3
-  instead of returning nulls for weeks.
-- **From autoscraper**, which learns where values are from examples of them:
-  so does `compile --want`, on listings and on product pages that declare
-  nothing, and what it learns is still checked on every page, so a price
-  slot that starts saying "Add to basket" fails instead of being returned.
-- **From an LLM scraper**: no model, no key, no bill, and the same answer
-  every time.
-
-[Why Sluicer](https://github.com/Gi0tto/sluicer/blob/main/docs/why.md) has the
-full comparison, and when another tool is the better choice.
+The page describes one product in three vocabularies; `result.records` holds it
+once, each field with its source and place. The same reading from the command
+line is `sluicer extract` for JSON, or `sluicer inspect` for the picture above.
 
 ## Use it
+
+### From the command line
 
 ```bash
 sluicer extract page.html                           # a file, a URL, or - for stdin
@@ -127,34 +136,44 @@ Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
 for a page that broke its extractor, a heal that lost a field, or an audit that
 found a documented rule broken. A drifted page never exits 0.
 
-```python
-import sluicer
+### In your agent
 
-result = sluicer.extract(html, url="https://example.com/p")
-print(result.summary["title"].value, "via", result.summary["title"].key)
+```bash
+claude mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp   # Claude Code
+codex mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp    # Codex
 ```
 
-For an agent: `uvx --with 'sluicer[mcp]' sluicer mcp` is the MCP server, and
-`claude mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp` or
-`codex mcp add sluicer -- uvx --with 'sluicer[mcp]' sluicer mcp` adds it;
-Cursor, VS Code, Gemini CLI, Claude Desktop and Zed are in
+Cursor, VS Code, Gemini CLI, Claude Desktop and Zed, and LangChain, the OpenAI
+Agents SDK and Pydantic AI, are in
 [In your agent](https://github.com/Gi0tto/sluicer/blob/main/docs/agents.md).
-The repository is also a Claude Code plugin, and its skill keeps to the open
-Agent Skills format Codex reads. Ten tools --
-`extract_declared`, `page_markdown`, `fetch_page`, `compile_extractor`,
-`run_extractor`, `heal_extractor`, `audit_page`, `read_feed`, `map_site`,
-`crawl_site` --
-each answering with `ok`, which is true exactly when the answer can be used as
-it is, and an output schema, and each saying in its annotations that it only
-reads, so a client that asks before a tool writes runs it without asking. The
-server fetches nothing on `localhost`, a
-private network or a cloud's metadata endpoint -- redirects and a browser's
-requests included -- unless started with `SLUICER_ALLOW_PRIVATE=1`.
+The repository is also a Claude Code plugin, with a skill in the open Agent
+Skills format that Codex reads too. The server has ten tools:
 
-For any other language: `sluicer serve` answers the same tools over HTTP,
-`POST /v1/tools/<name>` with the tool's arguments as JSON, and describes them at
-`/openapi.json`. It listens on loopback; anywhere else it needs
-`SLUICER_API_TOKEN`. See [the HTTP API](https://github.com/Gi0tto/sluicer/blob/main/docs/http-api.md).
+| tool | answers |
+|---|---|
+| `extract_declared` | what a page declares, with provenance, the summary and its conflicts |
+| `page_markdown` | the page's main content as markdown |
+| `fetch_page` | the page's HTML, and whether it took plain HTTP or a browser |
+| `compile_extractor` | an extractor learnt from pages of one template |
+| `run_extractor` | an extractor replayed on a page, checked against what it learnt |
+| `heal_extractor` | the extractor learnt again after a redesign, and what moved |
+| `audit_page` | the page's markup against what Google documents |
+| `read_feed` | a feed's items: RSS, Atom or JSON Feed |
+| `map_site` | a site's addresses, from its sitemaps or its start page's links |
+| `crawl_site` | a site's pages, following its links, each summarised |
+
+Every answer carries `ok`, true exactly when it can be used as it is, and an
+output schema; every tool says in its annotations that it only reads. The
+server fetches nothing on `localhost`, a private network or a cloud's metadata
+endpoint -- redirects and a browser's requests included -- unless started with
+`SLUICER_ALLOW_PRIVATE=1`.
+
+### From any other language
+
+`sluicer serve` answers the same tools over HTTP, `POST /v1/tools/<name>` with
+the tool's arguments as JSON, and describes them at `/openapi.json`. It listens
+on loopback; anywhere else it needs `SLUICER_API_TOKEN`. See
+[the HTTP API](https://github.com/Gi0tto/sluicer/blob/main/docs/http-api.md).
 
 ```bash
 sluicer serve                                       # 127.0.0.1:8000
@@ -162,24 +181,37 @@ curl -s http://127.0.0.1:8000/v1/tools/extract_declared \
   -H 'Content-Type: application/json' -d '{"html_or_url": "https://example.com/p"}'
 ```
 
-## Install
+## How it compares
 
-```bash
-uv pip install sluicer                          # the library and the command: lxml and click
-uv pip install 'sluicer[fetch,markdown,mcp]'    # fetching, markdown, the MCP server
-uv pip install 'sluicer[api]'                   # the HTTP API, which brings those three
-uv pip install 'sluicer[microformats]'          # microformats2, off by default
-uvx --from 'sluicer[fetch]' scrapling install   # the browser, once, for the browser rung
-```
+| | Sluicer | extruct | trafilatura, newspaper4k | CSS-selector scrapers | LLM extraction |
+|---|---|---|---|---|---|
+| Structured data merged into one record per thing | yes | no, one list per vocabulary | for a few metadata fields | no | depends on the prompt |
+| Where each value came from | vocabulary, key and place | no | no | no | no |
+| Bylines and dates from the visible text | no, by design | no | yes | where you write selectors | yes |
+| The same answer for the same page | yes | yes | yes | yes | not guaranteed |
+| A site's changed layout noticed | fails loudly, then `heal` | -- | -- | not by itself | not by itself |
+| A model or an API key needed | no | no | no | no | yes |
 
-Without a browser, plain HTTP still works, and a page that wanted one comes back
-from the HTTP rung with the failed climb recorded.
+`from sluicer.compat import extruct` answers extruct's own calls in its own
+shapes, for code written against it: see
+[moving from extruct](https://github.com/Gi0tto/sluicer/blob/main/docs/extruct.md).
+[Why Sluicer](https://github.com/Gi0tto/sluicer/blob/main/docs/why.md) has the
+full comparison, and says when another tool is the better choice.
 
 ## Measured, losses included
 
-The summary beside the tools people use for the same job, on the 511 annotated
-test pages of the public WCXB corpus. Hit rate is right answers over the pages
-that carry a label; an invention is an answer on a page whose label is empty.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/dates-dark.svg">
+    <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/dates-light.svg" alt="Publication dates on 360 pages as served: Sluicer finds 0.780 and is right on 0.734 of its answers, with 36 dates invented; trafilatura finds 0.855 and is right on 0.393, with 187 invented; metascraper finds 0.384 and is right on 0.271, with 80; newspaper4k finds 0.786 and is right on 0.658, with 54" width="760">
+  </picture>
+</p>
+
+Sluicer reads only what a page declares, so it answers less often than tools
+that also read the visible page, and is wrong less often when it answers. The
+summary beside them on the 511 annotated test pages of the public WCXB corpus,
+where hit rate is right answers over the pages that carry a label and an
+invention is an answer on a page whose label is empty:
 
 | | title | author | date | dates invented | seconds | packages |
 |---|---|---|---|---|---|---|
@@ -188,9 +220,9 @@ that carry a label; an invention is an answer on a page whose label is empty.
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.5 | 125 |
 
-WCXB strips every `<script>`, so JSON-LD, the vocabulary Sluicer reads first, is
-not measured there. The same labels on the 360 of those pages that a web archive
-holds as their servers sent them, scripts intact:
+WCXB strips every `<script>`, and with it JSON-LD, the vocabulary Sluicer reads
+first. The same labels on the 360 of those pages a web archive holds as their
+servers sent them, scripts intact:
 
 | as served | title | author | date | right when it answers a date | dates invented |
 |---|---|---|---|---|---|
@@ -199,44 +231,90 @@ holds as their servers sent them, scripts intact:
 | newspaper4k 0.9.6 | 0.767 | 0.705 | 0.786 | 0.658 | 54 |
 | metascraper 5.58.1 | 0.667 | 0.845 | 0.384 | 0.271 | 80 |
 
-With the scripts back, JSON-LD appears on 236 of the 360 pages, and Sluicer's
-author and date hit rates rise from 0.450 and 0.585 on WCXB's copies of the same
-pages to 0.690 and 0.780. It still finds fewer authors and dates than
-trafilatura, which also reads them from the visible text, and it is still the
-most often right when it answers a date. 33 of its 36 invented dates are dates
-the page declares in its own JSON-LD and does not show a reader, which is what
-the labels describe. The method, every outcome and the commands that regenerate
-both tables are in
-[the scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md)
-and [the scoreboard on pages as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md).
+33 of Sluicer's 36 invented dates are dates the page declares in its own
+JSON-LD and does not show a reader, which is what the labels describe. The
+other scoreboards, each with its method and the commands that regenerate it:
 
-On product pages -- Zyte's benchmark of 140, scored by Zyte's own evaluator --
-Sluicer's price F1 is 0.750 and its availability F1 0.907, against 0.685 and
-0.626 for the extruct baseline Zyte published and 0.918 and 0.957 for Zyte's
-paid API, which reads the visible page with trained models. See
-[the product scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md).
+- **[Products](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md)**,
+  Zyte's benchmark of 140 pages scored by Zyte's evaluator: price F1 0.750 and
+  availability F1 0.907, against 0.685 and 0.626 for the extruct baseline Zyte
+  published, and 0.918 and 0.957 for Zyte's paid API, which reads the visible
+  page with trained models.
+- **[News in many languages](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md)**,
+  263 pages from 42 countries' publishers in 21 languages: the most titles
+  right of the four tools, 0.871, and never a wrong date when it answers one.
+  trafilatura finds more authors, 0.879 against 0.829, and 12 of the 17 it
+  finds and Sluicer does not are the paper's own name, which Sluicer does not
+  count an author.
+- **[trafilatura's evaluation set](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-evaldata.md)**,
+  990 pages it annotated to measure itself: the most titles right again, 0.776
+  against 0.738, and fewer of the bylines and dates the annotators read off the
+  visible page, 0.468 and 0.584 against 0.669 and 0.865.
+- **[Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md)**:
+  extractors learnt on Wayback Machine captures of 25 sites and replayed on
+  later ones, 44 pairs; none failed silently and none raised a false alarm.
 
-On news in many languages -- fundus's fixtures, 263 pages from 42 countries'
-publishers in 21 declared languages -- Sluicer's titles are the most often
-right of the four tools, 0.871 against trafilatura's 0.852, and its dates are
-never wrong when it answers one; trafilatura finds more authors, 0.879 against
-0.829, and 12 of the 17 it finds and Sluicer does not are the paper's own
-name, which Sluicer does not count an author. See
-[the scoreboard on news in many languages](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md),
-with a table per language.
+## FAQ
 
-On trafilatura's own evaluation set -- 990 pages it annotated to measure
-itself, 851 with their title, author and date -- Sluicer's titles are again
-the most often right of the four tools, 0.776 against trafilatura's 0.738; the
-authors and dates the annotators read off the visible page are trafilatura's,
-0.669 and 0.865 against 0.468 and 0.584. Sluicer's markdown, trafilatura's
-extraction written with its links kept, holds 2,670 of the 2,951 text snippets
-where trafilatura's plain text holds 2,785, the difference the links' own
-syntax. See [the scoreboard on trafilatura's evaluation set](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-evaldata.md).
+<details>
+<summary><b>Does Sluicer use an LLM anywhere?</b></summary>
 
-Extractors are measured too: learnt on Wayback Machine captures of 25 sites and
-replayed on later ones, 44 pairs, none failed silently and none raised a false
-alarm. See [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md).
+No. A test fails the build if a model client is ever imported, and no feature
+needs anybody's API key. That is what makes the same page give the same answer,
+and a run cost only CPU.
+</details>
+
+<details>
+<summary><b>What if a page declares nothing?</b></summary>
+
+`sluicer extract --induce` reads the rows the page's markup repeats, a listing's
+cards or a table's lines, marked `source="induced"`. And
+`sluicer compile --want price=41.90` learns where values sit from examples of
+them, on listings and on product pages that declare nothing; what it learns is
+checked on every page it reads, so a price slot that starts saying "Add to
+basket" fails instead of being returned.
+</details>
+
+<details>
+<summary><b>Will it get past a site's bot protection?</b></summary>
+
+It is not built to. Every request says `Sluicer/<version>` with the project's
+address, robots.txt is obeyed, and a crawl never climbs to the one rung that
+does not announce itself, which a single-page command reaches only with
+`--stealth`. In a crawl, a site that answers 429 or 503 is asked again only
+after its `Retry-After`.
+</details>
+
+<details>
+<summary><b>Does it work in my language?</b></summary>
+
+Declared data is the same in every language, and the news scoreboard measures
+21 of them; no miss there was down to a page's language. Dates written in words
+are read with the month names of the 430 languages and regions the Unicode CLDR
+covers at its modern level, and the numbers with units Chinese, Japanese and
+Korean write.
+</details>
+
+<details>
+<summary><b>Can I get a guess from the visible page when nothing is declared?</b></summary>
+
+Not in the summary: there such an answer would look exactly like a declared one.
+[`examples/04_a_guess_from_the_visible_page.py`](https://github.com/Gi0tto/sluicer/blob/main/examples/04_a_guess_from_the_visible_page.py)
+puts trafilatura's guess beside what the page declares, named a guess, and the
+known limits say how often it is right.
+</details>
+
+<details>
+<summary><b>Is it ready for production?</b></summary>
+
+It is Beta: the interface may still change before 1.0, and every change is in
+the [changelog](https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md). Each
+release passes the full test suite on Python 3.10 to 3.14 and property tests
+that draw thousands of hostile pages, and is measured again on every
+scoreboard, before it is tagged.
+[Known limits](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md)
+lists what it does not do, measured.
+</details>
 
 ## Principles
 
@@ -244,7 +322,7 @@ alarm. See [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md).
   client is ever imported.
 - **No paid API.** A feature that needs somebody's key does not ship.
 - **Deterministic.** The same page always gives the same answer, which is what
-  makes the scoreboard reproducible.
+  makes the scoreboards reproducible.
 - **Honest about failure.** A page that cannot be read says so, and nothing
   returns a plausible answer where the truth was unavailable.
 
@@ -263,6 +341,7 @@ At <https://gi0tto.github.io/sluicer/>, or in the repository:
 [Scoreboard, news](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md) ·
 [Scoreboard, trafilatura's set](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-evaldata.md) ·
 [Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md) ·
+[Moving from extruct](https://github.com/Gi0tto/sluicer/blob/main/docs/extruct.md) ·
 [Known limits](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md) ·
 [Design notes](https://github.com/Gi0tto/sluicer/blob/main/docs/design-notes.md) ·
 [Examples](https://github.com/Gi0tto/sluicer/tree/main/examples) ·
@@ -279,8 +358,8 @@ under CC BY-SA 3.0, and `sluicer/calendar_names.py` holds CLDR's month and
 weekday names, which Unicode publishes under the Unicode License v3; each of
 the two files is distributed under its own (the package's licence expression
 is `MIT AND CC-BY-SA-3.0 AND Unicode-3.0`). The base install needs `lxml`
-and `click`, both BSD-3-Clause. The extras pull a wider tree that is not all permissive: `tld` is
-tri-licensed MPL-1.1, GPL-2.0-only or LGPL-2.1-or-later, `orjson` is MPL-2.0
-alongside Apache-2.0 or MIT, and `certifi` is MPL-2.0. CI lists every licence
-in that tree and fails on one nobody has read; see
+and `click`, both BSD-3-Clause. The extras pull a wider tree that is not all
+permissive: `tld` is tri-licensed MPL-1.1, GPL-2.0-only or LGPL-2.1-or-later,
+`orjson` is MPL-2.0 alongside Apache-2.0 or MIT, and `certifi` is MPL-2.0. CI
+lists every licence in that tree and fails on one nobody has read; see
 [the licence notes](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md).

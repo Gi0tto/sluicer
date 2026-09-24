@@ -13,3 +13,6 @@ uv run --with 'sluicer[fetch,markdown]' python 01_declared_fields.py
 fetch cost. `02` shows a site refusing us and being obeyed. `03` turns a page
 into readable markdown. `04` puts a guess from the visible page beside what the
 page declares, when it declares no author or date, and names it a guess.
+
+`brake-pads.html` is the product page the README's quick start and picture
+read: one product in JSON-LD, microdata and OpenGraph, with two prices.
