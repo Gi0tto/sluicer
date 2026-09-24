@@ -3,7 +3,7 @@
 The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on the pages trafilatura evaluates itself
 on, 990 saved with their scripts, 851 of them annotated for their metadata, and the main text beside them.
-Regenerated on 2026-09-24 from commit `a770341` by
+Regenerated on 2026-09-24 from commit `430a05e` by
 `uv run bench/evaldata.py`, against trafilatura at `c852cae9708a`; the
 method is in [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -22,16 +22,16 @@ Hit rate is hits over the pages that carry a label (845 titles, 538 authors, 728
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.6.0 | 0.776 | 0.468 | 0.584 | 97 | 39 |
+| sluicer 0.7.0 | 0.776 | 0.468 | 0.584 | 97 | 39 |
 | trafilatura 2.2.0 | 0.738 | 0.669 | 0.865 | 122 | 121 |
 | metascraper 5.58.1 | 0.699 | 0.662 | 0.663 | 153 | 62 |
 | newspaper4k 0.9.6 | 0.756 | 0.507 | 0.668 | 106 | 49 |
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.6.0 | title | 656 | 189 | 0 | 0 | 6 | 0.776 | 0.771 |
-| sluicer 0.6.0 | author | 252 | 47 | 239 | 216 | 97 | 0.468 | 0.636 |
-| sluicer 0.6.0 | date | 425 | 73 | 230 | 84 | 39 | 0.584 | 0.791 |
+| sluicer 0.7.0 | title | 656 | 189 | 0 | 0 | 6 | 0.776 | 0.771 |
+| sluicer 0.7.0 | author | 252 | 47 | 239 | 216 | 97 | 0.468 | 0.636 |
+| sluicer 0.7.0 | date | 425 | 73 | 230 | 84 | 39 | 0.584 | 0.791 |
 | trafilatura 2.2.0 | title | 624 | 221 | 0 | 0 | 6 | 0.738 | 0.733 |
 | trafilatura 2.2.0 | author | 360 | 74 | 104 | 191 | 122 | 0.669 | 0.647 |
 | trafilatura 2.2.0 | date | 630 | 97 | 1 | 2 | 121 | 0.865 | 0.743 |
