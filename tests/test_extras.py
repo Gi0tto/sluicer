@@ -84,7 +84,11 @@ def test_the_package_shown_in_the_message_can_be_spelled_for_a_human(monkeypatch
     """ "the mcp package" reads better than "mcp"; the sentence is not the module."""
     from sluicer.extras import MissingExtra, import_extra
 
-    monkeypatch.delitem(sys.modules, "mcp", raising=False)
+    # Every mcp module, not only the package: importing "mcp.server.mcpserver"
+    # finds the submodule in sys.modules when a test before this one imported
+    # the real SDK, and never asks the finder that says it is absent.
+    for name in [n for n in list(sys.modules) if n == "mcp" or n.startswith("mcp.")]:
+        monkeypatch.delitem(sys.modules, name, raising=False)
     monkeypatch.setattr(sys, "meta_path", [_absent("mcp"), *sys.meta_path])
 
     with pytest.raises(MissingExtra) as raised:

@@ -143,8 +143,6 @@ def test_extract_declared_guesses_the_visible_page_only_when_asked(monkeypatch):
 
 
 def test_a_missing_extra_says_how_to_install_it(monkeypatch):
-    import importlib
-
     class _NoMcp:
         def find_spec(self, name, path=None, target=None):
             if name == "mcp" or name.startswith("mcp."):
@@ -156,7 +154,6 @@ def test_a_missing_extra_says_how_to_install_it(monkeypatch):
 
     import sluicer.mcp_server as server_module
 
-    importlib.reload(server_module)
     with pytest.raises(server_module.McpExtraMissing) as raised:
         server_module.build_server()
 
@@ -190,8 +187,6 @@ def test_fetch_page_still_accepts_a_url(monkeypatch):
 
 
 def test_running_without_the_extra_is_a_message_not_a_traceback(monkeypatch, capsys):
-    import importlib
-
     class _NoMcp:
         def find_spec(self, name, path=None, target=None):
             if name == "mcp" or name.startswith("mcp."):
@@ -202,8 +197,6 @@ def test_running_without_the_extra_is_a_message_not_a_traceback(monkeypatch, cap
     monkeypatch.setattr(sys, "meta_path", [_NoMcp(), *sys.meta_path])
 
     import sluicer.mcp_server as server_module
-
-    importlib.reload(server_module)
 
     with pytest.raises(SystemExit) as raised:
         server_module.main()

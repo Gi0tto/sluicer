@@ -983,7 +983,6 @@ def test_sluicer_mcp_runs_the_mcp_server_as_sluicer_mcp_does(monkeypatch):
 
 
 def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):
-    import importlib
     import sys
 
     class _NoMcp:
@@ -994,9 +993,6 @@ def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):
     for name in [n for n in list(sys.modules) if n == "mcp" or n.startswith("mcp.")]:
         monkeypatch.delitem(sys.modules, name, raising=False)
     monkeypatch.setattr(sys, "meta_path", [_NoMcp(), *sys.meta_path])
-    import sluicer.mcp_server as server_module
-
-    importlib.reload(server_module)
     result = CliRunner().invoke(main, ["mcp"])
     assert result.exit_code == 1
     assert "sluicer[mcp]" in result.stderr and "Traceback" not in result.stderr

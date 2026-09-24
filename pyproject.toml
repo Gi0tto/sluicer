@@ -107,6 +107,11 @@ exclude = ["/site", "/bench"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
+    # Runs the suite in a new order every time, so a test that passes only
+    # because of the one before it fails. The run prints its seed:
+    # `pytest -p randomly --randomly-seed=N` replays that order, and
+    # `-p no:randomly` runs the file order.
+    "pytest-randomly>=3.15",
     "ruff>=0.16",
     "mypy>=1.11",
     "hypothesis>=6.168.1",

@@ -35,6 +35,12 @@ The first run creates `.venv` with the package, its extras and the development
 tools. The suite is about 1,800 tests, takes half a minute, and never touches
 the network: a CI job runs it with the network taken away.
 
+It runs in a random order each time (pytest-randomly), so a test that passes
+only because of the one before it fails. The header prints the order's seed
+(`Using --randomly-seed=...`, shown without `-q`); `pytest -p randomly
+--randomly-seed=N` replays it, and CI seeds each run with its run id.
+`-p no:randomly` runs the tests in file order.
+
 ## Before you open a pull request
 
 Format the code in its one style, then run what CI refuses a change for

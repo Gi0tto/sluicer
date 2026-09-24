@@ -2,6 +2,16 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Changed
+- The suite runs in a random order (pytest-randomly, now a development
+  dependency), and CI seeds the order with the run's id. Two tests passed only
+  in file order: one cleared the `mcp` package from `sys.modules` but not
+  `mcp.server.mcpserver`, and one failed after a test that reloaded
+  `sluicer.markdown`, which left a second `MarkdownExtraMissing` class the CLI
+  did not catch. No test reloads a module now.
+
 ## 0.7.0 - 2026-09-24
 
 ### Added

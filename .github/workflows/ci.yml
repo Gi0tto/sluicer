@@ -44,8 +44,12 @@ jobs:
       # door's tests build the real MCP server and call it through starlette's
       # TestClient, and without it they skip. The suite with no extra at all
       # runs in the floors job below, and those tests skip there.
+      # In a random order (pytest-randomly, a dev dependency), seeded with
+      # the run's id so the order is written in the log: a test that passes
+      # only after another fails here, and `pytest -p randomly
+      # --randomly-seed=<the run id>` replays the same order on any machine.
       - name: Run the suite
-        run: uv run --python ${{ matrix.python }} --extra api pytest -q
+        run: uv run --python ${{ matrix.python }} --extra api pytest -q -p randomly --randomly-seed=${{ github.run_id }}
 
   systems:
     # Every other job runs on Linux, and people install Sluicer on macOS and
@@ -66,7 +70,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run the suite
-        run: uv run --python 3.13 --extra api pytest -q
+        run: uv run --python 3.13 --extra api pytest -q -p randomly --randomly-seed=${{ github.run_id }}
 
   quality:
     # Separate from the matrix above on purpose: a red cross here names which
