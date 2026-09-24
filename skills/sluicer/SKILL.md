@@ -4,7 +4,7 @@ description: Read the structured data a web page already declares (JSON-LD, micr
 license: MIT
 compatibility: Needs the sluicer MCP server (uvx --with "sluicer[mcp]" sluicer mcp) or the sluicer command; reading a URL needs network access.
 metadata:
-  version: "0.6.0"
+  version: "0.7.0"
   homepage: "https://github.com/Gi0tto/sluicer"
 ---
 

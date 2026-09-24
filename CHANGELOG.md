@@ -2,32 +2,9 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
-
-### Fixed
-- The scoreboards asked metascraper for the wrong date. Its `date` puts
-  `dateModified` first, and the scoreboards score publication dates, so on
-  every page declaring both it was scored wrong for how it was called. It is
-  now asked for its publication date, and its dates go from 0.374 to 0.725 on
-  WCXB and from 0.384 to 0.811 on the pages as served; Sluicer's answers are
-  still the most often right when it answers a date, 0.734 against 0.573.
+## 0.7.0 - 2026-09-24
 
 ### Added
-- `heal` leaves a move to a person when two new places have equal claim to
-  a field: as many of its old values, on as many rows, in the same kind of
-  element. It reported the runner-up but moved anyway, by page order, which
-  is a guess; the change is now `ambiguous`, the field is left out, and heal
-  does not write the extractor without `--force`. A tie the old element's
-  kind decides -- the old title was a link, and only one place is -- is
-  still a move.
-- No MCP answer is larger than a client takes. `fetch_page` and
-  `page_markdown` answer a slice of at most 60,000 characters, 30,000 unless
-  asked, with `offset`, `max_chars`, the whole length, and `next_offset` where
-  the next slice starts: Claude Code puts an answer over 25,000 tokens in a
-  file, and the 200,000 characters `fetch_page` returned were over that on 302
-  of 386 real pages. `extract_declared` takes `records=False` for the summary
-  alone, 1.4 KB instead of 5.9 KB at the median, and leaves its records out,
-  counted in `records_left_out`, past 75,000 bytes.
 - A page field is read after its label when the pages it was learnt from
   contradict its place. `compile --want` still learns where the example sits;
   when that place holds nothing on another of the pages given, or a value that
@@ -40,22 +17,50 @@ Dates are the day the work landed. Anything not listed here did not happen.
   without the label, or with it twice, fails the run, and `heal` follows a
   field to its new label by its old values. An extractor with such a field is
   written as format 2, which 0.6 refuses rather than reading the place alone.
+- A sixth scoreboard, on SWDE: 80 sites, 124,291 pages, `compile --want` given
+  three pages of each site and one example per attribute, beside Scrapling's
+  adaptive selectors. Its sites were split into a development and a held-out
+  half before any full result was read; see `bench/PREREG.md`. `bench/gate.py`
+  now fails a release that does worse than `bench/floors.json` on any scoreboard.
+- No MCP answer is larger than a client takes. `fetch_page` and
+  `page_markdown` answer a slice of at most 60,000 characters, 30,000 unless
+  asked, with `offset`, `max_chars`, the whole length, and `next_offset` where
+  the next slice starts: Claude Code puts an answer over 25,000 tokens in a
+  file, and the 200,000 characters `fetch_page` returned were over that on 302
+  of 386 real pages. `extract_declared` takes `records=False` for the summary
+  alone, 1.4 KB instead of 5.9 KB at the median, and leaves its records out,
+  counted in `records_left_out`, past 75,000 bytes.
 - Every parameter of every MCP tool says what it is in the schema a client
   reads, taken word for word from the tool's own description: all 28 said
   nothing there, and clients and directories read it from there. A tool
   that leaves a parameter unexplained is refused when the server starts.
-- `python -m sluicer` is the command line, for a Python whose scripts are
-  not on PATH; `python -m sluicer mcp` starts the MCP server.
+- `heal` leaves a move to a person when two new places have equal claim to
+  a field: as many of its old values, on as many rows, in the same kind of
+  element. It reported the runner-up but moved anyway, by page order, which
+  is a guess; the change is now `ambiguous`, the field is left out, and heal
+  does not write the extractor without `--force`. A tie the old element's
+  kind decides -- the old title was a link, and only one place is -- is
+  still a move.
 - `sluicer mcp --tools extract_declared,page_markdown`, or
   `SLUICER_MCP_TOOLS`, registers only the tools named: each registered tool
   costs an agent context whether it is called or not. A name that is not a
   tool stops the server with the list of the ten.
+- `python -m sluicer` is the command line, for a Python whose scripts are
+  not on PATH; `python -m sluicer mcp` starts the MCP server.
 
 ### Changed
 - `LICENSE` holds the MIT License's text alone, so that GitHub and the
   tools that ask it recognise the licence; the two data files under their
   own licences are named in `NOTICE`, which the package carries beside it.
   Nothing is licensed differently.
+
+### Fixed
+- The scoreboards asked metascraper for the wrong date. Its `date` puts
+  `dateModified` first, and the scoreboards score publication dates, so on
+  every page declaring both it was scored wrong for how it was called. It is
+  now asked for its publication date, and its dates go from 0.374 to 0.725 on
+  WCXB and from 0.384 to 0.811 on the pages as served; Sluicer's answers are
+  still the most often right when it answers a date, 0.734 against 0.573.
 
 ## 0.6.0 - 2026-09-24
 

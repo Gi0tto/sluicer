@@ -46,7 +46,7 @@ and errors only. The held-out half is scored, and read only as numbers:
 | date | code | why |
 |---|---|---|
 | 2026-09-24 | 0.6.0 | the first scoreboard |
-| 2026-09-24 | branch `toward-070` at `1b85481` | whether read-after-label held beyond development |
+| 2026-09-24 | read-after-label, `4978927` (then `1b85481`, before a rebase) | whether it held beyond development |
 
 The next reading is the release of 0.7.0. All ten camera sites were read
 while the benchmark was built, before the split, so the held-out camera sites
