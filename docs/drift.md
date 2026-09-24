@@ -6,7 +6,7 @@ and replayed on a later one. An oracle that does not use the extractor's
 code judges the result. Losses come first.
 
 Regenerated on 2026-09-24 from commit
-`149d446` (sluicer 0.4.1, Scrapling 0.4.15) with
+`4946557` (sluicer 0.5.0, Scrapling 0.4.15) with
 `uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`, in
 18 seconds from the cache.
 
