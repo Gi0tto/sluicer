@@ -26,6 +26,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   a 90 KB class took seven seconds, on every row it sat on, in `induce` and
   in `compile`. The name and hash are now counted, the same answer in
   milliseconds.
+- A part of an induced row carried the whole path down to it, copied at each
+  level and hashed again to number it, so every wrapper around a row cost
+  every part below it once more: forty thousand parts under two thousand
+  wrappers took 1.4 seconds to name, and take 0.1.
 
 ## 0.7.0 - 2026-09-24
 

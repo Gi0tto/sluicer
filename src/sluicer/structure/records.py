@@ -51,10 +51,14 @@ ADDRESS = {"a": "href", "img": "src", "link": "href", "source": "src"}
 # see it. Every other element's text is the text inside it.
 _TEXT_ATTRIBUTE = {"img": "alt"}
 
-# One step of the path to a slot: the tag, the first hand-written class, and
-# which of the same-named siblings this is.
-_Step = tuple[str, str, int]
-_Path = tuple[_Step, ...]
+# A slot is where a part sits in its row, the same in every row of the group:
+# its parent's slot (``_ROW`` for the row itself), its tag, its first
+# hand-written class, and which of the same-named siblings it is. Each slot is
+# numbered the first time the group's walk meets it, so a part carries its
+# slot as one number rather than the whole path down to it: a path copied at
+# every level of a row two thousand deep was most of the time of a large page.
+_Slot = tuple[int, str, str, int]
+_ROW = -1
 # A slot's name as a link to its parent's and its own last step, spelt out only
 # for a part that carries a fact.
 _Trail: TypeAlias = "tuple[_Trail | None, str]"
@@ -189,22 +193,27 @@ def _random(segment: str) -> bool:
     return segment.isalpha() and flips / len(segment) >= 0.5
 
 
-def _parts(parent: HtmlElement, path: _Path) -> Iterator[tuple[HtmlElement, _Path]]:
-    """Every element under ``parent``, each with the path that reaches it.
+def _parts(
+    parent: HtmlElement, slots: dict[_Slot, int]
+) -> Iterator[tuple[HtmlElement, int]]:
+    """Every element under ``parent``, each with the number of its slot.
 
     In document order, walked with a stack of its own: libxml2 nests elements
     two thousand deep, and a recursive walk ran out of Python's stack on a row
-    a thousand deep.
+    a thousand deep. ``slots`` numbers the slots met, and is shared by the
+    rows of one group.
     """
-    pending = list(reversed(_steps(parent, path)))
+    pending = list(reversed(_steps(parent, _ROW, slots)))
     while pending:
         child, here = pending.pop()
         yield child, here
-        pending.extend(reversed(_steps(child, here)))
+        pending.extend(reversed(_steps(child, here, slots)))
 
 
-def _steps(parent: HtmlElement, path: _Path) -> list[tuple[HtmlElement, _Path]]:
-    """``parent``'s element children, each with the path one step further."""
+def _steps(
+    parent: HtmlElement, slot: int, slots: dict[_Slot, int]
+) -> list[tuple[HtmlElement, int]]:
+    """``parent``'s element children, each with its slot, one step below ``slot``."""
     counts: dict[tuple[str, str], int] = {}
     steps = []
     for child in parent:
@@ -212,27 +221,27 @@ def _steps(parent: HtmlElement, path: _Path) -> list[tuple[HtmlElement, _Path]]:
             continue
         label = (child.tag, _label(child))
         counts[label] = counts.get(label, 0) + 1
-        steps.append((child, (*path, (*label, counts[label]))))
+        step = (slot, *label, counts[label])
+        number = slots.get(step)
+        if number is None:
+            number = slots[step] = len(slots)
+        steps.append((child, number))
     return steps
 
 
-def _repeated(walked: list[list[tuple[HtmlElement, _Path]]]) -> set[_Path]:
-    """The slots some member of the group fills more than once."""
-    return {
-        (*path[:-1], (path[-1][0], path[-1][1], 0))
-        for parts in walked
-        for _, path in parts
-        if path[-1][2] > 1
+def _segments(slots: dict[_Slot, int]) -> list[str]:
+    """The last step of each slot's name, by number, numbered where the group
+    needs it numbered: where some row fills the slot more than once."""
+    repeated = {
+        (parent, tag, label) for parent, tag, label, ordinal in slots if ordinal > 1
     }
-
-
-def _last_step(path: _Path, repeated: set[_Path]) -> str:
-    """The last step of a slot's name, numbered where the group needs it numbered."""
-    tag, css_class, ordinal = path[-1]
-    segment = f"{tag}.{css_class}" if css_class else tag
-    if (*path[:-1], (tag, css_class, 0)) in repeated:
-        segment += str(ordinal)
-    return segment
+    segments = []
+    for parent, tag, label, ordinal in slots:
+        segment = f"{tag}.{label}" if label else tag
+        if (parent, tag, label) in repeated:
+            segment += str(ordinal)
+        segments.append(segment)
+    return segments
 
 
 # What one group's records may hold -- every name and every value they copy --
@@ -247,20 +256,21 @@ _FLOOR = 10_000
 
 def records_from(group: list[HtmlElement]) -> list[Record]:
     """Return one record per member of ``group``, all named the same way."""
-    walked = [list(_parts(member, ())) for member in group]
-    repeated = _repeated(walked)
+    slots: dict[_Slot, int] = {}
+    walked = [list(_parts(member, slots)) for member in group]
+    segments = _segments(slots)
     left = max(_FLOOR, 10 * sum(_held(member) for member in group))
-    # Each part's name is its parent's and one step more: spelt out from the
+    # Each slot's name is its parent's and one step more: spelt out from the
     # whole path for every part, three rows a thousand deep took 2.5 seconds.
-    trails: dict[HtmlElement, _Trail] = {}
+    trails: list[_Trail] = []
+    for (parent, *_), segment in zip(slots, segments, strict=True):
+        # A slot is numbered after its parent's, so its parent's trail is made.
+        trails.append((trails[parent] if parent != _ROW else None, segment))
     records: list[Record] = []
     for parts in walked:
         record = Record(type=None, source="induced")
-        for part, path in parts:
-            trail = trails[part] = (
-                trails.get(part.getparent()),
-                _last_step(path, repeated),
-            )
+        for part, slot in parts:
+            trail = trails[slot]
             facts = _facts(part)
             if not facts:
                 continue

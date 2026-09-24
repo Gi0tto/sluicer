@@ -301,10 +301,12 @@ def test_a_row_nested_a_thousand_deep_is_walked_not_a_recursion_error():
     # Parsed by load, whose parser keeps what lxml's default drops past 256.
     row = load("<ul><li>" + "<b>x" * depth + "</li></ul>").tree.xpath("//li")[0]
 
-    parts = list(_parts(row, ()))
+    slots = {}
+    parts = list(_parts(row, slots))
 
     assert len(parts) == depth
-    assert [len(path) for _, path in parts] == list(range(1, depth + 1))
+    # Each part is the only child of the one before it.
+    assert [parent for parent, *_ in slots] == list(range(-1, depth - 1))
 
 
 def _listing_of(html):
@@ -371,3 +373,30 @@ def test_a_css_module_is_read_as_the_pattern_it_replaced_read_it(token):
     pattern = re.fullmatch(r"(.+?)__([A-Za-z0-9_-]{5,})", token)
 
     assert _css_module(token) == (pattern.groups() if pattern else None)
+
+
+def test_thousands_of_parts_under_two_thousand_wrappers_are_named_in_a_moment():
+    """Found by review: each part carried the whole path down to it, copied at
+    every level and hashed again to number it, so a row of forty thousand
+    parts two thousand deep took 1.4 seconds, and each wrapper more cost every
+    part below it. A part now carries its slot as a number."""
+    import time
+
+    inner = (
+        "<div>" * 2000
+        + "".join(f"<span>w{i} </span>" for i in range(40_000))
+        + "</div>" * 2000
+    )
+    rows = _listing_of(
+        "<ul><li><div><div>"
+        + inner
+        + "</div></div></li>"
+        + "<li><div><div><div>a</div></div></div></li>" * 2
+        + "</ul>"
+    )
+
+    started = time.perf_counter()
+    records = records_from(rows)
+
+    assert time.perf_counter() - started < 0.5
+    assert records
