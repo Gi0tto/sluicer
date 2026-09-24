@@ -1080,3 +1080,22 @@ def test_text_piped_in_is_read_as_utf8_whatever_the_code_page():
 
     assert piped.read() == "https://例え.jp/\n"
     assert shown.encoding == "utf-8"
+
+
+def test_the_help_groups_the_commands_by_what_they_are_for():
+    """Fifteen commands in one alphabetical list put audit first and extract
+    among the servers; each section is a thing a person comes to do."""
+    said = CliRunner().invoke(main, ["--help"]).stdout
+    sections = {
+        "Read a page": ["extract", "inspect", "markdown", "diff", "audit"],
+        "Whole sites": ["map", "crawl", "batch", "feed", "warc"],
+        "Extractors": ["compile", "run", "heal"],
+        "Servers": ["mcp", "serve"],
+    }
+    starts = [said.index(f"{title}:\n") for title in sections]
+    assert starts == sorted(starts) and "Commands:" not in said
+    for (title, names), start in zip(sections.items(), starts, strict=True):
+        block = said[start:].split("\n\n")[0].splitlines()[1:]
+        assert [line.split()[0] for line in block] == names, title
+    placed = [name for names in sections.values() for name in names]
+    assert sorted(placed) == sorted(main.commands)

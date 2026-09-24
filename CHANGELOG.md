@@ -35,6 +35,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   exit 2, as a wrong option does.
 
 ### Changed
+- `sluicer --help` lists the commands in four sections -- Read a page, Whole
+  sites, Extractors, Servers -- instead of one alphabetical list.
 - The suite runs in a random order (pytest-randomly, now a development
   dependency), and CI seeds the order with the run's id. Two tests passed only
   in file order: one cleared the `mcp` package from `sys.modules` but not

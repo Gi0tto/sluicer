@@ -15,22 +15,28 @@ Options:
   --version  Show the version and exit.
   --help     Show this message and exit.
 
-Commands:
-  audit     Check what a page declares against what Google documents, and more.
-  batch     Read every address in URLS_FILE, politely, one JSON line per page.
-  compile   Learn an extractor from pages of one template, and write it to a file.
-  crawl     Crawl a site from URL, politely, one JSON line per page.
-  diff      Say what changed between two readings of a page, question by question.
+Read a page:
   extract   Read the structured data a URL, a file or stdin declares.
-  feed      Read a feed's items: RSS, Atom or JSON Feed, from a URL, a file or stdin.
-  heal      Learn pages again and say what moved; write the result only with -o.
   inspect   Show, for a person, what a page declares and where each answer came from.
-  map       List a site's addresses, from its sitemaps or its start page's links.
   markdown  Print the main content of a URL, a file or stdin as markdown.
-  mcp       Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
-  run       Replay an extractor on pages, and exit 3 if any page broke its contract.
-  serve     Serve the MCP server's tools over HTTP (needs sluicer[api]).
+  diff      Say what changed between two readings of a page, question by question.
+  audit     Check what a page declares against what Google documents, and more.
+
+Whole sites:
+  map       List a site's addresses, from its sitemaps or its start page's links.
+  crawl     Crawl a site from URL, politely, one JSON line per page.
+  batch     Read every address in URLS_FILE, politely, one JSON line per page.
+  feed      Read a feed's items: RSS, Atom or JSON Feed, from a URL, a file or stdin.
   warc      Read every page the WARC FILES hold, one JSON line per page.
+
+Extractors:
+  compile   Learn an extractor from pages of one template, and write it to a file.
+  run       Replay an extractor on pages, and exit 3 if any page broke its contract.
+  heal      Learn pages again and say what moved; write the result only with -o.
+
+Servers:
+  mcp       Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
+  serve     Serve the MCP server's tools over HTTP (needs sluicer[api]).
 ```
 
 ## `sluicer audit`

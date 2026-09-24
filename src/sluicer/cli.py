@@ -97,7 +97,55 @@ def _what_to_try(source: str, induce: bool, visible: bool) -> str:
     return "\n".join(["What may still read it:", *tries])
 
 
-@click.group()
+SECTIONS: dict[str, tuple[str, ...]] = {
+    "Read a page": ("extract", "inspect", "markdown", "diff", "audit"),
+    "Whole sites": ("map", "crawl", "batch", "feed", "warc"),
+    "Extractors": ("compile", "run", "heal"),
+    "Servers": ("mcp", "serve"),
+}
+"""The sections ``sluicer --help`` lists the commands in, each in this order."""
+
+
+class _Sectioned(click.Group):
+    """A group whose help lists its commands by what they are for.
+
+    Fifteen commands in click's one alphabetical list put ``audit`` first and
+    ``extract`` between ``diff`` and ``feed``. A command in no section is
+    listed under "Other commands" rather than hidden.
+    """
+
+    def format_commands(
+        self, ctx: click.Context, formatter: click.HelpFormatter
+    ) -> None:
+        shown = {
+            name: command
+            for name in self.list_commands(ctx)
+            if (command := self.get_command(ctx, name)) is not None
+            and not command.hidden
+        }
+        if not shown:
+            return
+        widest = max(len(name) for name in shown)
+        limit = formatter.width - 6 - widest
+        placed = {name for names in SECTIONS.values() for name in names}
+        groups = [
+            *SECTIONS.items(),
+            ("Other commands", tuple(name for name in shown if name not in placed)),
+        ]
+        for title, names in groups:
+            # Padded to the longest name, so every section's help starts in
+            # one column: write_dl aligns only the rows it is given.
+            rows = [
+                (name.ljust(widest), shown[name].get_short_help_str(limit))
+                for name in names
+                if name in shown
+            ]
+            if rows:
+                with formatter.section(title):
+                    formatter.write_dl(rows)
+
+
+@click.group(cls=_Sectioned)
 @click.version_option(package_name="sluicer")
 def main() -> None:
     """Turn a web page into structured data with no model in the loop.
