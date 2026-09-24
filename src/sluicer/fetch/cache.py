@@ -11,8 +11,9 @@ without asking the site at all. Nothing is guessed from ``Last-Modified``, as
 HTTP caches may, and ``Cache-Control`` is not read: a monitor asks what it
 means to ask.
 
-Only a page that answered 2xx is kept, so a refusal, an error page or a
-challenge is never given back as the page. The revalidating request is a
+Only a page that answered 2xx and is not a challenge is kept, so a refusal,
+an error page or a waiting room served with 200 is never given back as the
+page. The revalidating request is a
 fetch like any other -- robots.txt, the size bound, private addresses
 refused -- and a page that changed into one a browser must fetch is fetched
 again through the whole ladder. Every page given back from the cache says so,
@@ -36,7 +37,7 @@ from sluicer.fetch.address import _resolve
 from sluicer.fetch.http_rung import Response
 from sluicer.fetch.ladder import FetchFailed, fetch, robots_reader_from
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, CacheHit, EmptyBody, Fetched, Rung
-from sluicer.fetch.rules import why_climb
+from sluicer.fetch.rules import challenge_marker, why_climb
 
 # Bumped when what an entry holds changes, so an old entry is not trusted.
 _FORMAT = 1
@@ -195,7 +196,10 @@ def fetch_cached(
         resolve=resolve,
         max_bytes=max_bytes,
     )
-    cache.write(url, fetched)
+    # The ladder hands back its last rung's page whatever it was; a challenge
+    # kept here would be given back as the page, asking nobody, for max_age.
+    if not _challenge(fetched):
+        cache.write(url, fetched)
     return fetched
 
 
@@ -263,14 +267,28 @@ def _enough(fetched: Fetched) -> bool:
     a 2xx that is neither a challenge nor an empty shell."""
     if not 200 <= fetched.status < 300:
         return False
+    return why_climb(fetched.status, _html(fetched), _found(fetched)) is None
+
+
+def _challenge(fetched: Fetched) -> bool:
+    """Whether a 2xx page is a challenge standing in front of the page."""
+    if not 200 <= fetched.status < 300:
+        return False
+    return challenge_marker(_html(fetched), _found(fetched)) is not None
+
+
+def _found(fetched: Fetched) -> bool:
+    """Whether the page declares something about a thing, as the ladder asks."""
     records = extract(fetched.html, url=fetched.url).records
-    found = any(
+    return any(
         field.source in ABOUT_A_THING
         for record in records
         for field in record.fields.values()
     )
-    html = fetched.html if isinstance(fetched.html, str) else fetched.html.decode()
-    return why_climb(fetched.status, html, found_records=found) is None
+
+
+def _html(fetched: Fetched) -> str:
+    return fetched.html if isinstance(fetched.html, str) else fetched.html.decode()
 
 
 def _kept(entry: dict[str, Any], hit: CacheHit) -> Fetched:

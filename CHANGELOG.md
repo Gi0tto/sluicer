@@ -34,6 +34,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Sluicer/0.7.0 (+https://github.com/Gi0tto/sluicer)`, so another crawler's
   rules refused Sluicer and its `Crawl-delay` paced it. `PRODUCT_TOKEN` is
   what the ladder, the crawler and the audit's site files ask with.
+- The page cache never keeps a challenge page. When every rung got a
+  "Just a moment..." page served with 200, `--cache` kept it and gave it back
+  as the page, for `--max-age`, without asking the site; the docs said a
+  challenge was never kept, and now it is not.
 
 ## 0.7.0 - 2026-09-24
 
