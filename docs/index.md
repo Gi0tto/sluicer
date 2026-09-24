@@ -32,36 +32,55 @@
 
 Sluicer reads the structured data a web page already declares -- JSON-LD,
 microdata, RDFa, OpenGraph and more -- and merges it into one record per thing,
-every value naming the vocabulary and the place on the page it came from. No
-model reads the page, so the same page always gives the same answer.
+every value naming the vocabulary and the place on the page it came from. Where
+a page declares nothing, it learns an extractor from a few pages you point at,
+and says so when the site changes. No model reads the page, so the same page
+always gives the same answer.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/inspect.svg" alt="sluicer inspect on a product page: one record merged from JSON-LD, microdata and OpenGraph; a summary in which every answer names its source; and the page's two prices, 41.90 and 39.90, reported as a conflict" width="860">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/swde-dark.svg">
+    <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/swde-light.svg" alt="Extractors learnt from three pages of each of 80 real sites and read on their other 124,291 pages: Sluicer scores a mean F1 of 0.849 and is right on 0.972 of its answers, with 12,059 wrong answers; Scrapling's adaptive selectors score 0.671 and 0.864, with 56,058" width="760">
+  </picture>
 </p>
+<p align="center">
+  <sub>SWDE, 80 sites in 8 verticals. On the half of the sites never read while
+  the rules were made, Sluicer scores 0.845.
+  <a href="scoreboard-swde.md">Every number, and how it was made</a>.</sub>
+</p>
+
+## Which way in
+
+| you have | run | and get |
+|---|---|---|
+| a page, as HTML or a URL | `sluicer extract page.html` | every value it declares, each with where it came from |
+| many pages of one site | `sluicer compile a.html b.html --want price=41.90 -o shop.json`, then `sluicer run shop.json URL` | the same fields from every page, checked, and exit 3 when the site changes |
+| an AI agent | `claude mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp` | ten read-only tools, in any MCP client |
+| another language | `sluicer serve` | the same tools over HTTP, described at `/openapi.json` |
 
 ## Highlights
 
-- **Eight vocabularies, one record.** JSON-LD, microdata, RDFa, Dublin Core,
+- 🧩 **Eight vocabularies, one record.** JSON-LD, microdata, RDFa, Dublin Core,
   OpenGraph, the Twitter card, HTML's meta names and microformats2, merged
   into one record per thing.
-- **Provenance for every value.** The vocabulary, the key, and the place on the
+- 📍 **Provenance for every value.** The vocabulary, the key, and the place on the
   page: an XPath, and inside JSON-LD a pointer to the very value.
-- **A summary of 25 questions** -- title, author, date, price, currency,
+- ❓ **A summary of 25 questions** -- title, author, date, price, currency,
   availability, GTIN and the rest -- each answer naming where it came from, and
   a **conflict** reported when the page answers one of them two ways.
-- **Extractors that check every page.** Learn one from a few pages of a
+- 🛡️ **Extractors that check every page.** Learn one from a few pages of a
   template; a page that drifted exits 3 instead of returning nulls for weeks,
   and `heal` says what moved where. On 44 real redesigns none failed silently.
   On pages of one template they are right on 97% of their answers, and most
   of the 3% they get wrong pass their checks: the SWDE scoreboard says which.
-- **Deterministic and light.** No model and no key: the 511 pages of the WCXB
+- ⚡ **Deterministic and light.** No model and no key: the 511 pages of the WCXB
   test set are read in 1.4 s, and the base install is three packages.
-- **Polite by construction.** It announces itself, obeys robots.txt and
+- 🤝 **Polite by construction.** It announces itself, obeys robots.txt and
   `Crawl-delay`, waits a site's `Retry-After` in a crawl, and honours TDMRep
   reservations when asked.
-- **Made for agents.** An MCP server with ten read-only tools, tried in Claude
+- 🤖 **Made for agents.** An MCP server with ten read-only tools, tried in Claude
   Code, Codex and Gemini CLI, and the same tools over HTTP for any language.
-- **Measured in public, losses included.** Six scoreboards against
+- 📊 **Measured in public, losses included.** Six scoreboards against
   trafilatura, newspaper4k, metascraper, extruct, Scrapling, Zyte and Diffbot.
 
 ## Install
@@ -75,6 +94,9 @@ environment of its own, `uv tool install "sluicer[fetch,markdown,mcp]"`. The
 base install, `uv pip install sluicer`, reads HTML you already have with `lxml`
 and `click` alone. Each extra adds one job:
 
+<details>
+<summary>What each extra adds</summary>
+
 | extra | adds |
 |---|---|
 | `fetch` | fetching: plain HTTP first, a browser only when a measurement says the page needs one |
@@ -83,13 +105,15 @@ and `click` alone. Each extra adds one job:
 | `api` | the HTTP API, with `mcp` |
 | `microformats` | microformats2, which is off by default |
 
+</details>
+
 For the browser rung, once: `uvx --from "sluicer[fetch]" scrapling install`.
 Without it, plain HTTP still works, and a page that wanted a browser comes back
 from the HTTP rung with the failed climb recorded.
 
 ## Quick start
 
-The product page in the picture above is
+The product page read here is
 [`examples/brake-pads.html`](https://github.com/Gi0tto/sluicer/blob/main/examples/brake-pads.html).
 
 ```python
@@ -109,7 +133,11 @@ The product page in the picture above is
 
 The page describes one product in three vocabularies; `result.records` holds it
 once, each field with its source and place. The same reading from the command
-line is `sluicer extract` for JSON, or `sluicer inspect` for the picture above.
+line is `sluicer extract` for JSON, or `sluicer inspect` for this:
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/inspect.svg" alt="sluicer inspect on a product page: one record merged from JSON-LD, microdata and OpenGraph; a summary in which every answer names its source; and the page's two prices, 41.90 and 39.90, reported as a conflict" width="860">
+</p>
 
 ## See it meet a redesign
 
@@ -131,24 +159,30 @@ rests. Every command ran for real; `scripts/demo.py` records them again.
 ```bash
 sluicer extract page.html                           # a file, a URL, or - for stdin
 sluicer inspect https://example.com/product         # the same, for a person to read
-sluicer extract listing.html --induce               # rows of a page that declares nothing
 sluicer markdown https://example.com/article        # the readable content
+sluicer compile page1.html page2.html -o shop.json  # learn an extractor
+sluicer run shop.json https://shop.example/c?p=7    # replay it, checked
+sluicer heal shop.json https://shop.example/c -o shop.json  # after a redesign
+```
+
+<details>
+<summary>More commands</summary>
+
+```bash
+sluicer extract listing.html --induce               # rows of a page that declares nothing
 sluicer diff yesterday.html https://shop.example/p  # what changed, and where from
 sluicer diff URL URL --at 2024-01                   # since the Wayback Machine's capture
 sluicer extract URL --cache ~/.cache/sluicer        # ask the site if it changed (304)
 sluicer audit https://example.com/product           # its markup against Google's documentation
-
-sluicer compile page1.html page2.html -o shop.json  # learn an extractor
 sluicer compile p1.html p2.html -o shop.json --want price=41.90 --want title="Brake pads"
-sluicer run shop.json https://shop.example/c?p=7    # replay it, checked
-sluicer heal shop.json https://shop.example/c -o shop.json  # after a redesign
-
 sluicer map https://shop.example/                   # a site's addresses, from its sitemaps
 sluicer crawl https://shop.example/ -o shop.jsonl   # follow its links, politely; --resume
 sluicer batch urls.txt -o pages.jsonl               # read a list, one JSON line per page
 sluicer warc crawl.warc.gz > pages.jsonl            # the pages a web archive holds
 sluicer feed https://blog.example/                  # a feed's items, from the page that declares it
 ```
+
+</details>
 
 Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
 for a page that broke its extractor, a heal that lost a field, or an audit that
@@ -165,7 +199,10 @@ Cursor, VS Code, Gemini CLI, Claude Desktop and Zed, and LangChain, the OpenAI
 Agents SDK and Pydantic AI, are in
 [In your agent](agents.md).
 The repository is also a Claude Code plugin, with a skill in the open Agent
-Skills format that Codex reads too. The server has ten tools:
+Skills format that Codex reads too. The server has ten tools, all read-only.
+
+<details>
+<summary>The ten tools</summary>
 
 | tool | answers |
 |---|---|
@@ -179,6 +216,8 @@ Skills format that Codex reads too. The server has ten tools:
 | `read_feed` | a feed's items: RSS, Atom or JSON Feed |
 | `map_site` | a site's addresses, from its sitemaps or its start page's links |
 | `crawl_site` | a site's pages, following its links, each summarised |
+
+</details>
 
 Every answer carries `ok`, true exactly when it can be used as it is, and an
 output schema; every tool says in its annotations that it only reads. The
@@ -226,10 +265,24 @@ full comparison, and says when another tool is the better choice.
 </p>
 
 Sluicer reads only what a page declares, so it answers less often than tools
-that also read the visible page, and is wrong less often when it answers. The
-summary beside them on the 511 annotated test pages of the public WCXB corpus,
-where hit rate is right answers over the pages that carry a label and an
-invention is an answer on a page whose label is empty:
+that also read the visible page, and is wrong less often when it answers. A hit
+rate is right answers over the pages that carry a label; an invention is an
+answer on a page whose label is empty.
+
+| scoreboard | pages | measures | Sluicer | beside it |
+|---|---|---|---|---|
+| [WCXB](scoreboard.md) | 511 | title, author, date, scripts stripped | 0.727, 0.532, 0.581; 8 dates invented | trafilatura 0.745, 0.750, 0.838; 216 invented |
+| [As served](scoreboard-served.md) | 360 | the same pages, scripts intact | right on 0.734 of its dates | newspaper4k 0.658, metascraper 0.573, trafilatura 0.393 |
+| [Products](scoreboard-products.md) | 140 | price, availability, by Zyte's evaluator | F1 0.750, 0.907 | extruct 0.685, 0.626; Zyte's paid API 0.918, 0.957 |
+| [News](scoreboard-news.md) | 263 in 21 languages | title, author, date | 0.871, 0.829, 0.970; never a wrong date | trafilatura finds more authors, 0.879 |
+| [trafilatura's set](scoreboard-evaldata.md) | 990 | title, author, date | the most titles, 0.776 | trafilatura 0.738, and more bylines and dates |
+| [SWDE](scoreboard-swde.md) | 124,291 | extractors learnt from three pages | F1 0.849; 12,059 wrong | Scrapling 0.671; 56,058 wrong |
+| [Drift](drift.md) | 44 redesigns | a site's change noticed | none failed silently, no false alarm | -- |
+
+<details>
+<summary>Title, author and date, tool by tool</summary>
+
+On the 511 annotated test pages of the public WCXB corpus:
 
 | | title | author | date | dates invented | seconds | packages |
 |---|---|---|---|---|---|---|
@@ -250,32 +303,12 @@ servers sent them, scripts intact:
 | metascraper 5.58.1 | 0.667 | 0.845 | 0.811 | 0.573 | 80 |
 
 33 of Sluicer's 36 invented dates are dates the page declares in its own
-JSON-LD and does not show a reader, which is what the labels describe. The
-other scoreboards, each with its method and the commands that regenerate it:
+JSON-LD and does not show a reader, which is what the labels describe.
 
-- **[Products](scoreboard-products.md)**,
-  Zyte's benchmark of 140 pages scored by Zyte's evaluator: price F1 0.750 and
-  availability F1 0.907, against 0.685 and 0.626 for the extruct baseline Zyte
-  published, and 0.918 and 0.957 for Zyte's paid API, which reads the visible
-  page with trained models.
-- **[News in many languages](scoreboard-news.md)**,
-  263 pages from 42 countries' publishers in 21 languages: the most titles
-  right of the four tools, 0.871, and never a wrong date when it answers one.
-  trafilatura finds more authors, 0.879 against 0.829, and 12 of the 17 it
-  finds and Sluicer does not are the paper's own name, which Sluicer does not
-  count an author.
-- **[trafilatura's evaluation set](scoreboard-evaldata.md)**,
-  990 pages it annotated to measure itself: the most titles right again, 0.776
-  against 0.738, and fewer of the bylines and dates the annotators read off the
-  visible page, 0.468 and 0.584 against 0.669 and 0.865.
-- **[Drift](drift.md)**:
-  extractors learnt on Wayback Machine captures of 25 sites and replayed on
-  later ones, 44 pairs; none failed silently and none raised a false alarm.
-- **[Extractors on SWDE](scoreboard-swde.md)**,
-  124,291 pages from 80 sites, `compile --want` given three pages of each and
-  one example per attribute: mean F1 0.849 against 0.671 for Scrapling's
-  adaptive selectors, with a fifth of its wrong answers. The sites were split
-  before any result was read; the half never read scores 0.845.
+</details>
+
+Every scoreboard says how it was made and the command that makes it again;
+[`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md) says what each fixes before it is run.
 
 ## FAQ
 

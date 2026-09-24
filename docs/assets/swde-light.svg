@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="224" viewBox="0 0 760 224" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<text x="210" y="26" font-size="15" font-weight="600" fill="#1f2328">Learnt from 3 pages, read on 124,291 pages of 80 real sites (SWDE)</text>
+<rect x="210" y="40" width="12" height="12" rx="2" fill="#58a6ff"/>
+<text x="228" y="51" font-size="12" fill="#59636e">mean F1</text>
+<rect x="320" y="40" width="12" height="12" rx="2" fill="#3fb950"/>
+<text x="338" y="51" font-size="12" fill="#59636e">right when it answers</text>
+<line x1="210.0" y1="66" x2="210.0" y2="202" stroke="#d1d9e0" stroke-width="1"/>
+<text x="210.0" y="218" font-size="11" fill="#59636e" text-anchor="middle">0.00</text>
+<line x1="330.0" y1="66" x2="330.0" y2="202" stroke="#d1d9e0" stroke-width="1"/>
+<text x="330.0" y="218" font-size="11" fill="#59636e" text-anchor="middle">0.25</text>
+<line x1="450.0" y1="66" x2="450.0" y2="202" stroke="#d1d9e0" stroke-width="1"/>
+<text x="450.0" y="218" font-size="11" fill="#59636e" text-anchor="middle">0.50</text>
+<line x1="570.0" y1="66" x2="570.0" y2="202" stroke="#d1d9e0" stroke-width="1"/>
+<text x="570.0" y="218" font-size="11" fill="#59636e" text-anchor="middle">0.75</text>
+<line x1="690.0" y1="66" x2="690.0" y2="202" stroke="#d1d9e0" stroke-width="1"/>
+<text x="690.0" y="218" font-size="11" fill="#59636e" text-anchor="middle">1.00</text>
+<text x="198" y="91" font-size="14" font-weight="700" fill="#1f2328" text-anchor="end">sluicer</text>
+<text x="198" y="108" font-size="11" fill="#59636e" text-anchor="end">12,059 wrong answers</text>
+<rect x="210" y="74" width="407.5" height="17" rx="3" fill="#58a6ff"/>
+<text x="623.5" y="87" font-size="12" fill="#1f2328">0.849</text>
+<rect x="210" y="95" width="466.6" height="17" rx="3" fill="#3fb950"/>
+<text x="682.6" y="108" font-size="12" fill="#1f2328">0.972</text>
+<text x="198" y="153" font-size="14" font-weight="400" fill="#1f2328" text-anchor="end">Scrapling</text>
+<text x="198" y="170" font-size="11" fill="#59636e" text-anchor="end">56,058 wrong answers</text>
+<rect x="210" y="136" width="322.1" height="17" rx="3" fill="#58a6ff"/>
+<text x="538.1" y="149" font-size="12" fill="#1f2328">0.671</text>
+<rect x="210" y="157" width="414.7" height="17" rx="3" fill="#3fb950"/>
+<text x="630.7" y="170" font-size="12" fill="#1f2328">0.864</text>
+</svg>
