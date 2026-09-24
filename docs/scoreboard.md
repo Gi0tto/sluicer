@@ -3,7 +3,7 @@
 How often Sluicer's `summary` gets a page's title, author and publication
 date right, measured beside the tools people use for the same job, on a
 public annotated corpus, with the losses in the same table as the wins.
-Regenerated on 2026-09-24 from commit `2d39953` by
+Regenerated on 2026-09-24 from commit `108e287` by
 `uv run bench/run.py`; the method and every pin are in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -28,7 +28,7 @@ All 511 test pages:
 |---|---|---|---|---|---|
 | sluicer 0.6.0 | 0.727 | 0.532 | 0.581 | 42 | 8 |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 98 | 216 |
-| metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 125 | 84 |
+| metascraper 5.58.1 | 0.654 | 0.787 | 0.725 | 125 | 84 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 50 | 52 |
 
 The 359 article, listing, collection and product pages:
@@ -37,7 +37,7 @@ The 359 article, listing, collection and product pages:
 |---|---|---|---|---|---|
 | sluicer 0.6.0 | 0.748 | 0.532 | 0.598 | 18 | 3 |
 | trafilatura 2.2.0 | 0.723 | 0.750 | 0.866 | 45 | 124 |
-| metascraper 5.58.1 | 0.661 | 0.787 | 0.321 | 62 | 47 |
+| metascraper 5.58.1 | 0.661 | 0.787 | 0.723 | 62 | 47 |
 | newspaper4k 0.9.6 | 0.748 | 0.532 | 0.625 | 21 | 27 |
 
 ## Speed and size
@@ -46,7 +46,7 @@ The 359 article, listing, collection and product pages:
 |---|---|---|
 | sluicer 0.6.0 | 1.42 | 3 |
 | trafilatura 2.2.0 | 16.19 | 17 |
-| metascraper 5.58.1 | 2.53 | 125 |
+| metascraper 5.58.1 | 2.75 | 125 |
 | newspaper4k 0.9.6 | 29.61 | 22 |
 
 Seconds count only the extraction call, one page after another on one
@@ -68,7 +68,7 @@ choice with a cost, and this is the cost.
 
 - **Title**, right when answering: newspaper4k 0.767, trafilatura 0.743, sluicer 0.725, metascraper 0.653. Fewest inventions: every tool ties at 1.
 - **Author**, right when answering: sluicer 0.654, newspaper4k 0.599, trafilatura 0.551, metascraper 0.495. Fewest inventions: sluicer (42).
-- **Date**, right when answering: sluicer 0.917, newspaper4k 0.710, trafilatura 0.463, metascraper 0.322. Fewest inventions: sluicer (8).
+- **Date**, right when answering: sluicer 0.917, newspaper4k 0.710, metascraper 0.625, trafilatura 0.463. Fewest inventions: sluicer (8).
 
 Right when answering counts every answer a tool gives, inventions
 included. Sluicer gives none where the page states none; on a product or
@@ -94,7 +94,7 @@ All 511 test pages:
 | trafilatura 2.2.0 | date | 222 | 42 | 1 | 30 | 216 | 0.838 | 0.463 |
 | metascraper 5.58.1 | title | 333 | 176 | 0 | 1 | 1 | 0.654 | 0.653 |
 | metascraper 5.58.1 | author | 148 | 26 | 14 | 198 | 125 | 0.787 | 0.495 |
-| metascraper 5.58.1 | date | 99 | 124 | 42 | 162 | 84 | 0.374 | 0.322 |
+| metascraper 5.58.1 | date | 192 | 31 | 42 | 162 | 84 | 0.725 | 0.625 |
 | newspaper4k 0.9.6 | title | 391 | 118 | 0 | 1 | 1 | 0.768 | 0.767 |
 | newspaper4k 0.9.6 | author | 100 | 17 | 71 | 273 | 50 | 0.532 | 0.599 |
 | newspaper4k 0.9.6 | date | 171 | 18 | 76 | 194 | 52 | 0.645 | 0.710 |
@@ -111,7 +111,7 @@ The 359 article, listing, collection and product pages:
 | trafilatura 2.2.0 | date | 194 | 29 | 1 | 11 | 124 | 0.866 | 0.559 |
 | metascraper 5.58.1 | title | 236 | 121 | 0 | 1 | 1 | 0.661 | 0.659 |
 | metascraper 5.58.1 | author | 148 | 26 | 14 | 109 | 62 | 0.787 | 0.627 |
-| metascraper 5.58.1 | date | 72 | 111 | 41 | 88 | 47 | 0.321 | 0.313 |
+| metascraper 5.58.1 | date | 162 | 21 | 41 | 88 | 47 | 0.723 | 0.704 |
 | newspaper4k 0.9.6 | title | 267 | 90 | 0 | 1 | 1 | 0.748 | 0.746 |
 | newspaper4k 0.9.6 | author | 100 | 17 | 71 | 150 | 21 | 0.532 | 0.725 |
 | newspaper4k 0.9.6 | date | 140 | 12 | 72 | 108 | 27 | 0.625 | 0.782 |
