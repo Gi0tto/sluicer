@@ -13,8 +13,13 @@ that evaluator unchanged, so every number is Zyte's rules, not ours.
 Sluicer answers from its summary: ``normalised.price`` for the price (a
 decimal, or nothing when the page's text is ambiguous), ``sku`` as declared,
 and ``availability`` mapped to InStock or OutOfStock. As the benchmark does for
-extruct and Zyte, a page with no availability counts as InStock. Nothing is
-tuned to these pages.
+extruct and Zyte, a page with no availability counts as InStock.
+
+Sluicer's rules were made while these pages were read: ``7876710`` was measured
+here, and ``9548a35`` added the SKU names the extruct baseline reads, to pass it.
+This said "Nothing is tuned to these pages" until 0.7.1; the scoreboard now
+opens by saying they were, and ``bench/PREREG.md`` lists which pages each rule
+was made on.
 """
 
 from __future__ import annotations
@@ -275,6 +280,15 @@ def publish(
         f"`{commit}` by `uv run bench/products.py`, against the benchmark at "
         f"`{COMMIT[:12]}`. Sluicer read the {pages} pages in {seconds:.1f} s.",
         "",
+        '!!! warning "Sluicer\'s rules were made on these pages"',
+        "    Rules were written, measured on these pages and kept because the",
+        "    numbers here rose (`7876710`; `9548a35` added the SKU names the",
+        "    extruct baseline reads, to pass it), so this measures Sluicer on",
+        "    pages it was fitted to, not on pages it has never seen. Of the",
+        "    scoreboards, only SWDE's held-out half is a held-out test;",
+        "    [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md)",
+        "    says which pages each rule was made on.",
+        "",
         '!!! warning "Read this before the numbers"',
         "    Zyte and Diffbot are commercial services built on trained models,",
         "    measured by Zyte in 2021 on pages it served them; Sluicer reads only",
@@ -303,10 +317,12 @@ def publish(
         "",
         *_errors(truth, predictions, unread),
         "",
-        "What the benchmark found in Sluicer, and is fixed: a microdata price",
-        "holding two numbers blocked the page's clean `product:price:amount`,",
-        "and a product declared once per colour, or beside related products,",
-        "was taken for a listing with no subject.",
+        "Rules made while reading these pages, before 0.7.0: a microdata price",
+        "holding two numbers no longer blocks the page's clean",
+        "`product:price:amount`, a product declared once per colour or beside",
+        "related products is no longer taken for a listing with no subject",
+        "(`7876710`), and an SKU is also read from `productID`, `og:sku` and",
+        "`product:sku`, as the extruct baseline reads it (`9548a35`).",
         "",
     ]
     SCOREBOARD.write_text("\n".join(lines), encoding="utf-8")

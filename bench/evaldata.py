@@ -203,6 +203,7 @@ def _document(labelled, pages, runs, per_page, body) -> str:
         f"`uv run bench/evaldata.py`, against trafilatura at `{COMMIT[:12]}`; the",
         "method is in [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).",
         "",
+        *board.fitted("`bebff9d`"),
         '!!! warning "Read this before the numbers"',
         "    trafilatura's authors annotated these pages to measure trafilatura,",
         "    so the labels follow what it is built to find: the byline and the date",

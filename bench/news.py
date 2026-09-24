@@ -209,6 +209,7 @@ def _document(pages_list, pages, runs, per_page, languages) -> str:
         f"`uv run bench/news.py`, against fundus at `{COMMIT[:12]}`; the method is in",
         "[`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).",
         "",
+        *board.fitted("`523e6b1`, `f84541c`, `074b4ad`"),
         '!!! warning "Read this before the numbers"',
         "    The labels are what fundus's parser for each publisher reads, and a",
         "    parser reads the page a person sees: the headline shown, the byline.",

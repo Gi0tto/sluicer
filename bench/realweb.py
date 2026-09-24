@@ -1091,6 +1091,7 @@ def _document(manifest, everything, pages, runs, per_page, sources) -> str:
         "[`bench/realweb-manifest.json`]"
         "(https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).",
         "",
+        *board.fitted("`8e723ed`, `7876710`, `074b4ad`"),
         '!!! warning "Read this before the numbers"',
         f"    These are {n} of WCXB's {len(everything)} test pages: the ones an",
         "    archive holds near the date WCXB saved them, and whose archived text",
@@ -1124,7 +1125,7 @@ def _document(manifest, everything, pages, runs, per_page, sources) -> str:
         "what a reader sees, and left a label empty where the visible page states",
         "none. A served page can still declare a date or an author in JSON-LD",
         "that the visible page never shows; the scorer counts that answer as an",
-        "invention, here as on the full scoreboard, and the rules were not",
+        "invention, here as on the full scoreboard, and the scorer's rules were not",
         "changed for this page. The table below says how many of Sluicer's",
         "inventions each source produced.",
         "",

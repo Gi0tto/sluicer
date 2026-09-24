@@ -194,7 +194,10 @@ HTML entities, stored undecoded, are decoded first.
 was read** (commit `fc72378`): in each vertical, in alphabetical order, sites
 alternate between development and held-out. Rules for Sluicer are made while
 reading only the development sites' pages and errors; the held-out sites are
-only scored, and the scoreboard shows both halves.
+only scored, and the scoreboard shows both halves. That half is the one
+held-out test here: Sluicer's rules were made while the pages of the other
+scoreboards and of the drift benchmark were read ([`PREREG.md`](PREREG.md)
+says which).
 
 ## Before a release: the floors
 

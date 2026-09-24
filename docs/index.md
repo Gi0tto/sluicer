@@ -302,6 +302,11 @@ that also read the visible page, and is wrong less often when it answers. A hit
 rate is right answers over the pages that carry a label; an invention is an
 answer on a page whose label is empty.
 
+Sluicer's rules were made while the pages of five of the six, and of the drift
+benchmark, were read, so those numbers are on pages it was fitted to; only
+SWDE's held-out half is a held-out test. [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md) says which
+pages each rule was made on.
+
 | scoreboard | pages | measures | Sluicer | beside it |
 |---|---|---|---|---|
 | [WCXB](scoreboard.md) | 511 | title, author, date, scripts stripped | 0.727, 0.532, 0.581; 8 dates invented | trafilatura 0.745, 0.750, 0.838; 216 invented |

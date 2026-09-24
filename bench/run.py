@@ -134,6 +134,24 @@ def publish() -> None:
     print(f"wrote {SCOREBOARD.relative_to(ROOT)}")
 
 
+PREREG = "https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md"
+
+
+def fitted(commits: str) -> list[str]:
+    """The note every scoreboard whose pages Sluicer's rules were made on
+    opens with: until 0.7.1 they said nothing of it, and one said "Nothing is
+    tuned to these pages"."""
+    return [
+        '!!! warning "Sluicer\'s rules were made on these pages"',
+        "    Rules were written, measured on these pages and kept because the",
+        f"    numbers here rose ({commits}, among others), so this measures",
+        "    Sluicer on pages it was fitted to, not on pages it has never seen.",
+        "    Of the scoreboards, only SWDE's held-out half is a held-out test;",
+        f"    [`bench/PREREG.md`]({PREREG}) says which pages each rule was made on.",
+        "",
+    ]
+
+
 def _name(run: dict[str, Any]) -> str:
     return f"{run['tool']} {run['version']}"
 
@@ -333,6 +351,7 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "`uv run bench/run.py`; the method and every pin are in",
         "[`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).",
         "",
+        *fitted("`659f3a6`, `709856e`, `b86aa19`"),
         '!!! warning "Read this before the numbers"',
         (
             "    WCXB removed every `<script>` from its pages: of the "

@@ -5,6 +5,39 @@ counts as better are decided before the numbers are read. This file says what
 is fixed. Changing any of it is a change to the scoreboards, made in its own
 commit, with the pages it changes regenerated in that commit.
 
+## Which pages Sluicer's rules were made on
+
+Five of the six scoreboards, and the drift benchmark, had rules made while
+their pages were read: a rule was written, measured on those pages, and kept
+because the numbers there rose. Their numbers say how Sluicer does on pages it
+was fitted to, not on pages it has never seen, and each of them says so. The
+commits say it themselves:
+
+| scoreboard | rules made while its pages were read, for example |
+|---|---|
+| WCXB, 511 test pages | `659f3a6`, `709856e` ("measured across the 359 WCXB pages"), `b86aa19` ("Measured on WCXB's 511-page test split") |
+| as served, the same pages | `8e723ed` (the date and price forms they write), `7876710`, `074b4ad`, `f84541c` |
+| news | `523e6b1`, `f84541c` ("Found on the multilingual news scoreboard"), `074b4ad` |
+| trafilatura's set | `bebff9d` ("on the scoreboards' pages and trafilatura's evaluation set") |
+| products | `7876710` ("Measured on Zyte's product benchmark"), `9548a35` (to pass extruct's SKU), `6fcbc7a` |
+| drift | `92e5824`, `cd47d1b`, `af14095`, `f592d0c`, `faf097e`, `a8e7877` ("Found by the drift benchmark") |
+| SWDE, development half | by design: `4978927` |
+
+Held out, and only these:
+
+- **SWDE's held-out half, less its camera sites.** Split before any full
+  result was read; no rule was made reading its pages or its errors. Its
+  numbers have been read three times, listed below, and one of those readings
+  was to see whether a rule made on the development half held before it was
+  kept. The ten camera sites were read before the split.
+- **Every scoreboard, for `--visible` alone.** Its rules were made on WCXB's
+  development split, which no scoreboard scores; the summary's rules were not.
+
+Until 0.7.1, `bench/products.py` said "Nothing is tuned to these pages" and
+this file called the scoreboards held out without saying for what; both were
+wrong for the summary, and this section replaces them. From 0.7.1 on, a rule
+measured on a scoreboard's pages names that scoreboard in its commit.
+
 ## The corpora, pinned
 
 | scoreboard | corpus | pinned at | checked by |
@@ -89,8 +122,10 @@ byline, a date or a title off the visible page are made reading only the
 1,358 pages of WCXB's `dev` split, in the archive already pinned at
 `c039d5e`, their labels, and Sluicer's answers on them. No scoreboard page is
 read while they are made: WCXB's test split, the pages as served, the news
-fixtures, trafilatura's set and Zyte's products are all held out, scored, and
-each shows two columns, what the page declares and what `--visible` adds. A
+fixtures, trafilatura's set and Zyte's products are held out from
+`--visible`'s rules -- not from the summary's, which were made on them, as the
+first section says -- scored, and each shows two columns, what the page
+declares and what `--visible` adds. A
 guess read off the visible page is never part of the summary, and every
 invention it makes is counted in its own column.
 

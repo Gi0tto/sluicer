@@ -11,6 +11,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   person can point to, leaving out the options already given.
 
 ### Fixed
+- The scoreboards say which pages Sluicer's rules were made on. Five of the
+  six, and the drift benchmark, had rules written, measured on their pages and
+  kept because the numbers there rose -- `b86aa19` was "Measured on WCXB's
+  511-page test split", `9548a35` added SKU names to pass extruct on the
+  products benchmark -- while `bench/products.py` said "Nothing is tuned to
+  these pages" and `bench/PREREG.md` called the scoreboards held out. PREREG
+  now lists the commits per scoreboard, each generator opens its page by
+  saying so, and only SWDE's held-out half, less its camera sites, is called a
+  held-out test.
 - The README's facts: the dates chart's alt text said metascraper found 0.384
   of the dates and was right on 0.271 where the chart and the scoreboard say
   0.811 and 0.573; the README said WCXB's pages are read in 1.4 s where the
