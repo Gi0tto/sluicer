@@ -99,9 +99,13 @@ build-backend = "hatchling.build"
 packages = ["src/sluicer"]
 
 [tool.hatch.build.targets.sdist]
-# The sdist carries the source, the tests and the documents a user reads. The
-# scoreboard's harness is run from a checkout, and the built site is output.
-exclude = ["/site", "/bench"]
+# The sdist carries the source, the tests and what they read, and the documents
+# a user reads. The scoreboard's harness is run from a checkout, and the built
+# site is output. The lockfile pins the development environment, not what a
+# build needs; the workflows are CI's; and the pictures, most of the 2 MB the
+# sdist weighed, are shown on PyPI from the repository, since the README names
+# them by absolute address.
+exclude = ["/site", "/bench", "/uv.lock", "/.github", "/docs/assets"]
 
 [dependency-groups]
 dev = [

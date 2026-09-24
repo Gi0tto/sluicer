@@ -56,6 +56,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `/pads` and `https://example.com/pads` on that site, are one canonical there
   too; the relative one is still `canonical-relative`.
 
+### Changed
+- The sdist is 0.72 MB, from 1.99 MB. It leaves out `uv.lock`, which pins the
+  development environment, the CI workflows, and the pictures under
+  `docs/assets`, which PyPI shows from the repository because the README names
+  them by absolute address. It still carries the source, the tests and all they
+  read, and the suite passes from it unpacked; the wheel is unchanged.
+
 ## 0.7.0 - 2026-09-24
 
 ### Added
