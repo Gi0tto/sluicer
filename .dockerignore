@@ -5,6 +5,8 @@
 !pyproject.toml
 !README.md
 !LICENSE
+!NOTICE
+!LICENSES/
 !src/
 **/__pycache__
 **/*.pyc

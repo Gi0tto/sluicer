@@ -9,22 +9,59 @@
 # ladder climb reaches a browser rung with no browser installed, and that climb
 # fails. Build with the browser when you need it:
 #   docker build --build-arg WITH_BROWSER=1 -t sluicer .
+
+# The first stage builds the wheel from the source it is given, and only that
+# wheel is installed below: never a sluicer from PyPI, whose latest release is
+# not necessarily the source being built. The release workflow checks that the
+# wheel installed here is, file for file, the one it built and tested.
+FROM python:3.13-slim AS wheel
+
+WORKDIR /src
+# Only what the build reads. The .dockerignore says the same thing the other
+# way round, so a context sent from a working tree carries no .venv or .git.
+# NOTICE and LICENSES/ are named in pyproject.toml's license-files: without
+# them the wheel was built with LICENSE alone, and the image shipped
+# schema.org's and CLDR's data with neither their licences nor the notice
+# that says which files they cover.
+COPY pyproject.toml README.md LICENSE NOTICE ./
+COPY LICENSES ./LICENSES
+COPY src ./src
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels .
+
 FROM python:3.13-slim
 
 ARG WITH_BROWSER=0
+# The version the labels state. The build stops if the wheel says another, and
+# a test holds this line to pyproject.toml.
+ARG SLUICER_VERSION=0.7.0
+
+LABEL org.opencontainers.image.title="Sluicer" \
+      org.opencontainers.image.description="The data a web page declares, with where each value came from. No model, no API key." \
+      org.opencontainers.image.source="https://github.com/Gi0tto/sluicer" \
+      org.opencontainers.image.url="https://github.com/Gi0tto/sluicer" \
+      org.opencontainers.image.documentation="https://gi0tto.github.io/sluicer/" \
+      org.opencontainers.image.licenses="MIT AND CC-BY-SA-3.0 AND Unicode-3.0" \
+      org.opencontainers.image.version="${SLUICER_VERSION}"
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 
-WORKDIR /app
-# Only what the build reads. The .dockerignore says the same thing the other
-# way round, so a context sent from a working tree carries no .venv or .git.
-COPY pyproject.toml README.md LICENSE ./
-COPY src ./src
+COPY --from=wheel /wheels /wheels
+# The licence files arrive twice on purpose: inside the installed package's
+# metadata, where pip puts them, and here, where a person looking at the image
+# finds them without knowing Python's layout.
+COPY LICENSE NOTICE /usr/share/licenses/sluicer/
+COPY LICENSES /usr/share/licenses/sluicer/LICENSES
 
-RUN pip install --no-cache-dir '.[fetch,markdown,mcp,api]' \
-    && python -c "import sluicer; print('sluicer', sluicer.__version__)"
+RUN wheel=$(ls /wheels/sluicer-*.whl) \
+    && pip install --no-cache-dir "${wheel}[fetch,markdown,mcp,api]" \
+    && rm -rf /wheels \
+    && python -c "import sluicer, importlib.metadata as md; \
+names = {f.name for f in md.files('sluicer') if 'licenses' in f.parts}; \
+assert {'LICENSE', 'NOTICE', 'CC-BY-SA-3.0.txt', 'Unicode-3.0.txt'} <= names, names; \
+assert sluicer.__version__ == '${SLUICER_VERSION}', (sluicer.__version__, '${SLUICER_VERSION}'); \
+print('sluicer', sluicer.__version__, 'with', sorted(names))"
 
 # Chromium's system libraries arrive through apt, so this runs as root, before
 # the switch below, and into a path the unprivileged user can read.

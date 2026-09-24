@@ -1,0 +1,109 @@
+{
+  "manifest_version": "0.4",
+  "name": "sluicer",
+  "display_name": "Sluicer",
+  "version": "0.7.0",
+  "description": "The data a web page declares, with where each value came from. No model, no API key.",
+  "long_description": "Sluicer reads everything a web page declares about itself -- products, articles, recipes, events, prices, dates, in JSON-LD, microdata, RDFa, OpenGraph and four more vocabularies -- and merges it into one record per thing, every value naming the vocabulary and the place on the page it came from. It learns extractors that fail loudly when a site changes layout, and heals them; audits a page's markup against what Google documents; reads feeds, maps and crawls a site politely. It fetches at the lowest price that works, announces itself by name and obeys robots.txt. No model reads any page, so the same page always gives the same answer. Every tool only reads.\n\nClaude Desktop installs the server with uv from PyPI the first time it starts, so nothing else needs installing.",
+  "author": {
+    "name": "Nichita Briculschi",
+    "url": "https://github.com/Gi0tto"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gi0tto/sluicer"
+  },
+  "homepage": "https://gi0tto.github.io/sluicer/",
+  "documentation": "https://gi0tto.github.io/sluicer/agents/",
+  "support": "https://github.com/Gi0tto/sluicer/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "uv",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "server.py"],
+      "env": {
+        "SLUICER_ALLOW_PRIVATE": "${user_config.allow_private}",
+        "SLUICER_MCP_TOOLS": "${user_config.tools}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "extract_declared",
+      "description": "What a page declares, with provenance, the summary and its conflicts."
+    },
+    {
+      "name": "page_markdown",
+      "description": "The page's main content as markdown."
+    },
+    {
+      "name": "fetch_page",
+      "description": "The page's HTML, and whether it took plain HTTP or a browser."
+    },
+    {
+      "name": "compile_extractor",
+      "description": "An extractor learnt from pages of one template."
+    },
+    {
+      "name": "run_extractor",
+      "description": "An extractor replayed on a page, checked against what it learnt."
+    },
+    {
+      "name": "heal_extractor",
+      "description": "The extractor learnt again after a redesign, and what moved."
+    },
+    {
+      "name": "audit_page",
+      "description": "The page's markup against what Google documents."
+    },
+    {
+      "name": "read_feed",
+      "description": "A feed's items: RSS, Atom or JSON Feed."
+    },
+    {
+      "name": "map_site",
+      "description": "A site's addresses, from its sitemaps or its start page's links."
+    },
+    {
+      "name": "crawl_site",
+      "description": "A site's pages, following its links, each summarised."
+    }
+  ],
+  "keywords": [
+    "scraping",
+    "structured-data",
+    "json-ld",
+    "microdata",
+    "opengraph",
+    "schema-org",
+    "extraction",
+    "markdown",
+    "robots-txt",
+    "deterministic"
+  ],
+  "license": "MIT AND CC-BY-SA-3.0 AND Unicode-3.0",
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  },
+  "user_config": {
+    "allow_private": {
+      "type": "boolean",
+      "title": "Fetch private addresses",
+      "description": "Let the server fetch localhost, private networks and a cloud's metadata endpoint, which it refuses by default: a page an agent reads can ask it to.",
+      "default": false,
+      "required": false
+    },
+    "tools": {
+      "type": "string",
+      "title": "Tools to offer",
+      "description": "Comma-separated tool names, to offer only some of the ten, such as extract_declared,page_markdown. Empty offers all ten.",
+      "default": "",
+      "required": false
+    }
+  }
+}
