@@ -196,6 +196,14 @@ https://www.google.com/` and a Chrome TLS fingerprint under our name; both are
 now turned off, and a local server confirmed neither reaches it. If you change
 how a rung is built, ask a real server what it saw.
 
+**A robots.txt group is ours when it names our product token.** `User-agent:
+Sluicer`, in any case, is the group Sluicer obeys, and `*` when there is none.
+Until 0.7.1 protego was handed the whole user agent, and a group for
+`https`, `github` or `com` was taken for ours. protego still takes a group
+named by the start of the name for ours, `User-agent: slu`, and one that writes
+a version after it, `Sluicer/1.0`, for someone else's; RFC 9309 would do
+neither.
+
 **The robots answer is believed for a day.** A site that adds a rule is noticed
 within twenty-four hours, not immediately. The process remembers the answers of
 the 4,096 sites it used most recently (`ROBOTS_CACHE_HOSTS`); a site pushed out

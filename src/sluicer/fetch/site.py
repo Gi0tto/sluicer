@@ -19,7 +19,7 @@ from sluicer.declared.tdmrep import WELL_KNOWN
 from sluicer.extras import import_extra
 from sluicer.fetch.address import AddressRefused, _resolve
 from sluicer.fetch.http_rung import http_rung
-from sluicer.fetch.identity import USER_AGENT, robots_url_for
+from sluicer.fetch.identity import PRODUCT_TOKEN, robots_url_for
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge, Rung
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
@@ -138,6 +138,6 @@ def _refusal(address: str, robots: SiteFile) -> str | None:
         doing="Reading a site's robots.txt",
         error=FetchExtraMissing,
     )
-    if protego.Protego.parse(robots.text or "").can_fetch(address, USER_AGENT):
+    if protego.Protego.parse(robots.text or "").can_fetch(address, PRODUCT_TOKEN):
         return None
     return "not fetched: the site's robots.txt disallows it"

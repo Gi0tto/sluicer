@@ -16,8 +16,19 @@ from urllib.parse import urlsplit, urlunsplit
 from sluicer import __version__
 from sluicer.extras import import_extra
 
-USER_AGENT = f"Sluicer/{__version__} (+https://github.com/Gi0tto/sluicer)"
-"""What every request says it is. One line in robots.txt is enough to refuse it."""
+PRODUCT_TOKEN = "Sluicer"
+"""The name a robots.txt group is matched against, and nothing else.
+
+RFC 9309 matches a group's ``User-agent`` against the crawler's product token,
+case-insensitively. Handed the whole user agent, protego looks for a group's
+name anywhere in it at a word's start, so ``User-agent: https`` -- or
+``github``, or ``com`` -- was taken for ours: another crawler's rules refused
+us and its delay paced us.
+"""
+
+USER_AGENT = f"{PRODUCT_TOKEN}/{__version__} (+https://github.com/Gi0tto/sluicer)"
+"""What every request says it is. One line in robots.txt is enough to refuse it:
+``User-agent: Sluicer``."""
 
 ROBOTS_TTL_SECONDS = 24 * 60 * 60
 """How long a robots.txt answer is believed before the site is asked again.
@@ -104,7 +115,7 @@ def robots_refusal(
     ``RobotsUnreachable`` instead, and that answer is not remembered.
     """
     rules = _rules(url, read, cache, now)
-    if rules is None or rules.can_fetch(url, USER_AGENT):
+    if rules is None or rules.can_fetch(url, PRODUCT_TOKEN):
         return None
     return "its robots.txt disallows it"
 
@@ -118,7 +129,7 @@ def robots_delay(
     """How many seconds the site asks us to leave between requests; 0 if none.
 
     ``Crawl-delay``, or the interval a ``Request-rate`` of ``n/s`` implies,
-    whichever asks for more, from the group that applies to ``USER_AGENT``.
+    whichever asks for more, from the group that applies to ``PRODUCT_TOKEN``.
     Neither is in RFC 9309, and both are what a site that wants to be asked
     less often actually writes. A value that is not a number is no request;
     an infinite one is kept, so a caller bounding its waits can refuse it.
@@ -128,8 +139,8 @@ def robots_delay(
     rules = _rules(url, read, cache, now)
     if rules is None:
         return 0.0
-    delay = float(rules.crawl_delay(USER_AGENT) or 0.0)
-    rate = rules.request_rate(USER_AGENT)
+    delay = float(rules.crawl_delay(PRODUCT_TOKEN) or 0.0)
+    rate = rules.request_rate(PRODUCT_TOKEN)
     if rate is not None and rate.requests > 0:
         delay = max(delay, rate.seconds / rate.requests)
     return 0.0 if math.isnan(delay) or delay < 0 else delay

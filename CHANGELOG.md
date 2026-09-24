@@ -28,6 +28,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   became `&`. The audit already read the file raw, so the two could disagree
   about one robots.txt. Only a body that is a whole HTML document, a browser's
   rendering of a text file, has its text taken out.
+- A robots.txt group applies to Sluicer when it names Sluicer's product token,
+  as RFC 9309 says, not when its name is found anywhere in the user agent:
+  `User-agent: https`, `github` or `com` matched
+  `Sluicer/0.7.0 (+https://github.com/Gi0tto/sluicer)`, so another crawler's
+  rules refused Sluicer and its `Crawl-delay` paced it. `PRODUCT_TOKEN` is
+  what the ladder, the crawler and the audit's site files ask with.
 
 ## 0.7.0 - 2026-09-24
 
