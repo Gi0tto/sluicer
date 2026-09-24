@@ -27,6 +27,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   now mended outside strings only too: `"Pad, ]"` was read as `"Pad]"`. On
   the benchmark pages, two of WCXB's development pages gain six records; no
   summary answer changed.
+- `normalise.amount("12 50")` is None: every space and apostrophe was dropped,
+  so it was 1250. Digits grouped by a space or an apostrophe must now be
+  grouped in thousands, as those grouped by a point or a comma already were.
+  No answer on the benchmark pages reads differently; of the 259,520
+  distinct values SWDE labels, 163 phone numbers, `202 244 2044`, no longer
+  read as amounts.
 
 ## 0.7.0 - 2026-09-24
 

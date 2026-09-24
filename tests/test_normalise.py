@@ -216,3 +216,38 @@ def test_a_date_s_offset_in_other_decimal_digits_is_written_in_ascii_ones():
     assert iso_date("2025-01-01T10:00+\u0660\u0662:\u0660\u0660") == (
         "2025-01-01T10:00:00+02:00"
     )
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("12 345", "12345"),
+        ("123 456 789", "123456789"),
+        ("1 234 567,89", "1234567.89"),
+        ("1'234.50", "1234.50"),
+        ("123,456,789", "123456789"),  # a first group of three, the most it holds
+        ("1.234.567,891", "1234567.891"),
+    ],
+)
+def test_digits_grouped_in_thousands_are_one_amount(written, meant):
+    assert amount(written) == meant
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "12 50",  # two numbers, or twelve and a half: not 1250
+        "1 2345",
+        "1234 567",
+        "1 234 56",
+        "1'23",
+        "12 345 6,00",
+        "1234,567,890",  # a first group of four
+        ",123,456",  # and of none
+        "12,345,67",
+        "12.34,56",
+        "1234.567,89",
+    ],
+)
+def test_digits_that_are_not_grouped_in_thousands_are_no_amount(written):
+    assert amount(written) is None

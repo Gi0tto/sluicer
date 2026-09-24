@@ -266,6 +266,10 @@ def _day(year: int, month: int, day: int) -> str | None:
 
 
 _AMOUNT = re.compile(r"[\d.,\s']+")
+_SPACE_OR_APOSTROPHE = re.compile(r"[\s']")
+# Thousands grouped with a space or an apostrophe: one to three digits, then
+# threes, then perhaps a separator and what follows it.
+_SPACED = re.compile(r"\d{1,3}(?:[\s']\d{3})+(?:[.,]\d+)?")
 # Longer than any price written with its symbol and grouping: past it, a text
 # is a sentence or a page, and reading it as one would cost its length for
 # every currency symbol there is.
@@ -280,7 +284,9 @@ def amount(text: str) -> str | None:
     and a comma appear, the last one is the decimal separator. When only one
     appears once, it is the decimal separator unless exactly three digits follow
     it: ``1,299`` and ``1.299`` are refused, since each is a thousand somewhere
-    and a little over one somewhere else (``0.999`` is not ambiguous).
+    and a little over one somewhere else (``0.999`` is not ambiguous). Digits
+    grouped by a separator, a space or an apostrophe are grouped in thousands,
+    ``1 299,00`` or ``1'299.00``, or the text is refused: ``12 50`` is not 1250.
     """
     stripped = text.strip()
     if len(stripped) > _LONGEST_AMOUNT:
@@ -299,8 +305,12 @@ def amount(text: str) -> str | None:
         or not any(c.isdigit() for c in stripped)
     ):
         return None
-    # \s holds the no-break spaces French and Swiss prices group with.
-    number = re.sub(r"[\s']", "", stripped)
+    # \s holds the no-break spaces French and Swiss prices group with. A space
+    # or an apostrophe only ever groups thousands: "12 50" is two numbers, or
+    # twelve and a half, and never 1250.
+    if _SPACE_OR_APOSTROPHE.search(stripped) and not _SPACED.fullmatch(stripped):
+        return None
+    number = _SPACE_OR_APOSTROPHE.sub("", stripped)
     points, commas = number.count("."), number.count(",")
     if points and commas:
         decimal = "." if number.rfind(".") > number.rfind(",") else ","
