@@ -11,6 +11,7 @@ move. Fetching needs the ``fetch`` extra.
 from sluicer.fetch.ladder import (
     AddressRefused,
     FetchFailed,
+    PaymentRequired,
     RobotsRefused,
     SiteRefused,
     fetch,
@@ -23,6 +24,7 @@ __all__ = [
     "Climb",
     "FetchFailed",
     "Fetched",
+    "PaymentRequired",
     "RedirectRefused",
     "ResponseTooLarge",
     "RobotsRefused",

@@ -21,7 +21,13 @@ import pytest
 from click.testing import CliRunner
 
 from sluicer import http_api
-from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused, SiteRefused
+from sluicer.fetch import (
+    AddressRefused,
+    FetchFailed,
+    PaymentRequired,
+    RobotsRefused,
+    SiteRefused,
+)
 from test_mcp_server import fake_fetch
 
 PAGE = '<script type="application/ld+json">{"@type":"Product","name":"Pad"}</script>'
@@ -221,6 +227,7 @@ def test_each_tool_error_arrives_with_its_status(client, monkeypatch, absent):
         "bad_input": http.post("/v1/tools/fetch_page", json={"url": PAGE}),
         "refused_by_robots": fetched_with(RobotsRefused(url)),
         "refused_by_site": fetched_with(SiteRefused(url, [], "a challenge page")),
+        "payment_required": fetched_with(PaymentRequired(url, [])),
         "refused_address": fetched_with(AddressRefused(url, "it is private")),
         "fetch_failed": fetched_with(FetchFailed(url, [], "connection refused")),
     }
@@ -578,6 +585,7 @@ def test_the_openapi_document_says_what_each_tool_takes_and_answers(client):
         assert {
             "400",
             "401",
+            "402",
             "403",
             "413",
             "415",

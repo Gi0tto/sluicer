@@ -894,3 +894,13 @@ def test_a_challenge_page_is_a_page_the_site_refused():
     assert only.error is not None and only.error.code == "refused_by_site"
     assert only.error.retryable is False
     assert "challenge page" in only.error.message
+
+
+def test_a_page_that_asks_to_be_paid_says_so():
+    fake = FakeWeb({f"{ROOT}/": (402, page("Pay first"), {})})
+
+    (only,) = list(run(fake))
+
+    assert only.error is not None and only.error.code == "payment_required"
+    assert only.error.retryable is False
+    assert only.extraction is None, "a 402's body is not the page"

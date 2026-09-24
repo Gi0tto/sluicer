@@ -622,6 +622,23 @@ def test_a_challenge_page_is_answered_as_the_site_refusing(monkeypatch):
         assert "just a moment" in answer["error"]["message"], name
 
 
+def test_a_site_that_asks_to_be_paid_is_answered_so(monkeypatch):
+    from sluicer.fetch import PaymentRequired
+
+    registered = fake_mcp(monkeypatch)
+    url = "https://example.com/p"
+    fake_fetch(monkeypatch, raises=PaymentRequired(url, []))
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered["extract_declared"](url)
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "payment_required"
+    assert answer["error"]["retryable"] is False
+    assert "402" in answer["error"]["message"]
+
+
 def test_a_refusal_and_a_missing_extra_can_be_told_apart(monkeypatch):
     """Same shape, different discriminator: the reader must not have to guess.
 

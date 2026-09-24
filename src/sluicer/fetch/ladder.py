@@ -51,6 +51,7 @@ from sluicer.fetch.rules import challenge_marker, why_climb
 __all__ = [
     "AddressRefused",
     "FetchFailed",
+    "PaymentRequired",
     "RedirectRefused",
     "ResponseTooLarge",
     "RobotsRefused",
@@ -104,6 +105,24 @@ class SiteRefused(FetchFailed):
     def __init__(self, url: str, climbs: list[Climb], reason: str) -> None:
         super().__init__(url, climbs, f"the site refused it: {reason}")
         self.reason = reason
+
+
+class PaymentRequired(FetchFailed):
+    """The site answered 402 Payment Required: it asks to be paid to be read.
+
+    Sluicer never pays, and never asks the same question of another rung,
+    which would be asking again in the hope of not being charged. Raised, not
+    returned: a 402's body is the site's terms, not the page. A
+    ``FetchFailed``, so a caller that catches that catches this, but not one
+    worth retrying.
+    """
+
+    def __init__(self, url: str, climbs: list[Climb]) -> None:
+        super().__init__(
+            url,
+            climbs,
+            "the site answered 402 Payment Required; Sluicer does not pay",
+        )
 
 
 def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
@@ -164,6 +183,9 @@ def _rules_in(body: str) -> str:
     return str(load(text).tree.text_content())
 
 
+_PAYMENT_REQUIRED = 402
+
+
 def _stay_out(marker: str, reason: str) -> str:
     return f"# {marker}: {reason}\nUser-agent: *\nDisallow: /\n"
 
@@ -205,6 +227,7 @@ def fetch(
     Raises:
         RobotsRefused: the site's robots.txt disallows the URL.
         SiteRefused: the page the ladder was left with is a challenge page.
+        PaymentRequired: a rung was answered 402; no other rung is asked.
         AddressRefused: the address, or one a redirect led to, is not http
             or https; or ``allow_private`` is false and it is private.
         ResponseTooLarge: the page is heavier than ``max_bytes``.
@@ -278,6 +301,8 @@ def fetch(
 
         result.seconds = time.monotonic() - started
         result.climbs = list(climbs)
+        if result.status == _PAYMENT_REQUIRED:
+            raise PaymentRequired(url, result.climbs)
         # What counts as having delivered is a field about a thing, the rule
         # induction uses: a theme-color in the head of an empty React shell is
         # not the page's data.

@@ -44,6 +44,7 @@ from sluicer.fetch import (
     AddressRefused,
     Climb,
     FetchFailed,
+    PaymentRequired,
     RedirectRefused,
     ResponseTooLarge,
     RobotsRefused,
@@ -75,9 +76,9 @@ class PageError:
     """Why a page has no extraction.
 
     ``code`` is one of the MCP server's -- ``refused_by_robots``,
-    ``refused_by_site``, ``refused_address``, ``fetch_failed``
-    (``retryable``), ``too_large``,
-    ``bad_input`` -- or one of a crawl's own: ``redirected_off_site``, with the
+    ``refused_by_site``, ``payment_required``, ``refused_address``,
+    ``fetch_failed`` (``retryable``), ``too_large``, ``bad_input`` -- or one
+    of a crawl's own: ``redirected_off_site``, with the
     ``target`` it pointed to, ``crawl_delay_too_long``, and ``rate_limited``
     (``retryable``), a site's Retry-After asking for longer than a crawl waits.
     """
@@ -567,6 +568,8 @@ class _Visitor:
             return failed("too_large", str(heavy))
         except SiteRefused as refused:
             return failed("refused_by_site", str(refused))
+        except PaymentRequired as unpaid:
+            return failed("payment_required", str(unpaid))
         except FetchFailed as failure:
             return failed("fetch_failed", str(failure), retryable=True)
         finally:

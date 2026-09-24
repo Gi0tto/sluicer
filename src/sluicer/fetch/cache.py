@@ -35,7 +35,12 @@ from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import sniff_encoding
 from sluicer.fetch.address import _resolve
 from sluicer.fetch.http_rung import Response
-from sluicer.fetch.ladder import FetchFailed, fetch, robots_reader_from
+from sluicer.fetch.ladder import (
+    FetchFailed,
+    PaymentRequired,
+    fetch,
+    robots_reader_from,
+)
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, CacheHit, EmptyBody, Fetched, Rung
 from sluicer.fetch.rules import challenge_marker, why_climb
 
@@ -176,6 +181,9 @@ def fetch_cached(
                     resolve=resolve,
                     max_bytes=max_bytes,
                 )
+            except PaymentRequired:
+                # The site's answer, which no rung asked again changes.
+                raise
             except FetchFailed:
                 # The question could not be put; the whole ladder may still
                 # reach the page, a browser included.

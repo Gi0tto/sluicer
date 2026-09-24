@@ -44,6 +44,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `SiteRefused`, a `FetchFailed`, answered as the new error code
   `refused_by_site` (HTTP 403, not retryable) by the MCP server, the HTTP API
   and a crawl's page.
+- A 402 Payment Required is an answer, not a page. Its body was extracted as
+  the site's, and when it looked like a challenge the browser was sent to ask
+  again. Any rung answered 402 now raises `PaymentRequired`, a `FetchFailed`,
+  and no other rung is asked; the MCP server, the HTTP API (402) and a crawl's
+  page say `payment_required`, not retryable. Sluicer never pays.
 
 ## 0.7.0 - 2026-09-24
 

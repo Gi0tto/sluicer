@@ -559,3 +559,35 @@ def test_a_shell_on_the_last_rung_is_still_returned():
     )
 
     assert result.rung == "browser"
+
+
+@pytest.mark.parametrize("body", [RICH, CHALLENGE])
+def test_payment_required_is_an_answer_never_a_page_nor_a_reason_to_climb(body):
+    """A 402 was read as the page: its body's records came back as the site's.
+    Whatever the body looks like, no other rung is asked the same question,
+    and nothing is paid."""
+    from sluicer.fetch import PaymentRequired
+
+    http = rung("http", body, status=402)
+    browser = rung("browser", RICH)
+
+    with pytest.raises(PaymentRequired, match="402") as refused:
+        fetch("https://example.com/p", rungs=[("http", http), ("browser", browser)])
+
+    assert isinstance(refused.value, FetchFailed)
+    assert refused.value.url == "https://example.com/p"
+    assert browser.calls == []
+
+
+def test_payment_required_on_a_higher_rung_is_the_answer_too():
+    from sluicer.fetch import PaymentRequired
+
+    http = rung("http", REFUSED, status=403)
+    browser = rung("browser", RICH, status=402)
+
+    with pytest.raises(PaymentRequired) as refused:
+        fetch("https://example.com/p", rungs=[("http", http), ("browser", browser)])
+
+    assert [(c.from_rung, c.to_rung) for c in refused.value.climbs] == [
+        ("http", "browser")
+    ]

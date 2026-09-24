@@ -187,6 +187,22 @@ def test_a_challenge_served_with_200_is_never_kept(tmp_path):
     assert len(browser.pages) == 2, "the site was asked again, not the cache"
 
 
+def test_a_revalidation_answered_402_is_the_answer_not_a_reason_to_ask_again(
+    tmp_path,
+):
+    from sluicer.fetch import PaymentRequired
+
+    clock, site = Clock(), Site()
+    cache = Cache(tmp_path, clock=clock)
+    site.fetch(cache)
+    site.answer = 402
+
+    with pytest.raises(PaymentRequired):
+        site.fetch(cache)
+
+    assert site.pages == [URL], "the whole ladder was not asked again"
+
+
 def test_a_page_as_bytes_is_kept_as_text(tmp_path):
     cache = Cache(tmp_path, clock=Clock())
     cache.write(URL, Fetched(url=URL, html=PAGE.encode(), status=200, rung="http"))

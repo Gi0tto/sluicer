@@ -75,7 +75,8 @@ field says `"source": "induced"`.
 
 Every answer carries `ok`: true exactly when it can be used as it is. When it
 is false, the answer says why: `error` with a `code` -- `refused_by_robots`,
-`refused_by_site` (a challenge page on every rung), `refused_address`,
+`refused_by_site` (a challenge page on every rung), `payment_required` (a 402,
+never paid), `refused_address`,
 `fetch_failed`, `too_large`, `missing_extra`, `bad_input` or
 `tdm_reserved`,
 and on a crawled page `redirected_off_site` (with its `target`),
