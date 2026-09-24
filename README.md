@@ -261,6 +261,7 @@ At <https://gi0tto.github.io/sluicer/>, or in the repository:
 [Scoreboard, as served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md) ·
 [Scoreboard, products](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md) ·
 [Scoreboard, news](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md) ·
+[Scoreboard, trafilatura's set](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-evaldata.md) ·
 [Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md) ·
 [Known limits](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md) ·
 [Design notes](https://github.com/Gi0tto/sluicer/blob/main/docs/design-notes.md) ·
