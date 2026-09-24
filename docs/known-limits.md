@@ -14,11 +14,36 @@ on a Yoast blog post, three hops instead of one took the output from 22 KB to
 38 KB, because every record re-expanded the same graph.
 
 **The summary answers by rule, not by judgement.** Its subject is the first
-declared record about a thing, ahead of pages, sites and furniture, and each
+declared record about a thing, ahead of pages, sites and furniture, or the
+thing such a record declares its main entity, and each
 question takes the first candidate in a stated list. A page that misuses a term
 is answered by that misuse, except where a rule was written for it: Wikipedia
 puts its short description in `headline`, so when only `name` appears in the
 title the page shows, `name` is the title.
+
+**A site signing its own page has named no author, and the labels disagree.**
+An author bearing the site's name -- its `og:site_name`, its WebSite's name,
+its host -- is left out, unless the page declares a publisher of that name a
+Person, since a blogger's site bears their name. The scoreboards' labels part
+here. fundus's news pages count the paper as the author when no one else is
+named, `Salzburger Nachrichten` and `FOCUS online`; WCXB's count such a page
+as unsigned. Without the rule the news pages would gain 17 answers their
+labels call right and 8 they call wrong, the pages as served 1 and 12, and
+WCXB's 2 and 10. Sluicer follows the second, and `records` keeps the
+declared author either way. An author named as the page's publisher, but not
+as its site, is kept: `n-tv NACHRICHTEN` on n-tv.de. A publisher declared an
+organisation is not always one -- Yoast declares a person's own site so, and
+the Associated Press publishes the stories it writes -- and leaving such
+authors out, measured, drops 6 answers the labels call right, those two
+among them, to drop 10 they call wrong. A question's asker is its author: a
+question and answer page declares the question its main entity, and the
+summary answers about it, where WCXB's labels count such a page, and a forum
+thread, as unsigned -- 12 of its pages, and 6 of those as served. Of the 17
+authors trafilatura finds on the news pages and Sluicer does not, 12 are the
+paper itself, left out by this rule, and 5 are people the page names only in
+its visible byline or in a tag no vocabulary defines, Mainichi's
+`cXenseParse:author` and the Telegraph's analytics `DCSext.author`, which
+are not read.
 
 **Gap-filling targets the first record of a type.** When a page declares several
 records sharing a type, a lower-precedence reader fills the first one in document

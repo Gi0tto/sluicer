@@ -20,11 +20,16 @@ from __future__ import annotations
 import re
 
 from hypothesis import given, strategies as st
-from strategies import broken_pages, multiplying_pages, pages
+from strategies import (
+    broken_pages,
+    main_entity_pages,
+    multiplying_pages,
+    pages,
+)
 
 from sluicer import extract
 from sluicer.declared.jsonld import _parse
-from sluicer.declared.merge import ABOUT_A_THING, _json
+from sluicer.declared.merge import ABOUT_A_THING, Field, Record, _json
 from sluicer.document import load
 from sluicer.summary import FIELDS
 
@@ -86,8 +91,37 @@ def _declared_on_the_page(tree, source: str, key: str) -> bool:
     return False
 
 
+def _with_main_entities(records) -> list:
+    """The records, and each thing one of them declares its ``mainEntity``.
+
+    The summary's subject can be a page's main entity, nested in the page's
+    record, and an answer read from it names the entity's type.
+    """
+    found = list(records)
+    for record in records:
+        declared = record.fields.get("mainEntity")
+        if declared is None or not isinstance(declared.value, dict):
+            continue
+        kinds = declared.value.get("@type")
+        kinds = [k for k in (kinds if isinstance(kinds, list) else [kinds]) if k]
+        found.append(
+            Record(
+                type=kinds[0] if kinds else None,
+                types=tuple(kinds),
+                fields={
+                    key: Field(value, declared.source)
+                    for key, value in declared.value.items()
+                    if not key.startswith("@")
+                },
+                source=declared.source,
+            )
+        )
+    return found
+
+
 def _declared_by_a_record(records, answer) -> bool:
     """Whether a record the answer names holds what the answer says it read."""
+    records = _with_main_entities(records)
     if answer.key == "@type":
         return any(
             record.type == answer.value and record.source == answer.source
@@ -254,3 +288,47 @@ def test_the_oracle_reads_a_property_as_a_list_of_terms():
     )
 
     assert _declared_on_the_page(tree, "opengraph", "og:title")
+
+
+# What a summary answers about: a thing, not a page, a site or furniture.
+_THINGS = {
+    "Product",
+    "ProductGroup",
+    "Article",
+    "NewsArticle",
+    "BlogPosting",
+    "Report",
+    "Recipe",
+    "Event",
+    "JobPosting",
+}
+
+
+@given(main_entity_pages())
+def test_a_page_s_main_entity_is_its_subject_and_placed_inside_it(drawn):
+    """A thing the page declares its main entity is what the summary is
+    about, and each answer read from it is placed at the property it was read
+    from: a pointer ending in it, or the element that declares it. One that
+    declares nothing but its type is no record, as it would not be alone."""
+    html, kind, holds_any = drawn
+    _check(html, None)
+    result = extract(html)
+    tree = load(html).tree
+    if kind in _THINGS and holds_any:
+        assert result.summary["type"].value == kind, result.summary
+    for question, answer in result.summary.items():
+        if answer.key == "@type" or answer.where is None:
+            continue
+        if answer.source not in ("jsonld", "microdata"):
+            continue
+        steps = [step.split("[")[0] for step in answer.key.split(".")[1:]]
+        found = _followed(tree, answer.where)
+        if "#" in answer.where:
+            tokens = answer.where.partition("#")[2].split("/")[1:]
+            named = [token for token in tokens if not token.isdigit()]
+            assert named and named[-1] in steps, (question, answer)
+        else:
+            assert any(_names_the_property(found, step) for step in steps), (
+                question,
+                answer,
+            )

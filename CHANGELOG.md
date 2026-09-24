@@ -12,9 +12,35 @@ Dates are the day the work landed. Anything not listed here did not happen.
   and HTTP answers carry them. Compared by meaning: `126` and `126.00` are
   one price, two dates agree when they are one instant or name one day as
   written, and a value no rule reads is no disagreement. On the 1,690 pages
-  of the scoreboards there are 11: 4 of Zyte's product pages state two
+  of the scoreboards there are 12: 4 of Zyte's product pages state two
   prices (150 and 200, 997.00 and 1148.00, 32.00 and 36.49, 90 and 400) and
-  7 pages two days, 2023 against 2026 among them.
+  8 pages two days, 2023 against 2026 among them.
+
+### Fixed
+- A page's declared main entity is what the summary is about. schema.org's
+  `mainEntity` names the thing a page describes, and Merkur, the Frankfurter
+  Rundschau and Nature declare a WebPage whose main entity is the
+  NewsArticle: their authors went unread, and Nature's came from Dublin Core
+  one name of five. The entity is the subject when it ranks ahead of the
+  record holding it, and only a single one: an FAQ page's questions are its
+  parts, an about page's organisation is the site. Each answer read from it
+  is placed inside it. On the scoreboards' pages 5 authors and 19 dates
+  more are right and 3 dates are wrong or where the labels have none; one
+  title is the article's shorter headline where the label has the longer;
+  and a question and answer page's subject is its question, whose asker is
+  its author, on 12 of WCXB's pages and 6 of them as served that its labels
+  count unsigned.
+- Every `<meta name="author">` is read, and one naming the site is passed
+  over for the next: Hankook Ilbo's first is the paper, its second the
+  reporter, and the first alone was read. Two answers change on the
+  scoreboards' pages, both right.
+- A blogger's site bears their name, and the author of that name is theirs:
+  an author named as the site is still left out, as the site signing its
+  own page, unless the page declares a publisher of that name a Person.
+  Rishabh Dev's posts on rishabhdev.com had no author. A Person record
+  alone is not enough, since WordPress declares one for every user: on the
+  scoreboards that would have given Lesotho Times and Buzzcube as authors.
+  One answer changes on the scoreboards' pages, and it is right.
 
 ## 0.4.1 - 2026-09-24
 

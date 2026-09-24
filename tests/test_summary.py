@@ -867,8 +867,137 @@ def test_an_author_is_a_name_not_a_number_nor_the_site_s_own_address():
     )
 
 
+def test_a_person_s_own_site_bears_their_name_and_they_sign_it():
+    """Found on the scoreboard as served: rishabhdev.com is Rishabh Dev's, who
+    publishes it as a Person, so the author bearing the site's name is him."""
+
+    def page(publisher_type: object, *extra: dict[str, object]) -> str:
+        publisher = {"@type": publisher_type, "name": "Rishabh Dev"}
+        return (
+            '<html><head><meta property="og:site_name" content="Rishabh Dev">'
+            + _ld(
+                {
+                    "@type": "BlogPosting",
+                    "headline": "My fitness journey",
+                    "author": {"name": "Rishabh Dev"},
+                    "publisher": publisher,
+                },
+                *extra,
+            )
+            + "</head></html>"
+        )
+
+    blog = extract(page(["Person", "Organization"])).summary
+    assert blog["author"].value == "Rishabh Dev"
+    assert blog["author"].key == "BlogPosting.author"
+    paper = extract(page("NewsMediaOrganization")).summary
+    assert "author" not in paper, "a paper signing its own story names no one"
+    # WordPress declares a Person for every user, a shared account named as
+    # the site included: that alone does not make the site a person's.
+    user = {"@type": "Person", "name": "Rishabh Dev"}
+    assert "author" not in extract(page("Organization", user)).summary
+
+
 def test_a_title_ending_in_the_page_s_own_host_has_it_cut():
     """WCXB: "VolunteerNC | nc.gov", on nc.gov, is VolunteerNC."""
     page = "<html><head><title>VolunteerNC | nc.gov</title></head></html>"
     title = extract(page, url="https://www.nc.gov/volunteer").summary["title"]
     assert title.value == "VolunteerNC"
+
+
+def test_a_page_s_declared_main_entity_is_what_it_is_about():
+    """Found on the news scoreboard: Merkur declares a WebPage whose
+    mainEntity is the NewsArticle, and its author went unread."""
+    page = (
+        "<html><head>"
+        + _ld(
+            {
+                "@type": "WebPage",
+                "name": "Merkur.de",
+                "mainEntity": {
+                    "@type": "NewsArticle",
+                    "headline": "Is Charles the rightful heir?",
+                    "datePublished": "2023-04-28T18:16:04+0200",
+                    "author": {"@type": "Person", "name": "Nadja Zinsmeister"},
+                },
+            }
+        )
+        + "</head></html>"
+    )
+    summary = extract(page).summary
+    assert summary["type"].value == "NewsArticle"
+    assert summary["title"].value == "Is Charles the rightful heir?"
+    author = summary["author"]
+    assert (author.value, author.key) == ("Nadja Zinsmeister", "NewsArticle.author")
+    assert author.where == "/html/head/script[1]#/mainEntity/author"
+    assert (
+        summary["published"].where == "/html/head/script[1]#/mainEntity/datePublished"
+    )
+
+
+def test_a_main_entity_declared_in_microdata_is_placed_at_its_element():
+    page = (
+        '<html><body itemscope itemtype="https://schema.org/WebPage">'
+        '<article itemprop="mainEntity" itemscope '
+        'itemtype="https://schema.org/BlogPosting">'
+        '<h1 itemprop="headline">Tube amp versus solid state</h1>'
+        '<span itemprop="author">dogmanljk</span></article></body></html>'
+    )
+    summary = extract(page).summary
+    assert summary["type"].value == "BlogPosting"
+    assert summary["author"].value == "dogmanljk"
+    assert summary["author"].where == "/html/body/article[1]/span[1]"
+
+
+def test_a_main_entity_that_is_a_list_or_the_site_is_not_the_subject():
+    """An FAQ page's questions are its parts, and an about page's organisation
+    is the site: neither is what the summary is about."""
+    faq = _ld(
+        {
+            "@type": "FAQPage",
+            "name": "Shipping questions",
+            "mainEntity": [
+                {"@type": "Question", "name": "How long?"},
+                {"@type": "Question", "name": "How much?"},
+            ],
+        }
+    )
+    summary = extract(f"<html><head>{faq}</head></html>").summary
+    assert (summary["type"].value, summary["title"].value) == (
+        "FAQPage",
+        "Shipping questions",
+    )
+    about = _ld(
+        {
+            "@type": "AboutPage",
+            "name": "About us",
+            "mainEntity": {"@type": "Organization", "name": "Acme"},
+        }
+    )
+    summary = extract(f"<html><head>{about}</head></html>").summary
+    assert (summary["type"].value, summary["title"].value) == ("AboutPage", "About us")
+
+
+def test_every_author_tag_is_read_and_the_site_s_own_is_passed_over():
+    """Found on the news scoreboard: Hankook Ilbo's first author tag is the
+    paper, its second the reporter, and the first alone was read."""
+    paper = (
+        '<html><head><meta property="og:site_name" content="Hankook Ilbo">'
+        '<meta name="author" content="Hankook Ilbo">'
+        '<meta name="author" content="Shin Hyun-ju">'
+        "</head></html>"
+    )
+    author = extract(paper).summary["author"]
+    assert (author.value, author.key) == ("Shin Hyun-ju", "meta name=author")
+    assert author.where == "/html/head/meta[3]"
+    two = (
+        '<html><head><meta name="author" content="Lucy Thornton">'
+        '<meta name="Author" content="Tim Hanlon"></head></html>'
+    )
+    author = extract(two).summary["author"]
+    assert (author.value, author.where) == ("Lucy Thornton, Tim Hanlon", None)
+    alone = (
+        '<html><head><meta property="og:site_name" content="Hankook Ilbo">'
+        '<meta name="author" content="Hankook Ilbo"></head></html>'
+    )
+    assert "author" not in extract(alone).summary

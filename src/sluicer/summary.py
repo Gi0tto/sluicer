@@ -213,7 +213,8 @@ def read_summary(
 
     The subject is the first declared record whose type is about a thing --
     a product, a recipe, an article -- ahead of any page, site or piece of
-    furniture; induced records are never the subject. Document-level
+    furniture, or the thing such a record declares its ``mainEntity``;
+    induced records are never the subject. Document-level
     vocabularies are read from their own findings rather than from whichever
     record they were folded onto, so a breadcrumb that opens the page's
     ``@graph`` cannot lend them its name. ``header_canonicals`` are the
@@ -260,6 +261,7 @@ def read_summary(
         and (text := _text(record.fields["name"].value))
     }
     subject = _subject(records, site_names | publishers)
+    subject = _main_entity(subject) or subject
 
     # The other descriptions of the subject when the page declares it several
     # times over, one per colour or size: an answer they do not all agree on
@@ -331,8 +333,8 @@ def read_summary(
         "author": [
             own("author", _names),
             own("creator", _names),
-            meta(htmlmeta, "html", "author", "meta name="),
-            _named(doc, _AUTHOR_NAMES, join=True),
+            _named(doc, ("author",), join=True, unless=site_names),
+            _named(doc, _AUTHOR_NAMES, join=True, unless=site_names),
             _orphan_itemprop(doc, "author"),
             meta(dublincore, "dublincore", "creator", "dc."),
             _not_an_address(og("article:author")),
@@ -404,12 +406,28 @@ def read_summary(
     }
 
     # An author is a name: not the site, and not a number -- People's Daily
-    # writes an id, 105092, where the author goes.
+    # writes an id, 105092, where the author goes. But a person's own site
+    # bears their name: when a publisher of that name is declared a Person,
+    # the site is theirs and so is the story. A Person record alone is not
+    # enough, since WordPress declares one for every user, the paper's shared
+    # account named as the paper included.
+    people = {
+        text.casefold()
+        for record in records
+        if "publisher" in record.fields
+        for item in _listed(record.fields["publisher"].value)
+        if isinstance(item, dict)
+        and "Person" in _listed(item.get("@type"))
+        and (text := _text(item.get("name", "")))
+    }
     questions["author"] = [
         answer
         for answer in questions["author"]
         if answer
-        and answer.value.casefold() not in site_names
+        and (
+            answer.value.casefold() not in site_names
+            or answer.value.casefold() in people
+        )
         and any(c.isalpha() for c in answer.value)
     ]
     questions["title"] = [
@@ -478,6 +496,41 @@ def _subject(
         for rank, index, record in candidates
     ]
     return min(ranked, key=lambda entry: entry[:3])[3] if ranked else None
+
+
+def _main_entity(record: Record | None) -> Record | None:
+    """The thing ``record`` declares its ``mainEntity``, when it ranks ahead.
+
+    schema.org's word for the primary entity a page describes: Merkur and
+    Nature declare a WebPage whose ``mainEntity`` is the NewsArticle, author
+    and all, and the article is what the page is about. Only one item, not a
+    list -- an FAQ page's questions are its parts, not its subject -- and
+    only what could have been the subject itself: an about page's
+    Organization is the site's.
+    """
+    declared = record.fields.get("mainEntity") if record is not None else None
+    if (
+        record is None
+        or declared is None
+        or declared.source not in ABOUT_A_THING
+        or not isinstance(declared.value, dict)
+    ):
+        return None
+    item = declared.value
+    types = tuple(k for k in _listed(item.get("@type")) if isinstance(k, str))
+    entity = Record(
+        type=types[0] if types else None,
+        types=types,
+        fields={
+            key: Field(value, declared.source, place(item, declared.where, (key,)))
+            for key, value in item.items()
+            if not key.startswith("@")
+        },
+        source=declared.source,
+        where=place(item, declared.where, ()),
+    )
+    rank, own = _rank(entity), _rank(record)
+    return entity if rank is not None and (own is None or rank < own) else None
 
 
 def _an_article(types: tuple[str, ...]) -> bool:
@@ -755,6 +808,10 @@ def _text(value: JsonValue) -> str | None:
     if isinstance(value, list):
         return next((text for item in value if (text := _text(item))), None)
     return _text(value.get("name", "")) if "name" in value else None
+
+
+def _listed(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else [value]
 
 
 def _names(value: JsonValue) -> str | None:
@@ -1171,13 +1228,18 @@ def _element_text(doc: Document, path: str, key: str) -> SummaryField | None:
 
 
 def _named(
-    doc: Document, names: tuple[str, ...], join: bool = False
+    doc: Document,
+    names: tuple[str, ...],
+    join: bool = False,
+    unless: frozenset[str] | set[str] = frozenset(),
 ) -> SummaryField | None:
     """The first of ``names`` a ``<meta name>`` on the page carries.
 
     ``names`` is tried in its own order, not the page's. With ``join``, every
     tag of the winning name is read -- a paper lists each author in one -- and
-    the names are joined once each, in the order written.
+    the names are joined once each, in the order written. A text in
+    ``unless``, casefolded, is passed over for the next: Hankook Ilbo's first
+    author tag is the paper, its second the reporter.
     """
     found: dict[str, list[tuple[str, HtmlElement]]] = {}
     for meta in doc.tree.xpath("//meta[@name][@content]"):
@@ -1192,7 +1254,11 @@ def _named(
             # byline's "by " cannot take.
             first: dict[str, HtmlElement] = {}
             for text, meta in found[name]:
-                first.setdefault(_BYLINE.sub("", text), meta)
+                named = _BYLINE.sub("", text)
+                if named.casefold() not in unless:
+                    first.setdefault(named, meta)
+            if not first:
+                continue
             key = f"meta name={name}"
             if join and len(first) > 1:
                 # Joined from several tags, the answer has no one element.

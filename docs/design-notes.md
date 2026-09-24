@@ -134,7 +134,8 @@ a property ahead of the image it describes, and it is read as that image's.
 `summary` asks a fixed list of questions (`sluicer.summary.FIELDS`, 25 of
 them) and takes, for each, the first candidate in a stated list
 (`sluicer/summary.py`). Its subject is the first declared record about a thing,
-ahead of pages, sites and furniture; a type declared on three or more records
+ahead of pages, sites and furniture, or the one thing such a record declares
+its `mainEntity`, when that ranks ahead of it; a type declared on three or more records
 is a listing and none of its items is the subject, unless exactly one of them
 carries an offer -- the product among its related products -- or all of them
 bear one name, as a product declared once per colour does, and then only the
@@ -163,9 +164,9 @@ purpose, and comparing them would report every page. Two declarations
 disagree only in meaning: `126` and `126.00` are one price, `EUR` and `eur`
 one currency, and two dates agree when they are one instant or name one day
 as written. The day is the rule because the time is where pages are
-careless: on the 1,690 pages of the scoreboards, 43 pairs of dates are two
+careless: on the 1,690 pages of the scoreboards, 44 pairs of dates are two
 instants, 36 of them on one day -- a second truncated, or an offset written
-wrong on one tag, the same 06:00:09 at -07:00 and at +00:00 -- and 7 name
+wrong on one tag, the same 06:00:09 at -07:00 and at +00:00 -- and 8 name
 two different days, 2023 against 2026 among them. A value no rule can read is no disagreement, and a question
 whose own answer is some other fact -- an upload date standing in for a
 publication date -- is not compared, since a conflict starts from what the

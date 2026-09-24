@@ -549,9 +549,25 @@ def _one_or_many(inner: st.SearchStrategy[Any]) -> st.SearchStrategy[Any]:
     return st.one_of(inner, st.lists(inner, max_size=3))
 
 
+# What a page declares its main entity: a thing nested in a page, with the
+# properties the summary reads from a subject, so every answer read through
+# it is placed inside it.
+_main_entities = st.fixed_dictionaries(
+    {"@type": st.sampled_from(SCHEMA_TYPES)},
+    optional={
+        "name": words,
+        "headline": words,
+        "author": _one_or_many(_people),
+        "datePublished": words,
+        "offers": _one_or_many(_offers),
+    },
+)
+
+
 summary_subjects = st.fixed_dictionaries(
     {"@type": st.sampled_from(SCHEMA_TYPES)},
     optional={
+        "mainEntity": st.one_of(_main_entities, st.lists(_main_entities, max_size=2)),
         "@id": ids,
         "name": words,
         "headline": words,
@@ -595,6 +611,70 @@ MEDIA_TYPES = (
     "application/json",
     "text/javascript",
 )
+
+# Plain words, so an answer read from a page is the text the page holds.
+_plain = st.from_regex(r"[A-Za-z]{1,8}( [A-Za-z]{1,8}){0,2}", fullmatch=True)
+
+
+@st.composite
+def main_entity_pages(draw: st.DrawFn) -> tuple[str, str, bool]:
+    """A page that declares itself a WebPage whose ``mainEntity`` is a thing,
+    the thing's type, and whether it declares any property beside it.
+
+    In JSON-LD or in microdata, the entity of any drawn type, holding some of
+    the properties the summary reads, its author a name or a Person.
+    """
+    page_type = draw(st.sampled_from(["WebPage", "ItemPage"]))
+    kind = draw(st.sampled_from(SCHEMA_TYPES))
+    props = draw(
+        st.fixed_dictionaries(
+            {},
+            optional={
+                "headline": _plain,
+                "name": _plain,
+                "author": _plain,
+                "datePublished": _plain,
+            },
+        )
+    )
+    as_person = draw(st.booleans())
+    if draw(st.booleans()):
+        entity: dict[str, Any] = {"@type": kind, **props}
+        if "author" in props and as_person:
+            entity["author"] = {"@type": "Person", "name": props["author"]}
+        block = json.dumps(
+            {
+                "@context": "https://schema.org",
+                "@type": page_type,
+                "name": draw(_plain),
+                "mainEntity": entity,
+            }
+        )
+        return (
+            (
+                f'<html><head><script type="application/ld+json">{block}</script>'
+                "</head><body></body></html>"
+            ),
+            kind,
+            bool(props),
+        )
+    inner = "".join(
+        '<div itemprop="author" itemscope itemtype="https://schema.org/Person">'
+        f'<span itemprop="name">{value}</span></div>'
+        if key == "author" and as_person
+        else f'<span itemprop="{key}">{value}</span>'
+        for key, value in props.items()
+    )
+    return (
+        (
+            f'<html><body itemscope itemtype="https://schema.org/{page_type}">'
+            f'<div itemprop="mainEntity" itemscope itemtype="https://schema.org/{kind}">'
+            f"{inner}</div></body></html>"
+        ),
+        kind,
+        bool(props),
+    )
+
 
 # The wrappers CMSs put around a block, all of which a reader should see through.
 WRAPPERS = (
