@@ -4,7 +4,7 @@ The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on news pages from 42 countries'
 publishers, in 21 declared languages, with their scripts:
 as fundus fetched them, stored re-encoded as UTF-8.
-Regenerated on 2026-09-24 from commit `a17c59f` by
+Regenerated on 2026-09-24 from commit `a05ae3d` by
 `uv run bench/news.py`, against fundus at `c1b86b675018`; the method is in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -31,7 +31,7 @@ Hit rate is hits over the pages that carry a label (263 titles, 257 authors, 263
 |---|---|---|---|---|---|
 | sluicer 0.6.0 | 0.871 | 0.829 | 0.970 | 4 | 0 |
 | trafilatura 2.2.0 | 0.852 | 0.879 | 0.970 | 3 | 0 |
-| metascraper 5.58.1 | 0.726 | 0.864 | 0.871 | 5 | 0 |
+| metascraper 5.58.1 | 0.726 | 0.864 | 0.966 | 5 | 0 |
 | newspaper4k 0.9.6 | 0.779 | 0.767 | 0.932 | 1 | 0 |
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
@@ -44,7 +44,7 @@ Hit rate is hits over the pages that carry a label (263 titles, 257 authors, 263
 | trafilatura 2.2.0 | date | 255 | 8 | 0 | 0 | 0 | 0.970 | 0.970 |
 | metascraper 5.58.1 | title | 191 | 72 | 0 | 0 | 0 | 0.726 | 0.726 |
 | metascraper 5.58.1 | author | 222 | 31 | 4 | 1 | 5 | 0.864 | 0.860 |
-| metascraper 5.58.1 | date | 229 | 31 | 3 | 0 | 0 | 0.871 | 0.881 |
+| metascraper 5.58.1 | date | 254 | 6 | 3 | 0 | 0 | 0.966 | 0.977 |
 | newspaper4k 0.9.6 | title | 205 | 44 | 14 | 0 | 0 | 0.779 | 0.823 |
 | newspaper4k 0.9.6 | author | 197 | 32 | 28 | 5 | 1 | 0.767 | 0.857 |
 | newspaper4k 0.9.6 | date | 245 | 0 | 18 | 0 | 0 | 0.932 | 1.000 |
@@ -111,25 +111,25 @@ Each page is counted under the language its `<html lang>` declares.
 
 | language | pages | sluicer 0.6.0 | trafilatura 2.2.0 | metascraper 5.58.1 | newspaper4k 0.9.6 |
 |---|---|---|---|---|---|
-| de | 109 | 104/109 | 105/109 | 97/109 | 106/109 |
-| en | 90 | 89/90 | 87/90 | 79/90 | 90/90 |
-| es | 8 | 8/8 | 8/8 | 8/8 | 8/8 |
+| de | 109 | 104/109 | 105/109 | 107/109 | 106/109 |
+| en | 90 | 89/90 | 87/90 | 90/90 | 90/90 |
+| es | 8 | 8/8 | 8/8 | 7/8 | 8/8 |
 | ja | 7 | 7/7 | 7/7 | 6/7 | 0/7 |
 | none | 7 | 6/7 | 6/7 | 4/7 | 6/7 |
 | fr | 5 | 5/5 | 5/5 | 5/5 | 5/5 |
-| no | 5 | 5/5 | 5/5 | 4/5 | 5/5 |
-| it | 4 | 4/4 | 4/4 | 3/4 | 4/4 |
+| no | 5 | 5/5 | 5/5 | 5/5 | 5/5 |
+| it | 4 | 4/4 | 4/4 | 4/4 | 4/4 |
 | ko | 4 | 3/4 | 4/4 | 2/4 | 0/4 |
 | tr | 4 | 4/4 | 4/4 | 4/4 | 4/4 |
 | cs | 3 | 3/3 | 3/3 | 3/3 | 3/3 |
 | sv | 3 | 3/3 | 3/3 | 3/3 | 3/3 |
-| ar | 2 | 2/2 | 2/2 | 1/2 | 0/2 |
-| da | 2 | 2/2 | 2/2 | 1/2 | 2/2 |
+| ar | 2 | 2/2 | 2/2 | 2/2 | 0/2 |
+| da | 2 | 2/2 | 2/2 | 2/2 | 2/2 |
 | pl | 2 | 2/2 | 2/2 | 2/2 | 2/2 |
 | ru | 2 | 2/2 | 2/2 | 2/2 | 2/2 |
 | hi | 1 | 1/1 | 1/1 | 1/1 | 0/1 |
 | id | 1 | 1/1 | 1/1 | 1/1 | 1/1 |
-| is | 1 | 1/1 | 1/1 | 0/1 | 1/1 |
+| is | 1 | 1/1 | 1/1 | 1/1 | 1/1 |
 | lt | 1 | 1/1 | 1/1 | 1/1 | 1/1 |
 | nl | 1 | 1/1 | 1/1 | 1/1 | 1/1 |
 | vi | 1 | 1/1 | 1/1 | 1/1 | 1/1 |
@@ -140,5 +140,5 @@ Each page is counted under the language its `<html lang>` declares.
 |---|---|---|
 | sluicer 0.6.0 | 1.14 | 3 |
 | trafilatura 2.2.0 | 2.10 | 17 |
-| metascraper 5.58.1 | 2.38 | 125 |
+| metascraper 5.58.1 | 2.39 | 125 |
 | newspaper4k 0.9.6 | 15.71 | 22 |
