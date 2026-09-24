@@ -315,14 +315,16 @@ def _as_read(data: bytes, codec: str) -> str:
     Its declared codec, but for bytes that are valid UTF-8 and hold a
     character outside ASCII, which are UTF-8 whatever they declare
     (``sniff_encoding``): the fuzz profile drew an author ``Â\x80`` declared
-    Latin-1, whose bytes are UTF-8's U+0080.
+    Latin-1, whose bytes are UTF-8's U+0080. Bytes the codec cannot read are
+    replaced, as Sluicer replaces them: the fuzz profile drew ``\x1b)``, ASCII
+    but no escape ISO-2022-JP knows.
     """
     if not data.isascii():
         try:
             return data.decode("utf-8")
         except UnicodeDecodeError:
             pass
-    return data.decode(codec)
+    return data.decode(codec, errors="replace")
 
 
 @given(
