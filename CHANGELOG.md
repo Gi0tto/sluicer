@@ -5,6 +5,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- `heal` never moves a listing chosen by examples on one coincidence. With
+  its old place gone and every item new, one related product costing what a
+  book used to drew the listing of prices into the related strip, a move and
+  no loss, so it was written. A group must now hold at least half of one
+  column's old values to be where the listing went; otherwise it is lost.
 - `heal` keeps a listing chosen by examples where it is while it keeps its
   contract there. On a page that had not changed it moved the listing to a
   sidebar listing the same books, and wrote it; on the same template with

@@ -89,8 +89,10 @@ sluicer compile page1.html page2.html -o books.json \
   presence, shape and reading are checked as for any extractor. `heal` keeps
   the listing where it is while it keeps its contract there -- its items may
   all be new, and a sidebar listing some of the old ones is not where it went
-  -- and otherwise finds it again by the values its columns held. It keeps the
-  names, and adds no column the examples did not name.
+  -- and otherwise finds it again by the values its columns held, in a group
+  holding at least half of one column's: one related product that costs what a
+  book used to is a coincidence. It keeps the names, and adds no column the
+  examples did not name.
 
 On books.toscrape.com, learnt from its first two pages with `title`, `price`
 and `stock`, the third page replays as 20 rows of those three columns, and a

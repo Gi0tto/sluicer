@@ -59,6 +59,10 @@ _SAMPLES = 5
 # The fewest values a shape is learnt from and checked on.
 _SHAPE_EVIDENCE = 5
 
+# The share of one column's old values a group must hold to be where a listing
+# chosen by examples went.
+_HELD_AGAIN = 0.5
+
 # A field learnt in at least this share of rows must not vanish from all of them.
 _COMMON = 0.5
 
@@ -862,15 +866,20 @@ def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
     """The listing, every column of it, whose rows hold most of ``old``'s values.
 
     How a listing learnt from examples is found again: by what it held, as it
-    was first found, and in the furniture too. None when no group holds any.
+    was first found, and in the furniture too. A group qualifies only when it
+    holds at least half of one column's old values: one related product that
+    costs what a book used to is a coincidence, not where the books went.
+    None when no group qualifies.
     """
     samples = {sample for f in old.fields for sample in f.samples}
+    columns = [set(f.samples) for f in old.fields if f.samples]
     best: tuple[int, str, str] | None = None
     for doc in docs:
         for group in repeating_groups(doc.tree, furniture_too=True):
             held = {value for row in _rows_of(group, doc) for value in row.values()}
             score = len(samples & held)
-            if score and (best is None or score > best[0]):
+            again = any(len(c & held) >= _HELD_AGAIN * len(c) for c in columns)
+            if score and again and (best is None or score > best[0]):
                 best = (score, path_of(group[0].getparent()), kind(group[0]))
     if best is None:
         return None

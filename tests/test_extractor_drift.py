@@ -1019,3 +1019,53 @@ def test_a_listing_heal_lost_is_kept_so_a_forced_extractor_still_fails():
     healed, changes = heal(plain, [(shop_page([]), "https://s/x")])
     assert "listing-lost" in [c.kind for c in changes]
     assert healed.listing == plain.listing
+
+
+def test_heal_never_moves_a_chosen_listing_on_one_coincidence():
+    """Redesigned, with every book new, the catalogue held none of its old
+    prices, and one related product cost what a book used to: heal moved the
+    listing of prices there, a move and no loss, so it was written."""
+
+    def page_(books_, related, wrap="ol"):
+        rows = "".join(
+            f"<li class='book'><a class='title' href='/b/{n}'>{t}</a>"
+            f"<span class='price'>{p}</span></li>"
+            for n, (t, p) in enumerate(books_, 1)
+        )
+        strip = "".join(
+            f"<li class='rel'><a class='t' href='/r/{n}'>{t}</a>"
+            f"<span class='cost'>{p}</span></li>"
+            for n, (t, p) in enumerate(related, 1)
+        )
+        return (
+            f"<html><head><title>Shop</title></head><body><main><{wrap} class='b'>"
+            f"{rows}</{wrap}><h2>Related</h2><ul class='related'>{strip}</ul>"
+            "</main></body></html>",
+            "https://shop.example/c",
+        )
+
+    others = [("Y", "£98.00"), ("Z", "£97.00")]
+    learnt = compile_extractor(
+        [
+            page_(
+                [(f"Book {n}", f"£{n}.50") for n in range(1, 8)],
+                [("X", "£99.00"), *others],
+            )
+        ],
+        want={"price": "1.50"},
+    )
+    new = page_(
+        [(f"New {n}", f"£{n + 20}.00") for n in range(1, 8)],
+        [("X", "£1.50"), *others],
+        wrap="div",
+    )
+    healed, changes = heal(learnt, [new])
+    assert [c.kind for c in changes] == ["listing-lost"]
+    assert healed.listing == learnt.listing
+    redesigned = page_(
+        [(f"Book {n}", f"£{n}.50") for n in range(1, 8)],
+        [("X", "£1.50"), *others],
+        "div",
+    )
+    healed, changes = heal(learnt, [redesigned])
+    assert healed.listing.container == "html>body>main>div.b"
