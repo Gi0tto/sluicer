@@ -7,17 +7,20 @@ difference naming the source and key of both sides.
 
 A value written differently and meaning the same -- ``41.90`` and ``41.9``,
 ``2025-06-16`` and ``Jun 16, 2025`` -- is reported as ``rewritten``, not
-``changed``: the page said the same thing, in other words.
+``changed``: the page said the same thing, in other words. A price in another
+currency, ``£41.90`` and ``$41.90``, says something else, and is ``changed``.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
 from sluicer.api import Extraction
+from sluicer.normalise import currency
 from sluicer.summary import FIELDS
 
 
@@ -65,6 +68,7 @@ def compare(before: Extraction, after: Extraction) -> list[Difference]:
                 before.normalised.get(question),
                 after.normalised.get(question),
             )
+            and _same_currency(question, before, after)
             else "changed"
         )
         found.append(
@@ -89,6 +93,24 @@ def _same_meaning(question: str, old: str | None, new: str | None) -> bool:
     if question.startswith("price"):
         return Decimal(old) == Decimal(new)
     return old == new
+
+
+def _same_currency(question: str, before: Extraction, after: Extraction) -> bool:
+    """Whether two readings' prices are in one currency. Any other answer has
+    none to differ in."""
+    if not question.startswith("price"):
+        return True
+    return _currency_of(question, before) == _currency_of(question, after)
+
+
+def _currency_of(question: str, reading: Extraction) -> str:
+    """A price's currency: the code the sign or code written around its number
+    names, ``£`` and ``GBP`` alike; else the currency the page declares; else
+    the sign as written, case folded -- ``$`` names several -- or nothing, for
+    a bare number on a page that declares none."""
+    answer = reading.summary.get(question)
+    written = re.sub(r"[\d.,'\s]", "", answer.value) if answer else ""
+    return currency(written) or reading.normalised.get("currency") or written.casefold()
 
 
 def _declared(part: str, before: Any, after: Any) -> list[Difference]:

@@ -166,7 +166,8 @@ Usage: sluicer diff [OPTIONS] BEFORE AFTER
   Wayback Machine captured it, so `sluicer diff URL URL --at 2024-01` is what changed
   since then. Exit codes are diff's: 0 when nothing differs, 1 when something does, 2
   when either could not be read. A value written differently with the same meaning
-  (41.90 and 41.9) is reported as rewritten.
+  (41.90 and 41.9) is reported as rewritten; a price in another currency (£41.90 and
+  $41.90) is changed.
 
 Options:
   --json             Print the differences as JSON.

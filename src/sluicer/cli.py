@@ -687,7 +687,8 @@ def diff_command(
     2024-01` is what changed since then. Exit codes are diff's: 0 when
     nothing differs, 1 when something does, 2 when either could not be read.
     A value written differently with the same meaning (41.90 and 41.9) is
-    reported as rewritten.
+    reported as rewritten; a price in another currency (£41.90 and $41.90)
+    is changed.
     """
     readings = []
     for source, when in ((before, at), (after, None)):

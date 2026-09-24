@@ -5,6 +5,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- `diff` reports a price in another currency as `changed`, not `rewritten`:
+  `£41.90` and `$41.90` are the same number, and were read as noise. A price's
+  currency is the one its sign or code names, `£` and `GBP` alike, else the
+  one the page declares; `$`, which names several, is only itself.
 - A page field read by its place fails when its row moved. Learnt from pages
   that agreed on the SKU's row, a page with its table's rows in another order
   read the weight, "1 kg", as the SKU and passed. A field read by its place
