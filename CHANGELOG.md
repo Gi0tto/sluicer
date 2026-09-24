@@ -2,6 +2,19 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- `induce` costs in step with the page. Telling rows from sections compared
+  every repeated group with every other one, measuring each group's members
+  again for each comparison, so a 363 KB page of two thousand small lists took
+  35 seconds, and a table of two thousand rows seven. Each group is now
+  credited to the elements above it once: the first page takes 73 ms. The
+  records and the ranking are the same on the 3,948 pages of the benchmark
+  corpora. `induce` runs on pages nobody vouches for, through the MCP server's
+  `extract_declared` and the HTTP API, and a call that times out still runs to
+  its end on its worker: this was also a way to hold a worker for minutes.
+
 ## 0.7.0 - 2026-09-24
 
 ### Added

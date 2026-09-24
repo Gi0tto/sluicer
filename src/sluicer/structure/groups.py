@@ -92,11 +92,17 @@ def _member(child: HtmlElement) -> bool:
     return isinstance(child.tag, str) and child.tag.lower() not in _CODE
 
 
-def _worth(member: HtmlElement) -> int:
-    """How much of a record this member holds: its text, and where it points."""
-    text = " ".join((member.text_content() or "").split())
-    addresses = sum(1 for part in member.iter() if address_of(part))
-    return len(text) + addresses * _ADDRESS_WORTH
+def _worth(member: HtmlElement, worths: dict[HtmlElement, int]) -> int:
+    """How much of a record this member holds: its text, and where it points.
+
+    Kept in ``worths``, since one member is asked about more than once.
+    """
+    held = worths.get(member)
+    if held is None:
+        text = " ".join((member.text_content() or "").split())
+        addresses = sum(1 for part in member.iter() if address_of(part))
+        held = worths[member] = len(text) + addresses * _ADDRESS_WORTH
+    return held
 
 
 def _same_shape_siblings(parent: HtmlElement) -> list[list[HtmlElement]]:
@@ -134,6 +140,7 @@ def repeating_groups(
     value there means that group.
     """
     found: list[tuple[int, int, list[HtmlElement]]] = []
+    worths: dict[HtmlElement, int] = {}
     # Decided once per element, from its parent's answer, since the walk meets
     # a parent before its children. Asked of every element by climbing to the
     # root, a listing under two thousand wrappers took three seconds of an
@@ -146,41 +153,69 @@ def repeating_groups(
         )
         if furniture[parent] and not furniture_too:
             continue
+        if len(parent) < minimum:
+            # Fewer children than a listing has rows, comments counted.
+            continue
         for members in _same_shape_siblings(parent):
             if len(members) >= minimum:
-                richest = max(_worth(member) for member in members)
+                richest = max(_worth(member, worths) for member in members)
                 found.append((len(members) * richest, order, members))
-    rows = [item for item in found if not _sections(item[2], found)]
+    # The walk met every element in document order, which is the order the
+    # furniture was decided in.
+    inside = _carried_inside(found, list(furniture), worths)
+    rows = [item for item in found if not _sections(item[2], inside, worths)]
     rows.sort(key=lambda item: (-item[0], item[1]))
     return [members for _, _, members in rows]
 
 
+def _carried_inside(
+    found: list[tuple[int, int, list[HtmlElement]]],
+    walked: list[HtmlElement],
+    worths: dict[HtmlElement, int],
+) -> dict[HtmlElement, int]:
+    """For every element, the most that one group at or below it carries.
+
+    Only groups whose members have parts of their own count: a story has a
+    link, a line and a date, while a quote's five tags are five words, and a
+    quote is not a section of tags.
+
+    Each group is credited to its parent, and each element then passes the
+    most it holds up to its own parent, children before parents, so the page
+    is walked once. Checked group against group, which is what this replaced,
+    a page of two thousand small lists took 24 seconds: each of its groups was
+    measured again for every other one.
+    """
+    inside: dict[HtmlElement, int] = {}
+    for _, _, group in found:
+        if sum(1 for member in group if len(member)) * 2 <= len(group):
+            continue
+        carried = sum(_worth(member, worths) for member in group)
+        parent = group[0].getparent()
+        inside[parent] = max(inside.get(parent, 0), carried)
+    for element in reversed(walked):
+        held = inside.get(element)
+        above = element.getparent()
+        if held is not None and above is not None:
+            inside[above] = max(inside.get(above, 0), held)
+    return inside
+
+
 def _sections(
-    members: list[HtmlElement], found: list[tuple[int, int, list[HtmlElement]]]
+    members: list[HtmlElement],
+    inside: dict[HtmlElement, int],
+    worths: dict[HtmlElement, int],
 ) -> bool:
     """Whether most of ``members`` are mostly one of the other groups found.
 
     A member is a section when a group inside it carries at least
-    ``_SECTION`` of what the member carries, and that group's members have
-    parts of their own: a story has a link, a line and a date, while a quote's
-    five tags are five words, and a quote is not a section of tags. Most
-    members, not all: one column of a page may hold a single story.
+    ``_SECTION`` of what the member carries (``inside``, from
+    ``_carried_inside``). Most members, not all: one column of a page may hold
+    a single story. A group is never inside one of its own members, so it is
+    never counted against itself.
     """
-    inside: dict[HtmlElement, int] = {}
-    for _, _, group in found:
-        if group is members or sum(1 for member in group if len(member)) * 2 <= len(
-            group
-        ):
-            continue
-        parent = group[0].getparent()
-        worth = sum(_worth(member) for member in group)
-        for member in members:
-            if parent is member or member in parent.iterancestors():
-                inside[member] = max(inside.get(member, 0), worth)
-                break
     sections = sum(
         1
         for member in members
-        if inside.get(member, 0) >= _SECTION * max(_worth(member), 1)
+        if inside.get(member, 0) >= _SECTION * max(_worth(member, worths), 1)
     )
     return sections * 2 > len(members)
