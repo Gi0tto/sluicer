@@ -18,6 +18,13 @@ with Codex 0.144.4 on 2026-09-24: before the annotations, `codex exec`
 cancelled the call unless the server's tools were approved in advance; with
 them, it runs the tool in its default mode, in `writes` and in `auto`.
 
+Each tool a client registers costs its agent context, called or not. To offer
+only some, name them: `sluicer mcp --tools extract_declared,page_markdown`, or
+`SLUICER_MCP_TOOLS=extract_declared,page_markdown` for a client that sets
+variables rather than arguments. A name that is not a tool stops the server
+with the list of the ten. Where the scripts directory is not on the `PATH`,
+`python -m sluicer mcp` starts the same server.
+
 The server refuses to fetch `localhost`, a private network or a cloud's
 metadata endpoint unless it is started with `SLUICER_ALLOW_PRIVATE=1`.
 

@@ -271,12 +271,18 @@ def _page_of(
     return html_or_url, None, None, None
 
 
-def build_server() -> Any:
+def build_server(tools: Iterable[str] | None = None) -> Any:
     """Build the server with its ten tools registered.
+
+    ``tools`` names the ones to register, when a client wants fewer: each
+    registered tool costs an agent context whether it is called or not. A
+    name that is not one of the ten is a ``ValueError`` that lists them.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
     """
+    wanted = None if tools is None else list(tools)
+    seen: list[str] = []
     server_class = _server_class()
     # After the SDK: typing_extensions arrives with it, and the answers need it.
     from sluicer import mcp_answers as answers
@@ -352,7 +358,14 @@ def build_server() -> Any:
                 open_world_hint=True,
             ),
         )
-        return lambda function: cast(Callable[..., Any], register(described(function)))
+
+        def chosen(function: Callable[..., Any]) -> Callable[..., Any]:
+            seen.append(function.__name__)
+            if wanted is not None and function.__name__ not in wanted:
+                return function
+            return cast(Callable[..., Any], register(described(function)))
+
+        return chosen
 
     @tool("Extract a page's declared data")
     @_answers_instead_of_raising
@@ -726,6 +739,12 @@ def build_server() -> Any:
             answer["error"] = pages[0]["error"]
         return cast(answers.CrawlAnswer, answer)
 
+    unknown = [name for name in wanted or () if name not in seen]
+    if unknown:
+        raise ValueError(
+            f"no such tool: {', '.join(map(repr, unknown))}; "
+            f"the tools are {', '.join(seen)}"
+        )
     return server
 
 
@@ -785,13 +804,22 @@ def _extractor_from(given: dict[str, Any]) -> extractor_module.Extractor:
         ) from invalid
 
 
-def main() -> None:
+TOOLS_ENV = "SLUICER_MCP_TOOLS"
+"""Comma-separated tools to register, for a client that sets variables and not
+a command line; ``sluicer mcp --tools`` says the same."""
+
+
+def main(tools: Iterable[str] | None = None) -> None:
     """Run the server over stdio, or explain a missing ``mcp`` extra in one line.
 
-    A broken install, as opposed to a missing one, keeps its traceback.
+    ``tools`` names the tools to register, or ``SLUICER_MCP_TOOLS`` does; all
+    ten when neither says. A broken install, as opposed to a missing one,
+    keeps its traceback.
     """
+    if tools is None and os.environ.get(TOOLS_ENV, "").strip():
+        tools = [n.strip() for n in os.environ[TOOLS_ENV].split(",") if n.strip()]
     try:
-        server = build_server()
+        server = build_server(tools=tools) if tools is not None else build_server()
     except McpExtraMissing as missing:
         # Flushed now: the exit that follows must not be what decides whether
         # the one line that says what to install is ever written.

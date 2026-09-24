@@ -974,10 +974,12 @@ def test_sluicer_mcp_runs_the_mcp_server_as_sluicer_mcp_does(monkeypatch):
     """The MCP Registry starts a package's own command: uvx --with
     "sluicer[mcp]" sluicer mcp."""
     ran = []
-    monkeypatch.setattr("sluicer.mcp_server.main", lambda: ran.append(True))
+    monkeypatch.setattr("sluicer.mcp_server.main", lambda tools=None: ran.append(tools))
     result = CliRunner().invoke(main, ["mcp"])
     assert result.exit_code == 0, result.output
-    assert ran == [True]
+    result = CliRunner().invoke(main, ["mcp", "--tools", "extract_declared,map_site"])
+    assert result.exit_code == 0, result.output
+    assert ran == [None, ["extract_declared", "map_site"]]
 
 
 def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):

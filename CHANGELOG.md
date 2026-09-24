@@ -11,6 +11,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   that leaves a parameter unexplained is refused when the server starts.
 - `python -m sluicer` is the command line, for a Python whose scripts are
   not on PATH; `python -m sluicer mcp` starts the MCP server.
+- `sluicer mcp --tools extract_declared,page_markdown`, or
+  `SLUICER_MCP_TOOLS`, registers only the tools named: each registered tool
+  costs an agent context whether it is called or not. A name that is not a
+  tool stops the server with the list of the ten.
 
 ### Changed
 - `LICENSE` holds the MIT License's text alone, so that GitHub and the

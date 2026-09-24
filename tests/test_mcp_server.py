@@ -1207,3 +1207,52 @@ def test_a_tool_that_leaves_a_parameter_unexplained_is_not_registered():
         "limit": "how many.",
     }
     assert _parameter_notes(doc, ["depth"]) == {}
+
+
+def test_only_the_tools_asked_for_are_registered(monkeypatch):
+    """Every tool registered costs an agent context whether it is called or
+    not; a client that wants two of the ten can have only those."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server(tools=["extract_declared", "page_markdown"])
+
+    assert set(registered["__tool_options__"]) == {"extract_declared", "page_markdown"}
+
+
+def test_a_tool_asked_for_that_does_not_exist_is_named_with_the_ten_that_do(
+    monkeypatch,
+):
+    fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    with pytest.raises(ValueError) as raised:
+        build_server(tools=["extract", "page_markdown"])
+    said = str(raised.value)
+    assert "'extract'" in said
+    assert all(name in said for name in TOOLS)
+
+
+def test_the_server_reads_the_tools_asked_for_from_its_environment(monkeypatch):
+    """sluicer-mcp takes no arguments; a client that can set a variable and
+    not a command line still chooses."""
+    fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    asked = []
+
+    class _Server:
+        def run(self):
+            pass
+
+    def build(tools=None):
+        asked.append(tools)
+        return _Server()
+
+    monkeypatch.setattr(server_module, "build_server", build)
+    monkeypatch.setenv("SLUICER_MCP_TOOLS", " extract_declared, map_site ,")
+    server_module.main()
+    monkeypatch.delenv("SLUICER_MCP_TOOLS")
+    server_module.main()
+    server_module.main(tools=["read_feed"])
+    assert asked == [["extract_declared", "map_site"], None, ["read_feed"]]

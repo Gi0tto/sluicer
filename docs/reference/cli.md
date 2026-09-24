@@ -331,10 +331,14 @@ Usage: sluicer mcp [OPTIONS]
   Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
 
   For a client that starts a package's own command, as the MCP Registry's entry does:
-  uvx --with "sluicer[mcp]" sluicer mcp.
+  uvx --with "sluicer[mcp]" sluicer mcp. Each tool registered costs an agent context
+  whether it is called or not; --tools, or the SLUICER_MCP_TOOLS variable, keeps only
+  those named.
 
 Options:
-  --help  Show this message and exit.
+  --tools TEXT  Register only these tools, comma-separated: --tools
+                extract_declared,page_markdown. All ten by default.
+  --help        Show this message and exit.
 ```
 
 ## `sluicer run`

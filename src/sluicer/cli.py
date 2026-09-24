@@ -965,15 +965,25 @@ def serve(host: str, port: int, timeout: float, allow_unauthenticated: bool) -> 
 
 
 @main.command("mcp")
-def mcp_command() -> None:
+@click.option(
+    "--tools",
+    help="Register only these tools, comma-separated: "
+    "--tools extract_declared,page_markdown. All ten by default.",
+)
+def mcp_command(tools: str | None) -> None:
     """Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
 
     For a client that starts a package's own command, as the MCP Registry's
-    entry does: uvx --with "sluicer[mcp]" sluicer mcp.
+    entry does: uvx --with "sluicer[mcp]" sluicer mcp. Each tool registered
+    costs an agent context whether it is called or not; --tools, or the
+    SLUICER_MCP_TOOLS variable, keeps only those named.
     """
     from sluicer.mcp_server import main as run
 
-    run()
+    if tools is None:
+        run()
+    else:
+        run(tools=[name.strip() for name in tools.split(",") if name.strip()])
 
 
 @main.command("audit")
