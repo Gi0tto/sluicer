@@ -7,7 +7,7 @@ scorer, on the same pages as their servers sent them, scripts intact,
 fetched from web archives. Every page is scored twice, once as served
 and once as WCXB kept it, so the difference between the two columns is
 the difference the scripts make, and nothing else.
-Regenerated on 2026-09-24 from commit `2c7c480` by
+Regenerated on 2026-09-24 from commit `4129a29` by
 `uv run bench/realweb.py`, from the captures pinned in
 [`bench/realweb-manifest.json`](https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).
 
@@ -68,7 +68,7 @@ The same 360 pages, stripped (WCXB's copy) and served (the archive's):
 | trafilatura 2.2.0 | date | 159 | 0.849 | **0.855** | 0.403 | **0.393** | 23 | 23 | 177 | 187 |
 | metascraper 5.58.1 | title | 360 | 0.667 | **0.667** | 0.667 | **0.667** | 120 | 120 | 0 | 0 |
 | metascraper 5.58.1 | author | 129 | 0.744 | **0.845** | 0.508 | **0.482** | 22 | 16 | 71 | 101 |
-| metascraper 5.58.1 | date | 159 | 0.358 | **0.384** | 0.292 | **0.271** | 73 | 84 | 65 | 80 |
+| metascraper 5.58.1 | date | 159 | 0.704 | **0.811** | 0.574 | **0.573** | 18 | 16 | 65 | 80 |
 | newspaper4k 0.9.6 | title | 360 | 0.775 | **0.767** | 0.775 | **0.767** | 81 | 84 | 0 | 0 |
 | newspaper4k 0.9.6 | author | 129 | 0.457 | **0.705** | 0.578 | **0.569** | 13 | 12 | 30 | 57 |
 | newspaper4k 0.9.6 | date | 159 | 0.623 | **0.786** | 0.656 | **0.658** | 8 | 11 | 44 | 54 |
@@ -77,7 +77,7 @@ In plain words, as served:
 
 - **Title.** Hit rate served 0.708, against 0.714 on the WCXB copy of the same pages. Sluicer is third of 4, behind newspaper4k 0.767, trafilatura 0.756. Right when answering: newspaper4k 0.767, trafilatura 0.756, sluicer 0.708, metascraper 0.667. Inventions: newspaper4k 0, trafilatura 0, sluicer 0, metascraper 0.
 - **Author.** Hit rate served 0.690, against 0.450 on the WCXB copy of the same pages. Sluicer is fourth of 4, behind trafilatura 0.860, metascraper 0.845, newspaper4k 0.705. Right when answering: sluicer 0.636, trafilatura 0.575, newspaper4k 0.569, metascraper 0.482. Inventions: sluicer 44, trafilatura 71, newspaper4k 57, metascraper 101.
-- **Date.** Hit rate served 0.780, against 0.585 on the WCXB copy of the same pages. Sluicer is third of 4, behind trafilatura 0.855, newspaper4k 0.786. Right when answering: sluicer 0.734, newspaper4k 0.658, trafilatura 0.393, metascraper 0.271. Inventions: sluicer 36, newspaper4k 54, trafilatura 187, metascraper 80.
+- **Date.** Hit rate served 0.780, against 0.585 on the WCXB copy of the same pages. Sluicer is fourth of 4, behind trafilatura 0.855, metascraper 0.811, newspaper4k 0.786. Right when answering: sluicer 0.734, newspaper4k 0.658, metascraper 0.573, trafilatura 0.393. Inventions: sluicer 36, newspaper4k 54, metascraper 80, trafilatura 187.
 
 One caution about inventions on served pages. WCXB's annotators labelled
 what a reader sees, and left a label empty where the visible page states
@@ -140,7 +140,7 @@ The 360 pages as served:
 | trafilatura 2.2.0 | date | 136 | 23 | 0 | 14 | 187 | 0.855 | 0.393 |
 | metascraper 5.58.1 | title | 240 | 120 | 0 | 0 | 0 | 0.667 | 0.667 |
 | metascraper 5.58.1 | author | 109 | 16 | 4 | 130 | 101 | 0.845 | 0.482 |
-| metascraper 5.58.1 | date | 61 | 84 | 14 | 121 | 80 | 0.384 | 0.271 |
+| metascraper 5.58.1 | date | 129 | 16 | 14 | 121 | 80 | 0.811 | 0.573 |
 | newspaper4k 0.9.6 | title | 276 | 84 | 0 | 0 | 0 | 0.767 | 0.767 |
 | newspaper4k 0.9.6 | author | 91 | 12 | 26 | 174 | 57 | 0.705 | 0.569 |
 | newspaper4k 0.9.6 | date | 125 | 11 | 23 | 147 | 54 | 0.786 | 0.658 |
@@ -157,7 +157,7 @@ The same 360 pages as WCXB kept them:
 | trafilatura 2.2.0 | date | 135 | 23 | 1 | 24 | 177 | 0.849 | 0.403 |
 | metascraper 5.58.1 | title | 240 | 120 | 0 | 0 | 0 | 0.667 | 0.667 |
 | metascraper 5.58.1 | author | 96 | 22 | 11 | 160 | 71 | 0.744 | 0.508 |
-| metascraper 5.58.1 | date | 57 | 73 | 29 | 136 | 65 | 0.358 | 0.292 |
+| metascraper 5.58.1 | date | 112 | 18 | 29 | 136 | 65 | 0.704 | 0.574 |
 | newspaper4k 0.9.6 | title | 279 | 81 | 0 | 0 | 0 | 0.775 | 0.775 |
 | newspaper4k 0.9.6 | author | 59 | 13 | 57 | 201 | 30 | 0.457 | 0.578 |
 | newspaper4k 0.9.6 | date | 99 | 8 | 52 | 157 | 44 | 0.623 | 0.656 |
