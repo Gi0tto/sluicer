@@ -494,12 +494,22 @@ def _subject(
     named as its site still has a subject.
     """
     counts = Counter(name for record in records for name in set(record.types))
+    # Each type's one record is found once, not once per record of that type:
+    # asked for every product of a listing, it was the square of the listing,
+    # 5.5 seconds for a page of four thousand products.
+    chosen: dict[str, Record | None] = {}
+
+    def one_of_many(name: str) -> Record | None:
+        if name not in chosen:
+            chosen[name] = _one_of_many(records, name)
+        return chosen[name]
+
     candidates = [
         (rank, index, record)
         for index, record in enumerate(records)
         if (rank := _rank(record)) is not None
         and all(
-            counts[name] < _A_LISTING or _one_of_many(records, name) is record
+            counts[name] < _A_LISTING or one_of_many(name) is record
             for name in record.types
         )
     ]

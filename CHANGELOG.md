@@ -5,6 +5,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- A page declaring thousands of products costs what its size does. Three
+  parts of `extract()` grew with the square of a listing: the summary asked,
+  for each product, which one the page was about; the merge walked every
+  record for each item it folded; and each place written counted all its
+  element's siblings again. 4,000 products in JSON-LD, microdata and RDFa
+  took 5.0 seconds and take 0.28; 16,000 in microdata alone, a 2 MB page,
+  0.38. The answers are the same, byte for byte, on the benchmark pages.
 - A GTIN holding a superscript or circled digit -- which `str.isdigit` takes
   and `int` refuses -- no longer makes `extract()` raise; it has no normalised
   value. A GTIN or an amount written in another script's decimal digits,

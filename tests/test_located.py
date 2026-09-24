@@ -336,3 +336,31 @@ def test_a_fragment_s_places_are_in_the_page_a_browser_would_build():
         assert record.where == "/html/body/div[1]", html
         assert tree.xpath(record.where)[0].get("itemtype"), html
         assert tree.xpath(record.fields["name"].where)[0].text == "Pad", html
+
+
+def test_places_spelt_from_one_count_of_siblings_are_lxml_s_own():
+    """``xpath_of`` with ``positions`` counts each parent's children once; it
+    must write exactly what lxml's ``getpath`` does, quirks included: two
+    top-level ``html`` elements, comments between siblings, a prefixed name,
+    a name XPath cannot read."""
+    from sluicer.declared.located import xpath_of
+    from sluicer.document import load
+
+    page = (
+        "\n<!DOCTYPE html>\n\n    <html><head><title>t</title></head><body>"
+        "<p>a</p><!-- c --><p>b</p><fb:like>x</fb:like><fb:like>y</fb:like>"
+        '<div x"y>q</div><h<ead>z</h<ead><section><p>only</p></section>'
+        "</body></html><html><p>late</p></html>"
+    )
+    root = load(page).tree
+    tops = [*root.itersiblings(preceding=True), root, *root.itersiblings()]
+    elements = [
+        element
+        for top in tops
+        for element in top.iter()
+        if isinstance(element.tag, str)
+    ]
+    positions: dict = {}
+
+    assert len(elements) > 12
+    assert [xpath_of(e, positions) for e in elements] == [xpath_of(e) for e in elements]
