@@ -48,6 +48,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   are renamed, where `div.col-12` named both the second of three `div.col-1`
   and a `div.col-12`, and no page's `induce` output changes.
 
+- `audit` read `<link rel=canonical>` anywhere on the page, while `extract`
+  reads the head only, as Google does: a canonical a comment put in the body
+  made the audit warn `canonicals-disagree` about an address `links` never
+  saw, and a page whose only canonical was in the body passed. The audit now
+  reads the canonicals `links` reads, and two that resolve to one address, as
+  `/pads` and `https://example.com/pads` on that site, are one canonical there
+  too; the relative one is still `canonical-relative`.
+
 ## 0.7.0 - 2026-09-24
 
 ### Added
