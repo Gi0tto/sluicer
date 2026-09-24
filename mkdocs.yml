@@ -52,6 +52,7 @@ nav:
       - Products: scoreboard-products.md
       - News in many languages: scoreboard-news.md
       - trafilatura's evaluation set: scoreboard-evaldata.md
+      - Extractors on SWDE: scoreboard-swde.md
       - Drift: drift.md
       - The field, measured: field-survey.md
   - Project:
