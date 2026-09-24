@@ -100,13 +100,37 @@ check that a price column still reads as prices. And
 `from sluicer.compat import extruct` answers extruct's calls, in its shapes,
 from sluicer's readers.
 
-## Built for the next release
+## Shipped in 0.4.1
+
+**Measured in many languages.** A scoreboard on fundus's news fixtures, 263
+pages from 42 countries' publishers in 21 languages, and the defects it found
+fixed: bytes that are valid UTF-8 read as UTF-8 whatever they declare, the
+journal a page is published in no longer its subject. See
+[the news scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md).
+
+## Shipped in 0.5.0
 
 **Conflicts, stated.** When two declarations of a price, a currency or a
 date disagree -- 41.90 in JSON-LD and 39.90 in OpenGraph -- `conflicts`
 says so, both answers with their places, so an agent sees that the page
 contradicts itself. A rule, not a score: 4 of Zyte's 140 product pages
 state two prices.
+
+**The page's declared subject.** A WebPage whose `mainEntity` is the article
+answers about the article; every `<meta name="author">` is read.
+
+## Shipped in 0.6.0
+
+**Dates in every language.** Month names in the 430 languages and regions the
+Unicode CLDR covers at its modern level, and the numbers with units of
+Chinese, Japanese and Korean.
+
+**A crawl that hears "too many".** After a 429 or a 503 the next request to
+the site waits its `Retry-After`, or twice the site's delay.
+
+**A fifth scoreboard.** The 990 pages trafilatura evaluates itself on, for
+the metadata and for the main text. See
+[the scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-evaldata.md).
 
 ## Next
 
@@ -146,6 +170,12 @@ says so.
 
 **Extraction with a model.** It would be easier and it would end determinism,
 which is the property everything else here rests on.
+
+**A guess from the visible page in the summary.** Measured where a page
+declares no author or date, trafilatura's guess is right on 42% of the WCXB
+pages for an author and 24% for a date. In the summary it would look exactly
+like a declared answer; `examples/04_a_guess_from_the_visible_page.py` puts it
+beside one instead, named a guess.
 
 **Healing itself above a confidence.** `heal` reports what each move rests on
 and never applies one because a score was high: a wrong move is the silent

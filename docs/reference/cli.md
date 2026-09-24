@@ -1,0 +1,394 @@
+# Command line
+
+Every command's own `--help`, as `sluicer` prints it. Generated from the
+code by `scripts/reference.py`.
+
+```text
+$ sluicer --help
+Usage: sluicer [OPTIONS] COMMAND [ARGS]...
+
+  Turn a web page into structured data with no model in the loop.
+
+  SOURCE is a URL, a saved HTML file, or - for standard input.
+
+Options:
+  --version  Show the version and exit.
+  --help     Show this message and exit.
+
+Commands:
+  audit     Check what a page declares against what Google documents, and more.
+  batch     Read every address in URLS_FILE, politely, one JSON line per page.
+  compile   Learn an extractor from pages of one template, and write it to a file.
+  crawl     Crawl a site from URL, politely, one JSON line per page.
+  diff      Say what changed between two readings of a page, question by question.
+  extract   Read the structured data a URL, a file or stdin declares.
+  feed      Read a feed's items: RSS, Atom or JSON Feed, from a URL, a file or stdin.
+  heal      Learn pages again and say what moved; write the result only with -o.
+  inspect   Show, for a person, what a page declares and where each answer came from.
+  map       List a site's addresses, from its sitemaps or its start page's links.
+  markdown  Print the main content of a URL, a file or stdin as markdown.
+  mcp       Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
+  run       Replay an extractor on pages, and exit 3 if any page broke its contract.
+  serve     Serve the MCP server's tools over HTTP (needs sluicer[api]).
+  warc      Read every page the WARC FILES hold, one JSON line per page.
+```
+
+## `sluicer audit`
+
+```text
+Usage: sluicer audit [OPTIONS] SOURCE
+
+  Check what a page declares against what Google documents, and more.
+
+  For every record JSON-LD, microdata and RDFa declare: the rich-result features its
+  type is documented for, the required and recommended properties it lacks, and the
+  values in a form the documentation refuses. Then what the page lacks -- a title, a
+  description, a canonical, OpenGraph -- and where two vocabularies contradict each
+  other. For a URL, also which AI agents the site's robots.txt admits and whether its
+  llms.txt keeps to llmstxt.org's format; a file or stdin reads no site.
+
+  Exits 3 when anything is an error -- a required property missing, a value refused, an
+  llms.txt with no name -- whatever else is true, since that is a page breaking a stated
+  rule. Otherwise 1 when no record was declared, since there was nothing to audit, and
+  0. 2, as everywhere, when the page could not be read.
+
+Options:
+  --json             Print the audit as JSON.
+  --no-site          Do not read the site's robots.txt and llms.txt for a URL.
+  --stealth          Allow the stealth rung, which does not announce itself.
+  --no-robots        Fetch even where the site's robots.txt says no.
+  --url URL          The address a file or stdin came from, to resolve its links.
+  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
+                     tdmrep.json, headers and meta tags.
+  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
+                     Last-Modified whether a page changed before fetching it again.
+  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
+                     asking its site at all.  [x>=0]
+  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
+                     (2025, 2025-06, 2025-06-01), not from its site.
+  --help             Show this message and exit.
+```
+
+## `sluicer batch`
+
+```text
+Usage: sluicer batch [OPTIONS] URLS_FILE
+
+  Read every address in URLS_FILE, politely, one JSON line per page.
+
+  One address a line, blank lines and # comments skipped; - reads stdin, so `sluicer map
+  URL --plain | sluicer batch -` reads a site's sitemap. No link is followed. Several
+  sites are asked at once, each one request at a time, and the pages come out in the
+  order the file lists them.
+
+Options:
+  -o, --out FILE       Write one JSON line per page here, not to stdout; the file is the
+                       state --resume continues from.
+  --resume             Continue what --out already holds, fetching none of it again.
+  --delay FLOAT RANGE  The least seconds between two requests to one site; its
+                       robots.txt Crawl-delay wins when longer.  [default: 1.0; x>=0]
+  --induce             Also read the rows a page repeats when it declares nothing about
+                       them.
+  --respect [tdm]      Give a page whose rights are reserved as an error, not its data:
+                       tdm reads TDMRep's tdmrep.json, headers and meta tags.
+  --help               Show this message and exit.
+```
+
+## `sluicer compile`
+
+```text
+Usage: sluicer compile [OPTIONS] SOURCES...
+
+  Learn an extractor from pages of one template, and write it to a file.
+
+  With --want, the examples say which repeated group is the listing and what its columns
+  are called: --want title="Brake pad set" --want price=41.90 learns the listing whose
+  rows hold both, with those two columns. When no repeated group holds them -- a product
+  page -- or with --no-listing, they are the page's own values, each learnt where it
+  sits. A value that is nowhere is an error that names it.
+
+Options:
+  -o, --output TEXT         Where to write the extractor.  [required]
+  --listing / --no-listing  Learn the rows the pages repeat (default: only if they
+                            declare no thing).
+  --want NAME=VALUE         A value one row holds, and the column's name: --want
+                            price=41.90. Chooses the listing and keeps only the columns
+                            named.
+  --stealth                 Allow the stealth rung.
+  --no-robots               Fetch even where robots.txt says no.
+  --help                    Show this message and exit.
+```
+
+## `sluicer crawl`
+
+```text
+Usage: sluicer crawl [OPTIONS] URL
+
+  Crawl a site from URL, politely, one JSON line per page.
+
+  Breadth first, on URL's site unless --any-site, every page through robots.txt and one
+  request at a time with the site's delay between. Run twice, it takes the same pages in
+  the same order.
+
+Options:
+  --max-pages INTEGER RANGE  The most addresses taken, whatever becomes of them.
+                             [default: 100; x>=1]
+  --max-depth INTEGER RANGE  The most links from URL; 0 reads URL alone.  [default: 3;
+                             x>=0]
+  --include REGEX            Follow only links whose address this is found in;
+                             repeatable.
+  --exclude REGEX            Do not follow links whose address this is found in;
+                             repeatable.
+  --any-site                 Follow links that leave URL's site too.
+  -o, --out FILE             Write one JSON line per page here, not to stdout; the file
+                             is the state --resume continues from.
+  --resume                   Continue what --out already holds, fetching none of it
+                             again.
+  --delay FLOAT RANGE        The least seconds between two requests to one site; its
+                             robots.txt Crawl-delay wins when longer.  [default: 1.0;
+                             x>=0]
+  --induce                   Also read the rows a page repeats when it declares nothing
+                             about them.
+  --respect [tdm]            Give a page whose rights are reserved as an error, not its
+                             data: tdm reads TDMRep's tdmrep.json, headers and meta
+                             tags.
+  --help                     Show this message and exit.
+```
+
+## `sluicer diff`
+
+```text
+Usage: sluicer diff [OPTIONS] BEFORE AFTER
+
+  Say what changed between two readings of a page, question by question.
+
+  BEFORE and AFTER are each a URL, a file or - for stdin; --at reads BEFORE as the
+  Wayback Machine captured it, so `sluicer diff URL URL --at 2024-01` is what changed
+  since then. Exit codes are diff's: 0 when nothing differs, 1 when something does, 2
+  when either could not be read. A value written differently with the same meaning
+  (41.90 and 41.9) is reported as rewritten.
+
+Options:
+  --json             Print the differences as JSON.
+  --stealth          Allow the stealth rung, which does not announce itself.
+  --no-robots        Fetch even where the site's robots.txt says no.
+  --url URL          The address a file or stdin came from, to resolve its links.
+  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
+                     tdmrep.json, headers and meta tags.
+  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
+                     Last-Modified whether a page changed before fetching it again.
+  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
+                     asking its site at all.  [x>=0]
+  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
+                     (2025, 2025-06, 2025-06-01), not from its site.
+  --help             Show this message and exit.
+```
+
+## `sluicer extract`
+
+```text
+Usage: sluicer extract [OPTIONS] SOURCE
+
+  Read the structured data a URL, a file or stdin declares.
+
+Options:
+  --induce           Also read the rows a page repeats when it declares nothing about
+                     them.
+  --microformats     Also read microformats2 (needs sluicer[microformats]).
+  --stealth          Allow the stealth rung, which does not announce itself.
+  --no-robots        Fetch even where the site's robots.txt says no.
+  --url URL          The address a file or stdin came from, to resolve its links.
+  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
+                     tdmrep.json, headers and meta tags.
+  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
+                     Last-Modified whether a page changed before fetching it again.
+  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
+                     asking its site at all.  [x>=0]
+  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
+                     (2025, 2025-06, 2025-06-01), not from its site.
+  --help             Show this message and exit.
+```
+
+## `sluicer feed`
+
+```text
+Usage: sluicer feed [OPTIONS] SOURCE
+
+  Read a feed's items: RSS, Atom or JSON Feed, from a URL, a file or stdin.
+
+  A page that is not a feed but declares one, with <link rel=alternate>, is followed to
+  it. Prints the feed as JSON: what it says about itself and every item, dates also
+  normalised. Exits 1 for a feed with no item, 2 for what is not a feed.
+
+Options:
+  --stealth          Allow the stealth rung, which does not announce itself.
+  --no-robots        Fetch even where the site's robots.txt says no.
+  --url URL          The address a file or stdin came from, to resolve its links.
+  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
+                     tdmrep.json, headers and meta tags.
+  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
+                     Last-Modified whether a page changed before fetching it again.
+  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
+                     asking its site at all.  [x>=0]
+  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
+                     (2025, 2025-06, 2025-06-01), not from its site.
+  --help             Show this message and exit.
+```
+
+## `sluicer heal`
+
+```text
+Usage: sluicer heal [OPTIONS] EXTRACTOR_FILE SOURCES...
+
+  Learn pages again and say what moved; write the result only with -o.
+
+  Exits 3 when a field, a summary answer, a type or the listing was lost for good:
+  healing moved what it could, and what it could not needs a person. Nothing is written
+  then without --force, so a lossy extractor never quietly replaces the one that would
+  have kept failing.
+
+Options:
+  -o, --output TEXT  Where to write the healed extractor.
+  --force            Write the healed extractor even when healing lost something.
+  --stealth          Allow the stealth rung.
+  --no-robots        Fetch even where robots.txt says no.
+  --help             Show this message and exit.
+```
+
+## `sluicer inspect`
+
+```text
+Usage: sluicer inspect [OPTIONS] SOURCE
+
+  Show, for a person, what a page declares and where each answer came from.
+
+  The same reading as ``extract``, laid out to be read rather than parsed: what the
+  fetch cost, which vocabularies said something, every record with the source of each
+  field, and every summary answer with its source and key. Exit codes are ``extract``'s.
+
+Options:
+  --induce           Also read the rows a page repeats when it declares nothing about
+                     them.
+  --microformats     Also read microformats2 (needs sluicer[microformats]).
+  --stealth          Allow the stealth rung, which does not announce itself.
+  --no-robots        Fetch even where the site's robots.txt says no.
+  --url URL          The address a file or stdin came from, to resolve its links.
+  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
+                     tdmrep.json, headers and meta tags.
+  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
+                     Last-Modified whether a page changed before fetching it again.
+  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
+                     asking its site at all.  [x>=0]
+  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
+                     (2025, 2025-06, 2025-06-01), not from its site.
+  --help             Show this message and exit.
+```
+
+## `sluicer map`
+
+```text
+Usage: sluicer map [OPTIONS] URL
+
+  List a site's addresses, from its sitemaps or its start page's links.
+
+  Each sitemap is asked politely, through robots.txt and after the site's delay, and
+  stderr says what became of each one.
+
+Options:
+  --limit INTEGER RANGE  The most addresses listed.  [default: 50000; x>=1]
+  --plain                One address a line, for `sluicer batch -`.
+  --help                 Show this message and exit.
+```
+
+## `sluicer markdown`
+
+```text
+Usage: sluicer markdown [OPTIONS] SOURCE
+
+  Print the main content of a URL, a file or stdin as markdown.
+
+Options:
+  --front-matter     Open with a YAML block of what the page declares, and where from.
+  --stealth          Allow the stealth rung, which does not announce itself.
+  --no-robots        Fetch even where the site's robots.txt says no.
+  --url URL          The address a file or stdin came from, to resolve its links.
+  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
+                     tdmrep.json, headers and meta tags.
+  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
+                     Last-Modified whether a page changed before fetching it again.
+  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
+                     asking its site at all.  [x>=0]
+  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
+                     (2025, 2025-06, 2025-06-01), not from its site.
+  --help             Show this message and exit.
+```
+
+## `sluicer mcp`
+
+```text
+Usage: sluicer mcp [OPTIONS]
+
+  Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
+
+  For a client that starts a package's own command, as the MCP Registry's entry does:
+  uvx --with 'sluicer[mcp]' sluicer mcp.
+
+Options:
+  --help  Show this message and exit.
+```
+
+## `sluicer run`
+
+```text
+Usage: sluicer run [OPTIONS] EXTRACTOR_FILE SOURCES...
+
+  Replay an extractor on pages, and exit 3 if any page broke its contract.
+
+Options:
+  --stealth    Allow the stealth rung.
+  --no-robots  Fetch even where robots.txt says no.
+  --help       Show this message and exit.
+```
+
+## `sluicer serve`
+
+```text
+Usage: sluicer serve [OPTIONS]
+
+  Serve the MCP server's tools over HTTP (needs sluicer[api]).
+
+  POST /v1/tools/<name> with the tool's arguments as a JSON object answers what the tool
+  answers; GET /v1/tools and /openapi.json describe them. The token, when
+  SLUICER_API_TOKEN is set, goes in "Authorization: Bearer". Private addresses are
+  refused unless SLUICER_ALLOW_PRIVATE=1, as for the MCP server. Exits 2 without
+  listening when it cannot serve safely.
+
+Options:
+  --host TEXT              Where to listen. Anything but loopback needs
+                           SLUICER_API_TOKEN.  [default: 127.0.0.1]
+  --port INTEGER RANGE     [default: 8000; 0<=x<=65535]
+  --timeout FLOAT RANGE    Seconds a request may take before it is answered 504.
+                           [default: 120.0; x>0]
+  --allow-unauthenticated  Listen beyond loopback with no token, behind something that
+                           already decides who may call.
+  --help                   Show this message and exit.
+```
+
+## `sluicer warc`
+
+```text
+Usage: sluicer warc [OPTIONS] FILES...
+
+  Read every page the WARC FILES hold, one JSON line per page.
+
+  Plain or gzipped, as web archives and Common Crawl write them; - reads stdin. Each
+  line is extract's answer, read with the headers the page was served with, and a "warc"
+  object naming the file and the record. Nothing is fetched. Records that are not pages
+  are passed over, and those left out -- revisits, non-HTML bodies, error answers -- are
+  counted at the end.
+
+Options:
+  --induce        Also read the rows a page repeats when it declares nothing about them.
+  --microformats  Also read microformats2 (needs sluicer[microformats]).
+  --help          Show this message and exit.
+```

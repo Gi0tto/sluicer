@@ -27,9 +27,22 @@ IN_THE_SITE = {
 }
 
 
+# The README's logo block, which the home makes its heading: a page with no
+# heading of its own is given one, the page's title, above the logo.
+LOGO_OPEN = '<p align="center">\n  <picture>'
+LOGO_CLOSE = "  </picture>\n</p>"
+
+
 def home(readme: str) -> str:
     """The home page ``readme`` makes."""
     page = readme.replace(BLOB + "docs/", "")
+    start = page.index(LOGO_OPEN)
+    end = page.index(LOGO_CLOSE, start) + len(LOGO_CLOSE)
+    logo = page[start:end]
+    heading = (
+        '<h1 align="center">' + logo[len('<p align="center">') : -len("</p>")] + "</h1>"
+    )
+    page = page[:start] + heading + page[end:]
     for name, there in IN_THE_SITE.items():
         page = page.replace(BLOB + name, there)
     return page

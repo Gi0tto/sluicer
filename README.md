@@ -64,11 +64,13 @@ model reads the page, so the same page always gives the same answer.
 ## Install
 
 ```bash
-uv pip install 'sluicer[fetch,markdown,mcp]'    # or pip install 'sluicer[fetch,markdown,mcp]'
+uv pip install 'sluicer[fetch,markdown,mcp]'
 ```
 
-The base install, `uv pip install sluicer`, reads HTML you already have with
-`lxml` and `click` alone. Each extra adds one job:
+With pip, `pip install 'sluicer[fetch,markdown,mcp]'`; as a command in an
+environment of its own, `uv tool install 'sluicer[fetch,markdown,mcp]'`. The
+base install, `uv pip install sluicer`, reads HTML you already have with `lxml`
+and `click` alone. Each extra adds one job:
 
 | extra | adds |
 |---|---|

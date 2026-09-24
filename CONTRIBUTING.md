@@ -7,41 +7,114 @@ an evening on a patch.
 ## The three rules that are not negotiable
 
 **No LLM call, anywhere in the path.** Not as a fallback, not for the hard
-pages, not behind a flag. A run costs CPU and nothing else. There is a test that
-walks the source and fails if a model client is ever imported; if your change
-needs a model, it belongs in a different project.
+pages, not behind a flag. A run costs CPU and nothing else. A test walks the
+source and fails if a model client is ever imported; if your change needs a
+model, it belongs in a different project.
 
 **No paid API.** If a feature only works when somebody pays for a key, it does
 not ship here.
 
 **Deterministic.** The same input gives the same answer, every time. This is not
-a style preference: it is what makes the scoreboard honest. A change that makes
-output depend on timing, network weather or dictionary ordering will be sent
-back.
+a style preference: it is what makes the scoreboards honest. A change that makes
+output depend on timing, network weather, today's date or dictionary ordering
+will be sent back.
+
+## Set up
+
+You need [uv](https://docs.astral.sh/uv/) and Git; uv brings the Python.
+
+```bash
+git clone https://github.com/Gi0tto/sluicer.git
+cd sluicer
+uv run --extra api pytest -q        # the whole suite, as CI runs it
+```
+
+The first run creates `.venv` with the package, its extras and the development
+tools. The suite is about 1,800 tests, takes half a minute, and never touches
+the network: a CI job runs it with the network taken away.
+
+## Before you open a pull request
+
+Format the code in its one style, then run what CI refuses a change for
+failing:
+
+```bash
+uv run ruff format src tests bench scripts examples
+uv run ruff check src tests bench scripts examples
+uv run mypy                                           # strict, at the 3.10 floor
+uv run --extra api pytest -q --cov                    # coverage stays at or above 97%
+```
+
+And the properties, which draw pages at random -- hostile ones included -- and
+hold what must be true of every page. Locally each draws 15 examples; CI draws
+300 on every push, and 2,500 every week and before a release:
+
+```bash
+HYPOTHESIS_PROFILE=search uv run --extra microformats pytest -q tests/properties
+```
 
 ## How to work
 
 Tests first. Every behavioural change arrives with a test that fails before it
 and passes after, and the failure has to be for the right reason. A test that
-cannot fail is not protecting anything.
+cannot fail is not protecting anything: break the code on purpose once and
+watch your test go red.
 
-Run the suite from the repository root:
+If a test of yours needs a page, save it under `tests/fixtures/` and read it
+from disk. If it needs a fetch, inject a fake rung the way
+`tests/test_fetch_ladder.py` does, or a fake site the way `tests/fake_site.py`
+serves one to the crawler.
+
+A change that alters what Sluicer answers is measured before it is merged: run
+the scoreboards (below) before and after, and say in the pull request which
+answers changed, on how many pages, and whether the labels call them right.
+
+## Where things are
+
+| path | what it holds |
+|---|---|
+| `src/sluicer/api.py` | `extract`, the one call most people make |
+| `src/sluicer/declared/` | a reader per vocabulary, and the merge that keeps each value's source and place |
+| `src/sluicer/summary.py` | the 25 questions, the order candidates are asked in, and the conflicts |
+| `src/sluicer/normalise.py` | what dates, prices and currencies mean, when that is certain |
+| `src/sluicer/fetch/` | the ladder: plain HTTP, then a browser only when a measurement says so |
+| `src/sluicer/structure/`, `extractor.py` | induction, and extractors that are learnt, replayed and healed |
+| `src/sluicer/crawl/` | maps, crawls and batches, and the politeness that paces them |
+| `src/sluicer/audit/` | a page's markup held to what Google documents |
+| `src/sluicer/cli.py`, `mcp_server.py`, `http_api.py` | the command line, the MCP server and the HTTP door |
+| `tests/` | the suite; `tests/properties/` the properties; `tests/live/` the checks CI runs against real curl, browsers and installs |
+| `bench/` | the scoreboards and the drift benchmark; [`bench/README.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/README.md) says how each is run |
+| `docs/` | the documentation site |
+| `scripts/` | the generators of the files below |
+
+## Files that are generated
+
+Edit the source, then run its generator. For the documentation's home and the
+reference pages a test fails when the two disagree; the others are regenerated
+before a release.
+
+| file | generated from | by |
+|---|---|---|
+| `docs/index.md` | `README.md` | `uv run scripts/docs_home.py` |
+| `docs/reference/*.md` | the commands' help, the MCP server's tools, the public docstrings | `uv run scripts/reference.py` |
+| `docs/assets/inspect.svg`, `dates-*.svg` | `examples/brake-pads.html`, `docs/scoreboard-served.md` | `uv run scripts/readme_assets.py` |
+| `src/sluicer/calendar_names.py` | the Unicode CLDR, at a pinned release | `uv run scripts/cldr_calendar.py` |
+| `docs/scoreboard*.md`, `docs/drift.md` | the benchmarks' pinned pages | the scripts in `bench/`, see [`bench/README.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/README.md) |
+
+`docs/changelog.md`, `docs/roadmap.md`, `docs/contributing.md` and
+`docs/security.md` are symlinks to the files of the same name in the repository
+root: edit the root file, and the site follows.
+
+## The documentation site
 
 ```bash
-uv run pytest
+uvx --from 'mkdocs>=1.6,<2' --with 'mkdocs-material>=9.7,<10' mkdocs serve
 ```
 
-CI also runs these, and refuses a change that fails any of them:
-
-```bash
-uv run ruff check src tests bench
-uv run mypy
-uv run pytest --cov          # coverage must stay at or above 97%
-```
-
-The suite takes a second or two and it never touches the network. If a test of
-yours needs a page, save it under `tests/fixtures/` and read it from disk. If it
-needs a fetch, inject a fake rung the way `tests/test_fetch_ladder.py` does.
+serves it at <http://127.0.0.1:8000> as you edit. CI builds it with
+`mkdocs build --strict`, which refuses a broken link. The README's links are
+absolute, because the README is also the PyPI page; the site's are relative,
+and `scripts/docs_home.py` rewrites the one into the other.
 
 ## What gets a patch rejected
 
@@ -64,16 +137,11 @@ typed public functions, short docstrings that say what comes back. Annotations
 must be honest: if you know the type, write it, and do not annotate something as
 `object` to silence a checker.
 
-English everywhere: code, comments, tests, commit messages.
+English everywhere: code, comments, tests, commit messages, documentation.
 
-## The documentation site
+## Pull requests
 
-`docs/changelog.md`, `docs/roadmap.md`, `docs/contributing.md` and
-`docs/security.md` are symlinks to the files of the same name in the repository
-root. Edit the root file; the site follows.
-
-`docs/index.md` is **not** a copy of the README and should not become one. A
-README sells the project to someone deciding whether to try it; a documentation
-home orients someone who has already decided. The README's links are absolute,
-because it is also the PyPI page; the site's pages link relatively, and
-`mkdocs build --strict` in CI refuses a broken one.
+One change per pull request, with its test, and a line in `CHANGELOG.md` under
+`Unreleased` when a user would notice it. If you used AI assistance, say so and
+roughly how much, as [`AI_POLICY.md`](https://github.com/Gi0tto/sluicer/blob/main/AI_POLICY.md) asks. Security issues go
+through [`SECURITY.md`](https://github.com/Gi0tto/sluicer/blob/main/SECURITY.md), not a public issue.

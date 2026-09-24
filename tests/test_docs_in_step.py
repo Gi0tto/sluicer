@@ -38,16 +38,25 @@ def test_the_docs_home_leaves_no_link_into_the_repository_s_docs():
     assert "blob/main/docs/" not in home
 
 
-def test_the_readme_s_quick_start_prints_what_it_says(monkeypatch):
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    section = readme.split("## Quick start", 1)[1].split("\n## ", 1)[0]
-    blocks = re.findall(r"```python\n(.*?)```", section, re.DOTALL)
-    assert blocks, "the quick start has no python block"
-    monkeypatch.chdir(ROOT)
+def _run_python_blocks(text: str, name: str) -> None:
+    blocks = re.findall(r"```python\n(.*?)```", text, re.DOTALL)
+    assert blocks, f"{name} has no python block"
     parser = doctest.DocTestParser()
     runner = doctest.DocTestRunner(optionflags=doctest.ELLIPSIS)
     for number, block in enumerate(blocks):
-        test = parser.get_doctest(block, {}, f"README quick start {number}", None, 0)
-        runner.run(test)
-    assert runner.failures == 0, f"{runner.failures} line(s) of the quick start differ"
+        runner.run(parser.get_doctest(block, {}, f"{name} {number}", None, 0))
+    assert runner.failures == 0, f"{runner.failures} line(s) of {name} differ"
+
+
+def test_the_readme_s_quick_start_prints_what_it_says(monkeypatch):
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## Quick start", 1)[1].split("\n## ", 1)[0]
+    monkeypatch.chdir(ROOT)
     assert os.path.exists(ROOT / "examples" / "brake-pads.html")
+    _run_python_blocks(section, "the README's quick start")
+
+
+def test_the_getting_started_guide_prints_what_it_says(monkeypatch):
+    guide = (ROOT / "docs" / "getting-started.md").read_text(encoding="utf-8")
+    monkeypatch.chdir(ROOT)
+    _run_python_blocks(guide, "the getting started guide")

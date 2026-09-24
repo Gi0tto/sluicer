@@ -11,8 +11,15 @@ theme:
   favicon: assets/mark-512.png
   features:
     - content.code.copy
+    - content.action.edit
+    - navigation.tabs
     - navigation.sections
     - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - toc.follow
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -22,31 +29,45 @@ theme:
       toggle: { icon: material/weather-sunny, name: Switch to light }
 
 nav:
-  - Sluicer: index.md
-  - Why Sluicer: why.md
-  - Extractors: extractors.md
-  - Moving from extruct: extruct.md
-  - In your agent: agents.md
-  - HTTP API: http-api.md
-  - Audit: audit.md
-  - Crawling: crawling.md
-  - Web archives: warc.md
-  - Known limits: known-limits.md
-  - Design notes: design-notes.md
-  - Scoreboard: scoreboard.md
-  - Scoreboard, as served: scoreboard-served.md
-  - Scoreboard, products: scoreboard-products.md
-  - Scoreboard, news in many languages: scoreboard-news.md
-  - Scoreboard, trafilatura's evaluation set: scoreboard-evaldata.md
-  - Drift: drift.md
-  - The field, measured: field-survey.md
-  - Roadmap: roadmap.md
-  - Contributing: contributing.md
-  - Security: security.md
-  - Changelog: changelog.md
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guides:
+      - Extractors: extractors.md
+      - In your agent: agents.md
+      - HTTP API: http-api.md
+      - Crawling: crawling.md
+      - Web archives: warc.md
+      - Audit: audit.md
+      - Moving from extruct: extruct.md
+  - Reference:
+      - Command line: reference/cli.md
+      - MCP tools: reference/mcp.md
+      - Python: reference/python.md
+  - Measured:
+      - Scoreboard: scoreboard.md
+      - As served: scoreboard-served.md
+      - Products: scoreboard-products.md
+      - News in many languages: scoreboard-news.md
+      - trafilatura's evaluation set: scoreboard-evaldata.md
+      - Drift: drift.md
+      - The field, measured: field-survey.md
+  - Project:
+      - Why Sluicer: why.md
+      - Known limits: known-limits.md
+      - Design notes: design-notes.md
+      - Roadmap: roadmap.md
+      - Changelog: changelog.md
+      - Contributing: contributing.md
+      - Security: security.md
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - pymdownx.details
   - pymdownx.superfences
   - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - smarty
   - toc: { permalink: true }

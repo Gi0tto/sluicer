@@ -1,11 +1,11 @@
 <!-- mcp-name: io.github.Gi0tto/sluicer -->
 
-<p align="center">
+<h1 align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/logo-dark.png">
     <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/logo.png" alt="Sluicer" width="440">
   </picture>
-</p>
+</h1>
 
 <p align="center">
   <strong>Turn a web page into structured data. No model, no API key, no bill.</strong>
@@ -64,11 +64,13 @@ model reads the page, so the same page always gives the same answer.
 ## Install
 
 ```bash
-uv pip install 'sluicer[fetch,markdown,mcp]'    # or pip install 'sluicer[fetch,markdown,mcp]'
+uv pip install 'sluicer[fetch,markdown,mcp]'
 ```
 
-The base install, `uv pip install sluicer`, reads HTML you already have with
-`lxml` and `click` alone. Each extra adds one job:
+With pip, `pip install 'sluicer[fetch,markdown,mcp]'`; as a command in an
+environment of its own, `uv tool install 'sluicer[fetch,markdown,mcp]'`. The
+base install, `uv pip install sluicer`, reads HTML you already have with `lxml`
+and `click` alone. Each extra adds one job:
 
 | extra | adds |
 |---|---|

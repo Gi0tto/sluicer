@@ -16,7 +16,7 @@ another tool is the better choice. It is a map, not a race.
 | Reads declared data (JSON-LD, microdata, RDFa, OpenGraph...) | yes, merged | yes, per vocabulary | partly | if you write it | if the model notices |
 | Reads authors and dates from the visible prose | no | no | yes | if you write it | yes |
 | One record per thing, across vocabularies | yes | no | no | no | varies |
-| Says where every value came from | yes, reader and key | per vocabulary | no | no | no |
+| Says where every value came from | yes: reader, key and place on the page | per vocabulary | no | no | no |
 | Same page, same answer | yes | yes | yes | yes | no |
 | Notices when a site's layout changes | yes, exit 3 | no | no | no, returns nulls | no |
 | Says what moved after a redesign | yes, `heal` | no | no | no | no |
@@ -43,6 +43,11 @@ each, chosen by fixed rules --
 the article's `headline` before the site's name, `og:title` before `<title>`,
 the price from inside `offers` -- and each naming its reader and key, so it can
 be checked against the records.
+
+**A page that contradicts itself, said so.** When the page declares a price,
+a currency or a date two ways that mean different things -- 41.90 in JSON-LD
+and 39.90 in OpenGraph -- `conflicts` lists both, with their places, instead of
+choosing one silently. Four of Zyte's 140 product pages do.
 
 **The tags nobody owns.** Across the 359 commercial pages of a public annotated
 corpus, `article:published_time` is on 33% and `<meta name="author">` on 29%.

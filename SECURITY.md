@@ -2,8 +2,14 @@
 
 ## Reporting
 
-Report a vulnerability privately through GitHub's security advisories on this
-repository, not as a public issue. You will get an answer.
+Report a vulnerability privately through
+[GitHub's security advisories](https://github.com/Gi0tto/sluicer/security/advisories/new)
+on this repository, not as a public issue. You will get an answer.
+
+## Supported versions
+
+The latest release on PyPI. A fix ships as a new release, and its changelog
+entry says what it fixed once the fix is public.
 
 ## What Sluicer touches
 

@@ -35,6 +35,12 @@ claude plugin marketplace add Gi0tto/sluicer
 claude plugin install sluicer@sluicer
 ```
 
+Verified end to end on 2026-09-24 with Claude Code 2.1.281: given the published
+server, `claude -p` called `extract_declared` and answered a page's price, its
+place and the conflict with the page's second price; the plugin, loaded with
+`--plugin-dir`, brought the server and the skill; and `claude plugin validate`
+passes the repository's manifests. Installing from the marketplace was not run.
+
 ## Codex
 
 ```bash

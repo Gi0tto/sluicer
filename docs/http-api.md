@@ -1,11 +1,10 @@
 # The HTTP API
 
 `sluicer serve` answers the MCP server's tools over HTTP, one address per
-tool, so any language that can send a POST can use Sluicer. They are the tools
-an agent gets -- today `extract_declared`, `page_markdown`, `fetch_page`,
-`compile_extractor`, `run_extractor` and `heal_extractor` -- with the same
-arguments, the same answers and the same output schemas, because it is built
-from them: an HTTP call goes through the MCP SDK's own `call_tool`, argument
+tool, so any language that can send a POST can use Sluicer. They are the ten
+tools an agent gets, each in the [MCP reference](reference/mcp.md), with the
+same arguments, the same answers and the same output schemas, because it is
+built from them: an HTTP call goes through the MCP SDK's own `call_tool`, argument
 validation and output-schema check included. A tool the MCP server gains is
 served here with nothing else to change.
 
