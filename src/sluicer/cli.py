@@ -917,7 +917,8 @@ def heal_command(
         click.echo(f"Wrote {output}.", err=True)
     elif output:
         click.echo(
-            f"Did not write {output}: healing lost data. Pass --force to write it.",
+            f"Did not write {output}: healing lost data or left a move for you "
+            "to decide. Pass --force to write it.",
             err=True,
         )
     click.echo(

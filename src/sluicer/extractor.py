@@ -347,8 +347,11 @@ class Run:
     """The page's own values, by the names the examples gave them."""
 
 
-LOSSES = frozenset({"vanished", "summary-lost", "type-lost", "listing-lost"})
-"""The kinds of change that are data the page no longer has."""
+LOSSES = frozenset(
+    {"vanished", "summary-lost", "type-lost", "listing-lost", "ambiguous"}
+)
+"""The kinds of change that stop heal from writing: data the page no longer
+has, or a move two places had equal claim to, which a person decides."""
 
 
 @dataclass(frozen=True)
@@ -357,7 +360,8 @@ class Change:
 
     ``kind`` is one of container, member, kept, moved, new, summary-gained,
     type-gained, or one of ``LOSSES``: vanished, summary-lost, type-lost,
-    listing-lost.
+    listing-lost, ambiguous -- a move two new places had equal claim to, left
+    out of the healed extractor for a person to decide.
     """
 
     kind: str
@@ -1646,22 +1650,37 @@ def _heal_listing(
             continue
         claimed[path] = f.name
         matched[f.name] = path
+    undecided: set[str] = set()
     for f in old.fields:
         if f.name not in matched:
             continue
-        kind_ = "kept" if matched[f.name] == f.path else "moved"
-        others = [seen_in(f, path) for path in fresh if path != matched[f.name]]
+        place = matched[f.name]
+        kind_ = "kept" if place == f.path else "moved"
+        others = [seen_in(f, path) for path in fresh if path != place]
         evidence = {
-            "seen": seen_in(f, matched[f.name]),
+            "seen": seen_in(f, place),
             "samples": len({_comparable(f.path, v) for v in f.samples}),
             "runner_up": max(others, default=0),
         }
-        changes.append(Change(kind_, f.name, matched[f.name], evidence))
+        # A move is a guess when another new place holds as many of the old
+        # values, on as many rows, in the same kind of element: the tie the
+        # ranking breaks by page order. The field is left out, for a person.
+        if kind_ == "moved" and any(
+            path != place
+            and seen_in(f, path) == evidence["seen"]
+            and fresh[path].missing == fresh[place].missing
+            and _element_kind(path) == _element_kind(place)
+            for path in fresh
+        ):
+            kind_ = "ambiguous"
+            undecided.add(place)
+            del claimed[place]
+        changes.append(Change(kind_, f.name, place, evidence))
     for f in old.fields:
         if f.name not in matched:
             changes.append(Change("vanished", f.name, None))
     for path in fresh:
-        if path not in claimed and not old.chosen:
+        if path not in claimed and path not in undecided and not old.chosen:
             changes.append(Change("new", None, path))
     taken = set(claimed.values())
     fields = tuple(
@@ -1686,6 +1705,12 @@ def _heal_listing(
         new.container, new.member, new.rows, fields, new.empty, chosen=old.chosen
     )
     return listing, changes
+
+
+def _element_kind(path: str) -> tuple[str, str]:
+    """A field's element tag and attribute: ``a.title@href`` is ``a``, ``href``."""
+    step, _, attribute = path.rsplit(">", 1)[-1].partition("@")
+    return step.split(".")[0].split("[")[0], attribute
 
 
 def _comparable(path: str, value: str) -> str:

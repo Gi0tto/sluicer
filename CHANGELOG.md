@@ -13,6 +13,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   still the most often right when it answers a date, 0.734 against 0.573.
 
 ### Added
+- `heal` leaves a move to a person when two new places have equal claim to
+  a field: as many of its old values, on as many rows, in the same kind of
+  element. It reported the runner-up but moved anyway, by page order, which
+  is a guess; the change is now `ambiguous`, the field is left out, and heal
+  does not write the extractor without `--force`. A tie the old element's
+  kind decides -- the old title was a link, and only one place is -- is
+  still a move.
 - No MCP answer is larger than a client takes. `fetch_page` and
   `page_markdown` answer a slice of at most 60,000 characters, 30,000 unless
   asked, with `offset`, `max_chars`, the whole length, and `next_offset` where

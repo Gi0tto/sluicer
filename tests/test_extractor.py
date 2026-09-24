@@ -930,3 +930,53 @@ def test_heal_follows_a_field_to_its_new_label():
     )
     assert run.ok, failed(run)
     assert run.fields == {"price": "$4.40"}
+
+
+def _books(item: str) -> tuple[str, str]:
+    titles = ["Sapiens", "Soumission", "Sharp Objects", "The Requiem Red", "Tipping"]
+    rows = "".join(item.format(title=t, n=n) for n, t in enumerate(titles, 1))
+    return (
+        f'<html><body><ol class="books">{rows}</ol></body></html>',
+        "https://shop.example/",
+    )
+
+
+def test_heal_refuses_a_move_two_new_places_have_equal_claim_to():
+    """The title's old values are in two new places on every row, as many in
+    each, both the same kind of element: which one is the title is a guess,
+    and heal says so instead of making it, leaving the field out."""
+    before = (
+        '<li class="book"><span class="title">{title}</span>'
+        '<span class="price">£{n}.00</span></li>'
+    )
+    after = (
+        '<li class="book"><span class="name">{title}</span>'
+        '<span class="also">{title}</span><span class="price">£{n}.00</span></li>'
+    )
+    learnt = compile_extractor([_books(before)], listing=True)
+    healed, changes = heal(learnt, [_books(after)])
+    [title] = [c for c in changes if c.before == "span.title"]
+    assert title.kind == "ambiguous"
+    assert title.evidence is not None
+    assert title.evidence["seen"] == title.evidence["runner_up"] == 5
+    assert "span.title" not in [f.name for f in healed.listing.fields]
+    from sluicer.extractor import LOSSES
+
+    assert "ambiguous" in LOSSES
+
+
+def test_a_tie_the_old_element_s_kind_decides_is_a_move():
+    """Two places hold the old title's values alike, but only one is a link,
+    as the old title was, and its address moved there too."""
+    before = (
+        '<li class="book"><a class="title" href="/b/{n}">{title}</a>'
+        '<span class="price">£{n}.00</span></li>'
+    )
+    after = (
+        '<li class="book"><a class="name" href="/b/{n}">{title}</a>'
+        '<span class="also">{title}</span><span class="price">£{n}.00</span></li>'
+    )
+    learnt = compile_extractor([_books(before)], listing=True)
+    _healed, changes = heal(learnt, [_books(after)])
+    [title] = [c for c in changes if c.before == "a.title"]
+    assert (title.kind, title.after) == ("moved", "a.name")
