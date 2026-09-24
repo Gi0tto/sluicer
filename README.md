@@ -183,7 +183,7 @@ that carry a label; an invention is an answer on a page whose label is empty.
 
 | | title | author | date | dates invented | seconds | packages |
 |---|---|---|---|---|---|---|
-| **sluicer 0.4.1** | 0.727 | 0.521 | 0.536 | **8** | **1.4** | **3** |
+| **sluicer 0.5.0** | 0.727 | 0.532 | 0.581 | **8** | **1.4** | **3** |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.2 | 17 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 84 | 2.5 | 125 |
@@ -194,16 +194,16 @@ holds as their servers sent them, scripts intact:
 
 | as served | title | author | date | right when it answers a date | dates invented |
 |---|---|---|---|---|---|
-| **sluicer 0.4.1** | 0.706 | 0.674 | 0.748 | **0.735** | **34** |
+| **sluicer 0.5.0** | 0.708 | 0.690 | 0.780 | **0.734** | **36** |
 | trafilatura 2.2.0 | 0.756 | 0.860 | 0.855 | 0.393 | 187 |
 | newspaper4k 0.9.6 | 0.767 | 0.705 | 0.786 | 0.658 | 54 |
 | metascraper 5.58.1 | 0.667 | 0.845 | 0.384 | 0.271 | 80 |
 
 With the scripts back, JSON-LD appears on 236 of the 360 pages, and Sluicer's
-author and date hit rates rise from 0.434 and 0.553 on WCXB's copies of the same
-pages to 0.674 and 0.748. It still finds fewer authors and dates than
+author and date hit rates rise from 0.450 and 0.585 on WCXB's copies of the same
+pages to 0.690 and 0.780. It still finds fewer authors and dates than
 trafilatura, which also reads them from the visible text, and it is still the
-most often right when it answers a date. 31 of its 34 invented dates are dates
+most often right when it answers a date. 33 of its 36 invented dates are dates
 the page declares in its own JSON-LD and does not show a reader, which is what
 the labels describe. The method, every outcome and the commands that regenerate
 both tables are in
@@ -218,9 +218,9 @@ paid API, which reads the visible page with trained models. See
 
 On news in many languages -- fundus's fixtures, 263 pages from 42 countries'
 publishers in 21 declared languages -- Sluicer's titles are the most often
-right of the four tools, 0.875 against trafilatura's 0.852, and its dates are
+right of the four tools, 0.871 against trafilatura's 0.852, and its dates are
 never wrong when it answers one; trafilatura finds more authors, 0.879 against
-0.813, and 12 of the 21 it finds and Sluicer does not are the paper's own
+0.829, and 12 of the 17 it finds and Sluicer does not are the paper's own
 name, which Sluicer does not count an author. See
 [the scoreboard on news in many languages](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md),
 with a table per language.
