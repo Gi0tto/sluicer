@@ -5,6 +5,21 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- No MCP answer weighs more than 75,000 bytes of JSON (`MOST_ANSWER_BYTES`),
+  whatever the page. Only `extract_declared`'s records were bounded: a
+  200,000-character `<title>` made a 200 KB answer even with `records=False`,
+  60,000 characters of Chinese a 180 KB `fetch_page` slice, 60 products a
+  570 KB audit, and a feed, a map, a crawl or an extractor's rows had no bound
+  in bytes at all. Each tool now leaves out what its answer can do without and
+  says what: the records, then `conflicts_left_out`, then the heaviest summary
+  answers named in `summary_left_out` (and `visible_left_out`,
+  `normalised_left_out`, `links_left_out`); `items_left_out`,
+  `urls_left_out`, `rows_left_out`, an audit's `records_left_out`,
+  `page_left_out` and `other_agents_left_out`; a crawl's heaviest summary
+  answers per page, then `pages_left_out`; a page's or markdown's slice is
+  shortened and `next_offset` says where the rest starts. An answer that
+  cannot be cut, such as an extractor learnt from a page with a huge value, is
+  `too_large`.
 - `sluicer mcp --tools bogus`, and `SLUICER_MCP_TOOLS=bogus sluicer-mcp`,
   printed a traceback; they print the one line that lists the ten tools and
   exit 2, as a wrong option does.

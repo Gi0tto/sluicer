@@ -147,6 +147,11 @@ class ExtractAnswer(TypedDict, total=False):
     conflicts: list[ConflictAnswer]
     records: list[RecordAnswer]
     records_left_out: int
+    conflicts_left_out: int
+    summary_left_out: list[str]
+    visible_left_out: list[str]
+    normalised_left_out: list[str]
+    links_left_out: list[str]
     sources: list[str]
     links: dict[str, Any]
     rights: dict[str, Any]
@@ -192,8 +197,11 @@ class RunAnswer(TypedDict, total=False):
     ok: Required[bool]
     error: ErrorDetail
     rows: list[dict[str, Any]]
+    rows_left_out: int
     fields: dict[str, str]
+    fields_left_out: list[str]
     summary: dict[str, Any]
+    summary_left_out: list[str]
     failed: list[CheckAnswer]
 
 
@@ -297,10 +305,13 @@ class AuditAnswer(TypedDict, total=False):
     error: ErrorDetail
     url: str | None
     records: list[RecordAuditAnswer]
+    records_left_out: int
     page: list[FindingAnswer]
+    page_left_out: int
     crawlers: list[CrawlerAnswer]
     robots_txt: SiteFileAnswer | None
     other_agents: list[str]
+    other_agents_left_out: int
     llms_txt: LlmsTxtAnswer | None
     llms_full_txt: LlmsTxtAnswer | None
     tdm: TdmAnswer | None
@@ -339,6 +350,7 @@ class FeedAnswer(TypedDict, total=False):
     updated: str | None
     items: list[FeedItemAnswer]
     items_total: int
+    items_left_out: int
     fetch: FetchRecord
 
 
@@ -366,6 +378,7 @@ class MapAnswer(TypedDict, total=False):
     url: str
     source: Literal["sitemaps", "links"]
     urls: list[SiteUrlAnswer]
+    urls_left_out: int
     sitemaps: list[SitemapReadAnswer]
     truncated: bool
 
@@ -383,6 +396,7 @@ class CrawledPage(TypedDict, total=False):
     fetch: FetchRecord
     canonical: str | None
     summary: dict[str, SummaryAnswer]
+    summary_left_out: list[str]
     sources: list[str]
     types: list[str]
     links: int
@@ -394,4 +408,5 @@ class CrawlAnswer(TypedDict, total=False):
     error: ErrorDetail
     url: str
     pages: list[CrawledPage]
+    pages_left_out: int
     stopped: Literal["done", "max_pages", "time_budget"]

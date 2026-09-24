@@ -111,5 +111,11 @@ It can be large. A fetched page is bounded at 16 MiB (`MAX_RESPONSE_BYTES`):
 the HTTP rung stops reading there, after decompression, and a browser's page
 heavier than that is refused once loaded. Before 0.3.0 there was no bound, and a
 200 MB response was measured holding 1.14 GB. HTML handed to the MCP server
-directly is held to the same bound. What it hands an agent is cut at 200,000
-characters, which bounds the agent's context.
+directly is held to the same bound. No answer it hands an agent weighs more
+than 75,000 bytes of JSON (`MOST_ANSWER_BYTES`), which bounds the agent's
+context: a page or its markdown is read in slices of at most 60,000
+characters, shorter when their bytes would pass the bound, and a tool leaves
+out, and counts, the records, rows, items or addresses past it. An answer
+that cannot be cut is refused as `too_large`. Before 0.7.1 only
+`extract_declared`'s records were bounded: a page with a two-megabyte
+`<title>` made a two-megabyte answer.

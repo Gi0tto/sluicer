@@ -30,7 +30,11 @@ key and where. conflicts lists each question the page answers two
 ways that mean different things -- a price of 41.90 in JSON-LD and
 39.90 in OpenGraph -- the summary's answer first: say so rather than
 trusting either. On failure ok is false and "error" says why; there
-is never a record.
+is never a record. An answer weighs at most 75,000 bytes: past it the
+records go first, counted in records_left_out, then the conflicts,
+counted in conflicts_left_out, then the heaviest summary, visible,
+normalised and links entries, each named in summary_left_out,
+visible_left_out, normalised_left_out or links_left_out.
 
 | parameter | type | default |
 |---|---|---|
@@ -54,7 +58,7 @@ Return a page's main content as markdown, without navigation or footer.
 - `at`: a date: read the URL as the Wayback Machine captured it then.
 - `respect_tdm`: answer tdm_reserved when the site reserves its text and data mining rights (TDMRep).
 - `offset`: where in the markdown this answer starts, 0 for the beginning; the answer before gives the next as next_offset.
-- `max_chars`: how many characters this answer carries, 1 to 60,000.
+- `max_chars`: the most characters this answer carries, 1 to 60,000; fewer when more would weigh over 75,000 bytes, as 60,000 characters of Chinese do.
 
 Returns {"ok", "markdown", "url", "length", "next_offset"}, and
 "fetch" for a URL: markdown is one slice, length the whole markdown's,
@@ -81,7 +85,7 @@ Fetch a page's HTML, and say what it cost: plain HTTP or a browser.
 
 - `url`: an http(s) URL. Literal HTML is refused, since nothing would be fetched.
 - `offset`: where in the HTML this answer starts, 0 for the beginning; the answer before gives the next as next_offset.
-- `max_chars`: how many characters this answer carries, 1 to 60,000.
+- `max_chars`: the most characters this answer carries, 1 to 60,000; fewer when more would weigh over 75,000 bytes, as 60,000 characters of Chinese do.
 
 Returns {"ok", "html", "url", "fetch", "truncated", "length",
 "next_offset"}: html is one slice of the page, length the whole
@@ -109,7 +113,9 @@ Learn an extractor from pages of one template, to replay later for free.
 
 Returns {"ok", "extractor"}: keep that object and hand it to
 run_extractor. It holds what the pages declared, the listing's place,
-its fields, and what every field looked like.
+its fields, and what every field looked like. An extractor heavier
+than one answer may be, 75,000 bytes, is too_large: sluicer compile
+writes it to a file.
 
 | parameter | type | default |
 |---|---|---|
@@ -133,6 +139,9 @@ the page's own values an extractor learnt from examples. ok is false
 when the page drifted -- the listing moved, rows or a field vanished, a price no
 longer looks like a price -- and "failed" says which expectation broke.
 Never read rows from an answer whose ok is false as if nothing happened.
+Past 75,000 bytes the last rows are left out, counted in
+rows_left_out, then the heaviest summary and fields entries, named in
+summary_left_out and fields_left_out.
 
 | parameter | type | default |
 |---|---|---|
@@ -157,6 +166,7 @@ was learnt with were found in the new place. "lost" is true when a
 change is data the page no longer has -- vanished, summary-lost,
 type-lost, listing-lost -- and then ok is false: the old extractor,
 which keeps failing, is the safer one to keep until a person looks.
+A healed extractor heavier than 75,000 bytes is too_large.
 
 | parameter | type | default |
 |---|---|---|
@@ -184,6 +194,9 @@ name a severity, the record's source, the property path and the URL of
 the rule. crawlers says, per AI agent from its vendor's own page,
 whether robots.txt admits the page. ok is true whenever the audit ran:
 a page with errors is an answer; "not_checked" says what was not.
+errors, warnings and notes count everything found; past 75,000 bytes
+the last records, page findings and other_agents are left out,
+counted in records_left_out, page_left_out and other_agents_left_out.
 
 | parameter | type | default |
 |---|---|---|
@@ -205,7 +218,9 @@ Returns {"ok", "url", "format", "title", "link", "description",
 "items", "items_total"}, each item {"title", "link", "id",
 "published", "updated", "summary", "content", "authors",
 "categories", "enclosures", "normalised"}, dates in normalised as ISO
-8601. What is not a feed, and declares none, is bad_input.
+8601. What is not a feed, and declares none, is bad_input. Items that
+would make the answer weigh over 75,000 bytes are left out, counted in
+items_left_out; fetch_page reads the whole feed in slices.
 
 | parameter | type | default |
 |---|---|---|
@@ -228,8 +243,9 @@ source is "sitemaps" or "links"; each of urls is {"url", "lastmod",
 "sitemap"}, only addresses on the site, in the order the sitemaps list
 them; sitemaps says what became of each one tried. At most ten
 sitemaps are read, politely, within a minute; truncated is true when a
-bound cut the map short. Hand the addresses worth reading to
-extract_declared, or crawl_site to follow links from one.
+bound cut the map short, urls_left_out counting the addresses left out
+to keep the answer under 75,000 bytes. Hand the addresses worth
+reading to extract_declared, or crawl_site to follow links from one.
 
 | parameter | type | default |
 |---|---|---|
@@ -259,7 +275,10 @@ declared, not the records; call extract_declared on a page for those
 reason. stopped is "done", "max_pages" (links were left unfollowed)
 or "time_budget" (a minute passed). One request at a time, a second
 apart or the site's Crawl-delay, robots.txt obeyed. ok is false only
-when no page could be read, and error then says why.
+when no page could be read, and error then says why. Past 75,000
+bytes the heaviest summary answers of any page go first, named in that
+page's summary_left_out, then the last pages, counted in
+pages_left_out.
 
 | parameter | type | default |
 |---|---|---|

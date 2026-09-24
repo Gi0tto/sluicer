@@ -46,8 +46,18 @@ page is read in slices: each answer says where the next one starts.
 DEFAULT_CHARS = 30_000
 """A slice's length when the agent names none."""
 MOST_ANSWER_BYTES = 75_000
-"""The most an answer of ``extract_declared`` may weigh, in UTF-8 bytes of its
-JSON: past it the records are left out, counted, and the summary kept."""
+"""The most any tool's answer may weigh, in UTF-8 bytes of its JSON.
+
+About 25,000 tokens, what Claude Code keeps in the conversation, at three bytes
+a token. Past it a tool leaves out what an answer can do without -- records,
+the longest summary answers, the last of a list -- and says what it left out:
+a count in ``<list>_left_out``, the names in ``<mapping>_left_out``, or, for a
+slice of a page, a ``next_offset`` that comes sooner. An answer that still
+weighs more, such as an extractor learnt from a page with a two-megabyte
+title, is ``too_large`` rather than an answer the client cannot hold. Before
+0.7.1 only ``extract_declared``'s records were bounded, and a page with a long
+enough ``<title>`` made a two-megabyte answer even with ``records=False``.
+"""
 
 ALLOW_PRIVATE_ENV = "SLUICER_ALLOW_PRIVATE"
 """Set to 1 to let the server fetch addresses off the public internet.
@@ -132,7 +142,7 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(tool)
     def guarded(*args: Any, **kwargs: Any) -> Any:
         try:
-            return tool(*args, **kwargs)
+            return _held_to_the_bound(tool.__name__, tool(*args, **kwargs))
         except MissingExtra as missing:
             return _error("missing_extra", missing, extra=missing.extra)
         except RobotsRefused as refused:
@@ -153,6 +163,26 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
             return _error("tdm_reserved", reserved, url=reserved.url)
 
     return guarded
+
+
+def _held_to_the_bound(name: str, answer: Any) -> Any:
+    """The answer, or ``too_large`` when it weighs more than any answer may.
+
+    The last word on every tool's answer, after the tool has left out what it
+    can: whatever a tool forgot to bound, no answer reaches a client past
+    ``MOST_ANSWER_BYTES``.
+    """
+    weight = _bytes_of(answer)
+    if weight <= MOST_ANSWER_BYTES:
+        return answer
+    return _error(
+        "too_large",
+        ValueError(
+            f"{name}'s answer would weigh {weight:,} bytes, over the "
+            f"{MOST_ANSWER_BYTES:,} one answer may; the command line has no "
+            f"such bound"
+        ),
+    )
 
 
 def _error(
@@ -420,7 +450,11 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         ways that mean different things -- a price of 41.90 in JSON-LD and
         39.90 in OpenGraph -- the summary's answer first: say so rather than
         trusting either. On failure ok is false and "error" says why; there
-        is never a record.
+        is never a record. An answer weighs at most 75,000 bytes: past it the
+        records go first, counted in records_left_out, then the conflicts,
+        counted in conflicts_left_out, then the heaviest summary, visible,
+        normalised and links entries, each named in summary_left_out,
+        visible_left_out, normalised_left_out or links_left_out.
         """
         html, url, fetched, headers = _page_of(html_or_url, at)
         if respect_tdm:
@@ -431,10 +465,17 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             del result["visible"]
         if not records:
             del result["records"]
-        elif _bytes_of(result) > MOST_ANSWER_BYTES:
-            result["records_left_out"] = len(result.pop("records"))
         if fetched is not None:
             result["fetch"] = fetched
+        _bounded(
+            result,
+            _cut_leaving_all("records"),
+            _cut_list("conflicts"),
+            _cut_largest("summary"),
+            _cut_largest("visible"),
+            _cut_largest("normalised"),
+            _cut_largest("links"),
+        )
         return cast(answers.ExtractAnswer, result)
 
     @tool("Read a page as markdown")
@@ -458,7 +499,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         data mining rights (TDMRep).
         offset: where in the markdown this answer starts, 0 for the
         beginning; the answer before gives the next as next_offset.
-        max_chars: how many characters this answer carries, 1 to 60,000.
+        max_chars: the most characters this answer carries, 1 to 60,000;
+        fewer when more would weigh over 75,000 bytes, as 60,000 characters
+        of Chinese do.
 
         Returns {"ok", "markdown", "url", "length", "next_offset"}, and
         "fetch" for a URL: markdown is one slice, length the whole markdown's,
@@ -480,6 +523,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         }
         if fetched is not None:
             result["fetch"] = fetched
+        _slice_within_bound(result, "markdown", offset)
         return cast(answers.MarkdownAnswer, result)
 
     @tool("Fetch a page")
@@ -493,7 +537,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         fetched.
         offset: where in the HTML this answer starts, 0 for the beginning;
         the answer before gives the next as next_offset.
-        max_chars: how many characters this answer carries, 1 to 60,000.
+        max_chars: the most characters this answer carries, 1 to 60,000;
+        fewer when more would weigh over 75,000 bytes, as 60,000 characters
+        of Chinese do.
 
         Returns {"ok", "html", "url", "fetch", "truncated", "length",
         "next_offset"}: html is one slice of the page, length the whole
@@ -516,6 +562,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             "length": len(html),
             "next_offset": following,
         }
+        _slice_within_bound(page, "html", offset)
         return cast(answers.PageAnswer, page)
 
     @tool("Learn an extractor")
@@ -539,7 +586,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
 
         Returns {"ok", "extractor"}: keep that object and hand it to
         run_extractor. It holds what the pages declared, the listing's place,
-        its fields, and what every field looked like.
+        its fields, and what every field looked like. An extractor heavier
+        than one answer may be, 75,000 bytes, is too_large: sluicer compile
+        writes it to a file.
         """
         if not pages:
             raise _BadInput("compile_extractor needs at least one page")
@@ -565,6 +614,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         when the page drifted -- the listing moved, rows or a field vanished, a price no
         longer looks like a price -- and "failed" says which expectation broke.
         Never read rows from an answer whose ok is false as if nothing happened.
+        Past 75,000 bytes the last rows are left out, counted in
+        rows_left_out, then the heaviest summary and fields entries, named in
+        summary_left_out and fields_left_out.
         """
         loaded = _extractor_from(extractor)
         html, url, _fetched = _html_of(html_or_url)
@@ -576,6 +628,12 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             "summary": run.summary,
             "failed": [asdict(check) for check in run.checks if not check.ok],
         }
+        _bounded(
+            answer,
+            _cut_list("rows"),
+            _cut_largest("summary"),
+            _cut_largest("fields"),
+        )
         return cast(answers.RunAnswer, answer)
 
     @tool("Heal an extractor")
@@ -595,6 +653,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         change is data the page no longer has -- vanished, summary-lost,
         type-lost, listing-lost -- and then ok is false: the old extractor,
         which keeps failing, is the safer one to keep until a person looks.
+        A healed extractor heavier than 75,000 bytes is too_large.
         """
         loaded = _extractor_from(extractor)
         if not pages:
@@ -632,6 +691,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         the rule. crawlers says, per AI agent from its vendor's own page,
         whether robots.txt admits the page. ok is true whenever the audit ran:
         a page with errors is an answer; "not_checked" says what was not.
+        errors, warnings and notes count everything found; past 75,000 bytes
+        the last records, page findings and other_agents are left out,
+        counted in records_left_out, page_left_out and other_agents_left_out.
         """
         html, url, fetched = _html_of(html_or_url)
         read = None
@@ -645,6 +707,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         result: dict[str, Any] = {"ok": True, **asdict(audited)}
         if fetched is not None:
             result["fetch"] = fetched
+        _bounded(
+            result, _cut_list("records"), _cut_list("page"), _cut_list("other_agents")
+        )
         return cast(answers.AuditAnswer, result)
 
     @tool("Read a feed")
@@ -661,7 +726,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         "items", "items_total"}, each item {"title", "link", "id",
         "published", "updated", "summary", "content", "authors",
         "categories", "enclosures", "normalised"}, dates in normalised as ISO
-        8601. What is not a feed, and declares none, is bad_input.
+        8601. What is not a feed, and declares none, is bad_input. Items that
+        would make the answer weigh over 75,000 bytes are left out, counted in
+        items_left_out; fetch_page reads the whole feed in slices.
         """
         from sluicer.declared.links import read_links
         from sluicer.document import load
@@ -689,6 +756,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         }
         if fetched is not None:
             answer["fetch"] = fetched
+        _bounded(answer, _cut_list("items"))
         return cast(answers.FeedAnswer, answer)
 
     @tool("Map a site")
@@ -705,8 +773,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         "sitemap"}, only addresses on the site, in the order the sitemaps list
         them; sitemaps says what became of each one tried. At most ten
         sitemaps are read, politely, within a minute; truncated is true when a
-        bound cut the map short. Hand the addresses worth reading to
-        extract_declared, or crawl_site to follow links from one.
+        bound cut the map short, urls_left_out counting the addresses left out
+        to keep the answer under 75,000 bytes. Hand the addresses worth
+        reading to extract_declared, or crawl_site to follow links from one.
         """
         _within("limit", limit, 1, MAP_LIMIT)
         found = crawling.map_site(
@@ -725,6 +794,8 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             "sitemaps": [asdict(read) for read in found.sitemaps],
             "truncated": found.truncated,
         }
+        _bounded(answer, _cut_list("urls"))
+        answer["truncated"] = found.truncated or "urls_left_out" in answer
         return cast(answers.MapAnswer, answer)
 
     @tool("Crawl a site")
@@ -758,7 +829,10 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         reason. stopped is "done", "max_pages" (links were left unfollowed)
         or "time_budget" (a minute passed). One request at a time, a second
         apart or the site's Crawl-delay, robots.txt obeyed. ok is false only
-        when no page could be read, and error then says why.
+        when no page could be read, and error then says why. Past 75,000
+        bytes the heaviest summary answers of any page go first, named in that
+        page's summary_left_out, then the last pages, counted in
+        pages_left_out.
         """
         _within("max_pages", max_pages, 1, CRAWL_PAGES)
         _within("max_depth", max_depth, 0, CRAWL_DEPTH)
@@ -785,6 +859,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         }
         if not answer["ok"] and pages:
             answer["error"] = pages[0]["error"]
+        _bounded(answer, _cut_largest("summary", among="pages"), _cut_list("pages"))
         return cast(answers.CrawlAnswer, answer)
 
     unknown = [name for name in wanted or () if name not in seen]
@@ -815,9 +890,109 @@ def _parameter_notes(doc: str, names: Iterable[str]) -> dict[str, str]:
     return notes
 
 
-def _bytes_of(answer: dict[str, Any]) -> int:
-    """What an answer weighs as the JSON a client receives."""
+def _bytes_of(answer: Any) -> int:
+    """What an answer, or a part of one, weighs as the JSON a client receives."""
     return len(json.dumps(answer, ensure_ascii=False, default=str).encode("utf-8"))
+
+
+Cut = Callable[[dict[str, Any], int], None]
+"""One way to make an answer lighter: given the answer and the most it may
+weigh, it leaves something out and says so in the answer."""
+
+
+def _bounded(answer: dict[str, Any], *cuts: Cut) -> dict[str, Any]:
+    """``answer`` made to weigh at most ``MOST_ANSWER_BYTES``, by ``cuts`` in turn.
+
+    Each cut runs only while the answer is still too heavy. What a cut writes
+    to say what it left out weighs something too, so a pass that ends a few
+    bytes over runs again aiming that much lower; an answer no cut can bring
+    under the bound is left to ``_held_to_the_bound``.
+    """
+    most = MOST_ANSWER_BYTES
+    for _ in range(3):
+        for cut in cuts:
+            if _bytes_of(answer) <= most:
+                break
+            cut(answer, most)
+        over = _bytes_of(answer) - MOST_ANSWER_BYTES
+        if over <= 0:
+            break
+        most -= over
+    return answer
+
+
+def _cut_list(key: str, within: str | None = None) -> Cut:
+    """A cut that keeps the longest head of the list ``answer[key]`` -- or of
+    ``answer[within][key]`` -- the bound allows, and adds how many items it
+    left out to ``<key>_left_out`` beside the list."""
+
+    def cut(answer: dict[str, Any], most: int) -> None:
+        holder = answer if within is None else answer.get(within)
+        if not isinstance(holder, dict) or not holder.get(key):
+            return
+        items = holder[key]
+        holder[key] = []
+        room = most - _bytes_of(answer)
+        kept = used = 0
+        for item in items:
+            # ", " between two items, as json.dumps writes them.
+            more = _bytes_of(item) + (2 if kept else 0)
+            if used + more > room:
+                break
+            used += more
+            kept += 1
+        holder[key] = items[:kept]
+        if kept < len(items):
+            left_out = f"{key}_left_out"
+            holder[left_out] = holder.get(left_out, 0) + len(items) - kept
+
+    return cut
+
+
+def _cut_largest(key: str, among: str | None = None) -> Cut:
+    """A cut that takes entries out of the mapping ``answer[key]``, the heaviest
+    first, until the answer fits, and names them in ``<key>_left_out``.
+
+    With ``among``, the mappings are ``answer[among][i][key]`` -- each crawled
+    page's summary -- and the heaviest entry of all of them goes first, so one
+    page with a two-megabyte title costs that title, not the other pages.
+    """
+
+    def cut(answer: dict[str, Any], most: int) -> None:
+        if among is None:
+            holders = [answer]
+        else:
+            holders = [one for one in answer.get(among) or () if isinstance(one, dict)]
+        entries = [
+            (_bytes_of({name: value}) - 2, index, name)
+            for index, holder in enumerate(holders)
+            if isinstance(holder.get(key), dict)
+            for name, value in holder[key].items()
+        ]
+        weight = _bytes_of(answer)
+        for size, index, name in sorted(entries, key=lambda e: (-e[0], e[1], e[2])):
+            if weight <= most:
+                break
+            mapping = holders[index][key]
+            # The entry, and the ", " that joined it to another, if one is
+            # left; the names written below are weighed by _bounded's next pass.
+            weight -= size + (2 if len(mapping) > 1 else 0)
+            del mapping[name]
+            holders[index].setdefault(f"{key}_left_out", []).append(name)
+
+    return cut
+
+
+def _cut_leaving_all(key: str) -> Cut:
+    """A cut that leaves the whole list ``answer[key]`` out and counts it in
+    ``<key>_left_out``: ``extract_declared``'s records, which an answer
+    carries all of or none of."""
+
+    def cut(answer: dict[str, Any], most: int) -> None:
+        if key in answer:
+            answer[f"{key}_left_out"] = len(answer.pop(key))
+
+    return cut
 
 
 def _slice(text: str, offset: int, max_chars: int) -> tuple[str, int | None]:
@@ -832,6 +1007,35 @@ def _slice(text: str, offset: int, max_chars: int) -> tuple[str, int | None]:
     part = text[offset : offset + max_chars]
     end = offset + len(part)
     return part, end if end < len(text) else None
+
+
+def _slice_within_bound(answer: dict[str, Any], key: str, offset: int) -> None:
+    """Shorten the slice ``answer[key]``, which starts at ``offset``, until the
+    answer weighs at most ``MOST_ANSWER_BYTES``; ``next_offset`` then says where
+    the shortened slice ends, so the slices still join back to the whole.
+
+    60,000 characters are 180,000 bytes of Chinese, and HTML's quotes each
+    weigh two once escaped: the character bound alone let ``fetch_page``
+    answer 180 KB.
+    """
+    if _bytes_of(answer) <= MOST_ANSWER_BYTES:
+        return
+    part: str = answer[key]
+    answer[key] = ""
+    # The rest of the answer, and room for next_offset turning from null into
+    # a number and truncated from false into true.
+    room = MOST_ANSWER_BYTES - _bytes_of(answer) - 16
+    least, most = 0, len(part)
+    while least < most:
+        middle = (least + most + 1) // 2
+        if _bytes_of(part[:middle]) - 2 <= room:
+            least = middle
+        else:
+            most = middle - 1
+    answer[key] = part[:least]
+    answer["next_offset"] = offset + least
+    if "truncated" in answer:
+        answer["truncated"] = True
 
 
 def _within(name: str, value: int, least: int, most: int) -> None:

@@ -39,8 +39,10 @@ field says `"source": "induced"`.
   page whose site reserves its text and data mining rights.
 - `page_markdown(html_or_url, front_matter=false, at=null, respect_tdm=false)`
   -- the main content as markdown.
-- `fetch_page(url)` -- the HTML (cut at 200,000 characters) and what the fetch
-  cost. Prefer the other two: they return what is in the page, not all of it.
+- `fetch_page(url, offset=0, max_chars=30000)` -- the HTML, in slices of at
+  most 60,000 characters (`next_offset` says where the next starts), and what
+  the fetch cost. Prefer the other two: they return what is in the page, not
+  all of it.
 - `compile_extractor(pages, listing=null, want=null)` -- learn an extractor from
   two or three pages of one template. Keep the object it returns. `want` maps a
   column's name to a value you can see on the first page (`{"title": "Pads"}`):
@@ -86,6 +88,13 @@ read. An error is never text that could be mistaken for the page. The server
 refuses addresses off the public internet (`localhost`, `10.x`, cloud metadata)
 -- redirects and a browser's requests included -- unless it was started with
 `SLUICER_ALLOW_PRIVATE=1`.
+
+No answer weighs more than 75,000 bytes of JSON, about 25,000 tokens. Past
+that a tool leaves out what the answer can do without and says so: a count in
+`records_left_out`, `items_left_out`, `urls_left_out`, `rows_left_out` or
+`pages_left_out`, the names of the summary answers it dropped in
+`summary_left_out`, or a shorter slice with its `next_offset`. An answer that
+cannot be cut, such as a huge extractor, is `too_large`.
 
 ## What comes back
 
