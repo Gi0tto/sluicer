@@ -292,7 +292,7 @@ known.
 **schema.org's names are copied, under their licence.** The type tree and
 enumeration terms in `sluicer/audit/schema_org.py` are read from schema.org's
 own export, which is published under CC BY-SA 3.0; the module names its source
-and release, and it alone is distributed under CC BY-SA 3.0, as `LICENSE`
+and release, and it alone is distributed under CC BY-SA 3.0, as `NOTICE`
 says, with the licence's text in `LICENSES/`. The rest of sluicer is MIT, but
 for CLDR's month and weekday names, with which dates are read (see the
 extraction path above).

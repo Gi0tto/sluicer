@@ -1,0 +1,16 @@
+Sluicer is distributed under the MIT License, whose text is in LICENSE,
+with the two exceptions below.
+
+One file is not under the MIT License. src/sluicer/audit/schema_org.py holds
+type and enumeration names taken from schema.org's vocabulary, which
+schema.org publishes under the Creative Commons Attribution-ShareAlike 3.0
+Unported licence (CC BY-SA 3.0). That file, and only that file, is
+distributed under CC BY-SA 3.0, whose text is in LICENSES/CC-BY-SA-3.0.txt.
+Its source is schema.org, https://schema.org/, release 30.1, as the file says.
+
+One more file is not under the MIT License. src/sluicer/calendar_names.py
+holds month and weekday names taken from the Unicode Common Locale Data
+Repository (CLDR), which Unicode, Inc. publishes under the Unicode License v3.
+That file, and only that file, is distributed under the Unicode License v3,
+whose text is in LICENSES/Unicode-3.0.txt. Its source is CLDR release 48.2.0,
+https://cldr.unicode.org/, as the file says.

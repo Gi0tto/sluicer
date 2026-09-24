@@ -2,6 +2,14 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Changed
+- `LICENSE` holds the MIT License's text alone, so that GitHub and the
+  tools that ask it recognise the licence; the two data files under their
+  own licences are named in `NOTICE`, which the package carries beside it.
+  Nothing is licensed differently.
+
 ## 0.6.0 - 2026-09-24
 
 ### Added

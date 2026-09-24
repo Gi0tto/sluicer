@@ -17,7 +17,7 @@ the audit asks about are kept.
 
 schema.org publishes its vocabulary under CC BY-SA 3.0; these are its type and
 term names, which every page using the vocabulary writes. This module is
-distributed under that licence, as LICENSE says, and nothing else in sluicer
+distributed under that licence, as NOTICE says, and nothing else in sluicer
 is: no other module copies from it, and importing it binds no caller's code.
 """
 
