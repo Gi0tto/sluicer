@@ -6,9 +6,9 @@ and replayed on a later one. An oracle that does not use the extractor's
 code judges the result. Losses come first.
 
 Regenerated on 2026-09-24 from commit
-`f8150e4` (sluicer 0.6.0, Scrapling 0.4.15) with
+`a22515e` (sluicer 0.7.0, Scrapling 0.4.15) with
 `uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`, in
-18 seconds from the cache.
+28 seconds from the cache.
 
 !!! warning "Read this before the numbers"
     This is 44 pairs on 25 sites,
@@ -20,7 +20,7 @@ Regenerated on 2026-09-24 from commit
 
 No pair failed silently.
 
-**www-imdb-com-chart-top-long**, heal partly right. Read by hand: a real redesign. In 2023 IMDb replaced the 250-row table with a list that serves 25 rows and loads the rest by script. heal moved both links of each film, the poster link and the title link, to their new places. That works only since this benchmark's fix for links that gained ?ref_=chttp_t_1. heal reported the titles and the poster images as vanished rather than guess. The new title text carries the rank, '1. The Shawshank Redemption', and the poster's alt text names an actor, 'Tim Robbins in The Shawshank Redemption (1994)', so none of the old values is seen again. A person would call the title moved; heal needs an old value to prove it. The oracle: drift, the listing's container is gone. The checks that failed: `summary: the summary answers url -> no answer`; `listing: the listing at html>body>div[2]>div.redesign>div[1]>div.pagecontent[3]>div>div[1]>div.article>span.ab_widget>div.seen-collection>div.article>div.lister>table.chart>tbody.lister-list -> not found`.
+**www-imdb-com-chart-top-long**, heal lost. Read by hand: a real redesign. In 2023 IMDb replaced the 250-row table with a list that serves 25 rows and loads the rest by script. heal moved both links of each film, the poster link and the title link, to their new places. That works only since this benchmark's fix for links that gained ?ref_=chttp_t_1. heal reported the titles and the poster images as vanished rather than guess. The new title text carries the rank, '1. The Shawshank Redemption', and the poster's alt text names an actor, 'Tim Robbins in The Shawshank Redemption (1994)', so none of the old values is seen again. A person would call the title moved; heal needs an old value to prove it. The oracle: drift, the listing's container is gone. The checks that failed: `summary: the summary answers url -> no answer`; `listing: the listing at html>body>div[2]>div.redesign>div[1]>div.pagecontent[3]>div>div[1]>div.article>span.ab_widget>div.seen-collection>div.article>div.lister>table.chart>tbody.lister-list -> not found`.
 
 **sourceforge-net-directory-long**, heal partly right. Read by hand: a real redesign, reached through a redirect to the Windows directory, which is what a scraper asking for the address reads. heal moved each project's name, its link and its description to their new places, all right on the four projects both pages list. The icon went to the new icon, which some projects lack, since they show a default icon kept in another field; half the matched projects have none. The icon's alt text, 'Apache OpenOffice Icon', and the whole card's text, which carried the weekly downloads, are found nowhere and reported vanished. Before this benchmark's tie-break fix, heal put the name on the icon's alt text too. The oracle: drift, the listing's container is gone. The checks that failed: `type: a declared MobileSoftwareApplication -> none`; `listing: the listing at html>body>div[3]>article.content-wrapper>section[1]>section[1]>section>div.browse>section>ul.projects -> not found`.
 
@@ -45,7 +45,8 @@ extractor reads the items A and B share with the values A had.
 | heal | on the pairs with drift | on the pairs without |
 |---|---|---|
 | right | 0 | 6 |
-| partly right | 2 | 0 |
+| partly right | 1 | 0 |
+| lost | 1 | 0 |
 | nothing to match | 18 | 17 |
 | no listing on B | 1 | 0 |
 
@@ -111,7 +112,7 @@ questions and are not ranked.
 | old-reddit-com-r-programming-long | 23 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match (1 items) | no A item is still on B |
 | sfbay-craigslist-org-search-sss-long | 120 / 0 | drift: the listing's container is gone | failed: listing, summary, type | failed loudly | nothing to match | no A item is still on B |
 | www-imdb-com-chart-top-short | 250 / 250 | same | passed | survived | right (248 items) | right |
-| www-imdb-com-chart-top-long | 250 / 0 | drift: the listing's container is gone | failed: listing, summary | failed loudly | partly right (23 items) | nothing found |
+| www-imdb-com-chart-top-long | 250 / 0 | drift: the listing's container is gone | failed: listing, summary | failed loudly | lost (23 items) | nothing found |
 | www-python-org-jobs-long | 117 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
 | arxiv-org-list-cs-CL-recent-short | 25 / 25 | same | passed | survived | nothing to match | no A item is still on B |
 | arxiv-org-list-cs-CL-recent-long | 25 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
