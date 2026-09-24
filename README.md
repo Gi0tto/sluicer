@@ -49,9 +49,11 @@ model reads the page, so the same page always gives the same answer.
 - **A summary of 25 questions** -- title, author, date, price, currency,
   availability, GTIN and the rest -- each answer naming where it came from, and
   a **conflict** reported when the page answers one of them two ways.
-- **Extractors that fail loudly.** Learn one from a few pages of a template; a
-  page that drifted exits 3 instead of returning nulls for weeks, and `heal`
-  says what moved where.
+- **Extractors that check every page.** Learn one from a few pages of a
+  template; a page that drifted exits 3 instead of returning nulls for weeks,
+  and `heal` says what moved where. On 44 real redesigns none failed silently.
+  On pages of one template they are right on 97% of their answers, and most
+  of the 3% they get wrong pass their checks: the SWDE scoreboard says which.
 - **Deterministic and light.** No model and no key: the 511 pages of the WCXB
   test set are read in 1.4 s, and the base install is three packages.
 - **Polite by construction.** It announces itself, obeys robots.txt and
@@ -59,8 +61,8 @@ model reads the page, so the same page always gives the same answer.
   reservations when asked.
 - **Made for agents.** An MCP server with ten read-only tools, tried in Claude
   Code, Codex and Gemini CLI, and the same tools over HTTP for any language.
-- **Measured in public, losses included.** Five scoreboards against
-  trafilatura, newspaper4k, metascraper, extruct, Zyte and Diffbot.
+- **Measured in public, losses included.** Six scoreboards against
+  trafilatura, newspaper4k, metascraper, extruct, Scrapling, Zyte and Diffbot.
 
 ## Install
 
@@ -231,7 +233,7 @@ invention is an answer on a page whose label is empty:
 
 | | title | author | date | dates invented | seconds | packages |
 |---|---|---|---|---|---|---|
-| **sluicer 0.6.0** | 0.727 | 0.532 | 0.581 | **8** | **1.4** | **3** |
+| **sluicer 0.7.0** | 0.727 | 0.532 | 0.581 | **8** | **1.4** | **3** |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.2 | 17 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.725 | 84 | 2.8 | 125 |
@@ -242,7 +244,7 @@ servers sent them, scripts intact:
 
 | as served | title | author | date | right when it answers a date | dates invented |
 |---|---|---|---|---|---|
-| **sluicer 0.6.0** | 0.708 | 0.690 | 0.780 | **0.734** | **36** |
+| **sluicer 0.7.0** | 0.708 | 0.690 | 0.780 | **0.734** | **36** |
 | trafilatura 2.2.0 | 0.756 | 0.860 | 0.855 | 0.393 | 187 |
 | newspaper4k 0.9.6 | 0.767 | 0.705 | 0.786 | 0.658 | 54 |
 | metascraper 5.58.1 | 0.667 | 0.845 | 0.811 | 0.573 | 80 |
@@ -269,6 +271,11 @@ other scoreboards, each with its method and the commands that regenerate it:
 - **[Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md)**:
   extractors learnt on Wayback Machine captures of 25 sites and replayed on
   later ones, 44 pairs; none failed silently and none raised a false alarm.
+- **[Extractors on SWDE](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-swde.md)**,
+  124,291 pages from 80 sites, `compile --want` given three pages of each and
+  one example per attribute: mean F1 0.849 against 0.671 for Scrapling's
+  adaptive selectors, with a fifth of its wrong answers. The sites were split
+  before any result was read; the half never read scores 0.845.
 
 ## FAQ
 

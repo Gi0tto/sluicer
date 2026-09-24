@@ -35,7 +35,7 @@ Crawl4AI and Firecrawl fetch and crawl, and Sluicer reads what any of them
 fetched ([with other tools](agents.md#with-other-tools)). A `?` is a cell that
 could not be checked from the project's own code or README.
 
-| | Sluicer 0.6.0 | Scrapling 0.4.15 | Crawl4AI 0.9.4 | Firecrawl | extruct 0.18.0 | trafilatura 2.2.0 |
+| | Sluicer 0.7.0 | Scrapling 0.4.15 | Crawl4AI 0.9.4 | Firecrawl | extruct 0.18.0 | trafilatura 2.2.0 |
 |---|---|---|---|---|---|---|
 | Built for | reading what a page declares | fetching past defences, and parsing | crawling into markdown for models | a hosted API to scrape, crawl and search | the structured data syntaxes | a page's main text and metadata |
 | Licence | MIT; two data files their own | BSD-3-Clause | Apache-2.0 | AGPL-3.0 | BSD-3-Clause | Apache-2.0 |
