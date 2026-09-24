@@ -5,6 +5,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- A page field read by its place fails when its row moved. Learnt from pages
+  that agreed on the SKU's row, a page with its table's rows in another order
+  read the weight, "1 kg", as the SKU and passed. A field read by its place
+  now learns the label every page given puts right before it, once -- text
+  ending with a colon, or in a `<th>`, `<dt>` or `<label>` -- and a page that
+  says the label once, before something else, fails the `field` check; `heal`
+  then reads the field after its label. On SWDE's development half this flags
+  575 wrong answers that passed (2,921 to 2,346 unflagged) and no right one;
+  a label taken from any text, links included, flagged 1,204 right answers.
 - Two examples one column holds are no listing. `compile --want price=41.90
   --want sku=BP-1` on a product's table, the price and the SKU in two of its
   rows, learnt a listing of the table's rows with both columns the same `td`,

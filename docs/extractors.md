@@ -113,9 +113,17 @@ sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
   each is still there, reads as it did (a price that reads as an amount on the
   learnt pages must still read as one: "Add to basket" fails the `reads`
   check), and keeps its shape when five pages or more taught it one.
+- A field read by its place also learns its label, when every page given puts
+  the same one right before it, once: text that ends with a colon, or is in a
+  `<th>`, `<dt>` or `<label>`. A page that says the label once, before
+  something else, has moved the row -- the weight where the SKU was -- and the
+  run fails rather than read the weight as the SKU. A page that does not say
+  the label, or says it twice, is read at the place, as learnt. Two pages at
+  least teach a label; one cannot tell its template's words from its own.
 - `heal` keeps a field where its place still holds a value that reads as it
-  did, moves it to where the new pages show one of its old values, and
-  reports it vanished when neither is so.
+  did and its label still stands before it, reads it after its label when the
+  label moved, moves it to where the new pages show one of its old values,
+  and reports it vanished when none is so.
 
 On books.toscrape.com, whose product pages declare nothing, two product pages
 with `title`, `price` and a `upc` from the product table replay on a third
@@ -127,7 +135,7 @@ with all three read, the title from its `<h1>`.
 |---|---|
 | `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it |
 | `rows` | there are no rows, or on a listing of five members or more, more of them are empty shells than the learnt pages had, plus 20% -- skeletons waiting for a script |
-| `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row |
+| `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row; a page field is not found, or its label now stands before something else |
 | `shape` | fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket" -- or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
 | `reads` | a field every learnt value of which read as an amount or a date (see `sluicer.normalise`) reads so in fewer than half its values: a price column that now holds dates keeps its shape, and not its reading |
 | `values` | on a page of five rows or more, a field that held different values in every row now says the same thing in all of them: a page of placeholders, "Loading" |

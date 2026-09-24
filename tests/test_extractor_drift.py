@@ -810,3 +810,55 @@ def test_an_example_gives_up_a_column_another_example_needs():
         "title='A Light in the Attic' was in 2 places in a row; a.title, the "
         "first no other example needs, was taken",
     )
+
+
+def test_a_row_that_moved_under_another_label_fails():
+    """The pages given agreed on the SKU's row, the third, so it was learnt by
+    its place; a page that puts the weight third read sku "3 kg" and passed.
+    Every page given said "SKU" right before it, once: a page that says it
+    once before something else has moved the row."""
+    learnt = compile_extractor(SPECS, want={"price": "41.90", "sku": "BP-1"})
+    assert [f.label for f in learnt.fields] == ["Price", "SKU"]
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    order = ("brand", "price", "weight", "sku")
+    run = run_extractor(learnt, *_specs("Textar", "12.50", "BP-3", "3 kg", order))
+    assert not run.ok
+    assert failed(run) == ["field"]
+    [check] = [c for c in run.checks if not c.ok]
+    assert check.expected == "sku right after 'SKU', as on the pages learnt"
+    assert check.got == "'SKU' is now before 'BP-3', and the place holds '3 kg'"
+
+
+def test_a_label_the_page_does_not_say_once_is_no_verdict():
+    """Renamed, or said twice, the label says nothing about the place: the
+    place is read, as it was learnt."""
+    learnt = compile_extractor(SPECS, listing=False, want={"sku": "BP-1"})
+    html, url = _specs("Textar", "12.50", "BP-3", "3 kg")
+    for page in (
+        html.replace("SKU", "Art. no."),
+        html.replace("<h1>", "<p>SKU</p><h1>"),
+    ):
+        run = run_extractor(learnt, page, url)
+        assert run.ok, failed(run)
+        assert run.fields == {"sku": "BP-3"}
+
+
+def test_one_page_cannot_tell_its_labels_and_learns_none():
+    learnt = compile_extractor(SPECS[:1], listing=False, want={"sku": "BP-1"})
+    assert [f.label for f in learnt.fields] == [None]
+
+
+def test_heal_reads_a_row_that_moved_after_its_label():
+    learnt = compile_extractor(SPECS, listing=False, want={"sku": "BP-1"})
+    order = ("brand", "price", "weight", "sku")
+    moved = [
+        _specs("Textar", "12.50", "BP-3", "3 kg", order),
+        _specs("Brembo", "20.00", "BP-4", "4 kg", order),
+    ]
+    healed, changes = heal(learnt, moved)
+    assert [(c.kind, c.before, c.after) for c in changes] == [
+        ("moved", "sku", "after 'SKU'")
+    ]
+    run = run_extractor(healed, *_specs("Ferodo", "9.00", "BP-5", "5 kg", order))
+    assert run.ok, failed(run)
+    assert run.fields == {"sku": "BP-5"}
