@@ -400,11 +400,13 @@ META_KEYS = (
 )
 
 # The names whose every tag is read, rather than the first: a paper lists each
-# author in one, and a page's robots directives are gathered from all its
-# robots tags, as Google combines them. A later duplicate of these is a new
-# value, not a repeat.
+# author in one -- HTML's own ``author`` too, whose first may be the paper and
+# its second the reporter -- and a page's robots directives are gathered from
+# all its robots tags, as Google combines them. A later duplicate of these is a
+# new value, not a repeat.
 JOINED_META_KEYS = frozenset(
-    {"citation_author", "parsely-author", "sailthru.author", "byl", "robots"}
+    {"author", "citation_author", "parsely-author", "sailthru.author", "byl"}
+    | {"robots"}
     | _CRAWLERS
 )
 

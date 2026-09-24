@@ -106,10 +106,15 @@ def headers(draw) -> dict[str, str]:
 
 def _header_canonicals(sent: dict[str, str], url: str | None) -> set[str]:
     """Every target the Link header gives with a canonical relation, loosely:
-    a superset of what a careful reader could find, from a regular expression."""
+    a superset of what a careful reader could find, from a regular expression.
+
+    From every ``<``, not only the first of a run: in ``hreflang=<, <c/d>``
+    the stray ``<`` is no target's start, and the target is ``c/d``.
+    """
     link = next((v for k, v in sent.items() if k.lower() == "link"), "")
     found = set()
-    for target in re.findall(r"<([^>]*)>", link):
+    targets = re.findall(r"<([^>]*)>", link) + re.findall(r"<([^<>]*)>", link)
+    for target in targets:
         # As the URL standard reads an address: controls and spaces off the
         # ends, every tab and newline inside dropped.
         cleaned = target.strip("".join(map(chr, range(0x21))))
@@ -186,4 +191,14 @@ def test_a_no_break_space_in_an_address_is_kept_and_encoded():
         "<html></html>",
         "https://shop.example/c/brakes",
         {"Link": "<https://s.example/c>, <" + chr(0xA0) + ":>; rel=canonical"},
+    )
+
+
+def test_a_stray_angle_bracket_in_a_parameter_starts_no_target():
+    """Found by the fuzz profile: after ``hreflang=<`` the next link's target
+    was read by the oracle from the stray ``<``, and ``c/d`` not found."""
+    _check(
+        '<html><head><base href="/p/1"></head></html>',
+        None,
+        {"Link": "<https://s.example/c>; hreflang=<, <c/d>; rel=canonical"},
     )
