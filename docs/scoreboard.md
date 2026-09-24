@@ -3,7 +3,7 @@
 How often Sluicer's `summary` gets a page's title, author and publication
 date right, measured beside the tools people use for the same job, on a
 public annotated corpus, with the losses in the same table as the wins.
-Regenerated on 2026-09-24 from commit `03a7381` by
+Regenerated on 2026-09-24 from commit `4946557` by
 `uv run bench/run.py`; the method and every pin are in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -26,7 +26,7 @@ All 511 test pages:
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.4.1 | 0.727 | 0.521 | 0.536 | 30 | 8 |
+| sluicer 0.5.0 | 0.727 | 0.532 | 0.581 | 42 | 8 |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 98 | 216 |
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.374 | 125 | 84 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 50 | 52 |
@@ -35,7 +35,7 @@ The 359 article, listing, collection and product pages:
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.4.1 | 0.748 | 0.521 | 0.598 | 18 | 3 |
+| sluicer 0.5.0 | 0.748 | 0.532 | 0.598 | 18 | 3 |
 | trafilatura 2.2.0 | 0.723 | 0.750 | 0.866 | 45 | 124 |
 | metascraper 5.58.1 | 0.661 | 0.787 | 0.321 | 62 | 47 |
 | newspaper4k 0.9.6 | 0.748 | 0.532 | 0.625 | 21 | 27 |
@@ -44,7 +44,7 @@ The 359 article, listing, collection and product pages:
 
 | tool | seconds for all pages | packages installed |
 |---|---|---|
-| sluicer 0.4.1 | 1.38 | 3 |
+| sluicer 0.5.0 | 2.06 | 3 |
 | trafilatura 2.2.0 | 16.19 | 17 |
 | metascraper 5.58.1 | 2.53 | 125 |
 | newspaper4k 0.9.6 | 29.61 | 22 |
@@ -54,8 +54,8 @@ core; packages count everything the tool's own environment holds.
 
 ## Where Sluicer loses, and why
 
-- **Author.** Sluicer misses 90 labelled pages, and on 64 of them another tool finds the author.
-- **Date.** Sluicer misses 123 labelled pages, and on 98 of them another tool finds the date.
+- **Author.** Sluicer misses 88 labelled pages, and on 62 of them another tool finds the author.
+- **Date.** Sluicer misses 111 labelled pages, and on 86 of them another tool finds the date.
 - **Title.** Of 139 wrong titles, 63 contain the label whole: the page declares a longer title than the heading the labels use.
 
 Authors and dates are where the gap is. The other tools also read bylines
@@ -67,8 +67,8 @@ choice with a cost, and this is the cost.
 ## Where it wins
 
 - **Title**, right when answering: newspaper4k 0.767, trafilatura 0.743, sluicer 0.725, metascraper 0.653. Fewest inventions: every tool ties at 1.
-- **Author**, right when answering: sluicer 0.700, newspaper4k 0.599, trafilatura 0.551, metascraper 0.495. Fewest inventions: sluicer (30).
-- **Date**, right when answering: sluicer 0.916, newspaper4k 0.710, trafilatura 0.463, metascraper 0.322. Fewest inventions: sluicer (8).
+- **Author**, right when answering: sluicer 0.654, newspaper4k 0.599, trafilatura 0.551, metascraper 0.495. Fewest inventions: sluicer (42).
+- **Date**, right when answering: sluicer 0.917, newspaper4k 0.710, trafilatura 0.463, metascraper 0.322. Fewest inventions: sluicer (8).
 
 Right when answering counts every answer a tool gives, inventions
 included. Sluicer gives none where the page states none; on a product or
@@ -86,9 +86,9 @@ All 511 test pages:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.4.1 | title | 370 | 139 | 0 | 1 | 1 | 0.727 | 0.725 |
-| sluicer 0.4.1 | author | 98 | 12 | 78 | 293 | 30 | 0.521 | 0.700 |
-| sluicer 0.4.1 | date | 142 | 5 | 118 | 238 | 8 | 0.536 | 0.916 |
+| sluicer 0.5.0 | title | 370 | 139 | 0 | 1 | 1 | 0.727 | 0.725 |
+| sluicer 0.5.0 | author | 100 | 11 | 77 | 281 | 42 | 0.532 | 0.654 |
+| sluicer 0.5.0 | date | 154 | 6 | 105 | 238 | 8 | 0.581 | 0.917 |
 | trafilatura 2.2.0 | title | 379 | 130 | 0 | 1 | 1 | 0.745 | 0.743 |
 | trafilatura 2.2.0 | author | 141 | 17 | 30 | 225 | 98 | 0.750 | 0.551 |
 | trafilatura 2.2.0 | date | 222 | 42 | 1 | 30 | 216 | 0.838 | 0.463 |
@@ -103,9 +103,9 @@ The 359 article, listing, collection and product pages:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.4.1 | title | 267 | 90 | 0 | 1 | 1 | 0.748 | 0.746 |
-| sluicer 0.4.1 | author | 98 | 12 | 78 | 153 | 18 | 0.521 | 0.766 |
-| sluicer 0.4.1 | date | 134 | 3 | 87 | 132 | 3 | 0.598 | 0.957 |
+| sluicer 0.5.0 | title | 267 | 90 | 0 | 1 | 1 | 0.748 | 0.746 |
+| sluicer 0.5.0 | author | 100 | 11 | 77 | 153 | 18 | 0.532 | 0.775 |
+| sluicer 0.5.0 | date | 134 | 3 | 87 | 132 | 3 | 0.598 | 0.957 |
 | trafilatura 2.2.0 | title | 258 | 99 | 0 | 1 | 1 | 0.723 | 0.721 |
 | trafilatura 2.2.0 | author | 141 | 17 | 30 | 126 | 45 | 0.750 | 0.695 |
 | trafilatura 2.2.0 | date | 194 | 29 | 1 | 11 | 124 | 0.866 | 0.559 |
