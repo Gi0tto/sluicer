@@ -128,6 +128,68 @@ def _facts(element: HtmlElement) -> list[tuple[str, str]]:
     return facts
 
 
+def holds_a_fact(
+    group: list[HtmlElement], below: dict[HtmlElement, tuple[bool, bool]]
+) -> bool:
+    """Whether a part of some member of ``group`` carries a fact: whether
+    ``records_from`` has anything to name.
+
+    Answered without reading any text, from what each element and the parts
+    under it hold, kept in ``below`` for the next group asked about. Groups
+    nest, and a caller that tries one group after another, as ``induce``
+    does, walked each group's rows in full to find nothing: listings nested a
+    thousand deep, with no text in them, took twenty seconds.
+    """
+    return any(
+        _below(child, below)[1]
+        for member in group
+        for child in member
+        if isinstance(child.tag, str)
+    )
+
+
+def _below(
+    element: HtmlElement, below: dict[HtmlElement, tuple[bool, bool]]
+) -> tuple[bool, bool]:
+    """Whether ``element``'s text holds a word, and whether it or a part under
+    it carries a fact, as ``_facts`` would find one.
+
+    Children first, with a stack of its own. A comment's own words are not
+    text, and what follows it is, as ``text_content`` reads them.
+    """
+    pending = [(element, False)]
+    while pending:
+        node, ready = pending.pop()
+        if node in below:
+            continue
+        if not ready:
+            pending.append((node, True))
+            pending.extend(
+                (child, False)
+                for child in node
+                if isinstance(child.tag, str) and child not in below
+            )
+            continue
+        worded = _worded(node.text)
+        fact = bool(address_of(node))
+        for child in node:
+            if isinstance(child.tag, str):
+                inner, deeper = below[child]
+                worded = worded or inner
+                fact = fact or deeper
+            worded = worded or _worded(child.tail)
+        attribute = _TEXT_ATTRIBUTE.get(str(node.tag))
+        said = _worded(node.get(attribute)) if attribute else worded
+        fact = fact or (said and not _carries_only_its_children(node))
+        below[node] = (worded, fact)
+    return below[element]
+
+
+def _worded(text: str | None) -> bool:
+    """Whether ``text`` holds more than whitespace."""
+    return bool(text and not text.isspace())
+
+
 def _label(element: HtmlElement) -> str:
     """The first class a person wrote on ``element``, or nothing."""
     for token in sorted((element.get("class") or "").split()):

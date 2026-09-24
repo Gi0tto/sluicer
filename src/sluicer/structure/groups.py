@@ -106,17 +106,94 @@ def _member(child: HtmlElement) -> bool:
     return isinstance(child.tag, str) and child.tag.lower() not in _CODE
 
 
-def _worth(member: HtmlElement, worths: dict[HtmlElement, int]) -> int:
+def _worth(member: HtmlElement, worths: dict[HtmlElement, _Measure]) -> int:
     """How much of a record this member holds: its text, and where it points.
 
-    Kept in ``worths``, since one member is asked about more than once.
+    The text is counted as a reader sees it, its whitespace collapsed. Each
+    element is measured once, from its children's measures, and kept in
+    ``worths``: a member inside another member is not measured again, and
+    listings nested inside listings, measured member by member, cost the
+    square of their depth, seven seconds for a 93 KB page.
     """
-    held = worths.get(member)
-    if held is None:
-        text = " ".join((member.text_content() or "").split())
-        addresses = sum(1 for part in member.iter() if address_of(part))
-        held = worths[member] = len(text) + addresses * _ADDRESS_WORTH
-    return held
+    text, addresses = _measured(member, worths)
+    length = text[0] + max(text[1] - 1, 0) if text else 0
+    return length + addresses * _ADDRESS_WORTH
+
+
+# An element's text once its whitespace is collapsed, as what makes it up: the
+# characters that are not space, the words, and whether it starts and ends
+# inside a word, which decides whether two pieces written one after the other
+# join into one word. None is no text at all.
+_Text = tuple[int, int, bool, bool] | None
+# An element's text, and how many parts at or below it point somewhere.
+_Measure = tuple[_Text, int]
+
+
+def _piece(text: str | None) -> _Text:
+    if not text:
+        return None
+    words = text.split()
+    if not words:
+        return (0, 0, False, False)
+    return (
+        sum(map(len, words)),
+        len(words),
+        not text[0].isspace(),
+        not text[-1].isspace(),
+    )
+
+
+def _measured(element: HtmlElement, worths: dict[HtmlElement, _Measure]) -> _Measure:
+    """``element``'s text, as ``text_content`` reads it, and its addresses.
+
+    Each element is measured from its children's measures, so the elements
+    under ``element`` not measured yet are gathered first, parents before
+    children, and measured in the other order. A comment's words are not
+    text, and what follows it is.
+    """
+    held = worths.get(element)
+    if held is not None:
+        return held
+    # Each element not measured yet, with its children, parents first: a
+    # child is walked to once, and its children are read once.
+    order: list[tuple[HtmlElement, list[HtmlElement]]] = []
+    pending = [element]
+    while pending:
+        node = pending.pop()
+        children = list(node)
+        order.append((node, children))
+        pending.extend(
+            child
+            for child in children
+            if isinstance(child.tag, str) and child not in worths
+        )
+    for node, children in reversed(order):
+        text = _piece(node.text)
+        addresses = 1 if address_of(node) else 0
+        for child in children:
+            if isinstance(child.tag, str):
+                inner, below = worths[child]
+                addresses += below
+            else:
+                inner = None
+            tail = child.tail
+            for other in (inner, _piece(tail) if tail else None):
+                # The text so far, and then ``other``: two words written one
+                # after the other with no space between are one word.
+                if other is None:
+                    continue
+                if text is None:
+                    text = other
+                else:
+                    joined = 1 if text[3] and other[2] else 0
+                    text = (
+                        text[0] + other[0],
+                        text[1] + other[1] - joined,
+                        text[2],
+                        other[3],
+                    )
+        worths[node] = (text, addresses)
+    return worths[element]
 
 
 def _same_shape_siblings(parent: HtmlElement) -> list[list[HtmlElement]]:
@@ -247,7 +324,7 @@ def repeating_groups(
     value there means that group.
     """
     found: list[tuple[int, int, list[HtmlElement]]] = []
-    worths: dict[HtmlElement, int] = {}
+    worths: dict[HtmlElement, _Measure] = {}
     # Decided once per element, from its parent's answer, since the walk meets
     # a parent before its children. Asked of every element by climbing to the
     # root, a listing under two thousand wrappers took three seconds of an
@@ -278,7 +355,7 @@ def repeating_groups(
 def _carried_inside(
     found: list[tuple[int, int, list[HtmlElement]]],
     walked: list[HtmlElement],
-    worths: dict[HtmlElement, int],
+    worths: dict[HtmlElement, _Measure],
 ) -> dict[HtmlElement, int]:
     """For every element, the most that one group at or below it carries.
 
@@ -310,7 +387,7 @@ def _carried_inside(
 def _sections(
     members: list[HtmlElement],
     inside: dict[HtmlElement, int],
-    worths: dict[HtmlElement, int],
+    worths: dict[HtmlElement, _Measure],
 ) -> bool:
     """Whether most of ``members`` are mostly one of the other groups found.
 

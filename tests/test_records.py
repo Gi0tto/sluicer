@@ -511,3 +511,45 @@ def test_no_value_of_a_row_is_lost_to_another_with_the_same_name(cards):
         for member in group
     ]
     assert [len(record.fields) for record in records] == facts
+
+
+@given(
+    st.lists(
+        st.lists(
+            st.sampled_from(
+                [
+                    "<b>x</b>",
+                    "<b> </b>",
+                    "<b><!-- c --></b>",
+                    "<b><i>x</i></b>",
+                    "<b>, <i>x</i></b>",
+                    "<b><i> </i> y</b>",
+                    "<a href='/p'></a>",
+                    "<a href=' '></a>",
+                    "<img alt='a'>",
+                    "<img alt=' '>",
+                    "<span><span></span></span>",
+                ]
+            ),
+            max_size=3,
+        ),
+        min_size=3,
+        max_size=4,
+    )
+)
+def test_a_group_holds_a_fact_when_a_part_of_it_carries_one(cards):
+    """``induce`` passes over a group that holds no fact without walking it."""
+    from sluicer.structure.records import _facts, holds_a_fact
+
+    group = rows(
+        "<ul>" + "".join(f"<li>{''.join(card)}</li>" for card in cards) + "</ul>"
+    )
+
+    carried = any(
+        _facts(part)
+        for member in group
+        for part in member.iter()
+        if part is not member and isinstance(part.tag, str)
+    )
+    assert holds_a_fact(group, {}) == carried
+    assert holds_a_fact(group, {}) == bool(records_from(group))

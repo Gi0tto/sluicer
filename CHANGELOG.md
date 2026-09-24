@@ -30,6 +30,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   level and hashed again to number it, so every wrapper around a row cost
   every part below it once more: forty thousand parts under two thousand
   wrappers took 1.4 seconds to name, and take 0.1.
+- Listings nested inside listings cost the square of their depth: each
+  member's worth was read off all the text and links below it, again for
+  every member around it, and `induce` walked every group's rows in full
+  before trying the next, even a group with nothing in it to name. A 93 KB
+  page of them took seven seconds, and twenty with no text in it. Each
+  element is now measured once from its children's measures, and a group is
+  passed over when no part of it carries a fact, found the same way: both
+  pages take 0.1 seconds, with the same records.
 - Two slots of an induced row could share a name, and one value overwrote the
   other: two `<span class="tag">` are numbered `span.tag1` and `span.tag2`,
   and a card's own `<span class="tag1">` is `span.tag1` too. The class the

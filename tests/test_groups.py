@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import lxml.html
+from hypothesis import given, strategies as st
 
 from sluicer.structure.groups import repeating_groups
 
@@ -394,3 +395,37 @@ def test_siblings_that_share_most_of_their_parts_are_compared_boundedly():
         module.alike = alike
 
     assert compared <= 2000 * module._COMPARED
+
+
+# Text as pages write it: words, the whitespace str.split collapses (a no-break
+# space, an ideographic one, a unit separator), comments whose words are not
+# text, anchors and images that point somewhere.
+_BITS = st.sampled_from(
+    ["a", "bc", " ", "  ", "\n", "\xa0", "　", "\x1f", "<!-- c d -->", ""]
+)
+_FRAGMENTS = st.recursive(
+    _BITS,
+    lambda inner: st.tuples(
+        st.sampled_from(["<b>", "<a href='/x'>", "<a href=' '>", "<p>", "<i>"]),
+        st.lists(inner, max_size=4),
+    ).map(lambda drawn: drawn[0] + "".join(drawn[1]) + "</" + drawn[0][1] + ">"),
+    max_leaves=12,
+)
+
+
+@given(st.lists(_FRAGMENTS, max_size=5), st.booleans())
+def test_what_a_member_is_worth_is_what_its_text_and_addresses_come_to(parts, img):
+    """Worth is made from each element's children rather than read off the
+    member's text, so a member inside another member is not measured twice;
+    it is the same number the text, whitespace collapsed, gives."""
+    from sluicer.structure.groups import _worth
+    from sluicer.structure.records import address_of
+
+    html = "<div>" + "".join(parts) + ("<img src='/i'>" if img else "") + "</div>"
+    tree = lxml.html.fragment_fromstring(html)
+    worths = {}
+
+    for element in [e for e in tree.iter() if isinstance(e.tag, str)][::-1]:
+        text = " ".join(element.text_content().split())
+        addresses = sum(1 for part in element.iter() if address_of(part))
+        assert _worth(element, worths) == len(text) + 8 * addresses, html

@@ -113,16 +113,22 @@ def _near_strangers(n: int) -> str:
     )
 
 
-def _nested(n: int) -> str:
-    """Listings ``n`` deep, each of three sections, the first holding the next."""
-    leaf = "<div><div><div>x</div></div></div>"
-    html = "x"
+def _nested(n: int, text: str = "x") -> str:
+    """Listings ``n`` deep: three items in each, the first holding the next.
+
+    Two levels of the page to each listing, so six hundred of them nest as
+    deep as libxml2 goes.
+    """
+    other = f"<li><ul><li><ul></ul></li></ul>{text}</li>"
+    html = ""
     for _ in range(n):
-        html = (
-            f"<section><div class=c><div><div>{html}</div></div></div>"
-            f"<div class=c>{leaf}</div><div class=c>{leaf}</div></section>"
-        )
+        html = f"<ul><li>{html}{text}</li>" + other * 2 + "</ul>"
     return "<html><body>" + html + "</body></html>"
+
+
+def _nested_empty(n: int) -> str:
+    """The same with no text anywhere: no listing yields a record."""
+    return _nested(n, "")
 
 
 def _deep_rows(n: int) -> str:
@@ -145,7 +151,8 @@ PATHOLOGICAL = {
     "a table of a thousand rows": (_table, 500),
     "siblings of one kind, none alike": (_strangers, 1000),
     "siblings that share most of their parts": (_near_strangers, 1000),
-    "listings nested inside listings": (_nested, 150),
+    "listings nested inside listings": (_nested, 300),
+    "empty listings nested inside listings": (_nested_empty, 300),
     "rows a thousand deep": (_deep_rows, 500),
     "rows a thousand parts wide": (_wide_rows, 1000),
 }
