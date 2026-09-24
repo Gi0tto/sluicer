@@ -74,10 +74,10 @@ class PageError:
     """Why a page has no extraction.
 
     ``code`` is one of the MCP server's -- ``refused_by_robots``,
-    ``refused_address``, ``fetch_failed`` (the only ``retryable`` one),
-    ``too_large``, ``bad_input`` -- or one of a crawl's own:
-    ``redirected_off_site``, with the ``target`` it pointed to, and
-    ``crawl_delay_too_long``.
+    ``refused_address``, ``fetch_failed`` (``retryable``), ``too_large``,
+    ``bad_input`` -- or one of a crawl's own: ``redirected_off_site``, with the
+    ``target`` it pointed to, ``crawl_delay_too_long``, and ``rate_limited``
+    (``retryable``), a site's Retry-After asking for longer than a crawl waits.
     """
 
     code: str
@@ -537,6 +537,14 @@ class _Visitor:
                 f"its robots.txt asks for {delay:g} s between requests, longer "
                 f"than the {self.max_delay:g} s this crawl waits",
             )
+        refused_for = self.polite.refused_for(task.url)
+        if refused_for > 0:
+            return failed(
+                "rate_limited",
+                f"it asked, by Retry-After, not to be asked for {refused_for:g} s "
+                f"more, longer than the {self.max_delay:g} s this crawl waits",
+                retryable=True,
+            )
         self.polite.wait(task.url, delay)
         try:
             fetched = fetch(
@@ -588,6 +596,9 @@ class _Visitor:
                     f"{fetched.url} reserves its text and data mining rights "
                     f"(TDMRep, by its {found.source}{policy})",
                 )
+        # A 429 or a 503 is the site asking to be asked less often: the next
+        # request to it waits its Retry-After, or twice the delay.
+        self.polite.slow_down(task.url, fetched, self.max_delay)
         # An error page's links and canonical are the error page's: a 404 that
         # names a product as its canonical would have the product marked seen.
         answered = fetched.status < 400

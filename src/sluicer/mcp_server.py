@@ -70,7 +70,7 @@ already started finishes, so an answer can take a little longer."""
 CRAWL_MAX_DELAY_SECONDS = 10.0
 """The longest ``Crawl-delay`` ``map_site`` and ``crawl_site`` wait for; a site
 asking for more is answered ``crawl_delay_too_long`` rather than holding the
-agent a minute a page."""
+agent a minute a page, and one whose Retry-After asks for more, ``rate_limited``."""
 
 
 class McpExtraMissing(MissingExtra):

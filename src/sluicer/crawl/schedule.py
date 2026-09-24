@@ -13,6 +13,7 @@ the same site always writes the same file.
 
 from __future__ import annotations
 
+import email.utils
 import math
 import threading
 import time
@@ -37,6 +38,10 @@ MAX_DELAY_SECONDS = 60.0
 """The longest wait between two requests to one site a crawl accepts. A site
 asking for more is not crawled at all rather than crawled for a week: its pages
 say ``crawl_delay_too_long``, with the delay it asked for."""
+
+SLOWING_STATUSES = frozenset({429, 503})
+"""Statuses by which a site says it is asked too often or cannot answer now:
+429 Too Many Requests and 503 Service Unavailable (RFC 6585, RFC 9110)."""
 
 CONCURRENCY = 4
 """How many sites are asked at the same moment, never more than once each."""
@@ -119,6 +124,12 @@ class Politeness:
         self._read = read
         self._ended = _ENDED if ended is None else ended
         self._delays: dict[str, float] = {}
+        # What a site's own answers asked for: a delay it doubled by a 429 or
+        # a 503 with no Retry-After, a moment a Retry-After named, and one it
+        # named past what the crawl waits for, until which it is not asked.
+        self._slowed: dict[str, float] = {}
+        self._not_before: dict[str, float] = {}
+        self._refused_until: dict[str, float] = {}
         self._lock = _LOCK
 
     def reader(self, url: str) -> str | None:
@@ -178,29 +189,83 @@ class Politeness:
         """
         delay = max(self.min_delay, robots_delay(url, self.reader, now=self.clock))
         with self._lock:
+            delay = max(delay, self._slowed.get(site_of(url), 0.0))
             self._delays[site_of(url)] = delay
         return delay
+
+    def slow_down(self, url: str, fetched: Fetched, ceiling: float) -> None:
+        """Take a 429's or a 503's word for how often ``url``'s site may be asked.
+
+        A ``Retry-After`` up to ``ceiling`` is waited before the next request;
+        a longer one is not waited for, and until it has passed the site is
+        not asked at all (``refused_for``). Without one, the site's delay
+        doubles for the rest of the crawl, up to ``ceiling``. Any other status
+        changes nothing.
+        """
+        if fetched.status not in SLOWING_STATUSES:
+            return
+        site = site_of(url)
+        wait = retry_after(fetched.headers)
+        with self._lock:
+            if wait is not None:
+                named = self._refused_until if wait > ceiling else self._not_before
+                named[site] = max(named.get(site, -math.inf), self.clock() + wait)
+                return
+            current = self._delays.get(site, self.min_delay)
+            self._slowed[site] = min(ceiling, max(current * 2, self.min_delay))
+            self._delays[site] = max(current, self._slowed[site])
+
+    def refused_for(self, url: str) -> float:
+        """The seconds left before ``url``'s site said, by a Retry-After longer
+        than a crawl waits, it may be asked again; 0 when it said no such
+        thing, or the moment has passed."""
+        with self._lock:
+            until = self._refused_until.get(site_of(url))
+        return 0.0 if until is None else max(0.0, until - self.clock())
 
     def ready_at(self, site: str) -> float:
         """When ``site`` may next be asked, as far as is known without asking."""
         with self._lock:
             ended = self._ended.get(site)
             delay = self._delays.get(site, self.min_delay)
-        return -math.inf if ended is None else ended + delay
+            until = self._not_before.get(site, -math.inf)
+        return max(until, -math.inf if ended is None else ended + delay)
 
     def wait(self, url: str, delay: float) -> None:
         """Sleep until ``url``'s site has rested ``delay`` seconds."""
         with self._lock:
             ended = self._ended.get(site_of(url))
-        if ended is not None:
-            rest = ended + delay - self.clock()
-            if rest > 0:
-                self.sleep(rest)
+            until = self._not_before.get(site_of(url), -math.inf)
+        ready = max(until, -math.inf if ended is None else ended + delay)
+        rest = ready - self.clock()
+        if rest > 0:
+            self.sleep(rest)
 
     def ended(self, url: str) -> None:
         """Note that a request to ``url``'s site has just ended."""
         with self._lock:
             self._ended[site_of(url)] = self.clock()
+
+
+def retry_after(headers: dict[str, str]) -> float | None:
+    """The seconds a response's ``Retry-After`` asks for, or None.
+
+    RFC 9110 allows a number of seconds or a date. A date is counted from the
+    response's own ``Date``, so the wait is the one the server meant whatever
+    this machine's clock says; with no ``Date`` it cannot be counted, and is
+    None, as is anything that is neither. A moment already past is 0.
+    """
+    written = (headers.get("retry-after") or "").strip()
+    if written.isdigit():
+        return float(written)
+    try:
+        then = email.utils.parsedate_to_datetime(written)
+        sent = email.utils.parsedate_to_datetime(headers.get("date") or "")
+    except (TypeError, ValueError, IndexError):
+        return None
+    if then.tzinfo is None or sent.tzinfo is None:
+        return None
+    return max(0.0, (then - sent).total_seconds())
 
 
 class Queue:

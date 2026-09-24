@@ -39,17 +39,19 @@ PageErrorCode = Literal[
     "tdm_reserved",
     "redirected_off_site",
     "crawl_delay_too_long",
+    "rate_limited",
 ]
-"""What one crawled page can have instead of an answer: a call's codes, and two
+"""What one crawled page can have instead of an answer: a call's codes, and three
 of a crawl's own, which never end a call and so have no HTTP status."""
 
 
 class ErrorDetail(TypedDict, total=False):
     """Why a tool could not answer.
 
-    ``retryable`` is true only for ``fetch_failed``: the same call may work
-    later. The others need something to change first -- an install, an input,
-    or the caller's mind about a site that said no.
+    ``retryable`` is true only for ``fetch_failed``, and on a crawled page for
+    ``rate_limited``: the same call may work later. The others need something
+    to change first -- an install, an input, or the caller's mind about a site
+    that said no.
     """
 
     code: Required[ErrorCode]
@@ -61,8 +63,9 @@ class ErrorDetail(TypedDict, total=False):
 
 class PageError(TypedDict, total=False):
     """Why one crawled page has nothing: ``redirected_off_site``, with the
-    ``target`` it pointed to, or ``crawl_delay_too_long``, a site asking for
-    more time between requests than a crawl waits, or any code a call has."""
+    ``target`` it pointed to, ``crawl_delay_too_long``, a site asking for more
+    time between requests than a crawl waits, ``rate_limited``, a site's
+    Retry-After asking for longer than that, or any code a call has."""
 
     code: Required[PageErrorCode]
     message: Required[str]

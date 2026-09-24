@@ -77,9 +77,9 @@ Every answer carries `ok`: true exactly when it can be used as it is. When it
 is false, the answer says why: `error` with a `code` -- `refused_by_robots`,
 `refused_address`, `fetch_failed`, `too_large`, `missing_extra`, `bad_input` or
 `tdm_reserved`,
-and on a crawled page `redirected_off_site` (with its `target`) or
-`crawl_delay_too_long` -- a `message` and `retryable` (true only for
-`fetch_failed`); or, from
+and on a crawled page `redirected_off_site` (with its `target`),
+`crawl_delay_too_long` or `rate_limited` -- a `message` and `retryable` (true
+only for `fetch_failed` and `rate_limited`); or, from
 `run_extractor`, `failed`, the checks the page broke; or, from
 `heal_extractor`, `lost`, when the page no longer has a field the old extractor
 read. An error is never text that could be mistaken for the page. The server

@@ -50,6 +50,8 @@ class FakeWeb:
         self.clock = clock or Clock()
         self.cost = cost
         self.requests: list[tuple[str, float, float]] = []
+        # The headers each address last answered with, for the page rung.
+        self.headers: dict[str, dict[str, str]] = {}
 
     def _answer(self, url: str):
         started = self.clock.now
@@ -78,6 +80,7 @@ class FakeWeb:
                     raise RedirectRefused(current, target, refused)
                 current = target
                 continue
+            self.headers[current] = headers
             return Response(current, status, headers.get("content-type", ""), body)
         raise RuntimeError(f"{url} redirected too often")
 
@@ -86,7 +89,13 @@ class FakeWeb:
         html = response.body.decode("utf-8", errors="replace")
         if not html:
             raise ValueError(f"no HTML for {url!r}")
-        return Fetched(url=response.url, html=html, status=response.status, rung="http")
+        return Fetched(
+            url=response.url,
+            html=html,
+            status=response.status,
+            rung="http",
+            headers=self.headers.get(response.url, {}),
+        )
 
     def web(self, redirects=None) -> Web:
         """The three ways in; ``redirects`` goes to the page rung only, as

@@ -97,6 +97,62 @@ def test_a_crawl_delay_longer_than_ours_is_honoured():
     assert fake.gaps("example.com") == [4.0, 4.0, 4.0]
 
 
+def test_a_site_saying_too_many_is_asked_again_only_after_its_retry_after():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = (429, page("Slow down"), {"Retry-After": "30"})
+    fake = FakeWeb(pages)
+
+    result = list(run(fake, max_pages=4))
+
+    assert [p.status for p in result][:2] == [200, 429]
+    assert fake.gaps("example.com")[:3] == [1.0, 1.0, 30.0]
+
+
+def test_a_retry_after_date_is_counted_from_the_response_s_own_date():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = (
+        503,
+        page("Maintenance"),
+        {
+            "Date": "Wed, 23 Sep 2026 10:00:00 GMT",
+            "Retry-After": "Wed, 23 Sep 2026 10:00:20 GMT",
+        },
+    )
+    fake = FakeWeb(pages)
+
+    list(run(fake, max_pages=4))
+
+    assert fake.gaps("example.com")[:3] == [1.0, 1.0, 20.0]
+
+
+def test_a_site_saying_too_many_without_a_retry_after_is_asked_half_as_often():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = (429, page("Slow down"), {})
+    fake = FakeWeb(pages)
+
+    list(run(fake, max_pages=5))
+
+    assert fake.gaps("example.com") == [1.0, 1.0, 2.0, 2.0, 2.0]
+
+
+def test_a_retry_after_longer_than_the_crawl_waits_is_an_answer():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = (429, page("Slow down"), {"Retry-After": "3600"})
+    fake = FakeWeb(pages)
+
+    result = list(run(fake, max_pages=4, max_delay=60))
+
+    assert [p.error.code if p.error else p.status for p in result] == [
+        200,
+        429,
+        "rate_limited",
+        "rate_limited",
+    ]
+    assert result[2].error.retryable
+    assert "3600" in result[2].error.message or "3599" in result[2].error.message
+    assert len([u for u in fake.asked() if not u.endswith("robots.txt")]) == 2
+
+
 def test_a_delay_longer_than_the_crawl_waits_is_an_answer_not_a_week():
     pages = shop()
     pages[f"{ROOT}/robots.txt"] = "User-agent: *\nCrawl-delay: 86400\n"
@@ -785,3 +841,36 @@ def test_an_error_pages_links_and_canonical_are_not_the_sites():
     assert urls(pages) == [f"{ROOT}/", f"{ROOT}/gone", f"{ROOT}/p/1"]
     assert pages[1].ok and pages[1].status == 404
     assert pages[1].links == () and pages[1].canonical is None
+
+
+@pytest.mark.parametrize(
+    ("headers", "seconds"),
+    [
+        ({"retry-after": "120"}, 120.0),
+        ({"retry-after": " 0 "}, 0.0),
+        (
+            {
+                "retry-after": "Wed, 23 Sep 2026 10:01:00 GMT",
+                "date": "Wed, 23 Sep 2026 10:00:00 GMT",
+            },
+            60.0,
+        ),
+        # A moment already past asks for no wait.
+        (
+            {
+                "retry-after": "Wed, 23 Sep 2026 09:00:00 GMT",
+                "date": "Wed, 23 Sep 2026 10:00:00 GMT",
+            },
+            0.0,
+        ),
+        # A date with no Date to count from, and what is neither, say nothing.
+        ({"retry-after": "Wed, 23 Sep 2026 10:01:00 GMT"}, None),
+        ({"retry-after": "soon"}, None),
+        ({"retry-after": "-5"}, None),
+        ({}, None),
+    ],
+)
+def test_a_retry_after_is_read_as_rfc_9110_writes_it(headers, seconds):
+    from sluicer.crawl.schedule import retry_after
+
+    assert retry_after(headers) == seconds
