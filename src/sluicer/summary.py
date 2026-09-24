@@ -1133,7 +1133,8 @@ def _price_kind(spec: dict[str, JsonValue]) -> str:
     return "regular" if kind.lower() in _REGULAR else "other"
 
 
-_NUMBER = re.compile(r"\d(?:[\d.,'\s]*\d)?")
+# One number as a price is written, or as JSON writes one: 1.5e3 is one.
+_NUMBER = re.compile(r"\d(?:[\d.,'\s]*\d)?(?:[eE][+-]?\d+)?")
 
 
 def _one_amount(found: SummaryField | None) -> SummaryField | None:

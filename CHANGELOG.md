@@ -47,6 +47,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A breadcrumb item whose `position` is `NaN` or an infinity is placed where
   it was written: a NaN compares false with everything, and the crumbs came
   out in no order.
+- A JSON-LD price JSON wrote with an exponent, `1.5e3`, is the summary's
+  price and normalises to `1500`: the summary counted two numbers in it and
+  refused it, and `amount()` could not read it.
 
 ## 0.7.0 - 2026-09-24
 

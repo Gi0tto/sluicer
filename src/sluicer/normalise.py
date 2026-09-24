@@ -18,6 +18,7 @@ import datetime
 import email.utils
 import re
 import unicodedata
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sluicer.calendar_names import MONTHS, WEEKDAYS
@@ -311,6 +312,8 @@ def _day(year: int, month: int, day: int) -> str | None:
 
 _AMOUNT = re.compile(r"[\d.,\s']+")
 _SPACE_OR_APOSTROPHE = re.compile(r"[\s']")
+# A number as JSON writes one with an exponent, sign left out: a price has none.
+_EXPONENT = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?[eE][+-]?[0-9]+")
 # Thousands grouped with a space or an apostrophe: one to three digits, then
 # threes, then perhaps a separator and what follows it.
 _SPACED = re.compile(r"\d{1,3}(?:[\s']\d{3})+(?:[.,]\d+)?")
@@ -331,10 +334,13 @@ def amount(text: str) -> str | None:
     and a little over one somewhere else (``0.999`` is not ambiguous). Digits
     grouped by a separator, a space or an apostrophe are grouped in thousands,
     ``1 299,00`` or ``1'299.00``, or the text is refused: ``12 50`` is not 1250.
+    A number JSON writes with an exponent, ``1.5e3``, is the amount it names.
     """
     stripped = text.strip()
     if len(stripped) > _LONGEST_AMOUNT:
         return None
+    if _EXPONENT.fullmatch(stripped):
+        return _from_exponent(stripped)
     for symbol in _BY_LENGTH:
         lowered = stripped.lower()
         if lowered.startswith(symbol):
@@ -379,6 +385,19 @@ def amount(text: str) -> str | None:
         return None
     whole, _, fraction = _in_ascii(number).partition(".")
     whole = whole.lstrip("0") or "0"
+    return f"{whole}.{fraction}" if fraction else whole
+
+
+def _from_exponent(number: str) -> str | None:
+    """A number JSON wrote with an exponent, ``1.5e3``, as a plain decimal.
+
+    Its point is a point and nothing is grouped, so it is never ambiguous;
+    an exponent that would write more digits than a price holds is refused.
+    """
+    value = Decimal(number)
+    if abs(value.adjusted()) > _LONGEST_AMOUNT:
+        return None
+    whole, _, fraction = format(value, "f").partition(".")
     return f"{whole}.{fraction}" if fraction else whole
 
 

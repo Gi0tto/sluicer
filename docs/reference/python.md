@@ -213,6 +213,7 @@ it: ``1,299`` and ``1.299`` are refused, since each is a thousand somewhere
 and a little over one somewhere else (``0.999`` is not ambiguous). Digits
 grouped by a separator, a space or an apostrophe are grouped in thousands,
 ``1 299,00`` or ``1'299.00``, or the text is refused: ``12 50`` is not 1250.
+A number JSON writes with an exponent, ``1.5e3``, is the amount it names.
 
 ### `sluicer.normalise.currency`
 

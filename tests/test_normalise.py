@@ -336,3 +336,37 @@ def test_a_trailing_utc_is_the_offset_it_names(written, meant):
 )
 def test_an_offset_is_at_most_23_59_either_way(written, meant):
     assert iso_date(written) == meant
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("1.5e3", "1500"),
+        ("1.5E+3", "1500"),
+        ("2e2", "200"),
+        ("1.50e1", "15.0"),
+        ("1.234567e3", "1234.567"),  # not ambiguous: an exponent groups nothing
+        ("4.19e-1", "0.419"),
+    ],
+)
+def test_a_number_written_with_an_exponent_is_an_amount(written, meant):
+    """JSON writes 1500 as 1.5e3 as readily as 1500, and the page kept it so."""
+    assert amount(written) == meant
+
+
+@pytest.mark.parametrize("written", ["1e999999999", "1e-999999999", "-1.5e3", "1.5e"])
+def test_an_exponent_no_price_has_is_not_read(written):
+    assert amount(written) is None
+
+
+def test_a_json_price_written_with_an_exponent_is_the_summary_s_price():
+    page = (
+        '<script type="application/ld+json">{"@type": "Product", "name": "Pad",'
+        ' "offers": {"@type": "Offer", "price": 1.5e3, "priceCurrency": "EUR"}}'
+        "</script>"
+    )
+
+    result = extract(page)
+
+    assert result.summary["price"].value == "1.5e3"
+    assert result.normalised["price"] == "1500"
