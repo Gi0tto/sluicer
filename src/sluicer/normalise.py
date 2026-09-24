@@ -134,6 +134,8 @@ _JAVASCRIPT = re.compile(
     r"\s+GMT([+-]\d{4})(?:\s+\([^()]*\))?"
 )
 _WEEKDAY = re.compile(r"^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+", re.I)
+# What ``email.utils`` splits a date on.
+_TOKENS = re.compile(r"[\s,]+")
 
 
 def normalised(summary: dict[str, SummaryField]) -> dict[str, str]:
@@ -182,12 +184,9 @@ def iso_date(text: str) -> str | None:
     if iso:
         return _from_iso(iso)
     if "," in text[:12] and ":" in text:
-        try:
-            parsed = email.utils.parsedate_to_datetime(text)
-        except (TypeError, ValueError, IndexError):
-            parsed = None
-        if parsed is not None:
-            return parsed.isoformat()
+        rfc_2822 = _from_rfc_2822(text)
+        if rfc_2822 is not None:
+            return rfc_2822
     units = _UNITS.fullmatch(text)
     if units:
         year, month, day = (int(part) for part in units.groups())
@@ -214,6 +213,28 @@ def iso_date(text: str) -> str | None:
                     year -= _BUDDHIST_ERA_OFFSET
                 return _day(year, named, int(match.group(day_at)))
     return None
+
+
+def _from_rfc_2822(text: str) -> str | None:
+    """An RFC 2822 date, read by ``email.utils``, when its year is written whole.
+
+    ``email.utils`` reads a two-digit year by a rule of its own, 25 as 2025
+    and 69 as 1969, and a three-digit one as the first millennium's, where
+    the page may have meant another century or another field: a guess.
+    RFC 850's ``03-Jun-2025`` writes the year inside its date's token, and
+    ``-2025`` is an offset, not a year.
+    """
+    try:
+        parsed = email.utils.parsedate_to_datetime(text)
+    except (TypeError, ValueError, IndexError):
+        return None
+    year = f"{parsed.year:04}"
+    if not any(
+        token == year or (any(c.isalpha() for c in token) and year in token.split("-"))
+        for token in _TOKENS.split(text)
+    ):
+        return None
+    return parsed.isoformat()
 
 
 def _month_or_day(name: str) -> str:

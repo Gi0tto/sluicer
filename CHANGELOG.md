@@ -33,6 +33,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   No answer on the benchmark pages reads differently; of the 259,520
   distinct values SWDE labels, 163 phone numbers, `202 244 2044`, no longer
   read as amounts.
+- An RFC 2822 date needs its year in four digits: `email.utils` read
+  `Tue, 03 Jun 25 10:00:00 GMT` as 2025 by a rule of its own, and a
+  three-digit year as the first millennium's. Such a date now has no
+  normalised value.
 
 ## 0.7.0 - 2026-09-24
 

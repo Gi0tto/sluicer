@@ -251,3 +251,29 @@ def test_digits_grouped_in_thousands_are_one_amount(written, meant):
 )
 def test_digits_that_are_not_grouped_in_thousands_are_no_amount(written):
     assert amount(written) is None
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "Tue, 03 Jun 25 10:00:00 GMT",  # 1925, 2025, or the 25th of some year
+        "Tuesday, 03-Jun-25 10:00:00 GMT",  # RFC 850's, as HTTP once wrote it
+        "Tue, 03 Jun 125 10:00:00 GMT",
+        "Tue, 03 Jun 25 10:00:00 -2025",  # an offset is not the year
+    ],
+)
+def test_an_rfc_2822_date_needs_its_year_in_four_digits(written):
+    """``email.utils`` makes 25 into 2025 and 99 into 1999: a guess, by a rule."""
+    assert iso_date(written) is None
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("Tuesday, 03-Jun-2025 10:00:00 GMT", "2025-06-03T10:00:00+00:00"),
+        ("Tue, 03 Jun 10:00:00 2025", "2025-06-03T10:00:00"),
+        ("Tue, 3 Jun 2025 10:00 +0200", "2025-06-03T10:00:00+02:00"),
+    ],
+)
+def test_an_rfc_2822_date_with_its_year_in_four_digits_is_read(written, meant):
+    assert iso_date(written) == meant
