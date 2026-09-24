@@ -76,6 +76,27 @@ CONTRACT_BROKEN = 3
 INTERRUPTED = 130
 
 
+def _what_to_try(source: str, induce: bool, visible: bool) -> str:
+    """What may still read a page that gives nothing, less the options tried.
+
+    A page declaring nothing may still repeat rows (``--induce``), show a
+    byline and dates only to a reader (``--visible``), or hold values a
+    person can point to, which ``compile --want`` learns by example.
+    """
+    page = "PAGE" if source == "-" else source
+    tries = [
+        *(["  --induce    the rows it repeats, as a listing's"] if not induce else []),
+        *(
+            ["  --visible   the title, byline and dates it shows a reader"]
+            if not visible
+            else []
+        ),
+        f"  sluicer compile {page} --want NAME=VALUE -o page.json",
+        "              the fields you name, each by a value the page shows",
+    ]
+    return "\n".join(["What may still read it:", *tries])
+
+
 @click.group()
 @click.version_option(package_name="sluicer")
 def main() -> None:
@@ -372,6 +393,7 @@ def extract(
         _fail(str(missing), missing)
     if not result.records and not result.summary and not result.visible:
         click.echo("This page gives nothing: no record and no summary.", err=True)
+        click.echo(_what_to_try(source, induce, visible), err=True)
         if fetched is not None:
             # What the page cost is reported even when it declared nothing.
             click.echo(f"Fetch reached the '{fetched.rung}' rung.", err=True)
@@ -456,6 +478,7 @@ def inspect(
     shown = "standard input" if source == "-" else (url or source)
     click.echo(_inspection(shown, result, fetched, microformats, not no_robots))
     if not result.records and not result.summary and not result.visible:
+        click.echo(_what_to_try(source, induce, visible), err=True)
         raise SystemExit(NOTHING_FOUND)
 
 

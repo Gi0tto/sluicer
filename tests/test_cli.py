@@ -37,6 +37,26 @@ def test_a_page_that_gives_nothing_at_all_exits_one(tmp_path):
     assert result.stdout == ""
 
 
+def test_a_page_that_gives_nothing_says_what_to_try_next(tmp_path):
+    """ "This page gives nothing" ended there, and a listing, a page of fields
+    a person can see, or a page whose byline is only on screen each has a
+    way in that the message never named."""
+    page = tmp_path / "bare.html"
+    page.write_text("<html><body><p>Words.</p></body></html>", encoding="utf-8")
+
+    said = CliRunner().invoke(main, ["extract", str(page)]).stderr
+    assert "--induce" in said and "--visible" in said
+    assert f"sluicer compile {page} --want" in said
+
+    tried = CliRunner().invoke(main, ["extract", "--induce", "--visible", str(page)])
+    assert tried.exit_code == 1
+    assert "--induce" not in tried.stderr and "--visible" not in tried.stderr
+    assert "sluicer compile" in tried.stderr
+
+    inspected = CliRunner().invoke(main, ["inspect", str(page)])
+    assert inspected.exit_code == 1 and "--induce" in inspected.stderr
+
+
 def test_a_page_with_only_a_title_still_prints_its_summary():
     """The summary is an answer too: a <title> is on the page to be read."""
     result = CliRunner().invoke(main, ["extract", str(FIXTURES / "plain.html")])

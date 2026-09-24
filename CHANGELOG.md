@@ -4,6 +4,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Added
+- `extract` and `inspect` of a page that gives nothing say what may still read
+  it: `--induce` for the rows it repeats, `--visible` for the byline and dates
+  it shows, and `sluicer compile PAGE --want NAME=VALUE` for the fields a
+  person can point to, leaving out the options already given.
+
 ### Fixed
 - The README said exit code 1 meant "nothing declared", and a page with only a
   `<title>` exits 0. The code is what was meant: the title is declared, read
