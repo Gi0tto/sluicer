@@ -24,6 +24,7 @@
   <a href="https://github.com/Gi0tto/sluicer/blob/main/docs/agents.md"><b>In your agent</b></a> ·
   <a href="https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md"><b>Scoreboards</b></a> ·
   <a href="https://github.com/Gi0tto/sluicer/blob/main/docs/why.md"><b>Why Sluicer</b></a> ·
+  <a href="https://github.com/Gi0tto/sluicer/discussions"><b>Discussions</b></a> ·
   <a href="https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md"><b>Changelog</b></a>
 </p>
 
@@ -364,6 +365,17 @@ At <https://gi0tto.github.io/sluicer/>, or in the repository:
 [Changelog](https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md) ·
 [Security](https://github.com/Gi0tto/sluicer/blob/main/SECURITY.md) ·
 [Contributing](https://github.com/Gi0tto/sluicer/blob/main/CONTRIBUTING.md)
+
+## Community
+
+Questions, ideas and what you built with Sluicer go to
+[Discussions](https://github.com/Gi0tto/sluicer/discussions). A page Sluicer
+read wrong is [an issue](https://github.com/Gi0tto/sluicer/issues/new/choose),
+with the page attached, so that the fix comes with a test. A vulnerability is
+reported privately, as
+[SECURITY.md](https://github.com/Gi0tto/sluicer/blob/main/SECURITY.md) says.
+[CONTRIBUTING.md](https://github.com/Gi0tto/sluicer/blob/main/CONTRIBUTING.md)
+says how to set up, what CI checks and where each part of the code lives.
 
 ## Licence
 

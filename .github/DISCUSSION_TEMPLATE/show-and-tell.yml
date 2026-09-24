@@ -1,0 +1,21 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Built something with Sluicer, a pipeline, a monitor or an agent? Say what,
+        and how it went, what did not work included: that is what shapes the next
+        release.
+  - type: textarea
+    id: built
+    attributes:
+      label: What you built
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: A link, if it is public
+  - type: textarea
+    id: learnt
+    attributes:
+      label: What worked, and what did not

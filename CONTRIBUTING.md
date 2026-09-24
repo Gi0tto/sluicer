@@ -2,7 +2,9 @@
 
 Thank you for looking. This is a small project with strong opinions, and the
 opinions are the reason it exists, so it is worth knowing them before you spend
-an evening on a patch.
+an evening on a patch. A question, or an idea you would like to talk through
+first, goes to [Discussions](https://github.com/Gi0tto/sluicer/discussions); a
+page Sluicer read wrong is an issue.
 
 ## The three rules that are not negotiable
 

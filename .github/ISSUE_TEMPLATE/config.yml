@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: A question about installing or using Sluicer
+    url: https://github.com/Gi0tto/sluicer/discussions/new?category=q-a
+    about: Ask in Discussions, where an answer can be marked and found by the next person who asks.
+  - name: An idea to talk through first
+    url: https://github.com/Gi0tto/sluicer/discussions/new?category=ideas
+    about: Ideas are discussed before they become issues.
   - name: A security vulnerability
     url: https://github.com/Gi0tto/sluicer/security/advisories/new
     about: Report it privately, never in a public issue. SECURITY.md says what happens next.

@@ -1,0 +1,38 @@
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask anything about installing or using Sluicer. A page Sluicer read wrong
+        is better as [an issue](https://github.com/Gi0tto/sluicer/issues/new?template=bug_report.yml),
+        with the page attached, so it can be fixed and tested.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you are trying to do, and what you expected to happen.
+    validations:
+      required: true
+  - type: dropdown
+    id: through
+    attributes:
+      label: How you use Sluicer
+      options:
+        - From Python
+        - From the command line
+        - Through an MCP client
+        - Through the HTTP API
+        - In Docker
+  - type: textarea
+    id: looked
+    attributes:
+      label: Where you looked
+      description: >-
+        The page of the documentation you read first. A question the
+        documentation should have answered is a gap in it, and it gets filled.
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: "`sluicer --version`, your Python version and your operating system."
+      render: text

@@ -80,6 +80,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   ANSI code page, and eleven tests read UTF-8 as cp1252. The install commands
   are quoted with double quotes, which cmd, PowerShell and every POSIX shell
   read alike.
+- Questions and ideas go to Discussions, each category with a form of its
+  own, and the issue chooser points there; a page read wrong is still an
+  issue. The README and CONTRIBUTING say where each kind of message goes, and
+  the documentation's footer links GitHub, Discussions and PyPI.
 
 ### Fixed
 - On Windows the command line wrote its JSON and markdown to a file or a pipe

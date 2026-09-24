@@ -78,3 +78,15 @@ markdown_extensions:
 # The examples' made-up site, published at demo/ for trying Sluicer on.
 hooks:
   - scripts/docs_demo.py
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Gi0tto/sluicer
+      name: Sluicer on GitHub
+    - icon: material/forum-outline
+      link: https://github.com/Gi0tto/sluicer/discussions
+      name: Questions and ideas, in Discussions
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/sluicer/
+      name: Sluicer on PyPI

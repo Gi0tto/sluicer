@@ -1,0 +1,28 @@
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An idea is talked through here before it becomes an issue. Sluicer keeps
+        three promises: no model anywhere, no paid API, and the same page always
+        gives the same answer. An idea that needs one of them broken is declined,
+        and [the roadmap](https://github.com/Gi0tto/sluicer/blob/main/ROADMAP.md)
+        says which were and why.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you were trying to do, and where Sluicer stopped you.
+    validations:
+      required: true
+  - type: textarea
+    id: page
+    attributes:
+      label: A page that shows it
+      description: >-
+        A URL, or what the page declares. Rules here are written for pages that
+        exist, and measured on them.
+  - type: textarea
+    id: wanted
+    attributes:
+      label: What you would like instead
