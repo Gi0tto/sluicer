@@ -13,6 +13,7 @@ from __future__ import annotations
 import contextlib
 import gzip
 import http.server
+import os
 import socket
 import socketserver
 import sys
@@ -194,12 +195,49 @@ def main() -> int:
     finally:
         address._public = public  # type: ignore[assignment]
 
+    # A proxy the environment names is not used; one asked for is. The name
+    # resolves nowhere, so only a proxy could have been told about it.
+    proxy = socket.create_server(("127.0.0.1", 0))
+    told: list[bytes] = []
+
+    def _proxied() -> None:
+        while True:
+            connection, _ = proxy.accept()
+            connection.settimeout(2)
+            with contextlib.suppress(OSError):
+                told.append(connection.recv(200).split(b"\r\n")[0])
+            connection.close()
+
+    threading.Thread(target=_proxied, daemon=True).start()
+    through = f"http://127.0.0.1:{proxy.getsockname()[1]}"
+    named = {name: through for name in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")}
+    before = {name: os.environ.get(name) for name in [*named, "SLUICER_PROXY"]}
+    os.environ.update(named)
+    os.environ.pop("SLUICER_PROXY", None)
+    try:
+        with contextlib.suppress(Exception):
+            http_rung()("https://nowhere.invalid/")
+        time.sleep(0.2)
+        if told:
+            failures.append(f"the environment's proxy was used unasked: {told}")
+        with contextlib.suppress(Exception):
+            http_rung(proxy=through)("https://nowhere.invalid/")
+        time.sleep(0.2)
+        if told != [b"CONNECT nowhere.invalid:443 HTTP/1.1"]:
+            failures.append(f"the proxy asked for was not used: {told}")
+    finally:
+        for name, value in before.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
     for failure in failures:
         print("FAIL:", failure)
     if not failures:
         print(
             "http: charset, identity, redirects, the web only, the deadline, heavy "
-            "bodies and the pin all hold"
+            "bodies, the pin and no proxy unasked all hold"
         )
     return 1 if failures else 0
 

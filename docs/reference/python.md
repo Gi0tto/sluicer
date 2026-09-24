@@ -248,6 +248,7 @@ fetch(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = 16777216,
+    proxy: str | None = None,
 ) -> Fetched
 ```
 
@@ -263,6 +264,7 @@ Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 - `allow_private`: when false, refuse addresses off the public internet: the one asked for before any request, and every one a redirect or the page itself names before it is requested. The MCP server sets it.
 - `resolve`: the name lookup ``allow_private`` decides with.
 - `max_bytes`: the most a page may weigh; heavier is ``ResponseTooLarge``, and never a reason to climb.
+- `proxy`: the proxy the default rungs and the stealth rung go through; ``SLUICER_PROXY`` when None, and none when that is unset. The environment's ``HTTPS_PROXY`` is never used. Through a proxy the private-network check still judges every address here, but the connection is the proxy's: see SECURITY.md.
 
 **Returns**
 

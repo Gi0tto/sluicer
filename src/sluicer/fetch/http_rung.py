@@ -19,6 +19,9 @@ It asks for what scrapling's fetcher had no way to be asked for:
   rebinding) reaches nothing new.
 * **A caller's rule for redirects.** A crawl keeps to its site by refusing a
   hop that leaves it, before the other site is asked anything.
+* **No proxy unless asked.** libcurl reads ``HTTPS_PROXY`` and ``HTTP_PROXY``
+  itself; measured, a CONNECT reached a local proxy nobody had named to
+  Sluicer. A proxy is used only when given (``proxy``, or ``SLUICER_PROXY``).
 
 ``http_responses`` is the same transport answering bytes, for what is not a
 page: a sitemap, which may be gzip the server did not announce as an encoding.
@@ -29,6 +32,7 @@ dresses it up as a browser.
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -56,6 +60,14 @@ from sluicer.fetch.result import (
     ResponseTooLarge,
     Rung,
 )
+
+PROXY_ENV = "SLUICER_PROXY"
+"""The proxy every fetch goes through when none is given, if it is set.
+
+Sluicer's own name, so that a proxy set for everything else on the machine is
+not used without being asked for. Set it to an empty string, or leave it
+unset, for none.
+"""
 
 HTTP_TIMEOUT_SECONDS = 20
 """How long the plain HTTP rung may take for one address: the whole of it,
@@ -102,6 +114,7 @@ def http_responses(
     redirects: Redirects | None = None,
     send: Mapping[str, str] | None = None,
     timeout: float = HTTP_TIMEOUT_SECONDS,
+    proxy: str | None = None,
 ) -> Callable[[str], Response]:
     """Build the HTTP transport: an address in, a ``Response`` out.
 
@@ -119,6 +132,10 @@ def http_responses(
         timeout: the seconds one address may take, every hop and the body
             included; past them the transfer is cut and ``TimeoutError``
             raised.
+        proxy: the proxy to send every request through, as curl writes one
+            (``http://host:port``, ``socks5h://host:port``); ``SLUICER_PROXY``
+            when None, and no proxy at all when that is unset or empty. The
+            environment's ``HTTPS_PROXY`` and ``HTTP_PROXY`` are never used.
     """
     requests = import_extra(
         "curl_cffi.requests", "fetch", doing="Fetching a URL", error=error
@@ -126,6 +143,7 @@ def http_responses(
     curl_option = import_extra(
         "curl_cffi", "fetch", doing="Fetching a URL", error=error
     ).CurlOpt
+    through = chosen_proxy(proxy)
 
     def get(url: str) -> Response:
         current = url
@@ -141,6 +159,10 @@ def http_responses(
                 curl_option.PROTOCOLS_STR: _PROTOCOLS,
                 curl_option.REDIR_PROTOCOLS_STR: _PROTOCOLS,
             }
+            if through is None:
+                # An empty proxy is curl's word for none, the environment's
+                # included.
+                options[curl_option.PROXY] = ""
             if not allow_private:
                 pins = _pins(current, resolve)
                 if pins:
@@ -152,7 +174,7 @@ def http_responses(
             # on speed: this one is the whole transfer, the body included.
             options[curl_option.TIMEOUT_MS] = max(1, int(left * 1000))
             status, headers, body = _get(
-                requests, current, options, max_bytes, send, left, url, timeout
+                requests, current, options, max_bytes, send, left, url, timeout, through
             )
             location = headers.get("location")
             if status in _REDIRECTS and location:
@@ -185,16 +207,24 @@ def http_rung(
     redirects: Redirects | None = None,
     allow_empty: bool = False,
     timeout: float = HTTP_TIMEOUT_SECONDS,
+    proxy: str | None = None,
 ) -> Rung:
     """Build the HTTP rung: ``http_responses``, its body read as a page.
 
-    The first five arguments and ``timeout`` are ``http_responses``'s.
+    The first five arguments, ``timeout`` and ``proxy`` are
+    ``http_responses``'s.
     ``allow_empty`` returns an empty body rather than failing on it: a page
     with no HTML is a rung that failed, but an empty robots.txt or llms.txt is
     an answer, and ``sluicer.fetch.site`` reads those.
     """
     get = http_responses(
-        allow_private, resolve, max_bytes, error, redirects, timeout=timeout
+        allow_private,
+        resolve,
+        max_bytes,
+        error,
+        redirects,
+        timeout=timeout,
+        proxy=proxy,
     )
 
     def http(url: str) -> Fetched:
@@ -224,6 +254,7 @@ def _get(
     left: float = HTTP_TIMEOUT_SECONDS,
     asked: str | None = None,
     timeout: float = HTTP_TIMEOUT_SECONDS,
+    proxy: str | None = None,
 ) -> tuple[int, Any, bytes]:
     """One request, no redirect followed, the body read up to ``max_bytes``
     within ``left`` seconds; ``asked`` and ``timeout`` are what a timeout's
@@ -236,6 +267,7 @@ def _get(
                 timeout=left,
                 allow_redirects=False,
                 stream=True,
+                **({"proxy": proxy} if proxy else {}),
             )
             try:
                 body = bytearray()
@@ -271,6 +303,13 @@ def _curl_code(failure: Exception) -> int | None:
         if f"curl: ({known})" in str(failure):
             return known
     return None
+
+
+def chosen_proxy(proxy: str | None = None) -> str | None:
+    """The proxy a fetch goes through: ``proxy``, else ``SLUICER_PROXY``, and
+    None -- no proxy -- when neither names one."""
+    named = proxy if proxy is not None else os.environ.get(PROXY_ENV, "")
+    return named.strip() or None
 
 
 def _pins(url: str, resolve: Callable[[str], Iterable[str]]) -> list[str]:

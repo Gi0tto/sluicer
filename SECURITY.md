@@ -60,6 +60,28 @@ rung. `tests/live/guard_check.py` shows a real Chromium reaching a private
 server by six routes without the guard and by none with it. Set
 `SLUICER_ALLOW_PRIVATE=1` to turn the filter off.
 
+No proxy is used unless one is asked for. libcurl reads `HTTPS_PROXY` and
+`HTTP_PROXY` itself, and until 0.7.1 a fetch went through whatever proxy the
+environment named, the browser through the system's; now only a proxy given
+as `fetch(proxy=...)`, `--proxy` or `SLUICER_PROXY` is used, and without one
+the browser is launched with `--no-proxy-server`. Through a proxy, the filter
+above holds less, and exactly this much:
+
+- It still judges every address before it is requested, the one asked for and
+  each hop of a redirect, by resolving the name on this machine: a name that
+  resolves here to a private address is refused, and so is a name that does
+  not resolve here at all, since it cannot be judged.
+- It no longer pins the connection. The proxy looks the name up again in its
+  own network and connects where that answer says, so a name that answers
+  differently the second time (DNS rebinding) reaches whatever the proxy can
+  reach, and "private" means private as seen from this machine, not from the
+  proxy's. A proxy inside another network can reach that network's private
+  addresses by a public name.
+- The proxy's own address is not judged: it is the one you named.
+
+If the proxy can reach something the filter is meant to keep Sluicer from,
+the egress control belongs in the proxy.
+
 `map_site` and `crawl_site` fetch many addresses from one an agent chose: every
 page, every sitemap and every hop of a redirect is judged by the same filter
 before it is requested, a crawl never leaves the site it started on, and both

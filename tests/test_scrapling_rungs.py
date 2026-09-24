@@ -126,7 +126,10 @@ def test_the_stealth_rung_comes_after_the_default_ladder_in_cost(monkeypatch):
 
     rung("https://example.com/p")
 
-    assert seen["stealth"][1] == {"network_idle": True}
+    assert seen["stealth"][1] == {
+        "network_idle": True,
+        "extra_flags": ["--no-proxy-server"],
+    }
 
 
 def test_a_rung_returns_a_fetched_carrying_the_status(monkeypatch):
@@ -388,3 +391,32 @@ def test_a_browser_answer_keeps_its_headers_names_lowercased():
     assert fetched.headers == {"x-robots-tag": "noindex", "link": "</c>; rel=canonical"}
     del response.headers
     assert _as_fetched(response, "browser", "https://example.com/p").headers == {}
+
+
+def test_the_browser_uses_no_proxy_unless_one_is_asked_for(monkeypatch):
+    """Without one, Chromium is told --no-proxy-server, so neither the system's
+    proxy nor the environment's is used behind our back."""
+    monkeypatch.delenv("SLUICER_PROXY", raising=False)
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import default_rungs, stealth_rung
+
+    dict(default_rungs())["browser"]("https://example.com/p")
+    stealth_rung()[1]("https://example.com/p")
+
+    for rung in ("browser", "stealth"):
+        options = seen[rung][1]
+        assert options["extra_flags"] == ["--no-proxy-server"], rung
+        assert "proxy" not in options, rung
+
+
+def test_the_browser_goes_through_the_proxy_asked_for(monkeypatch):
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    rungs = dict(default_rungs(proxy="http://proxy.example:3128"))
+    rungs["browser"]("https://example.com/p")
+    rungs["http"]("https://example.com/p")
+
+    assert seen["browser"][1]["proxy"] == "http://proxy.example:3128"
+    assert "extra_flags" not in seen["browser"][1]
+    assert seen["http"][1]["proxy"] == "http://proxy.example:3128"

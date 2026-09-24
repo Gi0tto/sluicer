@@ -24,7 +24,7 @@ def public(host):
 
 def fake_curl(monkeypatch, replies, chunk=None):
     """A curl_cffi that answers ``replies`` in order: (status, body, headers)."""
-    seen = {"sessions": [], "urls": []}
+    seen = {"sessions": [], "urls": [], "asked": []}
 
     class Response:
         def __init__(self, reply):
@@ -50,6 +50,7 @@ def fake_curl(monkeypatch, replies, chunk=None):
 
         def get(self, url, **kwargs):
             seen["urls"].append(url)
+            seen["asked"].append(kwargs)
             reply = replies.pop(0)
             if isinstance(reply, Exception):
                 raise reply
@@ -281,6 +282,48 @@ def test_curls_timeout_is_a_timeout(monkeypatch):
         http_rung()("https://example.com/p")
 
     assert isinstance(raised.value, OSError), "callers catch OSError"
+
+
+def test_no_proxy_is_used_unless_one_is_asked_for(monkeypatch):
+    """libcurl reads HTTPS_PROXY itself: measured, a CONNECT reached a local
+    proxy nobody had named to Sluicer. An empty PROXY is curl's "none"."""
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:3128")
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:3128")
+    monkeypatch.delenv("SLUICER_PROXY", raising=False)
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung()("https://example.com/p")
+
+    assert seen["sessions"][0]["curl_options"]["proxy"] == ""
+    assert "proxy" not in seen["asked"][0]
+
+
+@pytest.mark.parametrize("by", ["argument", "environment"])
+def test_a_proxy_asked_for_is_the_one_used(monkeypatch, by):
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:3128")
+    kwargs = {}
+    if by == "argument":
+        kwargs["proxy"] = "socks5h://proxy.example:1080"
+    else:
+        monkeypatch.setenv("SLUICER_PROXY", "socks5h://proxy.example:1080")
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung(**kwargs)("https://example.com/p")
+
+    assert seen["asked"][0]["proxy"] == "socks5h://proxy.example:1080"
+    assert "proxy" not in seen["sessions"][0]["curl_options"]
+
+
+def test_an_empty_proxy_is_none(monkeypatch):
+    monkeypatch.setenv("SLUICER_PROXY", "socks5h://proxy.example:1080")
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung(proxy="")("https://example.com/p")
+
+    assert seen["sessions"][0]["curl_options"]["proxy"] == ""
 
 
 def test_a_redirect_loop_ends(monkeypatch):

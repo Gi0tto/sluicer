@@ -67,6 +67,19 @@ Dates are the day the work landed. Anything not listed here did not happen.
   one the start of a page's line, the order this crawl's -- and only then is a
   line a stopped crawl left half written cut off. A file refused is left as it
   was.
+- No proxy is used unless one is asked for. libcurl read `HTTPS_PROXY` and
+  `HTTP_PROXY` itself, so a fetch went through whatever proxy the environment
+  named (measured: a CONNECT reached a local proxy nobody had given Sluicer),
+  and with a proxy the check against private addresses no longer pinned the
+  connection. The HTTP rung now tells curl to use none, and the browser is
+  launched with `--no-proxy-server`. SECURITY.md says what the check does and
+  does not do through a proxy.
+
+### Added
+- `fetch(proxy=...)`, `SLUICER_PROXY` and `--proxy` on every command that
+  fetches: the proxy every request goes through, the HTTP rung's and the
+  browsers'. Crawls, maps, batches, the cache, the archive, the MCP server and
+  the HTTP API read `SLUICER_PROXY`.
 
 ## 0.7.0 - 2026-09-24
 

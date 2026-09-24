@@ -200,6 +200,7 @@ def fetch(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
+    proxy: str | None = None,
 ) -> Fetched:
     """Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 
@@ -224,6 +225,11 @@ def fetch(
         resolve: the name lookup ``allow_private`` decides with.
         max_bytes: the most a page may weigh; heavier is ``ResponseTooLarge``,
             and never a reason to climb.
+        proxy: the proxy the default rungs and the stealth rung go through;
+            ``SLUICER_PROXY`` when None, and none when that is unset. The
+            environment's ``HTTPS_PROXY`` is never used. Through a proxy the
+            private-network check still judges every address here, but the
+            connection is the proxy's: see SECURITY.md.
 
     Returns:
         The ``Fetched`` page, with every climb, the final URL, and how long
@@ -246,11 +252,11 @@ def fetch(
     if rungs is None:
         from sluicer.fetch.scrapling_rungs import default_rungs
 
-        rungs = default_rungs(allow_private, resolve, max_bytes)
+        rungs = default_rungs(allow_private, resolve, max_bytes, proxy=proxy)
     if stealth:
         from sluicer.fetch.scrapling_rungs import stealth_rung
 
-        rungs = [*rungs, stealth_rung(allow_private, resolve, max_bytes)]
+        rungs = [*rungs, stealth_rung(allow_private, resolve, max_bytes, proxy)]
     if not rungs:
         raise ValueError("A ladder needs at least one rung.")
     try:
