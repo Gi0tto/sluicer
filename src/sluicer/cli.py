@@ -906,7 +906,8 @@ def run_command(
 @click.option(
     "--force",
     is_flag=True,
-    help="Write the healed extractor even when healing lost something.",
+    help="Write the healed extractor even when healing lost something; "
+    "a lost listing is kept as it was.",
 )
 @click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
 @click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")

@@ -585,9 +585,11 @@ def heal(
     """
     old_listing = extractor.listing
     if old_listing is not None and old_listing.chosen:
-        found = _learn_by_values(
-            [load(html, url=url) for html, url in pages], old_listing
-        )
+        docs = [load(html, url=url) for html, url in pages]
+        # Where it was, while it still keeps its contract there: a listing's
+        # items change from one visit to the next, and a sidebar that lists
+        # some of the same ones is not where it went.
+        found = _still_listed(docs, old_listing) or _learn_by_values(docs, old_listing)
         try:
             fresh = compile_extractor(pages, listing=False, names=names)
         except NothingToLearn:
@@ -631,6 +633,9 @@ def heal(
         changes.extend(listing_changes)
     elif extractor.listing is not None:
         changes.append(Change("listing-lost", extractor.listing.container, None))
+        # Kept as it was, so a run keeps failing where it is not: an
+        # extractor written without it, with --force, would pass every page.
+        listing = extractor.listing
     healed = Extractor(
         learnt_from=fresh.learnt_from,
         summary=fresh.summary,
@@ -838,6 +843,21 @@ def _columns_of(held: Mapping[str, list[str]]) -> dict[str, str] | None:
     return {name: column[name] for name in held}
 
 
+def _still_listed(docs: list[Document], old: Listing) -> Listing | None:
+    """``old`` learnt again where it is, when every page given that has its
+    place replays it with no check failed, and one page at least does."""
+    held = False
+    for doc in docs:
+        if _find(doc, old.container, old.siblings)[0] is None:
+            continue
+        checks: list[Check] = []
+        _replay_listing(old, doc, checks)
+        if not all(check.ok for check in checks):
+            return None
+        held = True
+    return _listing_at(docs, old.container, old.member) if held else None
+
+
 def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
     """The listing, every column of it, whose rows hold most of ``old``'s values.
 
@@ -855,6 +875,12 @@ def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
     if best is None:
         return None
     _score, container, member = best
+    return _listing_at(docs, container, member)
+
+
+def _listing_at(docs: list[Document], container: str, member: str) -> Listing:
+    """The listing at ``container``, rows of ``member``, every column of it, as
+    the pages that have it hold it. One of them must."""
     rows: list[dict[str, str]] = []
     counts: list[int] = []
     empty = 0.0

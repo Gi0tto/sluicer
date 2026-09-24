@@ -86,9 +86,11 @@ sluicer compile page1.html page2.html -o books.json \
   row's `£51.77`, and `8` is `8.00`. A value in two places in a row takes the first no other
   example needs, and the compile notes it.
 - **The contract is the same.** The listing's place, its rows, each column's
-  presence, shape and reading are checked as for any extractor, and `heal`
-  finds the listing again by the values its columns held, keeps the names, and
-  adds no column the examples did not name.
+  presence, shape and reading are checked as for any extractor. `heal` keeps
+  the listing where it is while it keeps its contract there -- its items may
+  all be new, and a sidebar listing some of the old ones is not where it went
+  -- and otherwise finds it again by the values its columns held. It keeps the
+  names, and adds no column the examples did not name.
 
 On books.toscrape.com, learnt from its first two pages with `title`, `price`
 and `stock`, the third page replays as 20 rows of those three columns, and a
@@ -188,7 +190,9 @@ exists to prevent.
 When anything was lost -- a field, a summary answer, a declared type, the listing
 itself -- `sluicer heal` exits 3 and does not write the healed extractor unless
 given `--force`: the old one keeps failing, which is the honest state until a
-person looks.
+person looks. A listing that was lost stays in the healed extractor as it was,
+so even a forced one fails every page without it, rather than pass them all
+with no rows.
 
 On the shop fixture in the test suite, a redesign that renamed every class and
 wrapped the listing in a new element moves all four fields to their new places:

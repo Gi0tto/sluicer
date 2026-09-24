@@ -955,3 +955,67 @@ def test_heal_leaves_a_page_field_two_own_places_claim_to_a_person():
     healed, changes = heal(learnt, new)
     assert [(c.kind, c.before) for c in changes] == [("ambiguous", "price")]
     assert healed.fields == ()
+
+
+def _catalogue(titles, sidebar):
+    """A catalogue page, and a long bestsellers sidebar before it that also
+    lists some of its books."""
+    side = "".join(
+        f"<li class='top'><a class='t' href='/b/{t}'>{t}</a></li>" for t in sidebar
+    )
+    rows = "".join(
+        f"<li class='book'><a class='title' href='/b/{t}'>{t}</a>"
+        f"<span class='price'>£{n}.00</span></li>"
+        for n, t in enumerate(titles, 1)
+    )
+    return (
+        "<html><head><meta property='og:title' content='Shop'></head><body>"
+        f"<aside><h2>Bestsellers</h2><ul class='best'>{side}</ul></aside>"
+        f"<main><ol class='books'>{rows}</ol></main></body></html>",
+        "https://shop.example/c",
+    )
+
+
+BESTSELLERS = TITLES[:5] + [f"Other {n}" for n in range(15)]
+
+
+def test_heal_keeps_a_chosen_listing_where_it_still_is():
+    """Healing a page that had not changed moved the listing to a sidebar
+    that lists the same books, and wrote it: it was a move, not a loss."""
+    page_ = _catalogue(TITLES, BESTSELLERS)
+    learnt = compile_extractor([page_], want={"title": "Olio"})
+    assert learnt.listing.member == "li.book"
+    healed, changes = heal(learnt, [page_])
+    assert [(c.kind, c.before, c.after) for c in changes] == [
+        ("kept", "title", "a.title")
+    ]
+    assert healed.listing.container == learnt.listing.container
+
+
+def test_heal_keeps_a_chosen_listing_whose_items_all_changed():
+    """The same template a day later, every book new: the listing was lost."""
+    learnt = compile_extractor(
+        [_catalogue(TITLES, BESTSELLERS)], want={"title": "Olio"}
+    )
+    tomorrow = _catalogue(["Alpha", "Beta", "Gamma", "Delta", "Epsilon"], ["Zeta"])
+    assert run_extractor(learnt, *tomorrow).ok
+    healed, changes = heal(learnt, [tomorrow])
+    assert [c.kind for c in changes] == ["kept"]
+    assert run_extractor(healed, *tomorrow).ok
+
+
+def test_a_listing_heal_lost_is_kept_so_a_forced_extractor_still_fails():
+    """Forced, heal wrote an extractor without the listing, which then passed
+    every page it was run on, those without a single row among them."""
+    learnt = compile_extractor(
+        [_catalogue(TITLES, BESTSELLERS)], want={"title": "Olio"}
+    )
+    gone = _catalogue([], ["Zeta"])
+    healed, changes = heal(learnt, [gone])
+    assert [c.kind for c in changes] == ["listing-lost"]
+    assert healed.listing == learnt.listing
+    assert not run_extractor(healed, *gone).ok
+    plain = learn(shop_page(books(10)))
+    healed, changes = heal(plain, [(shop_page([]), "https://s/x")])
+    assert "listing-lost" in [c.kind for c in changes]
+    assert healed.listing == plain.listing

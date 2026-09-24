@@ -5,6 +5,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- `heal` keeps a listing chosen by examples where it is while it keeps its
+  contract there. On a page that had not changed it moved the listing to a
+  sidebar listing the same books, and wrote it; on the same template with
+  every item new it reported the listing lost. And a lost listing now stays in
+  the healed extractor as it was: written with `--force`, an extractor without
+  it passed every page, those with no rows at all among them.
 - `heal` never moves a page field into another product's place. After a
   redesign that also changed the product's price, a related product costing
   the old price drew the field into the related strip, and the healed

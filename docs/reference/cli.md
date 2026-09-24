@@ -252,7 +252,8 @@ Usage: sluicer heal [OPTIONS] EXTRACTOR_FILE SOURCES...
 
 Options:
   -o, --output TEXT  Where to write the healed extractor.
-  --force            Write the healed extractor even when healing lost something.
+  --force            Write the healed extractor even when healing lost something; a lost
+                     listing is kept as it was.
   --stealth          Allow the stealth rung.
   --no-robots        Fetch even where robots.txt says no.
   --help             Show this message and exit.
