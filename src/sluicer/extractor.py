@@ -20,10 +20,12 @@ extractor, and the same page always gives the same verdict.
 
 from __future__ import annotations
 
+import bisect
 import itertools
 import json
 import re
 import unicodedata
+import weakref
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -35,7 +37,7 @@ from lxml import etree
 from lxml.html import HtmlElement
 
 from sluicer import __version__
-from sluicer.api import extract
+from sluicer.api import _extract_document
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import Document, base_url, join, load
 from sluicer.normalise import amount, iso_date
@@ -532,9 +534,18 @@ def compile_extractor(
         raise NothingToLearn("an extractor needs at least one page")
     if want is not None and (not want or any(not name.strip() for name in want)):
         raise ValueError("every example needs a name and a value: name=value")
-    docs = [load(html, url=url) for html, url in pages]
-    results = [extract(html, url=url) for html, url in pages]
-    summary = _learn_summary([r.summary for r in results], len(pages))
+    return _compiled([load(html, url=url) for html, url in pages], listing, names, want)
+
+
+def _compiled(
+    docs: list[Document],
+    listing: bool | None,
+    names: Sequence[str] | None,
+    want: Mapping[str, str] | None,
+) -> Extractor:
+    """``compile_extractor`` of pages parsed once, for it and for ``heal``."""
+    results = [_extract_document(doc, {}) for doc in docs]
+    summary = _learn_summary([r.summary for r in results], len(docs))
     types = _common(
         [
             {
@@ -574,10 +585,7 @@ def compile_extractor(
             "these pages declare nothing and repeat nothing an extractor could keep"
         )
     return Extractor(
-        learnt_from=tuple(
-            (names[n - 1] if names else None) or url or f"page {n}"
-            for n, (_, url) in enumerate(pages, 1)
-        ),
+        learnt_from=_learnt_from(docs, names),
         summary=summary,
         types=tuple(sorted(types)),
         listing=learnt,
@@ -595,7 +603,7 @@ def run_extractor(
     nobody could have earned.
     """
     doc = load(html, url=url)
-    result = extract(html, url=url)
+    result = _extract_document(doc, {})
     run = Run(url=url, ok=True, summary={k: v.value for k, v in result.summary.items()})
     for question, learnt_shape in extractor.summary.items():
         answer = result.summary.get(question)
@@ -664,33 +672,31 @@ def heal(
         NothingToLearn: the new pages hold nothing an extractor could be
             learnt from -- no declared answer, no type, no listing.
     """
+    docs = [load(html, url=url) for html, url in pages]
     old_listing = extractor.listing
     if old_listing is not None and old_listing.chosen:
-        docs = [load(html, url=url) for html, url in pages]
         # Where it was, while it still keeps its contract there: a listing's
         # items change from one visit to the next, and a sidebar that lists
         # some of the same ones is not where it went.
         found = _still_listed(docs, old_listing) or _learn_by_values(docs, old_listing)
         try:
-            fresh = compile_extractor(pages, listing=False, names=names)
+            fresh = _compile_again(docs, False, names)
         except NothingToLearn:
             if found is None:
                 raise
-            fresh = _learnt_nothing(pages, names)
+            fresh = _learnt_nothing(docs, names)
         fresh = Extractor(
             fresh.learnt_from, fresh.summary, fresh.types, found, fresh.notes
         )
     else:
         try:
-            fresh = compile_extractor(
-                pages, listing=True if extractor.listing else None, names=names
-            )
+            fresh = _compile_again(docs, True if extractor.listing else None, names)
         except NothingToLearn:
             # Page fields are looked for by their own values, on pages that
             # declare nothing and repeat nothing as much as on any other.
             if not extractor.fields:
                 raise
-            fresh = _learnt_nothing(pages, names)
+            fresh = _learnt_nothing(docs, names)
     changes: list[Change] = []
     for question in extractor.summary:
         if question not in fresh.summary:
@@ -704,13 +710,11 @@ def heal(
     for name in fresh.types:
         if name not in extractor.types:
             changes.append(Change("type-gained", None, name))
-    fields, field_changes = _heal_fields(
-        extractor.fields, [load(html, url=url) for html, url in pages]
-    )
+    fields, field_changes = _heal_fields(extractor.fields, docs)
     changes.extend(field_changes)
     listing = fresh.listing
     if extractor.listing is not None and listing is not None:
-        listing, listing_changes = _heal_listing(extractor.listing, listing, pages)
+        listing, listing_changes = _heal_listing(extractor.listing, listing, docs)
         changes.extend(listing_changes)
     elif extractor.listing is not None:
         changes.append(Change("listing-lost", extractor.listing.container, None))
@@ -728,13 +732,27 @@ def heal(
     return healed, changes
 
 
-def _learnt_nothing(pages: Sequence[Page], names: Sequence[str] | None) -> Extractor:
-    """An extractor of ``pages`` that learnt nothing from them."""
+def _compile_again(
+    docs: list[Document], listing: bool | None, names: Sequence[str] | None
+) -> Extractor:
+    """``compile_extractor`` as heal asks it, on pages it has parsed already."""
+    if not docs:
+        raise NothingToLearn("an extractor needs at least one page")
+    return _compiled(docs, listing, names, None)
+
+
+def _learnt_from(docs: list[Document], names: Sequence[str] | None) -> tuple[str, ...]:
+    """What each page is called: its name, else its address, else its place."""
+    return tuple(
+        (names[n - 1] if names else None) or doc.url or f"page {n}"
+        for n, doc in enumerate(docs, 1)
+    )
+
+
+def _learnt_nothing(docs: list[Document], names: Sequence[str] | None) -> Extractor:
+    """An extractor of ``docs`` that learnt nothing from them."""
     return Extractor(
-        learnt_from=tuple(
-            (names[n - 1] if names else None) or url or f"page {n}"
-            for n, (_, url) in enumerate(pages, 1)
-        ),
+        learnt_from=_learnt_from(docs, names),
         summary={},
         types=(),
         listing=None,
@@ -828,7 +846,7 @@ def _learn_wanted(
     ambiguous: dict[str, list[str]] = {}
     missing: set[str] = set(want)
     for doc in docs:
-        for group in repeating_groups(doc.tree, furniture_too=True):
+        for group in _groups(doc):
             group_rows = _rows_of(group, doc)
             if not group_rows:
                 continue
@@ -952,7 +970,7 @@ def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
     columns = [set(f.samples) for f in old.fields if f.samples]
     best: tuple[int, str, str] | None = None
     for doc in docs:
-        for group in repeating_groups(doc.tree, furniture_too=True):
+        for group in _groups(doc):
             held = {value for row in _rows_of(group, doc) for value in row.values()}
             score = len(samples & held)
             again = any(len(c & held) >= _HELD_AGAIN * len(c) for c in columns)
@@ -1171,9 +1189,36 @@ def _contradicted(docs: list[Document], path: str, example: str) -> str | None:
     return None
 
 
+# What learning and healing work out once per page and read many times, for
+# each example and each field: the groups the page repeats, furniture too, and
+# its text nodes. Kept while the page is, since a Document never changes.
+_GROUPS: weakref.WeakKeyDictionary[Document, list[list[HtmlElement]]] = (
+    weakref.WeakKeyDictionary()
+)
+_TEXTS: weakref.WeakKeyDictionary[Document, list[tuple[str, HtmlElement]]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _groups(doc: Document) -> list[list[HtmlElement]]:
+    """``repeating_groups`` of the page, furniture too, worked out once."""
+    found = _GROUPS.get(doc)
+    if found is None:
+        found = _GROUPS[doc] = repeating_groups(doc.tree, furniture_too=True)
+    return found
+
+
 def _text_nodes(doc: Document) -> list[tuple[str, HtmlElement]]:
     """The page's text, node by node in document order, spaces collapsed, with
-    the element each belongs to -- scripts, styles and the head left out."""
+    the element each belongs to -- scripts, styles and the head left out.
+    Worked out once per page; the list is shared, and never changed."""
+    found = _TEXTS.get(doc)
+    if found is None:
+        found = _TEXTS[doc] = _read_text_nodes(doc)
+    return found
+
+
+def _read_text_nodes(doc: Document) -> list[tuple[str, HtmlElement]]:
     nodes: list[tuple[str, HtmlElement]] = []
     skipping = 0
     for event, element in itertools.islice(
@@ -1202,11 +1247,50 @@ def _text_nodes(doc: Document) -> list[tuple[str, HtmlElement]]:
     return nodes
 
 
+@dataclass(frozen=True)
+class _TextIndex:
+    """Where each of a page's texts is among its text nodes, and the texts in
+    order, so a label is looked up rather than searched for."""
+
+    at: dict[str, list[int]]
+    ordered: list[str]
+
+    @classmethod
+    def of(cls, nodes: list[tuple[str, HtmlElement]]) -> _TextIndex:
+        at: dict[str, list[int]] = {}
+        for n, (text, _) in enumerate(nodes):
+            at.setdefault(text, []).append(n)
+        return cls(at, sorted(at))
+
+    def opening(self, label: str) -> list[int]:
+        """Every node whose text starts with ``label`` and says more."""
+        found: list[int] = []
+        for text in itertools.islice(
+            self.ordered, bisect.bisect_left(self.ordered, label), None
+        ):
+            if not text.startswith(label):
+                break
+            if len(text) > len(label):
+                found.extend(self.at[text])
+        return sorted(found)
+
+
 def _value_after(
-    nodes: list[tuple[str, HtmlElement]], anchor: Anchor
+    nodes: list[tuple[str, HtmlElement]],
+    anchor: Anchor,
+    index: _TextIndex | None = None,
 ) -> tuple[str | None, str]:
-    """The value ``anchor`` points at among a page's text nodes, and why not."""
-    if anchor.kind == "after":
+    """The value ``anchor`` points at among a page's text nodes, and why not.
+
+    ``index`` is the nodes' own, for a caller that looks up many labels on
+    one page: each is then found at once, not by reading the whole page."""
+    if index is not None:
+        at = (
+            index.at.get(anchor.label, [])
+            if anchor.kind == "after"
+            else index.opening(anchor.label)
+        )
+    elif anchor.kind == "after":
         at = [n for n, (text, _) in enumerate(nodes) if text == anchor.label]
     else:
         at = [
@@ -1245,7 +1329,10 @@ def _anchor_for(docs: list[Document], example: str) -> tuple[Anchor, str] | None
         for nodes in pages
     ]
     labels = set.intersection(*once) if once else set()
-    for nodes in pages:
+    # Every candidate label is checked on every page: looked up, since a page
+    # of a thousand labelled rows has a thousand candidates.
+    indexes = [_TextIndex.of(nodes) for nodes in pages]
+    for p, nodes in enumerate(pages):
         best: tuple[int, Anchor, str] | None = None
         for n, (text, owner) in enumerate(nodes):
             candidates: list[tuple[int, Anchor]] = []
@@ -1260,10 +1347,11 @@ def _anchor_for(docs: list[Document], example: str) -> tuple[Anchor, str] | None
                 if label and len(label) <= _LABEL_MOST and same(text[cut:].strip()):
                     candidates.append((0, Anchor(label, "prefix")))
             for near, anchor in candidates:
-                values = [_value_after(page, anchor)[0] for page in pages]
-                if any(v is None for v in values) or not same(
-                    _value_after(nodes, anchor)[0]
-                ):
+                values = [
+                    _value_after(page, anchor, index)[0]
+                    for page, index in zip(pages, indexes, strict=True)
+                ]
+                if any(v is None for v in values) or not same(values[p]):
                     continue
                 if best is None or near < best[0]:
                     best = (near, anchor, path_of(owner))
@@ -1342,11 +1430,7 @@ def _places(doc: Document, example: str, own: bool = False) -> list[str]:
     # The page's own place first: a product's title is also its breadcrumb's
     # last step and a related strip's link, both earlier in the document, and
     # neither is where a person pointing at the title means.
-    repeated = {
-        member
-        for group in repeating_groups(doc.tree, furniture_too=True)
-        for member in group
-    }
+    repeated = {member for group in _groups(doc) for member in group}
 
     def aside(element: HtmlElement) -> tuple[bool, bool]:
         climb = [element, *element.iterancestors()]
@@ -1555,14 +1639,22 @@ def path_of(element: HtmlElement) -> str:
         parent = node.getparent()
         label = _step_label(node)
         if parent is not None:
-            same = [
-                c for c in parent if isinstance(c.tag, str) and _step_label(c) == label
-            ]
+            same = [c for c in parent if _steps_to(c, label)]
             if len(same) > 1:
                 label += f"[{same.index(node) + 1}]"
         steps.append(label)
         node = parent
     return ">".join(reversed(steps))
+
+
+def _steps_to(element: HtmlElement, label: str) -> bool:
+    """Whether ``element``'s step is ``label``. Its tag is tried first: a step
+    begins with its tag, and working out an element's class reads all of
+    them, for every sibling of every step of a path."""
+    tag = element.tag
+    return (
+        isinstance(tag, str) and label.startswith(tag) and _step_label(element) == label
+    )
 
 
 def _step_label(element: HtmlElement) -> str:
@@ -1593,7 +1685,7 @@ def _find(
     node = root
     for depth, step in enumerate(steps[1:]):
         label, _, ordinal = step.partition("[")
-        same = [c for c in node if isinstance(c.tag, str) and _step_label(c) == label]
+        same = [c for c in node if _steps_to(c, label)]
         if not ordinal and len(same) > 1:
             return None, f"{len(same)} places that match {label}, where there was one"
         learnt = siblings[depth] if depth < len(siblings) else None
@@ -1617,9 +1709,7 @@ def _siblings(docs: Sequence[Document], path: str) -> tuple[int | None, ...]:
         counts, node = [], doc.tree
         for step in path.split(">")[1:]:
             label, _, ordinal = step.partition("[")
-            same = [
-                c for c in node if isinstance(c.tag, str) and _step_label(c) == label
-            ]
+            same = [c for c in node if _steps_to(c, label)]
             counts.append(len(same))
             node = same[int(ordinal.rstrip("]")) - 1 if ordinal else 0]
         seen.append(counts)
@@ -1956,7 +2046,7 @@ def _relearnt(
 
 
 def _heal_listing(
-    old: Listing, new: Listing, pages: Sequence[Page]
+    old: Listing, new: Listing, docs: list[Document]
 ) -> tuple[Listing, list[Change]]:
     changes: list[Change] = []
     if old.container != new.container:
@@ -1964,8 +2054,7 @@ def _heal_listing(
     if old.member != new.member:
         changes.append(Change("member", old.member, new.member))
     values: dict[str, list[str]] = {f.path: [] for f in new.fields}
-    for html, url in pages:
-        doc = load(html, url=url)
+    for doc in docs:
         container, _found = _find(doc, new.container)
         if container is None:
             continue

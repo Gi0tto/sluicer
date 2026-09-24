@@ -1149,3 +1149,57 @@ def test_a_column_of_no_letter_digit_or_sign_learns_no_shape():
     fields = {f.name: f for f in learnt.listing.fields}
     assert fields["span.mark"].shape is None
     assert Extractor.from_json(learnt.to_json()) == learnt
+
+
+# -- the cost -------------------------------------------------------------------
+
+
+def test_compile_run_and_heal_parse_each_page_once(monkeypatch):
+    """Each read the page twice or more: once to walk it, and once more for
+    what it declares, and heal once for every part it healed."""
+    from sluicer import document
+
+    parsed = []
+    real = document.lxml.html.fromstring
+
+    def counting(*args, **kwargs):
+        parsed.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(document.lxml.html, "fromstring", counting)
+    pages = [
+        (shop_page(books(10)), "https://s/1"),
+        (shop_page(books(8)), "https://s/2"),
+    ]
+    learnt = compile_extractor(pages)
+    assert len(parsed) == 2
+    run_extractor(learnt, *pages[0])
+    assert len(parsed) == 3
+    heal(learnt, pages)
+    assert len(parsed) == 5
+    wanted = compile_extractor(pages, want={"title": TITLES[3]})
+    heal(wanted, pages)
+    assert len(parsed) == 9
+
+
+def test_labels_are_looked_up_not_searched_for_on_every_candidate(monkeypatch):
+    """A page of labelled rows that all say "Yes" has a candidate label for
+    every row, and each candidate read every page again: 4,000 rows took two
+    seconds, twice as many four times as long."""
+    from sluicer import extractor
+
+    scans = []
+    real = extractor._value_after
+
+    def counting(nodes, anchor, index=None):
+        if index is None:
+            scans.append(1)
+        return real(nodes, anchor, index)
+
+    monkeypatch.setattr(extractor, "_value_after", counting)
+    rows = "".join(f"<li><b>Label {n}:</b> Yes</li>" for n in range(2000))
+    html = f"<html><body><ul>{rows}</ul></body></html>"
+    pages = [(html, "https://a.example/1"), (html, "https://a.example/2")]
+    learnt = compile_extractor(pages, listing=False, want={"flag": "Yes"})
+    assert learnt.fields[0].anchor is not None
+    assert len(scans) <= len(pages)

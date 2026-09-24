@@ -70,6 +70,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `8.00`, and the comparison was written out three times; it is one now, and
   numeric.
 
+### Changed
+- `compile`, `run` and `heal` parse each page once. They parsed it again to
+  read what it declares, and `heal` again for each part it healed. The groups a
+  page repeats and its text nodes are worked out once per page while learning,
+  not once per example, and a label is looked up rather than searched for on
+  every candidate, which made a page of labelled rows quadratic: 4,000 rows
+  took 1.86 s, now 0.19 s. On 11 of SWDE's development sites, three seed
+  pages each and 200 pages run, best of three runs interleaved: `compile`
+  1.14 s to 0.52 s, `run` 278 to 321 pages a second. Every output is the
+  same: the extractors, the runs and the heals there, SWDE's development half
+  answer for answer, and the drift benchmark's results.
+
 ## 0.7.0 - 2026-09-24
 
 ### Added

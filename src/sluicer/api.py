@@ -17,7 +17,7 @@ from sluicer.declared.merge import ABOUT_A_THING, Record, merge
 from sluicer.declared.opengraph import read_opengraph
 from sluicer.declared.readers import READERS
 from sluicer.declared.rights import Rights, read_rights
-from sluicer.document import load
+from sluicer.document import Document, load
 from sluicer.normalise import normalised
 from sluicer.structure import induce as induce_records
 from sluicer.summary import Conflict, SummaryField, read_summary
@@ -109,6 +109,19 @@ def extract(
     """
     sent = lowered(headers)
     doc = load(html, url=url, charset=charset(sent))
+    return _extract_document(doc, sent, induce, microformats, visible)
+
+
+def _extract_document(
+    doc: Document,
+    sent: dict[str, str],
+    induce: bool = False,
+    microformats: bool = False,
+    visible: bool = False,
+) -> Extraction:
+    """``extract`` of a page already parsed, its headers already lowered: for
+    a caller that walks the same tree itself, which then parses it once."""
+    url = doc.url
     header_links = read_header_links(sent, url) if sent else None
     asked = {"microformats": microformats}
     found = {
