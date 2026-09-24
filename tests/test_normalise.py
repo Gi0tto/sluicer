@@ -166,3 +166,53 @@ def test_a_gtin_with_a_wrong_check_digit_or_length_is_not(written):
     from sluicer.normalise import gtin
 
     assert gtin(written) is None
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "400123456789\u00b2",  # a superscript two: str.isdigit's, not int's
+        "40012345678\u00b9\u00b2",
+        "400123456789\u2460",  # a circled one
+        "4001234567\u00bd91",
+        "40012345678x1",
+        "---",
+    ],
+)
+def test_a_gtin_holding_what_is_not_a_decimal_digit_is_none(written):
+    from sluicer.normalise import gtin
+
+    assert gtin(written) is None
+
+
+def test_a_gtin_in_other_decimal_digits_is_written_in_ascii_ones():
+    """Fullwidth and Arabic-Indic digits have one value each, as ISO dates' do."""
+    from sluicer.normalise import gtin
+
+    for zero in (0xFF10, 0x0660):  # fullwidth, Arabic-Indic
+        written = "".join(chr(zero + int(d)) for d in "4001234567891")
+        assert gtin(written) == "4001234567891"
+
+
+def test_extract_never_raises_on_a_gtin_with_a_superscript_digit():
+    page = (
+        '<script type="application/ld+json">{"@type": "Product", "name": "Pad",'
+        ' "gtin13": "400123456789\u00b2"}</script>'
+    )
+
+    result = extract(page)
+
+    assert result.summary["gtin"].value == "400123456789\u00b2"
+    assert "gtin" not in result.normalised
+
+
+def test_an_amount_in_other_decimal_digits_is_written_in_ascii_ones():
+    assert amount("\u0661\u0662") == "12"
+    assert amount("\uff11\uff12,\uff15\uff10") == "12.50"
+    assert amount("12\u00b2") is None
+
+
+def test_a_date_s_offset_in_other_decimal_digits_is_written_in_ascii_ones():
+    assert iso_date("2025-01-01T10:00+\u0660\u0662:\u0660\u0660") == (
+        "2025-01-01T10:00:00+02:00"
+    )

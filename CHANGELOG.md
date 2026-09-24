@@ -2,6 +2,15 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- A GTIN holding a superscript or circled digit -- which `str.isdigit` takes
+  and `int` refuses -- no longer makes `extract()` raise; it has no normalised
+  value. A GTIN or an amount written in another script's decimal digits,
+  fullwidth or Arabic-Indic, is normalised in ASCII digits, as a date already
+  was, and so is a date's offset.
+
 ## 0.7.0 - 2026-09-24
 
 ### Added

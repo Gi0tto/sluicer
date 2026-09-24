@@ -254,7 +254,7 @@ def _at(
         digits = zone.replace(":", "")
         if int(digits[1:3]) > 23 or int(digits[3:]) > 59:
             return None
-        offset = f"{digits[0]}{digits[1:3]}:{digits[3:]}"
+        offset = f"{digits[0]}{int(digits[1:3]):02}:{int(digits[3:]):02}"
     return f"{date}T{moment.isoformat()}{offset}"
 
 
@@ -323,7 +323,7 @@ def amount(text: str) -> str | None:
         number = number.replace(separator, "")
     if not re.fullmatch(r"\d+(\.\d+)?", number):
         return None
-    whole, _, fraction = number.partition(".")
+    whole, _, fraction = _in_ascii(number).partition(".")
     whole = whole.lstrip("0") or "0"
     return f"{whole}.{fraction}" if fraction else whole
 
@@ -348,14 +348,29 @@ def gtin(text: str) -> str | None:
     were wrong.
     """
     digits = re.sub(r"[\s-]", "", text)
-    if not digits.isdigit() or len(digits) not in (8, 12, 13, 14):
+    # Decimal digits only: ``str.isdigit`` also takes a superscript two, which
+    # ``int`` refuses, and that was a traceback from a page that wrote one.
+    if not digits.isdecimal() or len(digits) not in (8, 12, 13, 14):
         return None
+    digits = _in_ascii(digits)
     body, check = digits[:-1], int(digits[-1])
     total = sum(
         int(digit) * (3 if position % 2 == 0 else 1)
         for position, digit in enumerate(reversed(body))
     )
     return digits if (10 - total % 10) % 10 == check else None
+
+
+def _in_ascii(digits: str) -> str:
+    """``digits`` with every decimal digit written as its ASCII one.
+
+    ``\\d`` and ``int`` read every script's decimal digits, fullwidth and
+    Arabic-Indic among them, and a normalised value is one form whatever
+    the page's script: a date's are rewritten by ``int``, and these the same.
+    """
+    if digits.isascii():
+        return digits
+    return "".join(str(unicodedata.decimal(c)) if c.isdecimal() else c for c in digits)
 
 
 def currency(text: str) -> str | None:
