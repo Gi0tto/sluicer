@@ -38,6 +38,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   "Just a moment..." page served with 200, `--cache` kept it and gave it back
   as the page, for `--max-age`, without asking the site; the docs said a
   challenge was never kept, and now it is not.
+- A challenge page is never an answer. When the last rung also got one, or a
+  cheaper rung got one and the rung above it failed, the ladder returned it
+  as the page and the MCP server answered `ok: true`. It now raises
+  `SiteRefused`, a `FetchFailed`, answered as the new error code
+  `refused_by_site` (HTTP 403, not retryable) by the MCP server, the HTTP API
+  and a crawl's page.
 
 ## 0.7.0 - 2026-09-24
 

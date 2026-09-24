@@ -121,6 +121,7 @@ why, in the shape the MCP tools use: `{"code", "message", "retryable"}`, with
 | `bad_input` | 400 | tool or door | Something the tool cannot take: literal HTML to `fetch_page`, no pages, an object that is not an extractor, arguments that do not fit the input schema, a body that is not a JSON object. |
 | `unauthorized` | 401 | door | No token, or the wrong one. |
 | `refused_by_robots` | 403 | tool | The site's robots.txt says no. Do not work around it. |
+| `refused_by_site` | 403 | tool | The site answered with a challenge page ("Just a moment..."), on every rung. Not the page, and not to be worked around. |
 | `refused_address` | 403 | tool | A private address, refused unless `SLUICER_ALLOW_PRIVATE=1`. |
 | `not_found` | 404 | door | No tool, or no path, by that name. |
 | `method_not_allowed` | 405 | door | A tool is a POST. |

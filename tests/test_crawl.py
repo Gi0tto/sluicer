@@ -878,3 +878,19 @@ def test_a_retry_after_is_read_as_rfc_9110_writes_it(headers, seconds):
     from sluicer.crawl.schedule import retry_after
 
     assert retry_after(headers) == seconds
+
+
+def test_a_challenge_page_is_a_page_the_site_refused():
+    """The ladder's last rung used to hand a challenge back as the page, and a
+    crawl read a waiting room's words as a page's summary."""
+    challenge = (
+        "<html><head><title>Just a moment...</title></head>"
+        "<body>Checking your browser</body></html>"
+    )
+    fake = FakeWeb({f"{ROOT}/": challenge})
+
+    (only,) = list(run(fake))
+
+    assert only.error is not None and only.error.code == "refused_by_site"
+    assert only.error.retryable is False
+    assert "challenge page" in only.error.message

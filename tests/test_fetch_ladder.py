@@ -503,3 +503,59 @@ def test_without_the_flag_the_stealth_rung_is_never_even_built(monkeypatch):
 
     assert result.rung == "http"
     assert result.climbs == []
+
+
+CHALLENGE = (
+    "<html><head><title>Just a moment...</title></head>"
+    "<body>Checking your browser</body></html>"
+)
+
+
+def test_a_challenge_on_the_last_rung_is_the_site_refusing_not_a_page():
+    """The ladder handed back its last rung's page whatever it was, and an MCP
+    answer said ok: true about a waiting room."""
+    from sluicer.fetch import SiteRefused
+
+    http = rung("http", CHALLENGE)
+    browser = rung("browser", CHALLENGE)
+
+    with pytest.raises(SiteRefused, match="challenge page") as refused:
+        fetch("https://example.com/p", rungs=[("http", http), ("browser", browser)])
+
+    assert isinstance(refused.value, FetchFailed), "a caller of FetchFailed catches it"
+    assert refused.value.url == "https://example.com/p"
+    assert [(c.from_rung, c.to_rung) for c in refused.value.climbs] == [
+        ("http", "browser")
+    ]
+    assert "'just a moment'" in refused.value.reason
+
+
+def test_a_challenge_is_not_returned_when_the_rung_above_it_failed():
+    """A fresh install has no browser: the cheaper page comes back, unless it
+    is a challenge, which is not a page to come back with."""
+    from sluicer.fetch import SiteRefused
+
+    def no_browser(url):
+        raise RuntimeError("no browser installed")
+
+    http = rung("http", CHALLENGE)
+
+    with pytest.raises(SiteRefused) as refused:
+        fetch("https://example.com/p", rungs=[("http", http), ("browser", no_browser)])
+
+    assert [(c.from_rung, c.to_rung) for c in refused.value.climbs] == [
+        ("http", "browser"),
+        ("browser", "http"),
+    ]
+
+
+def test_a_shell_on_the_last_rung_is_still_returned():
+    """Only a challenge is a refusal: a small page is often simply small."""
+    shell = "<html><body><div id=app></div><script src=a.js></script></body></html>"
+
+    result = fetch(
+        "https://example.com/p",
+        rungs=[("http", rung("http", shell)), ("browser", rung("browser", shell))],
+    )
+
+    assert result.rung == "browser"

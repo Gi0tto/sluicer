@@ -271,6 +271,7 @@ The ``Fetched`` page, with every climb, the final URL, and how long each rung to
 **Raises**
 
 - `RobotsRefused`: the site's robots.txt disallows the URL.
+- `SiteRefused`: the page the ladder was left with is a challenge page.
 - `AddressRefused`: the address, or one a redirect led to, is not http or https; or ``allow_private`` is false and it is private.
 - `ResponseTooLarge`: the page is heavier than ``max_bytes``.
 - `RedirectRefused`: an injected rung was given a rule for redirects, and a hop broke it.

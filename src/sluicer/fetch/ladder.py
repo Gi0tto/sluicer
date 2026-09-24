@@ -10,7 +10,9 @@ page is returned; if every rung failed, ``FetchFailed`` is raised.
 
 The site's robots.txt is asked before any rung runs. A refusal raises
 ``RobotsRefused`` rather than returning an empty ``Fetched``: "the site said
-no" and "the site had nothing" must never look alike.
+no" and "the site had nothing" must never look alike. For the same reason a
+challenge page is never returned as the page: when it is what the ladder is
+left with, ``SiteRefused`` is raised.
 """
 
 from __future__ import annotations
@@ -44,7 +46,7 @@ from sluicer.fetch.result import (
     ResponseTooLarge,
     Rung,
 )
-from sluicer.fetch.rules import why_climb
+from sluicer.fetch.rules import challenge_marker, why_climb
 
 __all__ = [
     "AddressRefused",
@@ -52,6 +54,7 @@ __all__ = [
     "RedirectRefused",
     "ResponseTooLarge",
     "RobotsRefused",
+    "SiteRefused",
     "fetch",
     "robots_reader_from",
 ]
@@ -85,6 +88,22 @@ class FetchFailed(Exception):
         super().__init__(f"Could not fetch {url}: {last}{before}")
         self.url = url
         self.climbs = climbs
+
+
+class SiteRefused(FetchFailed):
+    """The site answered with a challenge page, and no rung got past it.
+
+    A waiting room -- "Just a moment...", served in the content's place, often
+    with 200 -- is the site declining to be read, so it is raised, never
+    returned as the page. ``reason`` is the rule that saw it, naming its
+    marker. A ``FetchFailed``, so a caller that catches that catches this; but
+    not one worth retrying at once, since the same ladder is shown the same
+    page, and not one to work around.
+    """
+
+    def __init__(self, url: str, climbs: list[Climb], reason: str) -> None:
+        super().__init__(url, climbs, f"the site refused it: {reason}")
+        self.reason = reason
 
 
 def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
@@ -185,6 +204,7 @@ def fetch(
 
     Raises:
         RobotsRefused: the site's robots.txt disallows the URL.
+        SiteRefused: the page the ladder was left with is a challenge page.
         AddressRefused: the address, or one a redirect led to, is not http
             or https; or ``allow_private`` is false and it is private.
         ResponseTooLarge: the page is heavier than ``max_bytes``.
@@ -227,6 +247,8 @@ def fetch(
 
     climbs: list[Climb] = []
     best: Fetched | None = None
+    # Why ``best`` is a challenge, when it is one: never a page to fall back to.
+    best_refused: str | None = None
     last = len(rungs) - 1
     for index, (name, rung) in enumerate(rungs):
         started = time.monotonic()
@@ -250,6 +272,8 @@ def fetch(
                     raise
                 raise FetchFailed(url, climbs, failure) from e
             best.climbs = [*climbs, Climb(name, best.rung, failure, seconds=seconds)]
+            if best_refused is not None:
+                raise SiteRefused(url, best.climbs, best_refused) from e
             return _checked(best, url, allow_private, resolve, obey_robots, read)
 
         result.seconds = time.monotonic() - started
@@ -264,9 +288,15 @@ def fetch(
             for field in record.fields.values()
         )
         reason = why_climb(result.status, result.html, found_records=found)
-        if reason is None or index == last:
+        if reason is None:
             return _checked(result, url, allow_private, resolve, obey_robots, read)
-        best = result
+        challenge = challenge_marker(result.html, found_records=found) is not None
+        if index == last:
+            checked = _checked(result, url, allow_private, resolve, obey_robots, read)
+            if challenge:
+                raise SiteRefused(url, climbs, reason)
+            return checked
+        best, best_refused = result, reason if challenge else None
         climbs.append(Climb(name, rungs[index + 1][0], reason, seconds=result.seconds))
 
     raise AssertionError("the ladder ran out of rungs without returning a page")

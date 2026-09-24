@@ -47,6 +47,7 @@ from sluicer.fetch import (
     RedirectRefused,
     ResponseTooLarge,
     RobotsRefused,
+    SiteRefused,
     fetch,
 )
 from sluicer.fetch.address import _resolve, why_not_public
@@ -74,7 +75,8 @@ class PageError:
     """Why a page has no extraction.
 
     ``code`` is one of the MCP server's -- ``refused_by_robots``,
-    ``refused_address``, ``fetch_failed`` (``retryable``), ``too_large``,
+    ``refused_by_site``, ``refused_address``, ``fetch_failed``
+    (``retryable``), ``too_large``,
     ``bad_input`` -- or one of a crawl's own: ``redirected_off_site``, with the
     ``target`` it pointed to, ``crawl_delay_too_long``, and ``rate_limited``
     (``retryable``), a site's Retry-After asking for longer than a crawl waits.
@@ -563,6 +565,8 @@ class _Visitor:
             return failed("redirected_off_site", str(refused), target=refused.target)
         except ResponseTooLarge as heavy:
             return failed("too_large", str(heavy))
+        except SiteRefused as refused:
+            return failed("refused_by_site", str(refused))
         except FetchFailed as failure:
             return failed("fetch_failed", str(failure), retryable=True)
         finally:

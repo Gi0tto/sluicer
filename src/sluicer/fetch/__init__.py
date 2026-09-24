@@ -12,6 +12,7 @@ from sluicer.fetch.ladder import (
     AddressRefused,
     FetchFailed,
     RobotsRefused,
+    SiteRefused,
     fetch,
     robots_reader_from,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "RedirectRefused",
     "ResponseTooLarge",
     "RobotsRefused",
+    "SiteRefused",
     "fetch",
     "robots_reader_from",
 ]

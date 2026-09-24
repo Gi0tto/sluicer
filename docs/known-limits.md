@@ -344,9 +344,18 @@ the trade.
 **A failed climb returns the cheaper page.** When a rung fails after a cheaper
 one brought something back -- a fresh install has no browser -- that page is
 returned and the failure is recorded as a climb back down to it, so the caller
-can see it is the HTTP rung's answer to a page that wanted a browser. When every
-rung failed, `FetchFailed` says what each one said; nothing is returned that
-could pass for a page.
+can see it is the HTTP rung's answer to a page that wanted a browser, unless
+that page is a challenge. When every rung failed, `FetchFailed` says what each
+one said; nothing is returned that could pass for a page.
+
+**A challenge page is a refusal, never a page.** When the page the ladder is
+left with -- its last rung's, or a cheaper one's after a rung above it failed
+-- is a challenge, `SiteRefused` is raised (`refused_by_site` in the MCP
+server, the HTTP API and a crawl's page): until 0.7.1 it was returned, and an
+MCP answer said `ok: true` about a waiting room. A skeletal page or a refusing
+status on the last rung is still returned as it came, with its status: a small
+page is often simply small, and a 429's headers are what a crawl slows down
+by.
 
 **A redirect to a login page is not detected as a refusal.** A refusal status, a
 challenge page and a skeletal body are.

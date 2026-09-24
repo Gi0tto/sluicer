@@ -29,7 +29,7 @@ from sluicer import __version__, crawl as crawling, extractor as extractor_modul
 from sluicer.api import extract
 from sluicer.audit import answered_with, audit
 from sluicer.extras import MissingExtra, import_extra
-from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused
+from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused, SiteRefused
 from sluicer.fetch.archive import NotArchived
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
 from sluicer.markdown import to_markdown
@@ -113,7 +113,8 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
     Each is ``{"ok": false, "error": {"code", "message", "retryable"}}``, with
     ``url`` or ``extra`` when there is one, because the codes call for different
     responses: ``missing_extra`` (install what the message says),
-    ``refused_by_robots`` (do not work around it), ``refused_address`` (a
+    ``refused_by_robots`` (do not work around it), ``refused_by_site`` (a
+    challenge page on every rung: nor that), ``refused_address`` (a
     private address, refused by default), ``fetch_failed`` (worth trying
     later: the only retryable one, unless the archive holds no capture),
     ``too_large`` and ``bad_input``. Raised
@@ -138,6 +139,8 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
         except ResponseTooLarge as heavy:
             fetched = heavy.url.startswith(("http://", "https://"))
             return _error("too_large", heavy, url=heavy.url if fetched else None)
+        except SiteRefused as refused:
+            return _error("refused_by_site", refused, url=refused.url)
         except NotArchived as missing:
             # Asking again will not make the archive have held the page.
             return _error("fetch_failed", missing, url=missing.url)
