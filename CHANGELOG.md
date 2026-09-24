@@ -16,6 +16,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   now read as an attribute's are, which is how a browser keeps them in an
   `href`; `&amp;`, `&#39;` and the rest are read as before. No answer on the
   benchmark pages changed.
+- A JSON-LD node that holds a `@graph` and properties of its own -- a Product
+  carrying the page's other nodes -- is read as a node too, after the nodes in
+  its graph. Only its graph was read, and the Product was lost. On the
+  benchmark pages, two product pages gain the Brand that wraps their
+  Products; no summary answer changed.
 
 ## 0.7.0 - 2026-09-24
 

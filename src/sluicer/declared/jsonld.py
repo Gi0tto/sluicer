@@ -123,18 +123,31 @@ def _flatten(parsed: object) -> list[tuple[dict[str, Any], tuple[str | int, ...]
     """Every top-level node in one block, ``@graph`` and arrays unwrapped.
 
     Each with the steps that lead to it inside the block -- ``("@graph", 1)``
-    -- which make its JSON pointer.
+    -- which make its JSON pointer. A node that holds a ``@graph`` and says
+    something of its own besides -- a shop's Product carrying the page's other
+    nodes -- is a node too, without its graph: unwrapped, the Product itself
+    was lost. It comes after the nodes in its graph, so the order they had
+    stays theirs: one shop's Brand holds its Products, and read first, the
+    Brand stood where the product the page is about had stood. One that holds
+    only a graph, its ``@context`` and its ``@id`` is the graph's wrapper, and
+    no node.
     """
     found: list[tuple[dict[str, Any], tuple[str | int, ...]]] = []
+    # A tuple is a node already read, waiting for its graph: JSON makes none.
     pending: list[tuple[object, tuple[str | int, ...]]] = [(parsed, ())]
     while pending:
         value, steps = pending.pop()
-        if isinstance(value, list):
+        if isinstance(value, tuple):
+            found.append((value[0], steps))
+        elif isinstance(value, list):
             pending.extend(
                 (item, (*steps, n)) for n, item in reversed(list(enumerate(value)))
             )
         elif isinstance(value, dict):
             if "@graph" in value:
+                own = {key: item for key, item in value.items() if key != "@graph"}
+                if any(not key.startswith("@") for key in own):
+                    pending.append(((own,), steps))
                 pending.append((value["@graph"], (*steps, "@graph")))
             else:
                 found.append((value, steps))
