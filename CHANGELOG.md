@@ -45,6 +45,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `examples/brake-pads.html` and charts the published scoreboard. The
   documentation's home is the README (`scripts/docs_home.py`), held to it by a
   test, since a copy kept by hand fell behind twice.
+- The documentation site has a path through it: Getting started, guides, a
+  reference, the scoreboards and the project, with search and navigation. The
+  reference is generated from the code -- every command's `--help`, every MCP
+  tool as the server lists it, the public functions with their docstrings --
+  and held to it by tests. CONTRIBUTING says how to set up, what CI refuses,
+  where each part of the code lives and which files are generated.
 - Development status is Beta. The public interface -- `extract`, the
   summary's questions, the MCP tools -- may still change before 1.0; every
   change is in this file.
