@@ -530,7 +530,48 @@ def publish(board: dict[str, Any]) -> None:
 
 
 # Written by hand, after reading the wrong answers: what they were, and why.
-READING: list[str] = []
+READING: list[str] = [
+    "## Since 0.6.0",
+    "",
+    "0.6.0, measured on these pages on 2026-09-24 by the same code: mean F1",
+    "0.686 on each half, 13,058 wrong answers of which 2,014 were flagged, and",
+    "66 of 320 site-attributes not learnt. It read every page at the place the",
+    "example was on the first, and could not learn a value that shares its",
+    "element with its label.",
+    "",
+    "## Reading the errors",
+    "",
+    "The wrong answers were read by hand on the development sites only, looking",
+    "for rules Sluicer had wrong rather than for rules that would fit these",
+    "pages. The held-out sites were scored and not read.",
+    "",
+    "- **A place that moves from page to page.** A product page's rows depend on",
+    "  the product: a saving row appears when there is a saving, and the price",
+    "  moves down one. 0.6.0 read every page at the place the example was on the",
+    "  first page, and on one camera site gave the saving as the price on 62",
+    "  pages in 100 with nothing flagged. 0.7.0 keeps the place while every page",
+    "  given agrees with it, and reads after the page's own label, as `Price:`,",
+    "  when one of them does not.",
+    "- **A value that shares its element with its label.** `ISBN: 978...`,",
+    "  `Phone: 907/279-7311`, `Engine: 3.0L Gas I6`: no element's whole text is",
+    "  the value, and 0.6.0 could not learn it at all. 0.7.0 reads the rest of",
+    "  the text the label opens.",
+    "- **What is left.** A place kept because the three pages agreed, on a page",
+    "  where the row above is missing: a job's location read as",
+    '  "Full-Time, Employee", a restaurant\'s cuisine as its "Reserve Online"',
+    "  button. A check was tried and left out: comparing the text before each",
+    "  value with the pages' own label caught 953 of these on the development",
+    "  sites and flagged 5,032 right answers, five false alarms for each catch.",
+    "- **The labels.** SWDE labels whole text nodes by regular expressions, so",
+    '  a label can be a fragment of the value the page shows ("Spy Kids 3D:"',
+    '  for "Spy Kids 3D: Game Over") or carry the template\'s separators',
+    '  (": 9780316125581"). Separators and case are set aside on both sides,',
+    "  for every tool; fragments are counted wrong, for every tool.",
+    "",
+    "Scrapling's wrong answers are of the kind its design allows: a selector",
+    "that still matches on another page returns what is there, and it has no",
+    "check to say it is not the value it was saved for.",
+]
 
 
 def main() -> None:
