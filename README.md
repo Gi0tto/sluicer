@@ -218,7 +218,8 @@ On news in many languages -- fundus's fixtures, 263 pages from 42 countries'
 publishers in 21 declared languages -- Sluicer's titles are the most often
 right of the four tools, 0.875 against trafilatura's 0.852, and its dates are
 never wrong when it answers one; trafilatura finds more authors, 0.879 against
-0.813, reading bylines from the visible text too. See
+0.813, and 12 of the 21 it finds and Sluicer does not are the paper's own
+name, which Sluicer does not count an author. See
 [the scoreboard on news in many languages](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md),
 with a table per language.
 
