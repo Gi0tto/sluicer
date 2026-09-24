@@ -37,6 +37,26 @@ def test_a_page_that_gives_nothing_at_all_exits_one(tmp_path):
     assert result.stdout == ""
 
 
+def test_a_page_that_gives_nothing_says_what_to_try_next(tmp_path):
+    """ "This page gives nothing" ended there, and a listing, a page of fields
+    a person can see, or a page whose byline is only on screen each has a
+    way in that the message never named."""
+    page = tmp_path / "bare.html"
+    page.write_text("<html><body><p>Words.</p></body></html>", encoding="utf-8")
+
+    said = CliRunner().invoke(main, ["extract", str(page)]).stderr
+    assert "--induce" in said and "--visible" in said
+    assert f"sluicer compile {page} --want" in said
+
+    tried = CliRunner().invoke(main, ["extract", "--induce", "--visible", str(page)])
+    assert tried.exit_code == 1
+    assert "--induce" not in tried.stderr and "--visible" not in tried.stderr
+    assert "sluicer compile" in tried.stderr
+
+    inspected = CliRunner().invoke(main, ["inspect", str(page)])
+    assert inspected.exit_code == 1 and "--induce" in inspected.stderr
+
+
 def test_a_page_with_only_a_title_still_prints_its_summary():
     """The summary is an answer too: a <title> is on the page to be read."""
     result = CliRunner().invoke(main, ["extract", str(FIXTURES / "plain.html")])
@@ -45,6 +65,22 @@ def test_a_page_with_only_a_title_still_prints_its_summary():
     payload = json.loads(result.stdout)
     assert payload["records"] == []
     assert payload["summary"]["title"]["value"] == "Plain page"
+
+
+def test_the_readme_says_what_exits_one_as_extract_decides_it(tmp_path):
+    """The README said 1 meant "nothing declared", and a page with only a
+    <title> exits 0: the title is declared, read into the summary. The README
+    now says a <title> alone is an answer."""
+    import re
+
+    readme = (Path(__file__).parent.parent / "README.md").read_text(encoding="utf-8")
+    said = re.search(r"Exit codes follow grep:(.*?)\n\n", readme, re.S)
+    assert said is not None and "`<title>`" in said.group(1)
+    title_only = CliRunner().invoke(main, ["extract", str(FIXTURES / "plain.html")])
+    bare = tmp_path / "bare.html"
+    bare.write_text("<html><body><p>Words.</p></body></html>", encoding="utf-8")
+    assert title_only.exit_code == 0
+    assert CliRunner().invoke(main, ["extract", str(bare)]).exit_code == 1
 
 
 def test_an_empty_file_is_reported_not_crashed(tmp_path):
@@ -982,8 +1018,22 @@ def test_sluicer_mcp_runs_the_mcp_server_as_sluicer_mcp_does(monkeypatch):
     assert ran == [None, ["extract_declared", "map_site"]]
 
 
+def test_sluicer_mcp_with_a_tool_that_does_not_exist_is_an_error_not_a_traceback(
+    monkeypatch,
+):
+    """`sluicer mcp --tools bogus` printed thirty lines of traceback."""
+    from test_mcp_server import fake_mcp
+
+    fake_mcp(monkeypatch)
+    result = CliRunner().invoke(main, ["mcp", "--tools", "extract_declared,bogus"])
+    assert result.exit_code == 2
+    assert "no such tool: 'bogus'" in result.stderr
+    assert "crawl_site" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert isinstance(result.exception, SystemExit)
+
+
 def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):
-    import importlib
     import sys
 
     class _NoMcp:
@@ -994,9 +1044,6 @@ def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):
     for name in [n for n in list(sys.modules) if n == "mcp" or n.startswith("mcp.")]:
         monkeypatch.delitem(sys.modules, name, raising=False)
     monkeypatch.setattr(sys, "meta_path", [_NoMcp(), *sys.meta_path])
-    import sluicer.mcp_server as server_module
-
-    importlib.reload(server_module)
     result = CliRunner().invoke(main, ["mcp"])
     assert result.exit_code == 1
     assert "sluicer[mcp]" in result.stderr and "Traceback" not in result.stderr
@@ -1033,3 +1080,22 @@ def test_text_piped_in_is_read_as_utf8_whatever_the_code_page():
 
     assert piped.read() == "https://例え.jp/\n"
     assert shown.encoding == "utf-8"
+
+
+def test_the_help_groups_the_commands_by_what_they_are_for():
+    """Fifteen commands in one alphabetical list put audit first and extract
+    among the servers; each section is a thing a person comes to do."""
+    said = CliRunner().invoke(main, ["--help"]).stdout
+    sections = {
+        "Read a page": ["extract", "inspect", "markdown", "diff", "audit"],
+        "Whole sites": ["map", "crawl", "batch", "feed", "warc"],
+        "Extractors": ["compile", "run", "heal"],
+        "Servers": ["mcp", "serve"],
+    }
+    starts = [said.index(f"{title}:\n") for title in sections]
+    assert starts == sorted(starts) and "Commands:" not in said
+    for (title, names), start in zip(sections.items(), starts, strict=True):
+        block = said[start:].split("\n\n")[0].splitlines()[1:]
+        assert [line.split()[0] for line in block] == names, title
+    placed = [name for names in sections.values() for name in names]
+    assert sorted(placed) == sorted(main.commands)

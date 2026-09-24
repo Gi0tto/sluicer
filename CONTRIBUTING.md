@@ -35,6 +35,12 @@ The first run creates `.venv` with the package, its extras and the development
 tools. The suite is about 1,800 tests, takes half a minute, and never touches
 the network: a CI job runs it with the network taken away.
 
+It runs in a random order each time (pytest-randomly), so a test that passes
+only because of the one before it fails. The header prints the order's seed
+(`Using --randomly-seed=...`, shown without `-q`); `pytest -p randomly
+--randomly-seed=N` replays it, and CI seeds each run with its run id.
+`-p no:randomly` runs the tests in file order.
+
 ## Before you open a pull request
 
 Format the code in its one style, then run what CI refuses a change for
@@ -100,7 +106,7 @@ before a release.
 |---|---|---|
 | `docs/index.md` | `README.md` | `uv run scripts/docs_home.py` |
 | `docs/reference/*.md` | the commands' help, the MCP server's tools, the public docstrings | `uv run scripts/reference.py` |
-| `docs/assets/inspect.svg`, `dates-*.svg` | `examples/brake-pads.html`, `docs/scoreboard-served.md` | `uv run scripts/readme_assets.py` |
+| `docs/assets/inspect.svg`, `dates-*.svg`, `swde-*.svg`, and the README's charts' alt texts and WCXB timings | `examples/brake-pads.html`, `docs/scoreboard-served.md`, `docs/scoreboard-swde.md`, `docs/scoreboard.md` | `uv run scripts/readme_assets.py` |
 | `docs/assets/demo.cast`, `demo.gif` | four Wayback Machine captures of a software directory, named in the script | `uv run scripts/demo.py`, with [agg](https://github.com/asciinema/agg) |
 | `docs/assets/social-preview.png` | the card's words, in the script | `uv run scripts/social_card.py` |
 | `src/sluicer/calendar_names.py` | the Unicode CLDR, at a pinned release | `uv run scripts/cldr_calendar.py` |

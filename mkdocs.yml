@@ -58,6 +58,7 @@ nav:
   - Project:
       - Why Sluicer: why.md
       - Known limits: known-limits.md
+      - What is stable: stability.md
       - Design notes: design-notes.md
       - Roadmap: roadmap.md
       - Changelog: changelog.md

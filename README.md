@@ -99,7 +99,7 @@ reads any of them, so the same page always gives the same answer.
   On pages of one template they are right on 97% of their answers, and most
   of the 3% they get wrong pass their checks: the SWDE scoreboard says which.
 - ⚡ **Deterministic and light.** No model and no key: the 511 pages of the WCXB
-  test set are read in 1.4 s, and the base install is three packages.
+  test set are read in 1.50 s, and the base install is three packages.
 - 👀 **What the page shows, when you ask.** `--visible` guesses the heading,
   byline and dates a page shows a reader, by rules and no model, each guess
   naming its element and rule and kept apart from what is declared.
@@ -212,9 +212,10 @@ sluicer feed https://blog.example/                  # a feed's items, from the p
 
 </details>
 
-Exit codes follow grep: 0 found, 1 nothing declared, 2 could not read, and 3
-for a page that broke its extractor, a heal that lost a field, or an audit that
-found a documented rule broken. A drifted page never exits 0.
+Exit codes follow grep: 0 found -- a record or a summary answer, a `<title>`
+alone included -- 1 the page gives neither, 2 could not read, and 3 for a page
+that broke its extractor, a heal that lost a field, or an audit that found a
+documented rule broken. A drifted page never exits 0.
 
 ### In your agent
 
@@ -289,17 +290,22 @@ full comparison, and says when another tool is the better choice.
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/dates-dark.svg">
-    <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/dates-light.svg" alt="Publication dates on 360 pages as served: Sluicer finds 0.780 and is right on 0.734 of its answers, with 36 dates invented; trafilatura finds 0.855 and is right on 0.393, with 187 invented; metascraper finds 0.384 and is right on 0.271, with 80; newspaper4k finds 0.786 and is right on 0.658, with 54" width="760">
+    <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/dates-light.svg" alt="Publication dates on 360 pages as served: Sluicer finds 0.780 and is right on 0.734 of its answers, with 36 dates invented; trafilatura finds 0.855 and is right on 0.393, with 187 invented; metascraper finds 0.811 and is right on 0.573, with 80 invented; newspaper4k finds 0.786 and is right on 0.658, with 54 invented" width="760">
   </picture>
 </p>
 
-Five of these scoreboards measure title, author and date, because those are
-the fields their test sets label; products measure price and availability,
-and SWDE the fields you teach an extractor. On the first five Sluicer reads
-only what a page declares, so it answers less often than tools that also read
-the visible page, and is wrong less often when it answers. A hit
+Four of these six scoreboards measure title, author and date, because those
+are the fields their test sets label; products measures price and
+availability, and SWDE the fields you teach an extractor. On those four
+Sluicer reads only what a page declares, so it answers less often than tools
+that also read the visible page, and is wrong less often when it answers. A hit
 rate is right answers over the pages that carry a label; an invention is an
 answer on a page whose label is empty.
+
+Sluicer's rules were made while the pages of five of the six, and of the drift
+benchmark, were read, so those numbers are on pages it was fitted to; only
+SWDE's held-out half is a held-out test. [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md) says which
+pages each rule was made on.
 
 | scoreboard | pages | measures | Sluicer | beside it |
 |---|---|---|---|---|
@@ -318,10 +324,10 @@ On the 511 annotated test pages of the public WCXB corpus:
 
 | | title | author | date | dates invented | seconds | packages |
 |---|---|---|---|---|---|---|
-| **sluicer 0.7.0** | 0.727 | 0.532 | 0.581 | **8** | **1.4** | **3** |
-| trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.2 | 17 |
-| newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.6 | 22 |
-| metascraper 5.58.1 | 0.654 | 0.787 | 0.725 | 84 | 2.8 | 125 |
+| **sluicer 0.7.0** | 0.727 | 0.532 | 0.581 | **8** | **1.50** | **3** |
+| trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 216 | 16.19 | 17 |
+| newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 52 | 29.61 | 22 |
+| metascraper 5.58.1 | 0.654 | 0.787 | 0.725 | 84 | 2.75 | 125 |
 
 WCXB strips every `<script>`, and with it JSON-LD, the vocabulary Sluicer reads
 first. The same labels on the 360 of those pages a web archive holds as their
@@ -403,7 +409,8 @@ the date on 0.736, right on 0.779 with 83 invented, where trafilatura finds
 <summary><b>Is it ready for production?</b></summary>
 
 It is Beta: the interface may still change before 1.0, and every change is in
-the [changelog](https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md). Each
+the [changelog](https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md).
+[What is stable](https://github.com/Gi0tto/sluicer/blob/main/docs/stability.md) says which parts will not change without a release of warning. Each
 release passes the full test suite on Python 3.10 to 3.14 and property tests
 that draw thousands of hostile pages, and is measured again on every
 scoreboard, before it is tagged.

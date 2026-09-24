@@ -13,8 +13,13 @@ that evaluator unchanged, so every number is Zyte's rules, not ours.
 Sluicer answers from its summary: ``normalised.price`` for the price (a
 decimal, or nothing when the page's text is ambiguous), ``sku`` as declared,
 and ``availability`` mapped to InStock or OutOfStock. As the benchmark does for
-extruct and Zyte, a page with no availability counts as InStock. Nothing is
-tuned to these pages.
+extruct and Zyte, a page with no availability counts as InStock.
+
+Sluicer's rules were made while these pages were read: ``7876710`` was measured
+here, and ``9548a35`` added the SKU names the extruct baseline reads, to pass it.
+This said "Nothing is tuned to these pages" until 0.7.1; the scoreboard now
+opens by saying they were, and ``bench/PREREG.md`` lists which pages each rule
+was made on.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ import datetime
 import gzip
 import io
 import json
+import re
 import subprocess
 import sys
 import tarfile
@@ -30,6 +36,7 @@ import time
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -70,12 +77,15 @@ def availability(value: str | None) -> str:
     return "InStock"
 
 
-def predict(bench: Path) -> tuple[dict[str, dict[str, str]], float]:
-    """Sluicer's answer for every page, keyed as the ground truth is."""
+def predict(bench: Path) -> tuple[dict[str, dict[str, str]], float, set[str]]:
+    """Sluicer's answer for every page, keyed as the ground truth is, the
+    seconds it took, and the pages that declare a price Sluicer could not read
+    as a decimal."""
     truth = json.loads(
         (bench / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
     )
     predictions: dict[str, dict[str, str]] = {}
+    unread: set[str] = set()
     started = time.perf_counter()
     for page_id, labels in truth.items():
         html = gzip.decompress(
@@ -85,6 +95,8 @@ def predict(bench: Path) -> tuple[dict[str, dict[str, str]], float]:
         answer: dict[str, str] = {}
         if "price" in result.normalised:
             answer["price"] = result.normalised["price"]
+        elif "price" in result.summary:
+            unread.add(page_id)
         if "currency" in result.normalised:
             answer["currency"] = result.normalised["currency"]
         if "sku" in result.summary:
@@ -93,7 +105,7 @@ def predict(bench: Path) -> tuple[dict[str, dict[str, str]], float]:
         answer["availability"] = availability(declared.value if declared else None)
         answer[answer["availability"]] = answer["availability"]
         predictions[page_id] = answer
-    return predictions, time.perf_counter() - started
+    return predictions, time.perf_counter() - started, unread
 
 
 def evaluate(bench: Path) -> dict[str, Any]:
@@ -118,7 +130,124 @@ def evaluate(bench: Path) -> dict[str, Any]:
     return json.loads(metrics.read_text(encoding="utf-8"))
 
 
-def publish(metrics: dict[str, Any], seconds: float, pages: int) -> None:
+def _host(url: str | None) -> str:
+    host = urlsplit(url or "").hostname or "?"
+    return host.removeprefix("www.")
+
+
+def _number(text: str) -> float | None:
+    try:
+        return float(re.sub(r"[^0-9.]", "", text))
+    except ValueError:
+        return None
+
+
+def _listed(items: list[str]) -> str:
+    """``a, b and c``."""
+    if len(items) < 2:
+        return "".join(items)
+    return ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _errors(
+    truth: dict[str, Any], predictions: dict[str, Any], unread: set[str]
+) -> list[str]:
+    """The error classes, counted from this run's answers and the labels.
+
+    Before 0.7.1 this section was written by hand once and printed on every
+    run, numbers included.
+    """
+    priced = [k for k in truth if truth[k].get("price")]
+    missed = [k for k in priced if "price" not in predictions[k]]
+    wrong = [
+        k
+        for k in priced
+        if "price" in predictions[k]
+        and not any(
+            _number(label) == _number(predictions[k]["price"])
+            for label in truth[k]["price"]
+        )
+    ]
+    thousands = [
+        k
+        for k in wrong
+        if any(
+            (n := _number(label)) is not None
+            and abs(n * 1000 - (_number(predictions[k]["price"]) or 0)) < 0.01
+            for label in truth[k]["price"]
+        )
+    ]
+    skus = [
+        k
+        for k in truth
+        if truth[k].get("sku")
+        and predictions[k].get("sku")
+        and predictions[k]["sku"] not in truth[k]["sku"]
+    ]
+    spelt = [
+        k
+        for k in skus
+        if any(
+            "/" in label and label.replace("/", "") == predictions[k]["sku"]
+            for label in truth[k]["sku"]
+        )
+    ]
+    amazon = [k for k in truth if _host(truth[k].get("url")).startswith("amazon.")]
+    undeclared = [k for k in missed if k not in unread]
+    where = _listed([_host(truth[k]["url"]) for k in thousands])
+    return [
+        f"- **Labels that read a thousands point as a decimal one.** On "
+        f"{len(thousands)} pages -- {where}"
+        " -- Sluicer's price, read from the page's own markup, is a thousand",
+        "  times the label's: "
+        + _listed(
+            [
+                f"{predictions[k]['price']} against {' or '.join(truth[k]['price'])}"
+                for k in thousands
+            ]
+        )
+        + ". Read by hand at 0.7.0, these are prices written with a thousands",
+        "  point, as in `24.990`, that the labels read as a decimal one.",
+        f"- **Other wrong prices.** {len(wrong) - len(thousands)} more answered "
+        "prices are accepted by no label.",
+        "  Read by hand at 0.7.0, they are pages that declare one price and show",
+        "  another: a discounted price shown over the regular one the markup",
+        "  declares, an auction's current bid over its starting price. Zyte's own",
+        "  error analysis names the same cause for its system.",
+        f"- **SKUs.** {len(skus)} answered SKUs are accepted by no label. On "
+        f"{len(spelt)} of them",
+        "  the label accepts the SKU as the page shows it and not as it declares",
+        "  it: "
+        + _listed(
+            [
+                f"`{' or '.join(truth[k]['sku'])}` and not `{predictions[k]['sku']}`"
+                f" ({_host(truth[k]['url'])})"
+                for k in spelt
+            ]
+        )
+        + ".",
+        f"- **Prices not answered.** Sluicer answers no price on {len(missed)} of "
+        f"the {len(priced)}",
+        f"  pages labelled with one. On {len(undeclared)} of them no price reaches "
+        "its summary",
+        f"  -- {sum(k in amazon for k in undeclared)} of them among Amazon's "
+        f"{len(amazon)} pages -- and on",
+        f"  {len(missed) - len(undeclared)} the price declared does not read as "
+        "one decimal. A price",
+        "  shown and never declared is what the paid services read off the",
+        "  visible page with trained models, and the difference between their",
+        "  numbers and these.",
+    ]
+
+
+def publish(
+    metrics: dict[str, Any],
+    seconds: float,
+    truth: dict[str, Any],
+    predictions: dict[str, Any],
+    unread: set[str],
+) -> None:
+    pages = len(predictions)
     commit = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"],
         cwd=ROOT,
@@ -151,6 +280,15 @@ def publish(metrics: dict[str, Any], seconds: float, pages: int) -> None:
         f"`{commit}` by `uv run bench/products.py`, against the benchmark at "
         f"`{COMMIT[:12]}`. Sluicer read the {pages} pages in {seconds:.1f} s.",
         "",
+        '!!! warning "Sluicer\'s rules were made on these pages"',
+        "    Rules were written, measured on these pages and kept because the",
+        "    numbers here rose (`7876710`; `9548a35` added the SKU names the",
+        "    extruct baseline reads, to pass it), so this measures Sluicer on",
+        "    pages it was fitted to, not on pages it has never seen. Of the",
+        "    scoreboards, only SWDE's held-out half is a held-out test;",
+        "    [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md)",
+        "    says which pages each rule was made on.",
+        "",
         '!!! warning "Read this before the numbers"',
         "    Zyte and Diffbot are commercial services built on trained models,",
         "    measured by Zyte in 2021 on pages it served them; Sluicer reads only",
@@ -175,32 +313,16 @@ def publish(metrics: dict[str, Any], seconds: float, pages: int) -> None:
         "",
         "## Reading the errors",
         "",
-        "Every wrong price and every miss was read by hand, looking for rules",
-        "Sluicer had wrong rather than for rules that would fit these pages.",
+        "Each class below is counted from this run's answers and the labels.",
         "",
-        "- **Labels that read a thousands point as a decimal one.** Three pages in",
-        "  Chile, Pakistan and Argentina show `24.990`, `23.450` and `2.449`, which",
-        "  are thousands in their currencies and are labelled as 24.99, 23.45 and",
-        "  2.449. Sluicer, reading the page's own markup, answers 24990, 23450 and",
-        "  2449, and is scored wrong on all three.",
-        "- **Pages that declare one price and show another.** A discounted price",
-        "  shown over the regular one the markup declares, an auction's current",
-        "  bid over its starting price. Zyte's own error analysis names the same",
-        "  cause for its system.",
-        "- **A label that accepts one spelling of an SKU on one Argos page and two",
-        "  on the other.** `924/9556` and `9249556` are both right on one; on the",
-        "  other only `466/7999` is, and Sluicer's declared `4667999` is scored",
-        "  wrong.",
-        "- **Pages that declare nothing.** Amazon's 20 pages declare no price in",
-        "  any vocabulary, and 15 of them are labelled with one: most of the 37",
-        "  prices Sluicer does not answer are on pages like these, shown and never",
-        "  declared. That is the difference between these numbers and the paid",
-        "  services', which read the visible page with trained models.",
+        *_errors(truth, predictions, unread),
         "",
-        "What the benchmark found in Sluicer, and is fixed: a microdata price",
-        "holding two numbers blocked the page's clean `product:price:amount`,",
-        "and a product declared once per colour, or beside related products,",
-        "was taken for a listing with no subject.",
+        "Rules made while reading these pages, before 0.7.0: a microdata price",
+        "holding two numbers no longer blocks the page's clean",
+        "`product:price:amount`, a product declared once per colour or beside",
+        "related products is no longer taken for a listing with no subject",
+        "(`7876710`), and an SKU is also read from `productID`, `og:sku` and",
+        "`product:sku`, as the extruct baseline reads it (`9548a35`).",
         "",
     ]
     SCOREBOARD.write_text("\n".join(lines), encoding="utf-8")
@@ -208,13 +330,16 @@ def publish(metrics: dict[str, Any], seconds: float, pages: int) -> None:
 
 def main() -> None:
     bench = ensure()
-    predictions, seconds = predict(bench)
+    predictions, seconds, unread = predict(bench)
     output = bench / "dataset" / "output" / "sluicer.json"
     output.write_text(
         json.dumps(predictions, indent=4, sort_keys=True) + "\n", encoding="utf-8"
     )
     metrics = evaluate(bench)
-    publish(metrics, seconds, len(predictions))
+    truth = json.loads(
+        (bench / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
+    )
+    publish(metrics, seconds, truth, predictions, unread)
     for attribute in ("price", "sku", "availability"):
         row = "  ".join(
             f"{system} {metrics[system][attribute]['f1']:.3f}"

@@ -37,6 +37,7 @@ import html
 import http.client
 import json
 import re
+import statistics
 import subprocess
 import sys
 import threading
@@ -868,6 +869,32 @@ def _histogram(manifest: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _between(manifest: dict[str, Any], pages: dict[str, Any]) -> list[str]:
+    """What the scores say about the cut, counted from the manifest.
+
+    It said a capture of the same page "scores near 1" and what falls between
+    "is mostly a listing" on every run, whatever the manifest held.
+    """
+    kept = [e["match"]["score"] for e in manifest["pages"] if e["included"]]
+    between = Counter(
+        pages[e["id"]]["page_type"]
+        for e in manifest["pages"]
+        if not e["included"]
+        and e.get("best")
+        and 0.2 <= e["best"]["match"]["score"] < THRESHOLD
+    )
+    kinds = ", ".join(f"{n} {kind}" for kind, n in between.most_common())
+    return [
+        f"  The {len(kept)} captures kept score a median of "
+        f"{statistics.median(kept) if kept else 0:.2f}, the lowest "
+        f"{min(kept) if kept else 0:.2f}.",
+        f"  The {sum(between.values())} left out between 0.2 and {THRESHOLD} are "
+        f"{kinds or 'none'},",
+        "  by WCXB's page types: a page that changed that much is left out rather",
+        "  than argued for.",
+    ]
+
+
 def _side_by_side(runs: dict[str, Any], per_page: dict[str, Any], pages: Any) -> Any:
     lines = [
         "| tool | field | labelled pages | hit rate, stripped | hit rate, served "
@@ -1064,6 +1091,7 @@ def _document(manifest, everything, pages, runs, per_page, sources) -> str:
         "[`bench/realweb-manifest.json`]"
         "(https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).",
         "",
+        *board.fitted("`8e723ed`, `7876710`, `074b4ad`"),
         '!!! warning "Read this before the numbers"',
         f"    These are {n} of WCXB's {len(everything)} test pages: the ones an",
         "    archive holds near the date WCXB saved them, and whose archived text",
@@ -1097,7 +1125,7 @@ def _document(manifest, everything, pages, runs, per_page, sources) -> str:
         "what a reader sees, and left a label empty where the visible page states",
         "none. A served page can still declare a date or an author in JSON-LD",
         "that the visible page never shows; the scorer counts that answer as an",
-        "invention, here as on the full scoreboard, and the rules were not",
+        "invention, here as on the full scoreboard, and the scorer's rules were not",
         "changed for this page. The table below says how many of Sluicer's",
         "inventions each source produced.",
         "",
@@ -1153,10 +1181,7 @@ def _document(manifest, everything, pages, runs, per_page, sources) -> str:
         "",
         *_histogram(manifest),
         "",
-        "  A capture of the same page scores near 1 even when a sidebar, a",
-        "  comment count or a price has moved; a homepage, a wall or another",
-        "  article scores near 0. What falls between is mostly a listing whose",
-        "  items have turned over, and is left out rather than argued for.",
+        *_between(manifest, everything),
         f"- **Bytes.** Every tool reads the bytes as the archive holds them. "
         f"{_non_utf8(manifest)} of the {n} are not UTF-8; Sluicer and "
         "trafilatura honour the page's charset, the newspaper4k and metascraper "

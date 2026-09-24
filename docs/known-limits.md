@@ -438,11 +438,18 @@ which fetch outside any route. What remains: the browser resolves names in its
 own network stack, so a name that answers differently between the check and the
 connection is reached from there. SECURITY.md says so too.
 
-**A page is bounded at 16 MiB, and one answer to an agent at 60,000
-characters.** A longer page or markdown is read in slices, each answer saying
-where the next starts (`next_offset`), and `extract_declared` leaves its records
-out, counted, past 75,000 bytes: Claude Code puts an answer over 25,000 tokens
-in a file rather than the conversation. The HTTP rung stops reading past `MAX_RESPONSE_BYTES`, after
+**A page is bounded at 16 MiB, and one answer to an agent at 75,000 bytes.**
+Claude Code puts an answer over 25,000 tokens in a file rather than the
+conversation, and 75,000 bytes of JSON stay under that. A longer page or
+markdown is read in slices of at most 60,000 characters, fewer when their
+bytes would pass the bound, each answer saying where the next starts
+(`next_offset`). Every other tool leaves out what its answer can do without
+and says what: `extract_declared` its records, then its conflicts, then its
+heaviest summary answers, by name (`summary_left_out`); a feed's last items, a
+map's last addresses, an extractor's last rows, an audit's last records, each
+counted; a crawl the heaviest summary answers of any page, then its last
+pages. An answer nothing can be cut from, an extractor learnt from pages with
+a huge value, is `too_large`: `sluicer compile` writes it to a file. The HTTP rung stops reading past `MAX_RESPONSE_BYTES`, after
 decompression, so a gzip that inflates to gigabytes costs the bound; before
 0.3.0 a 200 MB response was measured holding 1.14 GB. The browser rungs are held
 to the same bound only once the page is loaded: the browser's own memory is the

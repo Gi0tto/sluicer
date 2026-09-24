@@ -2,6 +2,90 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Added
+- `docs/stability.md`: what is stable before 1.0 (`extract()` and
+  `Extraction`, the summary's questions, the extractor file and its exit
+  codes, the MCP tools and their documented fields), what is experimental
+  (crawl, warc, feed, audit, diff, induce, `--visible`, the HTTP API), the
+  deprecation policy -- one minor release of warning, in this changelog,
+  before a stable part is removed -- and that one person maintains Sluicer on
+  a best-effort basis.
+- `extract` and `inspect` of a page that gives nothing say what may still read
+  it: `--induce` for the rows it repeats, `--visible` for the byline and dates
+  it shows, and `sluicer compile PAGE --want NAME=VALUE` for the fields a
+  person can point to, leaving out the options already given.
+
+### Fixed
+- The scoreboards say which pages Sluicer's rules were made on. Five of the
+  six, and the drift benchmark, had rules written, measured on their pages and
+  kept because the numbers there rose -- `b86aa19` was "Measured on WCXB's
+  511-page test split", `9548a35` added SKU names to pass extruct on the
+  products benchmark -- while `bench/products.py` said "Nothing is tuned to
+  these pages" and `bench/PREREG.md` called the scoreboards held out. PREREG
+  now lists the commits per scoreboard, each generator opens its page by
+  saying so, and only SWDE's held-out half, less its camera sites, is called a
+  held-out test.
+- The README's facts: the dates chart's alt text said metascraper found 0.384
+  of the dates and was right on 0.271 where the chart and the scoreboard say
+  0.811 and 0.573; the README said WCXB's pages are read in 1.4 s where the
+  scoreboard says 1.50; and "five of these scoreboards" measure title, author
+  and date where four do. `scripts/readme_assets.py` now writes both charts'
+  alt texts and the timings from the scoreboards it draws the charts from, and
+  a test fails when the README falls behind them.
+- SECURITY.md and the skill said `fetch_page` returns up to 200,000
+  characters; it has returned at most 60,000 since 0.7.0.
+- The README said exit code 1 meant "nothing declared", and a page with only a
+  `<title>` exits 0. The code is what was meant: the title is declared, read
+  into the summary with its source, and a script handed the page has an
+  answer. The README and the skill now say a `<title>` alone counts.
+- No MCP answer weighs more than 75,000 bytes of JSON (`MOST_ANSWER_BYTES`),
+  whatever the page. Only `extract_declared`'s records were bounded: a
+  200,000-character `<title>` made a 200 KB answer even with `records=False`,
+  60,000 characters of Chinese a 180 KB `fetch_page` slice, 60 products a
+  570 KB audit, and a feed, a map, a crawl or an extractor's rows had no bound
+  in bytes at all. Each tool now leaves out what its answer can do without and
+  says what: the records, then `conflicts_left_out`, then the heaviest summary
+  answers named in `summary_left_out` (and `visible_left_out`,
+  `normalised_left_out`, `links_left_out`); `items_left_out`,
+  `urls_left_out`, `rows_left_out`, an audit's `records_left_out`,
+  `page_left_out` and `other_agents_left_out`; a crawl's heaviest summary
+  answers per page, then `pages_left_out`; a page's or markdown's slice is
+  shortened and `next_offset` says where the rest starts. An answer that
+  cannot be cut, such as an extractor learnt from a page with a huge value, is
+  `too_large`.
+- `sluicer mcp --tools bogus`, and `SLUICER_MCP_TOOLS=bogus sluicer-mcp`,
+  printed a traceback; they print the one line that lists the ten tools and
+  exit 2, as a wrong option does.
+
+### Changed
+- The benchmark's date rule no longer depends on the day it runs: dateutil
+  filled a part a date does not write with today's, so "March 2021" matched
+  2021-03-24 on the 24th of a month only. A date is now a hit when the answer
+  writes every part the label writes, alike; dots are read day first, slashes
+  month first, and with a UTC offset on both the answer is read in the
+  label's (`bench/PREREG.md`). It changes five outcomes on the news
+  scoreboard and trafilatura's set, all from wrong to hit, when they are next
+  regenerated.
+- Every sentence a scoreboard's generator writes about its results is
+  counted from them. `bench/run.py` wrote "Sluicer gives none where the page
+  states none" beside a table in which it invented 42 authors and 8 dates,
+  and "authors and dates are where the gap is" whatever the run; the products
+  scoreboard's error classes, the news scoreboard's "most of the authors",
+  trafilatura's set's "nearly every snippet", the extruct page's "raises on
+  none" and "for the same reasons", and the served scoreboard's capture
+  scores were written once by hand and printed on every run. The scoreboards
+  show it when they are next regenerated.
+- `sluicer --help` lists the commands in four sections -- Read a page, Whole
+  sites, Extractors, Servers -- instead of one alphabetical list.
+- The suite runs in a random order (pytest-randomly, now a development
+  dependency), and CI seeds the order with the run's id. Two tests passed only
+  in file order: one cleared the `mcp` package from `sys.modules` but not
+  `mcp.server.mcpserver`, and one failed after a test that reloaded
+  `sluicer.markdown`, which left a second `MarkdownExtraMissing` class the CLI
+  did not catch. No test reloads a module now.
+
 ## 0.7.0 - 2026-09-24
 
 ### Added

@@ -1,9 +1,10 @@
 """Command line front door.
 
 Exit codes follow grep: 0 when something was found -- a record, or at least one
-summary answer -- 1 when the page was read and gives nothing at all, 2 when it
-could not be read. A script can tell "this page gives nothing" from "the fetch
-failed" without parsing English. ``run`` and ``heal`` add 3: a page broke the
+summary answer, a ``<title>`` alone included, or with ``--visible`` a guess --
+1 when the page was read and gives nothing at all, 2 when it could not be
+read. A script can tell "this page gives nothing" from "the fetch failed"
+without parsing English. ``run`` and ``heal`` add 3: a page broke the
 extractor's contract, or healing lost a field, and that is never a success.
 ``audit`` uses 3 in the same sense: the page was read and breaks a rule it is
 held to, here one its documentation states.
@@ -75,7 +76,76 @@ CONTRACT_BROKEN = 3
 INTERRUPTED = 130
 
 
-@click.group()
+def _what_to_try(source: str, induce: bool, visible: bool) -> str:
+    """What may still read a page that gives nothing, less the options tried.
+
+    A page declaring nothing may still repeat rows (``--induce``), show a
+    byline and dates only to a reader (``--visible``), or hold values a
+    person can point to, which ``compile --want`` learns by example.
+    """
+    page = "PAGE" if source == "-" else source
+    tries = [
+        *(["  --induce    the rows it repeats, as a listing's"] if not induce else []),
+        *(
+            ["  --visible   the title, byline and dates it shows a reader"]
+            if not visible
+            else []
+        ),
+        f"  sluicer compile {page} --want NAME=VALUE -o page.json",
+        "              the fields you name, each by a value the page shows",
+    ]
+    return "\n".join(["What may still read it:", *tries])
+
+
+SECTIONS: dict[str, tuple[str, ...]] = {
+    "Read a page": ("extract", "inspect", "markdown", "diff", "audit"),
+    "Whole sites": ("map", "crawl", "batch", "feed", "warc"),
+    "Extractors": ("compile", "run", "heal"),
+    "Servers": ("mcp", "serve"),
+}
+"""The sections ``sluicer --help`` lists the commands in, each in this order."""
+
+
+class _Sectioned(click.Group):
+    """A group whose help lists its commands by what they are for.
+
+    Fifteen commands in click's one alphabetical list put ``audit`` first and
+    ``extract`` between ``diff`` and ``feed``. A command in no section is
+    listed under "Other commands" rather than hidden.
+    """
+
+    def format_commands(
+        self, ctx: click.Context, formatter: click.HelpFormatter
+    ) -> None:
+        shown = {
+            name: command
+            for name in self.list_commands(ctx)
+            if (command := self.get_command(ctx, name)) is not None
+            and not command.hidden
+        }
+        if not shown:
+            return
+        widest = max(len(name) for name in shown)
+        limit = formatter.width - 6 - widest
+        placed = {name for names in SECTIONS.values() for name in names}
+        groups = [
+            *SECTIONS.items(),
+            ("Other commands", tuple(name for name in shown if name not in placed)),
+        ]
+        for title, names in groups:
+            # Padded to the longest name, so every section's help starts in
+            # one column: write_dl aligns only the rows it is given.
+            rows = [
+                (name.ljust(widest), shown[name].get_short_help_str(limit))
+                for name in names
+                if name in shown
+            ]
+            if rows:
+                with formatter.section(title):
+                    formatter.write_dl(rows)
+
+
+@click.group(cls=_Sectioned)
 @click.version_option(package_name="sluicer")
 def main() -> None:
     """Turn a web page into structured data with no model in the loop.
@@ -371,6 +441,7 @@ def extract(
         _fail(str(missing), missing)
     if not result.records and not result.summary and not result.visible:
         click.echo("This page gives nothing: no record and no summary.", err=True)
+        click.echo(_what_to_try(source, induce, visible), err=True)
         if fetched is not None:
             # What the page cost is reported even when it declared nothing.
             click.echo(f"Fetch reached the '{fetched.rung}' rung.", err=True)
@@ -455,6 +526,7 @@ def inspect(
     shown = "standard input" if source == "-" else (url or source)
     click.echo(_inspection(shown, result, fetched, microformats, not no_robots))
     if not result.records and not result.summary and not result.visible:
+        click.echo(_what_to_try(source, induce, visible), err=True)
         raise SystemExit(NOTHING_FOUND)
 
 

@@ -134,6 +134,24 @@ def publish() -> None:
     print(f"wrote {SCOREBOARD.relative_to(ROOT)}")
 
 
+PREREG = "https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md"
+
+
+def fitted(commits: str) -> list[str]:
+    """The note every scoreboard whose pages Sluicer's rules were made on
+    opens with: until 0.7.1 they said nothing of it, and one said "Nothing is
+    tuned to these pages"."""
+    return [
+        '!!! warning "Sluicer\'s rules were made on these pages"',
+        "    Rules were written, measured on these pages and kept because the",
+        f"    numbers here rose ({commits}, among others), so this measures",
+        "    Sluicer on pages it was fitted to, not on pages it has never seen.",
+        "    Of the scoreboards, only SWDE's held-out half is a held-out test;",
+        f"    [`bench/PREREG.md`]({PREREG}) says which pages each rule was made on.",
+        "",
+    ]
+
+
 def _name(run: dict[str, Any]) -> str:
     return f"{run['tool']} {run['version']}"
 
@@ -213,6 +231,64 @@ def _losses(runs, per_page, pages) -> list[str]:
     return lines
 
 
+def _inventions(counts: dict[str, Any]) -> list[str]:
+    """What each tool answered where the label is empty, counted from this run.
+
+    It said "Sluicer gives none where the page states none" whatever the run,
+    beside a table in which Sluicer invented 42 authors.
+    """
+    said = []
+    for tool in counts:
+        made = [
+            f"{n} {field}{'' if n == 1 else 's'}"
+            for field in score.FIELDS
+            if (n := counts[tool][field]["invention"])
+        ]
+        said.append(f"{tool} {_listed(made) if made else 'nothing'}")
+    return [
+        "Right when answering counts every answer a tool gives, inventions",
+        "included. Where a page's label is empty, the tools answered all the",
+        f"same: {'; '.join(said)}. On a product or category page with no",
+        "publication date, a date is not a small error but a fact that is not",
+        "there.",
+    ]
+
+
+def _listed(items: list[str]) -> str:
+    """``a, b and c``."""
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _gaps(per_page, pages) -> str:
+    """Where Sluicer's hit rate is below another tool's, widest gap first."""
+    counts = {tool: score.tally(per_page[tool], pages) for tool in per_page}
+    gaps = []
+    for field in score.FIELDS:
+        best = max(
+            (tool for tool in counts if tool != "sluicer"),
+            key=lambda tool: score.hit_rate(counts[tool][field]),
+            default=None,
+        )
+        if best is None:
+            continue
+        ours = score.hit_rate(counts["sluicer"][field])
+        theirs = score.hit_rate(counts[best][field])
+        if theirs > ours:
+            gaps.append((theirs - ours, field, best, ours, theirs))
+    if not gaps:
+        return "Sluicer's hit rate is the highest on every field."
+    return (
+        "Sluicer's hit rate is below another tool's on "
+        + _listed(
+            [
+                f"{field} ({ours:.3f} against {best}'s {theirs:.3f})"
+                for _, field, best, ours, theirs in sorted(gaps, reverse=True)
+            ]
+        )
+        + "."
+    )
+
+
 def _wins(runs, per_page, pages) -> list[str]:
     """What Sluicer does better, stated only where this run shows it."""
     if "sluicer" not in per_page:
@@ -238,13 +314,7 @@ def _wins(runs, per_page, pages) -> list[str]:
             f"- **{field.capitalize()}**, right when answering: {cells}. Fewest "
             f"inventions: {fewest}."
         )
-    lines += [
-        "",
-        "Right when answering counts every answer a tool gives, inventions",
-        "included. Sluicer gives none where the page states none; on a product or",
-        "category page with no publication date, a date is not a small error but a",
-        "fact that is not there.",
-    ]
+    lines += ["", *_inventions(counts)]
     # A tie would make "smallest" mean "first listed"; name every one.
     fastest = min(runs, key=lambda tool: runs[tool]["seconds"])
     least = min(run["packages"] for run in runs.values())
@@ -281,9 +351,14 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "`uv run bench/run.py`; the method and every pin are in",
         "[`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).",
         "",
+        *fitted("`659f3a6`, `709856e`, `b86aa19`"),
         '!!! warning "Read this before the numbers"',
-        "    WCXB removed every `<script>` from its pages: of the "
-        f"{len(pages_list)} test",
+        (
+            "    WCXB removed every `<script>` from its pages: of the "
+            if scripts == 0
+            else "    WCXB removed `<script>` elements from its pages: of the "
+        )
+        + f"{len(pages_list)} test",
         f"    pages, {scripts} carry a `<script>` and {json_ld} carry JSON-LD. JSON-LD "
         "is the",
         "    vocabulary Sluicer reads first, and the one many pages declare their",
@@ -326,11 +401,12 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "",
         *_losses(runs, per_page, pages),
         "",
-        "Authors and dates are where the gap is. The other tools also read bylines",
-        "and dates from the visible text of the page, where no vocabulary declares",
-        "them; Sluicer reads only what the page states in markup that means",
-        "something, and answers nothing rather than guess from prose. That is a",
-        "choice with a cost, and this is the cost.",
+        *([_gaps(per_page, pages), ""] if "sluicer" in per_page else []),
+        "The other tools also read bylines and dates from the visible text of",
+        "the page, where no vocabulary declares them; Sluicer reads only what the",
+        "page states in markup that means something, and answers nothing rather",
+        "than guess from prose. That is a choice with a cost, and the gap above",
+        "is the cost.",
         "",
         "## Where it wins",
         "",
@@ -363,8 +439,10 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "- **Author.** Letter runs, lowercased, less *by, and, the, staff, team,",
         "  editor(s), writer, de, von*; a hit when the shared tokens cover half the",
         "  label's and a quarter of the answer's.",
-        "- **Date.** Both parsed with dateutil; a hit when the calendar dates are",
-        "  equal.",
+        "- **Date.** Both parsed with dateutil under a fixed default; a hit when",
+        "  the answer writes every part of the date the label writes, alike. Dots",
+        "  are day first, slashes month first; with a UTC offset on both, the",
+        "  answer is read in the label's. The rule is in `bench/PREREG.md`.",
         "- **Sluicer.** `extract(html, url=...).summary`, fields `title`, `author`,",
         "  `published`, base install, from this checkout.",
         "- **trafilatura.** `extract_metadata(html, default_url=...)`.",

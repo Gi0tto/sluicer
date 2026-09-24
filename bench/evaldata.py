@@ -175,6 +175,12 @@ def _body_table(body: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _found(body: dict[str, Any], output: str) -> str:
+    """How many snippets ``output`` found, of those it could."""
+    counts = body["outputs"][output]
+    return f"{counts['tp']:,} of the {counts['tp'] + counts['fn']:,}"
+
+
 def _document(labelled, pages, runs, per_page, body) -> str:
     counted = {
         field: sum(1 for p in labelled if score.as_text(p[field]))
@@ -197,6 +203,7 @@ def _document(labelled, pages, runs, per_page, body) -> str:
         f"`uv run bench/evaldata.py`, against trafilatura at `{COMMIT[:12]}`; the",
         "method is in [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).",
         "",
+        *board.fitted("`bebff9d`"),
         '!!! warning "Read this before the numbers"',
         "    trafilatura's authors annotated these pages to measure trafilatura,",
         "    so the labels follow what it is built to find: the byline and the date",
@@ -222,10 +229,14 @@ def _document(labelled, pages, runs, per_page, body) -> str:
         "links and tables kept, so the page's text is trafilatura's by design;",
         "what this measures is what writing it as markdown costs. A link is",
         "written `[its text](its address)`, so a snippet that runs across one is",
-        "not found as written; with the syntax taken out, roughly, the markdown",
-        "holds nearly every snippet the text holds, and the rest is the rough",
-        "cut, which also takes the underscore out of `Liebe_r`. Scored on all",
-        f"{body['pages']} pages, as trafilatura scores itself.",
+        "not found as written: the markdown finds "
+        f"{_found(body, 'sluicer.markdown')} snippets, and",
+        "with its syntax taken out "
+        f"{_found(body, 'sluicer.markdown, its syntax taken out')}, where "
+        f"trafilatura's text finds {_found(body, 'trafilatura text')}.",
+        "The syntax is taken out roughly, which also takes the underscore out",
+        f"of `Liebe_r`. Scored on all {body['pages']} pages, as trafilatura "
+        "scores itself.",
         "",
         *_body_table(body),
         "",

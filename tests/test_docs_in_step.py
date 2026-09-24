@@ -60,3 +60,21 @@ def test_the_getting_started_guide_prints_what_it_says(monkeypatch):
     guide = (ROOT / "docs" / "getting-started.md").read_text(encoding="utf-8")
     monkeypatch.chdir(ROOT)
     _run_python_blocks(guide, "the getting started guide")
+
+
+def _assets():
+    spec = importlib.util.spec_from_file_location(
+        "readme_assets", ROOT / "scripts" / "readme_assets.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_readme_s_numbers_are_the_scoreboards():
+    """The dates chart said metascraper found 0.811 and its alt text 0.384,
+    and the README 1.4 s where the scoreboard said 1.50: the alt texts and the
+    timings were written by hand, the charts from the scoreboards."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert readme == _assets().readme(readme), "run: uv run scripts/readme_assets.py"

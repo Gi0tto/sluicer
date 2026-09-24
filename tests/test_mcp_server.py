@@ -143,8 +143,6 @@ def test_extract_declared_guesses_the_visible_page_only_when_asked(monkeypatch):
 
 
 def test_a_missing_extra_says_how_to_install_it(monkeypatch):
-    import importlib
-
     class _NoMcp:
         def find_spec(self, name, path=None, target=None):
             if name == "mcp" or name.startswith("mcp."):
@@ -156,7 +154,6 @@ def test_a_missing_extra_says_how_to_install_it(monkeypatch):
 
     import sluicer.mcp_server as server_module
 
-    importlib.reload(server_module)
     with pytest.raises(server_module.McpExtraMissing) as raised:
         server_module.build_server()
 
@@ -190,8 +187,6 @@ def test_fetch_page_still_accepts_a_url(monkeypatch):
 
 
 def test_running_without_the_extra_is_a_message_not_a_traceback(monkeypatch, capsys):
-    import importlib
-
     class _NoMcp:
         def find_spec(self, name, path=None, target=None):
             if name == "mcp" or name.startswith("mcp."):
@@ -202,8 +197,6 @@ def test_running_without_the_extra_is_a_message_not_a_traceback(monkeypatch, cap
     monkeypatch.setattr(sys, "meta_path", [_NoMcp(), *sys.meta_path])
 
     import sluicer.mcp_server as server_module
-
-    importlib.reload(server_module)
 
     with pytest.raises(SystemExit) as raised:
         server_module.main()
@@ -1349,3 +1342,275 @@ def test_the_server_reads_the_tools_asked_for_from_its_environment(monkeypatch):
     server_module.main()
     server_module.main(tools=["read_feed"])
     assert asked == [["extract_declared", "map_site"], None, ["read_feed"]]
+
+
+def test_a_tool_that_does_not_exist_stops_the_server_in_one_line(monkeypatch, capsys):
+    """The documented message, and exit 2 as for any wrong option: a
+    traceback put the list of the ten under thirty lines of click's frames."""
+    fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    for asked in (["bogus"], None):
+        if asked is None:
+            monkeypatch.setenv("SLUICER_MCP_TOOLS", "bogus")
+        with pytest.raises(SystemExit) as raised:
+            server_module.main(tools=asked)
+        assert raised.value.code == 2
+        said = capsys.readouterr().err
+        assert "no such tool: 'bogus'" in said
+        assert all(name in said for name in TOOLS)
+        assert "Traceback" not in said
+
+
+# -- every answer within MOST_ANSWER_BYTES -------------------------------------------
+
+
+def _within_the_bound(answer):
+    from sluicer.mcp_server import MOST_ANSWER_BYTES, _bytes_of
+
+    weight = _bytes_of(answer)
+    assert weight <= MOST_ANSWER_BYTES, f"{weight:,} bytes"
+    return answer
+
+
+def test_a_huge_title_is_left_out_of_the_summary_and_named(monkeypatch):
+    """A 200,000-character <title> made extract_declared answer 200 KB even
+    with records=False: only the records were ever bounded."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    page = (
+        f"<html><head><title>{'Brake pads ' * 20_000}</title>"
+        '<meta name="description" content="Pads for the front axle.">'
+        "</head></html>"
+    )
+    for records in (True, False):
+        got = _within_the_bound(registered["extract_declared"](page, records=records))
+        assert got["ok"] is True
+        assert got["summary_left_out"] == ["title"]
+        assert got["summary"]["description"]["value"] == "Pads for the front axle."
+    assert got.get("records_left_out") is None
+
+
+def test_the_heaviest_answers_go_first_and_each_is_named(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    monkeypatch.setattr(server_module, "MOST_ANSWER_BYTES", 3_000)
+    server_module.build_server()
+    page = (
+        f"<html><head><title>{'t' * 2_000}</title>"
+        f'<meta name="description" content="{"d" * 1_500}">'
+        '<meta name="author" content="Ann Lee"></head></html>'
+    )
+    got = _within_the_bound(registered["extract_declared"](page, records=False))
+    assert got["summary_left_out"] == ["title"]
+    assert set(got["summary"]) == {"description", "author"}
+
+
+def test_a_slice_of_chinese_is_held_to_the_bound_in_bytes_not_characters(
+    monkeypatch,
+):
+    """60,000 characters of Chinese are 180,000 bytes: fetch_page answered
+    180 KB. The slice is shortened, and the slices still join to the page."""
+    page = "<html><body><p>" + "漢字" * 50_000 + "</p></body></html>"
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, html=page)
+    from sluicer.mcp_server import MOST_CHARS, build_server
+
+    build_server()
+    slices, offset = [], 0
+    while offset is not None:
+        got = _within_the_bound(
+            registered["fetch_page"](
+                "https://example.com/p", offset=offset, max_chars=MOST_CHARS
+            )
+        )
+        assert got["truncated"] is (got["next_offset"] is not None)
+        slices.append(got["html"])
+        offset = got["next_offset"]
+    assert "".join(slices) == page
+    assert 20_000 < len(slices[0]) < MOST_CHARS
+
+
+def test_a_slice_of_markdown_is_held_to_the_bound_in_bytes_too(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(monkeypatch, html="<html></html>")
+    import sluicer.mcp_server as server_module
+
+    text = '"quoted"\n' * 20_000
+    monkeypatch.setattr(server_module, "to_markdown", lambda *a, **k: text)
+    server_module.build_server()
+    slices, offset = [], 0
+    while offset is not None:
+        got = _within_the_bound(
+            registered["page_markdown"](
+                "https://example.com/p", offset=offset, max_chars=60_000
+            )
+        )
+        slices.append(got["markdown"])
+        offset = got["next_offset"]
+    assert "".join(slices) == text
+
+
+def _rss(items, words):
+    body = "".join(
+        f"<item><title>Item {n}</title><link>https://example.com/{n}</link>"
+        f"<description>{'word ' * words}</description></item>"
+        for n in range(items)
+    )
+    return (
+        '<?xml version="1.0"?><rss version="2.0"><channel><title>Feed</title>'
+        f"<link>https://example.com/</link>{body}</channel></rss>"
+    )
+
+
+def test_feed_items_past_the_bound_are_left_out_and_counted(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    got = _within_the_bound(registered["read_feed"](_rss(60, 2_000), limit=60))
+    assert got["ok"] is True and got["items_total"] == 60
+    assert got["items_left_out"] == 60 - len(got["items"]) > 0
+    assert [item["title"] for item in got["items"]] == [
+        f"Item {n}" for n in range(len(got["items"]))
+    ]
+
+
+def test_a_map_past_the_bound_is_cut_counted_and_called_truncated(monkeypatch):
+    long = "/" + "section/" * 25
+    entries = "".join(
+        f"<url><loc>https://example.com{long}{n}</loc></url>" for n in range(1_000)
+    )
+    pages = {
+        "https://example.com/": "<html><body>Home</body></html>",
+        "https://example.com/sitemap.xml": (
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            f"{entries}</urlset>"
+        ),
+    }
+    registered = fake_mcp(monkeypatch)
+    _fake_site_library(monkeypatch, pages)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    got = _within_the_bound(registered["map_site"]("https://example.com/", limit=1000))
+    assert got["ok"] is True and got["truncated"] is True
+    assert got["urls_left_out"] == 1_000 - len(got["urls"]) > 0
+
+
+def test_a_crawl_leaves_out_the_heaviest_summary_answers_and_keeps_every_page(
+    monkeypatch,
+):
+    """One page with a 200,000-character title costs that title, not the
+    pages after it."""
+    from fake_site import page
+
+    pages = _shop()
+    pages["https://example.com/a"] = page("A" * 200_000, "/b?page=2")
+    registered = fake_mcp(monkeypatch)
+    _fake_site_library(monkeypatch, pages)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    got = _within_the_bound(registered["crawl_site"]("https://example.com/"))
+    urls = [one["url"] for one in got["pages"]]
+    assert "https://example.com/b?page=2" in urls and "pages_left_out" not in got
+    heavy = got["pages"][urls.index("https://example.com/a")]
+    assert heavy["summary_left_out"] == ["title"]
+    assert got["pages"][0]["summary"]["title"]["value"] == "Home"
+    assert "summary_left_out" not in got["pages"][0]
+
+
+def test_an_audit_past_the_bound_keeps_the_records_that_fit(monkeypatch):
+    """Sixty products made a 570 KB audit, 3,000 a 28 MB one; the rest are counted."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    products = [
+        '<script type="application/ld+json">'
+        f'{{"@type": "Product", "name": "Pad {n}"}}</script>'
+        for n in range(60)
+    ]
+    got = _within_the_bound(registered["audit_page"]("".join(products)))
+    assert got["ok"] is True and got["records"]
+    assert got["records_left_out"] == 60 - len(got["records"]) > 0
+    assert got["errors"] == 3 * 60
+    few = registered["audit_page"]("".join(products[:3]))
+    assert len(few["records"]) == 3 and "records_left_out" not in few
+
+
+def test_rows_past_the_bound_are_left_out_and_counted(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    import sluicer.extractor as extractor_module
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    learnt = registered["compile_extractor"](
+        [_drift("shop_v1.html"), _drift("shop_v1_page2.html")]
+    )
+    rows = [{"title": f"Book {n} " + "x" * 400} for n in range(1_000)]
+    monkeypatch.setattr(
+        extractor_module,
+        "run_extractor",
+        lambda *a, **k: extractor_module.Run(url=None, ok=True, rows=rows),
+    )
+    got = _within_the_bound(
+        registered["run_extractor"](learnt["extractor"], _drift("shop_v1.html"))
+    )
+    assert got["ok"] is True
+    assert got["rows"] == rows[: len(got["rows"])]
+    assert got["rows_left_out"] == 1_000 - len(got["rows"]) > 0
+
+
+def test_an_answer_nothing_can_be_left_out_of_is_too_large(monkeypatch):
+    """An extractor is used whole or not at all: one learnt from pages whose
+    template repeats a 100,000-character value cannot be cut, and is refused
+    rather than handed to a client that cannot hold it."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import MOST_ANSWER_BYTES, build_server
+
+    build_server()
+    heavy = "Sapiens " * 12_500
+    pages = [_drift("shop_v1.html").replace("Sapiens", heavy)]
+    got = registered["compile_extractor"](pages)
+    assert got["ok"] is False and got["error"]["code"] == "too_large"
+    assert f"{MOST_ANSWER_BYTES:,}" in got["error"]["message"]
+    _within_the_bound(got)
+
+
+def test_conflicts_go_before_the_summary_and_are_counted(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    server_module.build_server()
+    page = (
+        '<html><head><script type="application/ld+json">'
+        '{"@type": "Product", "name": "Pads", "offers": {"price": "41.90"}}'
+        '</script><meta property="og:price:amount" content="39.90"></head></html>'
+    )
+    whole = registered["extract_declared"](page, records=False)
+    assert len(whole["conflicts"]) == 1
+    monkeypatch.setattr(
+        server_module, "MOST_ANSWER_BYTES", server_module._bytes_of(whole) - 10
+    )
+    got = _within_the_bound(registered["extract_declared"](page, records=False))
+    assert got["conflicts"] == [] and got["conflicts_left_out"] == 1
+    assert got["summary"] == whole["summary"] and "summary_left_out" not in got
+
+
+def test_a_healed_extractor_too_large_for_an_answer_is_refused(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    learnt = registered["compile_extractor"](
+        [_drift("shop_v1.html"), _drift("shop_v1_page2.html")]
+    )
+    heavy = _drift("shop_v1.html").replace("Sapiens", "Sapiens " * 12_500)
+    got = registered["heal_extractor"](learnt["extractor"], [heavy])
+    assert got["ok"] is False and got["error"]["code"] == "too_large"
+    _within_the_bound(got)

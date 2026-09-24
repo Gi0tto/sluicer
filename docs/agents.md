@@ -22,7 +22,7 @@ Each tool a client registers costs its agent context, called or not. To offer
 only some, name them: `sluicer mcp --tools extract_declared,page_markdown`, or
 `SLUICER_MCP_TOOLS=extract_declared,page_markdown` for a client that sets
 variables rather than arguments. A name that is not a tool stops the server
-with the list of the ten. Where the scripts directory is not on the `PATH`,
+with the list of the ten, and exit code 2. Where the scripts directory is not on the `PATH`,
 `python -m sluicer mcp` starts the same server.
 
 The server refuses to fetch `localhost`, a private network or a cloud's

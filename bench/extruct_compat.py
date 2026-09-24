@@ -130,7 +130,12 @@ def run_compat(found: list[dict[str, Any]]) -> dict[str, Any]:
                 ]
             )
         started = time.perf_counter()
-        compat.extract(html, base_url=url)
+        # Recorded as extruct's is, so "raises on none" is counted, not said.
+        try:
+            compat.extract(html, base_url=url)
+            answer["default"] = "ok"
+        except Exception as raised:  # noqa: BLE001 -- the count is the point
+            answer["default"] = type(raised).__name__
         seconds += time.perf_counter() - started
         results[page["key"]] = answer
     return {"seconds": seconds, "pages": results}
@@ -417,12 +422,16 @@ def table(
     failed = sum(
         1 for key in theirs["pages"] if theirs["pages"][key]["default"] != "ok"
     )
+    ours_failed = sum(
+        1 for key in ours["pages"] if ours["pages"][key].get("default") != "ok"
+    )
     lines += [
         "",
         f"`extruct.extract(html, base_url=url)`, every argument else at its "
         f"default, raises on {failed} of the {len(found)} pages; sluicer's raises "
-        f"on none. The same call over every page took {theirs['seconds']:.1f} s "
-        f"in extruct and {ours['seconds']:.1f} s in sluicer.",
+        f"on {ours_failed or 'none'}. The same call over every page took "
+        f"{theirs['seconds']:.1f} s in extruct and {ours['seconds']:.1f} s in "
+        "sluicer.",
         "",
         "Every difference, by what explains it:",
         "",
@@ -450,10 +459,28 @@ def table(
         "",
         f"extruct answers Dublin Core on {theirs_dc} of the {len(found)} pages; "
         f"{ours_dc} of them write a name under a Dublin Core prefix.",
-        "Uniform mode differs on exactly the pages the syntax it reshapes "
-        "differs on, for the same reasons.",
+        _uniform_sentence(report),
     ]
     return "\n".join(lines)
+
+
+def _uniform_sentence(report: dict[str, Any]) -> str:
+    """Whether uniform mode differs where its syntax does, and for the same
+    reasons, as this run found: it was written once and printed every run."""
+    apart = [
+        NAMES[syntax]
+        for syntax, measured in report["uniform"].items()
+        if measured["examples"] != report["syntax"][syntax]["examples"]
+    ]
+    if not apart:
+        return (
+            "Uniform mode differs on exactly the pages the syntax it reshapes "
+            "differs on, for the same reasons."
+        )
+    return (
+        "Uniform mode differs on other pages, or for other reasons, than the "
+        f"syntax it reshapes, for {', '.join(apart)}."
+    )
 
 
 def _short(url: str) -> str:

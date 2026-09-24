@@ -76,8 +76,6 @@ def test_bytes_reach_trafilatura_undecoded(monkeypatch):
 
 
 def test_a_missing_extra_says_how_to_install_it(monkeypatch):
-    import importlib
-
     class _NoTrafilatura:
         def find_module(self, name, path=None):
             return None
@@ -91,7 +89,6 @@ def test_a_missing_extra_says_how_to_install_it(monkeypatch):
 
     import sluicer.markdown as markdown_module
 
-    importlib.reload(markdown_module)
     with pytest.raises(markdown_module.MarkdownExtraMissing) as raised:
         markdown_module.to_markdown("<html><body>hi</body></html>")
 

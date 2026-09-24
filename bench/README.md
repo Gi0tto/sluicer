@@ -43,7 +43,10 @@ given, inventions included.
 - author: letter runs, lowercased, less *by, and, the, staff, team, editor(s),
   writer, de, von*; a hit when the shared tokens cover half the label's and a
   quarter of the answer's, so a byline paragraph containing the name is not.
-- date: both parsed with dateutil; a hit when the calendar dates are equal.
+- date: both parsed with dateutil under a fixed default, never the day it runs;
+  a hit when the answer writes every part of the date the label writes, year,
+  month and day, alike. Dots are day first, slashes month first; with a UTC
+  offset on both, the answer is read in the label's (`bench/PREREG.md`).
 
 ## How each tool runs
 
@@ -191,7 +194,10 @@ HTML entities, stored undecoded, are decoded first.
 was read** (commit `fc72378`): in each vertical, in alphabetical order, sites
 alternate between development and held-out. Rules for Sluicer are made while
 reading only the development sites' pages and errors; the held-out sites are
-only scored, and the scoreboard shows both halves.
+only scored, and the scoreboard shows both halves. That half is the one
+held-out test here: Sluicer's rules were made while the pages of the other
+scoreboards and of the drift benchmark were read ([`PREREG.md`](PREREG.md)
+says which).
 
 ## Before a release: the floors
 

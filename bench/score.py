@@ -15,11 +15,16 @@ The matching rules:
   "staff", "team", "editor(s)", "writer", "de", "von"; a hit when the shared
   tokens cover at least half of the label's and a quarter of the answer's, so
   a whole byline paragraph that happens to contain the name is not a hit.
-- date: both parsed with dateutil; a hit when the calendar dates are equal.
+- date: both parsed with dateutil, by the rule ``bench/PREREG.md`` writes
+  under "How an answer is scored": a hit when the answer says every part of
+  the date the label says -- year, month, day -- and each is the label's.
+  Numbers written with dots are read day first, with slashes month first;
+  when both carry a UTC offset the answer is read in the label's.
 """
 
 from __future__ import annotations
 
+import datetime
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable
@@ -81,9 +86,44 @@ def author_matches(got: str, want: str) -> bool:
     return len(shared) / len(b) >= 0.5 and len(shared) / len(a) >= 0.25
 
 
+# Two defaults that differ in every part, and whose day every month has: a
+# part the text writes is the same under both, a part it does not write is
+# not. Without a default, dateutil fills a missing part with today's, and
+# "March 2021" matched 2021-03-24 on the 24th of a month and no other day.
+_DEFAULTS = (datetime.datetime(2000, 1, 1), datetime.datetime(2001, 12, 28))
+_PARTS = ("year", "month", "day")
+# 10.12.2022: dots are day first in every language that writes dates with them.
+_DOTTED = re.compile(r"^\D*\d{1,2}\.\d{1,2}\.\d{2,4}")
+
+
+def _read_date(text: str) -> tuple[datetime.datetime, frozenset[str]]:
+    """The date ``text`` writes, and which of its parts it writes."""
+    dayfirst = bool(_DOTTED.match(text))
+    first, second = (
+        dates.parse(text, default=default, dayfirst=dayfirst) for default in _DEFAULTS
+    )
+    written = frozenset(
+        part for part in _PARTS if getattr(first, part) == getattr(second, part)
+    )
+    return first, written
+
+
 def date_matches(got: str, want: str) -> bool:
+    """Whether the answer says the label's date, on any day this is run.
+
+    The label decides what must be said: every part it writes -- year, month,
+    day -- the answer must write too, and alike. When both carry a UTC offset,
+    the answer is moved to the label's before its calendar date is read, since
+    they then name the same instant; otherwise each date is read as written.
+    """
     try:
-        return dates.parse(str(got)).date() == dates.parse(str(want)).date()
+        answer, said = _read_date(str(got))
+        label, asked = _read_date(str(want))
+        if not asked or not asked <= said:
+            return False
+        if answer.tzinfo is not None and label.tzinfo is not None:
+            answer = answer.astimezone(label.tzinfo)
+        return all(getattr(answer, part) == getattr(label, part) for part in asked)
     except (ValueError, OverflowError, TypeError):
         return False
 
