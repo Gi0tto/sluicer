@@ -6,9 +6,9 @@ and replayed on a later one. An oracle that does not use the extractor's
 code judges the result. Losses come first.
 
 Regenerated on 2026-09-24 from commit
-`a22515e` (sluicer 0.7.0, Scrapling 0.4.15) with
+`faf097e` (sluicer 0.7.0, Scrapling 0.4.15) with
 `uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`, in
-28 seconds from the cache.
+12 seconds from the cache.
 
 !!! warning "Read this before the numbers"
     This is 44 pairs on 25 sites,
