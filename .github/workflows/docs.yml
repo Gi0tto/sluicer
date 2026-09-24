@@ -18,12 +18,24 @@ on:
       - "SECURITY.md"
       - "examples/site/**"
       - "scripts/docs_demo.py"
+  # CI skips a change to Markdown or docs alone, yet tests read the README and
+  # the pages; a pull request that touches only them is checked here.
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "ROADMAP.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - "examples/site/**"
+      - "scripts/docs_demo.py"
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -41,14 +53,20 @@ jobs:
     name: The documentation builds
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - name: Build the site
         # Pinned below 2 on both: MkDocs 2.0 is announced as a breaking release
         # and mkdocs-material already warns about it, so an unpinned uvx would
         # change what --strict means on the day it lands, not on a day we chose.
         run: uvx --from 'mkdocs>=1.6,<2' --with 'mkdocs-material>=9.7,<10' mkdocs build --strict
-      - uses: actions/upload-pages-artifact@v5
+      - name: The tests that read the README and the pages pass
+        run: >-
+          uv run --python 3.13 --extra mcp pytest -q
+          tests/test_docs_in_step.py tests/test_reference.py tests/test_package.py
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
@@ -65,9 +83,13 @@ jobs:
       github.event.repository.visibility == 'public' &&
       (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
+    # Only this job publishes, so only it may.
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
