@@ -3,7 +3,7 @@
 The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on the pages trafilatura evaluates itself
 on, 990 saved with their scripts, 851 of them annotated for their metadata, and the main text beside them.
-Regenerated on 2026-09-24 from commit `a9b4c6e` by
+Regenerated on 2026-09-24 from commit `a770341` by
 `uv run bench/evaldata.py`, against trafilatura at `c852cae9708a`; the
 method is in [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -24,7 +24,7 @@ Hit rate is hits over the pages that carry a label (845 titles, 538 authors, 728
 |---|---|---|---|---|---|
 | sluicer 0.6.0 | 0.776 | 0.468 | 0.584 | 97 | 39 |
 | trafilatura 2.2.0 | 0.738 | 0.669 | 0.865 | 122 | 121 |
-| metascraper 5.58.1 | 0.699 | 0.662 | 0.551 | 153 | 62 |
+| metascraper 5.58.1 | 0.699 | 0.662 | 0.663 | 153 | 62 |
 | newspaper4k 0.9.6 | 0.756 | 0.507 | 0.668 | 106 | 49 |
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
@@ -37,7 +37,7 @@ Hit rate is hits over the pages that carry a label (845 titles, 538 authors, 728
 | trafilatura 2.2.0 | date | 630 | 97 | 1 | 2 | 121 | 0.865 | 0.743 |
 | metascraper 5.58.1 | title | 591 | 241 | 13 | 0 | 6 | 0.699 | 0.705 |
 | metascraper 5.58.1 | author | 356 | 110 | 72 | 160 | 153 | 0.662 | 0.575 |
-| metascraper 5.58.1 | date | 401 | 218 | 109 | 61 | 62 | 0.551 | 0.589 |
+| metascraper 5.58.1 | date | 483 | 136 | 109 | 61 | 62 | 0.663 | 0.709 |
 | newspaper4k 0.9.6 | title | 639 | 200 | 6 | 0 | 6 | 0.756 | 0.756 |
 | newspaper4k 0.9.6 | author | 273 | 78 | 187 | 207 | 106 | 0.507 | 0.597 |
 | newspaper4k 0.9.6 | date | 486 | 71 | 171 | 74 | 49 | 0.668 | 0.802 |
