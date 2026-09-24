@@ -2,6 +2,55 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Added
+- A date's month is read by its name in any of the 430 languages and regions
+  CLDR 48.2 covers at its modern level, in the orders they write it --
+  `10. Mai 2023`, `10 de mayo de 2023`, `10 мая 2023 г.`, Hungarian's
+  `2023. május 10.`, a weekday and its comma before it -- and the numbers with
+  units of Chinese, Japanese and Korean, `2023年5月10日`; a Thai month's year
+  from 2400 on is the Buddhist era's, and converted. `normalised` and the
+  conflicts read them. The names are generated from CLDR by
+  `scripts/cldr_calendar.py` into `sluicer/calendar_names.py`, the one file
+  under the Unicode License v3, so the licence expression is now
+  `MIT AND CC-BY-SA-3.0 AND Unicode-3.0`. On 2,680 pages one more date is
+  read and none changes: pages rarely declare dates so.
+- A crawl hears a site that says it is asked too often. After a 429 or a 503
+  the next request to the site waits its `Retry-After`, a date counted from
+  the response's own `Date`; one longer than the crawl's `max_delay` answers
+  the site's next pages `rate_limited`, retryable. Without a `Retry-After`
+  the site's delay doubles for the rest of the crawl, up to `max_delay`.
+  Taken from Crawlee, which reads the header; Scrapy retries both statuses
+  without it.
+- A scoreboard on trafilatura's evaluation set (`bench/evaldata.py`,
+  `docs/scoreboard-evaldata.md`): 990 pages, 851 annotated with their title,
+  author and date, and the main text of all of them scored by the snippets
+  it must and must not hold. Sluicer's titles are the most often right of
+  the four tools; its authors and dates are behind the tools that read the
+  visible page, as on the other scoreboards. Its markdown holds 2,670 of the
+  2,951 snippets trafilatura's text holds 2,785 of, the difference the
+  markdown's own syntax: a link written `[text](address)` splits a snippet
+  that runs across it.
+- `examples/04_a_guess_from_the_visible_page.py`: trafilatura's guess at an
+  author or date beside what the page declares, named a guess, for a caller
+  who wants one. It stays out of the summary, and the known limits say why,
+  with how often it is right where nothing is declared.
+
+### Changed
+- Development status is Beta. The public interface -- `extract`, the
+  summary's questions, the MCP tools -- may still change before 1.0; every
+  change is in this file.
+- The names content systems give an account nobody named -- WordPress's
+  `admin`, Joomla's `Super User`, Blogger's `Unknown` -- are no author.
+
+### Fixed
+- The CI no longer cancels one kind of run with another: dispatching the full
+  run on main cancelled the push's run of the same commit, and 0.5.0's commit
+  showed as failed though every check had passed.
+- The documentation's home page had lost the licence's exception for
+  schema.org's names that the README states.
+
 ## 0.5.0 - 2026-09-24
 
 ### Added
