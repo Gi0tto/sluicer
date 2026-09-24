@@ -436,3 +436,28 @@ def test_a_fragment_is_parsed_as_a_whole_document():
 
         assert doc.tree.tag == "html"
         assert [child.tag for child in doc.tree] == ["body"]
+
+
+def test_a_page_s_newlines_are_normalised_as_a_browser_normalises_them():
+    """CR LF and a lone CR are LF before the page is parsed, on every libxml2.
+
+    libxml2 2.14 (lxml 6) does this itself and 2.12 (lxml 5.3, the floor) does
+    not, so a description or a review read on one kept its CR LF and on the
+    other did not: the same page, two answers, on nine benchmark pages.
+    """
+    from sluicer import extract
+
+    page = (
+        '<html><head><meta name="keywords" content="brakes\r\npads">'
+        '<script type="application/ld+json">{"@type": "Product", "name": "Pad",'
+        ' "description": "one\r\ntwo\rthree"}</script></head><body>'
+        '<div itemscope itemtype="https://schema.org/Review">'
+        '<meta itemprop="reviewBody" content="good\r\nvalue"></div></body></html>'
+    )
+    for form in (page, page.encode()):
+        result = extract(form)
+        fields = {k: f.value for r in result.records for k, f in r.fields.items()}
+
+        assert fields["description"] == "one\ntwo\nthree"
+        assert fields["reviewBody"] == "good\nvalue"
+        assert fields["keywords"] == "brakes\npads"

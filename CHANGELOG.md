@@ -61,6 +61,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `/html/div[1]/title[1]` for `/html/body/title[1]`; an extractor could not
   find a path on such a page at all. On the benchmark pages, three evaldata
   pages' title place changes so; no value changes.
+- A page's newlines are read as the HTML standard reads them, CR LF and a
+  lone CR as LF, before lxml parses it. lxml 6 did so and lxml 5.3, the
+  declared floor, did not, so a description or a review kept its CR LF on one
+  and not the other: on the benchmark pages, 13 of the 55 pages whose answer
+  depended on the lxml version no longer do. No answer on lxml 6 changed.
 
 ## 0.7.0 - 2026-09-24
 

@@ -143,6 +143,15 @@ developer tools; the same page parsed by `sluicer.document.load` finds it.
 A fragment, or a page with no head that does not open with `<html>` or a
 doctype, is parsed as a whole document, as lxml's `document_fromstring` and a
 browser both build it, so its places start at `/html/body`.
+
+**The same page can read differently on lxml 5.3 and on lxml 6.** The
+floor, lxml 5.3.0, bundles libxml2 2.12; lxml 6 bundles 2.14, whose tokenizer
+follows HTML5 while its tree building does not yet. Newlines are Sluicer's
+own business -- CR LF and a lone CR are read as LF before either parses a
+page -- but where each puts a stray `<title>` or `<link>`, and whether it
+knows an HTML5-only name such as `&mldr;`, is libxml2's. Measured on 5,948
+benchmark pages, 42 give a different answer on 5.3.0 than on 6.1.3, 38 of
+them SWDE pages from 2010; the newlines had made 13 more.
 Some values have no place at all: a meta tag's -- OpenGraph, the Twitter
 card, Dublin Core and HTML's meta names return values, not elements, and
 their key names the tag -- an induced row's, a microformats item's, an answer

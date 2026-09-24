@@ -255,14 +255,16 @@ def load(
     by lxml, since a decoded string cannot also declare an encoding; it is
     parsed as UTF-8 whatever it declares. A document lxml cannot parse at all
     -- empty, only a doctype, a comment or an XML declaration -- becomes an
-    empty ``<html>`` element, so readers find nothing. ``html`` is kept
-    verbatim on the result.
+    empty ``<html>`` element, so readers find nothing. Its newlines are read
+    as the HTML standard reads them, CR LF and a lone CR as LF, on every
+    libxml2. ``html`` is kept verbatim on the result.
     """
     if isinstance(html, bytes):
         tree = _parse_bytes(html, charset)
         return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
+    text = _newlines(html)
     try:
-        tree = lxml.html.document_fromstring(html, parser=_TEXT_PARSER)
+        tree = lxml.html.document_fromstring(text, parser=_TEXT_PARSER)
     except lxml.etree.LxmlError:
         # ParserError ("Document is empty"): nothing to read, not an error.
         tree = lxml.html.Element("html")
@@ -272,7 +274,7 @@ def load(
         # gets a second chance as bytes before it is called empty.
         # "replace": a lone surrogate is a character a str can hold and UTF-8
         # cannot, and this function promises never to raise.
-        tree = _parse_utf8(html.encode("utf-8", "replace"))
+        tree = _parse_utf8(text.encode("utf-8", "replace"))
     return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
 
 
@@ -284,7 +286,21 @@ def _parse_bytes(data: bytes, charset: str | None = None) -> lxml.html.HtmlEleme
     ``<meta charset="utf-8">`` turned every field on the page to mojibake.
     """
     text = data.decode(sniff_encoding(data, charset), errors="replace")
-    return _parse_utf8(text.encode("utf-8"))
+    return _parse_utf8(_newlines(text).encode("utf-8"))
+
+
+def _newlines(text: str) -> str:
+    """``text`` with CR LF and a lone CR as LF, as the HTML standard reads a page.
+
+    The standard normalises a page's newlines before tokenising it, and
+    libxml2 does too from 2.14, lxml 6's, but not in 2.12, lxml 5.3's, which
+    this package also runs on: done here, the same page gives the same answer
+    on both, where a description kept its CR LF on one and not the other. A
+    reference to a CR, ``&#13;``, is not a newline written, and stays one.
+    """
+    if "\r" not in text:
+        return text
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _parse_utf8(data: bytes) -> lxml.html.HtmlElement:
