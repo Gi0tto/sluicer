@@ -1055,3 +1055,29 @@ def test_a_crumb_whose_position_is_not_a_number_is_placed_where_it_was_written()
     )
 
     assert _summary(html)["breadcrumb"][0] == "Home > Brakes > Pads > Front"
+
+
+def test_an_icon_s_svg_title_is_not_the_page_s_title():
+    """libxml2's HTML parser has no namespaces: an SVG ``title`` looks like HTML's."""
+    icon = '<svg viewBox="0 0 8 8"><title>Close menu</title><path d="M0 0"/></svg>'
+    formula = "<math><title>x squared</title><mi>x</mi></math>"
+
+    untitled = extract(
+        f"<html><head></head><body>{icon}{formula}<p>Hi</p></body></html>"
+    )
+    titled = extract(
+        f"<html><body>{icon}<title>Brake pads</title><p>Hi</p></body></html>"
+    )
+
+    assert "title" not in untitled.summary
+    assert titled.summary["title"].value == "Brake pads"
+    assert titled.summary["title"].key == "<title>"
+
+
+def test_a_headline_is_weighed_against_the_page_s_title_not_an_icon_s():
+    html = _page(
+        {"@type": "Article", "headline": "hydraulic structure", "name": "Dam"},
+        head="<title>News</title>",
+    ).replace("<body>", "<body><svg><title>Dam</title></svg>")
+
+    assert _summary(html)["title"][0] == "hydraulic structure"

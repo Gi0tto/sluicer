@@ -174,6 +174,10 @@ _TITLE_NAMES = ("citation_title",)
 _BYLINE = re.compile(r"^\s*by\s+", re.IGNORECASE)
 _TITLE_SEPARATORS = (" - ", " | ", " \u2013 ", " \u2014 ", " \u00b7 ", " :: ", " / ")
 
+# The page's own <title>, not an icon's or a formula's: libxml2's HTML parser
+# has no namespaces, so an inline <svg><title> looks like HTML's, and on a
+# page with no head title it was the page's.
+_PAGE_TITLE = "//title[not(ancestor::svg or ancestor::math)]"
 _WHITESPACE = re.compile(r"\s+")
 _SCHEMA_ORG = re.compile(r"^https?://(?:www\.)?schema\.org/", re.IGNORECASE)
 
@@ -320,7 +324,7 @@ def read_summary(
             meta(twitter, "twitter", "title", "twitter:"),
             meta(dublincore, "dublincore", "title", "dc."),
             _named(doc, _TITLE_NAMES),
-            _element_text(doc, "//title", "<title>"),
+            _element_text(doc, _PAGE_TITLE, "<title>"),
         ],
         "description": [
             own("description"),
@@ -1261,7 +1265,7 @@ def _headline_or_name(
         text.casefold()
         for text in (
             opengraph.get("title"),
-            *(title.text_content() for title in doc.tree.xpath("//title")),
+            *(title.text_content() for title in doc.tree.xpath(_PAGE_TITLE)),
         )
         if text
     )

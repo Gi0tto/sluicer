@@ -50,6 +50,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A JSON-LD price JSON wrote with an exponent, `1.5e3`, is the summary's
   price and normalises to `1500`: the summary counted two numbers in it and
   refused it, and `amount()` could not read it.
+- An inline SVG's or MathML's `<title>` is no longer the summary's title on a
+  page with no head title, nor weighed as the page's title between a headline
+  and a name: libxml2 has no namespaces, and an icon's "Close menu" was the
+  page's title.
 
 ## 0.7.0 - 2026-09-24
 
