@@ -192,3 +192,16 @@ was read** (commit `fc72378`): in each vertical, in alphabetical order, sites
 alternate between development and held-out. Rules for Sluicer are made while
 reading only the development sites' pages and errors; the held-out sites are
 only scored, and the scoreboard shows both halves.
+
+## Before a release: the floors
+
+[`PREREG.md`](PREREG.md) says what every scoreboard fixes before it is run:
+the pinned corpora, how an answer is scored, SWDE's halves and how often the
+held-out half has been read. After the scoreboards are run for a release,
+
+```bash
+uv run bench/gate.py --require    # fails if Sluicer does worse than bench/floors.json
+uv run bench/gate.py --raise      # the floors follow the numbers up, never down
+```
+
+A floor is lowered only with `--allow-regression`, in a commit that says why.
