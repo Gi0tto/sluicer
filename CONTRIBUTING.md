@@ -84,8 +84,9 @@ answers changed, on how many pages, and whether the labels call them right.
 | `src/sluicer/cli.py`, `mcp_server.py`, `http_api.py` | the command line, the MCP server and the HTTP door |
 | `tests/` | the suite; `tests/properties/` the properties; `tests/live/` the checks CI runs against real curl, browsers and installs |
 | `bench/` | the scoreboards and the drift benchmark; [`bench/README.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/README.md) says how each is run |
+| `examples/` | scripts that run as they are, on `examples/site/`, a made-up site served on your machine |
 | `docs/` | the documentation site |
-| `scripts/` | the generators of the files below |
+| `scripts/` | the generators of the files below, and the hook that publishes `examples/site/` with the documentation |
 
 ## Files that are generated
 
@@ -105,7 +106,9 @@ before a release.
 
 `docs/changelog.md`, `docs/roadmap.md`, `docs/contributing.md` and
 `docs/security.md` are symlinks to the files of the same name in the repository
-root: edit the root file, and the site follows.
+root: edit the root file, and the site follows. The site also publishes
+`examples/site/` at `demo/`, through `scripts/docs_demo.py`, a hook `mkdocs.yml`
+names.
 
 ## The documentation site
 

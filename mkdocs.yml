@@ -74,3 +74,7 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - smarty
   - toc: { permalink: true }
+
+# The examples' made-up site, published at demo/ for trying Sluicer on.
+hooks:
+  - scripts/docs_demo.py

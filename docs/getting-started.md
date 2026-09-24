@@ -95,10 +95,13 @@ true: the page contradicts itself, and whoever reads it should say so.
 ## 4. Read a page on the web
 
 ```bash
-sluicer inspect https://www.gutenberg.org/ebooks/84
-sluicer markdown https://www.gutenberg.org/ebooks/84    # the readable content
-sluicer extract https://www.gutenberg.org/ebooks/84 --at 2024-01   # as the Wayback Machine saw it
+sluicer inspect https://gi0tto.github.io/sluicer/demo/article.html
+sluicer markdown https://gi0tto.github.io/sluicer/demo/article.html   # the readable content
+sluicer extract https://example.com/ --at 2024-01   # as the Wayback Machine saw it
 ```
+
+The article belongs to a small made-up site this documentation publishes for
+trying Sluicer on; the same pages are in the repository's `examples/site/`.
 
 Sluicer asks with plain HTTP first, under its own name, `Sluicer/<version>`,
 after reading the site's robots.txt, and climbs to a browser only when the

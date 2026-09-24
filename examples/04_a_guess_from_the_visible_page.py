@@ -6,14 +6,21 @@ the byline and the dates a reader sees. The guess is kept apart and named as
 one: where nothing is declared it is right on 42% of the general web pages
 Sluicer's scoreboards measure for an author and 24% for a date, and more often
 on news (docs/known-limits.md has the numbers).
+
+    python 04_a_guess_from_the_visible_page.py        # notes that declare neither
+    python 04_a_guess_from_the_visible_page.py URL    # or any page you may fetch
 """
 
+import sys
+
+from _site import serve
 from trafilatura import bare_extraction
 
 import sluicer
 from sluicer.fetch import fetch
 
-page = fetch("https://www.gutenberg.org/ebooks/84")
+url = sys.argv[1] if len(sys.argv) > 1 else serve() + "/notes.html"
+page = fetch(url)
 declared = sluicer.extract(page.html, url=page.url).summary
 # Its date search capped at a fixed day, so the same page always gets the same
 # guess: trafilatura's default cap is today.

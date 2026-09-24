@@ -15,5 +15,5 @@ bench/cache/
 stdout.txt
 stderr.txt
 exitcode.txt
-site/
+/site/
 .hypothesis/

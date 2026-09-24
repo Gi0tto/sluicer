@@ -3,7 +3,19 @@ name: Docs
 on:
   push:
     branches: [main]
-    paths: ["docs/**", "mkdocs.yml", "README.md", "ROADMAP.md"]
+    # The site is built from more than docs/: it links the root's changelog,
+    # roadmap, contributing and security files, and scripts/docs_demo.py adds
+    # the examples' site. A change to any of them changes the published site.
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "ROADMAP.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - "examples/site/**"
+      - "scripts/docs_demo.py"
   workflow_dispatch:
 
 permissions:

@@ -36,6 +36,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   author or date beside what the page declares, named a guess, for a caller
   who wants one. It stays out of the summary, and the known limits say why,
   with how often it is right where nothing is declared.
+- The examples need no web: `examples/_site.py` serves a small made-up site
+  from `examples/site/` on the machine, and a test runs every example and
+  checks what it prints. Given an address, an example reads that page instead.
+  The documentation publishes the same site under `demo/`, where Getting
+  started reads a page from the command line.
 - The README shows an extractor meeting a real redesign: learnt from Wayback
   Machine captures of a software directory in 2016, it fails loudly on the
   2024 page and `heal` says what moved. `scripts/demo.py` records it from the
@@ -76,6 +81,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   showed as failed though every check had passed.
 - The documentation's home page had lost the licence's exception for
   schema.org's names that the README states.
+- The documentation site was not rebuilt when only the changelog,
+  CONTRIBUTING or SECURITY changed, though it publishes all three.
 
 ## 0.5.0 - 2026-09-24
 
