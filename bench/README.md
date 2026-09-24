@@ -116,6 +116,26 @@ headline the page declares for search and a different one it shows count as
 a disagreement, and fundus stores its pages re-encoded as UTF-8 under their
 original charset declaration.
 
+## trafilatura's evaluation set
+
+[`docs/scoreboard-evaldata.md`](../docs/scoreboard-evaldata.md) scores the
+same tools, with `score.py`, on the 990 pages
+[trafilatura](https://github.com/adbar/trafilatura) (Apache-2.0) evaluates
+itself on, 851 of them annotated with their title, author and date; and it
+scores `sluicer.markdown`'s main text against trafilatura's own text, as
+trafilatura's evaluation scores it, by the snippets each output must and must
+not hold.
+
+```bash
+uv run bench/evaldata.py                  # trafilatura at its pinned commit, then the scoreboard
+uv run bench/evaldata.py --tools sluicer  # rerun one tool, reuse the others
+```
+
+`evaldata.py` downloads trafilatura at one pinned commit into
+`bench/cache/evaldata/` and stores each page there, compressed, never in the
+repository. The annotations were written to measure trafilatura, and follow
+the byline and date a reader sees.
+
 ## extruct's interface, beside extruct
 
 [`docs/extruct.md`](../docs/extruct.md) measures `sluicer.compat.extruct`

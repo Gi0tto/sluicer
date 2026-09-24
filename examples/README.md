@@ -11,4 +11,5 @@ uv run --with 'sluicer[fetch,markdown]' python 01_declared_fields.py
 
 `01` shows the declared data with the provenance of every field, and what the
 fetch cost. `02` shows a site refusing us and being obeyed. `03` turns a page
-into readable markdown.
+into readable markdown. `04` puts a guess from the visible page beside what the
+page declares, when it declares no author or date, and names it a guess.
