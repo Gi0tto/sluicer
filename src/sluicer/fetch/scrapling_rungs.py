@@ -156,7 +156,11 @@ def stealth_rung(
     Going from announcing ourselves to disguising ourselves is a change of
     character, not of cost, so it never happens to a caller who did not ask
     (``fetch(url, stealth=True)``). No ``User-Agent`` is sent, deliberately:
-    announcing an identity while evading detection would be incoherent.
+    announcing an identity while evading detection would be incoherent. Nor is
+    a borrowed one claimed: scrapling's ``google_search`` sent ``Referer:
+    https://www.google.com/`` from this rung, measured, and it is off, as on
+    the browser rung. Not saying who we are is not saying we came from a
+    search. One try and the browser rung's timeout bound it the same way.
     """
     _, _, stealthy = _fetchers()
     return (
@@ -164,7 +168,13 @@ def stealth_rung(
         _browser(
             "stealth",
             stealthy.fetch,
-            {"network_idle": True, **_through(proxy)},
+            {
+                "network_idle": True,
+                "google_search": False,
+                "timeout": BROWSER_TIMEOUT_MS,
+                "retries": 1,
+                **_through(proxy),
+            },
             allow_private,
             resolve,
             max_bytes,

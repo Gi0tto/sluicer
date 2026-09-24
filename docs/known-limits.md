@@ -222,7 +222,11 @@ recognised, and announcing yourself and then evading is incoherent. It is not
 part of the automatic ladder for the same reason: climbing on a
 measurement from plain HTTP to a browser is a change of cost, while climbing
 from announcing yourself to hiding is a change of character, and it should not
-happen to a caller who never asked for it.
+happen to a caller who never asked for it. Not announcing is all it does: until
+0.7.1 it inherited scrapling's `google_search` and sent `Referer:
+https://www.google.com/`, claiming a visit from a search that never happened,
+and three tries of thirty seconds. Measured on a local server, it now sends no
+referer, and tries once, as the browser rung does.
 
 **Normalisation reads English and ISO, and refuses what is ambiguous.** A date
 is read from ISO 8601 and its common variants, RFC 2822, JavaScript's

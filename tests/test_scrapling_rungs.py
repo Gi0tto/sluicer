@@ -128,8 +128,24 @@ def test_the_stealth_rung_comes_after_the_default_ladder_in_cost(monkeypatch):
 
     assert seen["stealth"][1] == {
         "network_idle": True,
+        "google_search": False,
+        "timeout": 30_000,
+        "retries": 1,
         "extra_flags": ["--no-proxy-server"],
     }
+
+
+def test_the_stealth_rung_never_claims_to_come_from_a_search(monkeypatch):
+    """scrapling's google_search defaults to true, a Referer of
+    https://www.google.com/ on every page: measured on the wire, the stealth
+    rung sent it. Not announcing ourselves is one thing; saying we came from
+    somewhere we did not is another."""
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import stealth_rung
+
+    stealth_rung()[1]("https://example.com/p")
+
+    assert seen["stealth"][1]["google_search"] is False
 
 
 def test_a_rung_returns_a_fetched_carrying_the_status(monkeypatch):

@@ -74,6 +74,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   connection. The HTTP rung now tells curl to use none, and the browser is
   launched with `--no-proxy-server`. SECURITY.md says what the check does and
   does not do through a proxy.
+- The stealth rung no longer claims to come from Google. It inherited
+  scrapling's `google_search`, so every page it fetched was sent `Referer:
+  https://www.google.com/` (measured on a local server); it now sends none, as
+  the browser rung already did, and like it tries once within thirty seconds
+  instead of scrapling's three tries.
 
 ### Added
 - `fetch(proxy=...)`, `SLUICER_PROXY` and `--proxy` on every command that
