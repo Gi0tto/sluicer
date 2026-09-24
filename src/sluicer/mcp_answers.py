@@ -130,6 +130,14 @@ class ConflictAnswer(TypedDict):
     answers: list[SummaryAnswer]
 
 
+class GuessAnswer(TypedDict):
+    """What a page shows and may not declare: a guess, its element and rule."""
+
+    value: str
+    where: str
+    rule: str
+
+
 class ExtractAnswer(TypedDict, total=False):
     ok: Required[bool]
     error: ErrorDetail
@@ -142,6 +150,7 @@ class ExtractAnswer(TypedDict, total=False):
     sources: list[str]
     links: dict[str, Any]
     rights: dict[str, Any]
+    visible: dict[str, GuessAnswer]
     fetch: FetchRecord
 
 

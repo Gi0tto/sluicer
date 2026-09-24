@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
+import json
 
+import pytest
+from click.testing import CliRunner
+
+import sluicer
+from sluicer.cli import main
 from sluicer.visible import Guess, read_visible
 
 
@@ -161,5 +166,36 @@ def test_chrome_and_comments_are_not_the_article_s() -> None:
 
 
 def test_the_same_page_gives_the_same_guesses() -> None:
-    body = '<h1>T</h1><div class="byline">By Ada Lovelace</div><time datetime="2025-01-01">x</time>'
+    body = (
+        '<h1>T</h1><div class="byline">By Ada Lovelace</div>'
+        '<time datetime="2025-01-01">x</time>'
+    )
     assert read_visible(_page(body)) == read_visible(_page(body))
+
+
+_SHOWN = (
+    "<html><body><h1>Brake pads</h1>"
+    "<p>By Ada Lovelace on June 3, 2025</p></body></html>"
+)
+
+
+def test_extract_guesses_only_when_asked_and_never_in_the_summary() -> None:
+    assert sluicer.extract(_SHOWN).visible == {}
+    read = sluicer.extract(_SHOWN, visible=True)
+    assert read.visible["author"].value == "Ada Lovelace"
+    assert read.visible["published"].value == "2025-06-03"
+    assert read.summary == {}
+
+
+def test_the_command_line_shows_guesses_as_guesses(tmp_path) -> None:
+    page = tmp_path / "page.html"
+    page.write_text(_SHOWN, encoding="utf-8")
+
+    plain = CliRunner().invoke(main, ["extract", str(page)])
+    assert plain.exit_code == 1
+    asked = CliRunner().invoke(main, ["extract", "--visible", str(page)])
+    assert asked.exit_code == 0
+    assert json.loads(asked.output)["visible"]["title"]["rule"] == "h1"
+    shown = CliRunner().invoke(main, ["inspect", "--visible", str(page)])
+    assert "from what the page shows, not declared" in shown.output
+    assert "[guess: by-line]" in shown.output

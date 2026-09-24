@@ -16,6 +16,7 @@ Read the structured data a page declares, with where each value came from.
 - `at`: a date (2024, 2024-06, 2024-06-01): read the URL as the Wayback Machine captured it nearest to then; "fetch" says which capture.
 - `respect_tdm`: answer tdm_reserved instead of the page when the site reserves its text and data mining rights (TDMRep: its tdmrep.json, headers or meta tags).
 - `records`: also return every record, not only the summary and what was normalised; false keeps the answer small. Records that would make the answer larger than 75,000 bytes are left out and counted in records_left_out.
+- `visible`: also guess the title, author, publication and update dates the page shows a reader, in "visible", each {"value", "where", "rule"}; guesses, never part of the summary, which holds only what the page declares.
 
 Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
 for a URL. records are typed fields, each {"value", "source",
@@ -38,6 +39,7 @@ is never a record.
 | `at` | string or null | `None` |
 | `respect_tdm` | boolean | `False` |
 | `records` | boolean | `True` |
+| `visible` | boolean | `False` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
 

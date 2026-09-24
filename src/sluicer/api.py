@@ -21,6 +21,7 @@ from sluicer.document import load
 from sluicer.normalise import normalised
 from sluicer.structure import induce as induce_records
 from sluicer.summary import Conflict, SummaryField, read_summary
+from sluicer.visible import Guess, read_visible
 
 # The least a page's places are paid from: a small page's are never cut.
 PLACES_FLOOR = 10_000
@@ -45,7 +46,11 @@ class Extraction:
     4217 code, where the page's text leaves no doubt (see ``sluicer.normalise``).
     ``conflicts`` is every question the page answers in two ways that mean
     different things -- a price in JSON-LD and another in OpenGraph -- the
-    summary's answer first (see ``sluicer.summary.Conflict``).
+    summary's answer first (see ``sluicer.summary.Conflict``). ``visible`` is
+    empty unless ``extract`` was asked for it: then the title, author,
+    publication and update dates the page shows a reader, each a guess naming
+    its element and rule, kept apart from the summary, which holds only what
+    the page declares (see ``sluicer.visible``).
     """
 
     url: str | None = None
@@ -56,6 +61,7 @@ class Extraction:
     sources: list[str] = field(default_factory=list)
     links: Links = field(default_factory=lambda: Links())
     rights: Rights = field(default_factory=lambda: Rights())
+    visible: dict[str, Guess] = field(default_factory=dict)
 
 
 def extract(
@@ -64,6 +70,7 @@ def extract(
     induce: bool = False,
     microformats: bool = False,
     headers: Mapping[str, str] | None = None,
+    visible: bool = False,
 ) -> Extraction:
     """Read the structured data ``html`` declares, merged, with its provenance.
 
@@ -83,6 +90,9 @@ def extract(
             reported in ``rights["http"]``; the ``Content-Type`` charset
             decodes bytes, ahead of the page's own declaration, as a browser
             does. ``Fetched.headers`` is this.
+        visible: also read what the page shows and may not declare -- its
+            heading, byline, publication and update dates -- into
+            ``visible``, each answer a guess, never into the summary.
 
     Returns:
         An ``Extraction``: the ``summary``, the ``records`` (a record with no
@@ -147,6 +157,7 @@ def extract(
         sources=sources,
         links=read_links(doc, header_links),
         rights=read_rights(doc, read_header_rights(sent) if sent else None),
+        visible=read_visible(doc) if visible else {},
     )
 
 

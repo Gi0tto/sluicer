@@ -14,6 +14,7 @@ extract(
     induce: bool = False,
     microformats: bool = False,
     headers: Mapping[str, str] | None = None,
+    visible: bool = False,
 ) -> Extraction
 ```
 
@@ -26,6 +27,7 @@ Read the structured data ``html`` declares, merged, with its provenance.
 - `induce`: when the page declares nothing about the things on it, also read the rows its markup repeats; those fields say ``source="induced"``. Never fills a gap in a declared record.
 - `microformats`: also read microformats2. Off by default; needs ``sluicer[microformats]``.
 - `headers`: the response's headers, when the page came over HTTP. A canonical, ``hreflang`` alternates and the next and previous pages in its ``Link`` header join the markup's in ``links`` and the summary's ``url``; ``X-Robots-Tag`` and TDMRep's headers are reported in ``rights["http"]``; the ``Content-Type`` charset decodes bytes, ahead of the page's own declaration, as a browser does. ``Fetched.headers`` is this.
+- `visible`: also read what the page shows and may not declare -- its heading, byline, publication and update dates -- into ``visible``, each answer a guess, never into the summary.
 
 **Returns**
 
@@ -51,6 +53,7 @@ class Extraction:
     sources: list[str]
     links: Links
     rights: Rights
+    visible: dict[str, Guess]
 ```
 
 What Sluicer found in one page, and where it came from.
@@ -70,7 +73,11 @@ the summary's dates, price and currency into ISO 8601, a decimal and an ISO
 4217 code, where the page's text leaves no doubt (see ``sluicer.normalise``).
 ``conflicts`` is every question the page answers in two ways that mean
 different things -- a price in JSON-LD and another in OpenGraph -- the
-summary's answer first (see ``sluicer.summary.Conflict``).
+summary's answer first (see ``sluicer.summary.Conflict``). ``visible`` is
+empty unless ``extract`` was asked for it: then the title, author,
+publication and update dates the page shows a reader, each a guess naming
+its element and rule, kept apart from the summary, which holds only what
+the page declares (see ``sluicer.visible``).
 
 ### `sluicer.SummaryField`
 

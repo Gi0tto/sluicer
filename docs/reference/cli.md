@@ -195,6 +195,8 @@ Options:
   --induce           Also read the rows a page repeats when it declares nothing about
                      them.
   --microformats     Also read microformats2 (needs sluicer[microformats]).
+  --visible          Also guess the title, byline and dates the page shows, not in the
+                     summary.
   --stealth          Allow the stealth rung, which does not announce itself.
   --no-robots        Fetch even where the site's robots.txt says no.
   --url URL          The address a file or stdin came from, to resolve its links.
@@ -270,6 +272,8 @@ Options:
   --induce           Also read the rows a page repeats when it declares nothing about
                      them.
   --microformats     Also read microformats2 (needs sluicer[microformats]).
+  --visible          Also guess the title, byline and dates the page shows, not in the
+                     summary.
   --stealth          Allow the stealth rung, which does not announce itself.
   --no-robots        Fetch even where the site's robots.txt says no.
   --url URL          The address a file or stdin came from, to resolve its links.

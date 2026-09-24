@@ -382,6 +382,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         at: str | None = None,
         respect_tdm: bool = False,
         records: bool = True,
+        visible: bool = False,
     ) -> answers.ExtractAnswer:
         """Read the structured data a page declares, with where each value came from.
 
@@ -397,6 +398,10 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         was normalised; false keeps the answer small. Records that would
         make the answer larger than 75,000 bytes are left out and counted in
         records_left_out.
+        visible: also guess the title, author, publication and update dates
+        the page shows a reader, in "visible", each {"value", "where",
+        "rule"}; guesses, never part of the summary, which holds only what
+        the page declares.
 
         Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
         for a URL. records are typed fields, each {"value", "source",
@@ -415,8 +420,10 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         html, url, fetched, headers = _page_of(html_or_url, at)
         if respect_tdm:
             _respect_tdm(html, url, fetched, headers)
-        read = extract(html, url=url, induce=induce, headers=headers)
+        read = extract(html, url=url, induce=induce, headers=headers, visible=visible)
         result = {"ok": True, **asdict(read)}
+        if not visible:
+            del result["visible"]
         if not records:
             del result["records"]
         elif _bytes_of(result) > MOST_ANSWER_BYTES:

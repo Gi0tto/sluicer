@@ -335,11 +335,17 @@ def _read_page(
     is_flag=True,
     help="Also read microformats2 (needs sluicer[microformats]).",
 )
+@click.option(
+    "--visible",
+    is_flag=True,
+    help="Also guess the title, byline and dates the page shows, not in the summary.",
+)
 @_with_fetch_options
 def extract(
     source: str,
     induce: bool,
     microformats: bool,
+    visible: bool,
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
@@ -359,10 +365,11 @@ def extract(
             induce=induce,
             microformats=microformats,
             headers=fetched.headers if fetched else None,
+            visible=visible,
         )
     except MicroformatsExtraMissing as missing:
         _fail(str(missing), missing)
-    if not result.records and not result.summary:
+    if not result.records and not result.summary and not result.visible:
         click.echo("This page gives nothing: no record and no summary.", err=True)
         if fetched is not None:
             # What the page cost is reported even when it declared nothing.
@@ -374,6 +381,8 @@ def extract(
                 )
         raise SystemExit(NOTHING_FOUND)
     payload = asdict(result)
+    if not visible:
+        del payload["visible"]
     if fetched is not None:
         payload["fetch"] = {
             "rung": fetched.rung,
@@ -403,11 +412,17 @@ def extract(
     is_flag=True,
     help="Also read microformats2 (needs sluicer[microformats]).",
 )
+@click.option(
+    "--visible",
+    is_flag=True,
+    help="Also guess the title, byline and dates the page shows, not in the summary.",
+)
 @_with_fetch_options
 def inspect(
     source: str,
     induce: bool,
     microformats: bool,
+    visible: bool,
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
@@ -433,12 +448,13 @@ def inspect(
             induce=induce,
             microformats=microformats,
             headers=fetched.headers if fetched else None,
+            visible=visible,
         )
     except MicroformatsExtraMissing as missing:
         _fail(str(missing), missing)
     shown = "standard input" if source == "-" else (url or source)
     click.echo(_inspection(shown, result, fetched, microformats, not no_robots))
-    if not result.records and not result.summary:
+    if not result.records and not result.summary and not result.visible:
         raise SystemExit(NOTHING_FOUND)
 
 
@@ -561,6 +577,24 @@ def _inspection(
                     for answer in conflict.answers
                 ],
                 indent="    ",
+            )
+        )
+    if result.visible:
+        # Guesses, not declarations: a section of their own, each naming the
+        # rule that read it, so none is taken for what the page declares.
+        lines.append("")
+        shown_answers = len(result.visible)
+        lines.append(
+            f"visible   {shown_answers} guess{'es' if shown_answers != 1 else ''}"
+            " from what the page shows, not declared"
+        )
+        lines.extend(
+            _columns(
+                [
+                    (question, _brief(guess.value), f"guess: {guess.rule}")
+                    for question, guess in result.visible.items()
+                ],
+                indent="  ",
             )
         )
     return "\n".join(lines)
