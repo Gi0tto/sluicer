@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime
 import html as html_entities
+import math
 import re
 from collections import Counter
 from collections.abc import Callable
@@ -1222,10 +1223,16 @@ def _crumb_name(item: dict[str, JsonValue]) -> str | None:
 
 
 def _position(value: JsonValue | None, order: int) -> float:
+    """A crumb's ``position``, or where it was written when it states none.
+
+    Not a NaN, which compares false with everything and left ``sorted`` no
+    order to keep, nor an infinity, which is no place in a list either.
+    """
     try:
-        return float(str(value)) if value is not None else float(order)
+        found = float(str(value)) if value is not None else float(order)
     except ValueError:
         return float(order)
+    return found if math.isfinite(found) else float(order)
 
 
 def _type(record: Record | None) -> SummaryField | None:

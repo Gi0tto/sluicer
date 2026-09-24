@@ -44,6 +44,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   no offset before it is now the offset `+00:00`: it was read and dropped. On
   the benchmark pages, seven dates on four pages that end in `UTC` gain their
   offset.
+- A breadcrumb item whose `position` is `NaN` or an infinity is placed where
+  it was written: a NaN compares false with everything, and the crumbs came
+  out in no order.
 
 ## 0.7.0 - 2026-09-24
 

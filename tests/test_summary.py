@@ -1038,3 +1038,20 @@ def test_the_names_content_systems_give_nobody_are_no_author():
         assert "author" not in extract(page).summary, placeholder
     named = '<html><head><meta name="author" content="Anna Admin"></head></html>'
     assert extract(named).summary["author"].value == "Anna Admin"
+
+
+def test_a_crumb_whose_position_is_not_a_number_is_placed_where_it_was_written():
+    """A NaN compares false with everything, and sorted() then keeps no order."""
+    html = _page(
+        {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {"@type": "ListItem", "position": "3", "name": "Pads"},
+                {"@type": "ListItem", "position": "NaN", "name": "Home"},
+                {"@type": "ListItem", "position": "2", "name": "Brakes"},
+                {"@type": "ListItem", "position": "inf", "name": "Front"},
+            ],
+        }
+    )
+
+    assert _summary(html)["breadcrumb"][0] == "Home > Brakes > Pads > Front"
