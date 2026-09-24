@@ -84,6 +84,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   own, and the issue chooser points there; a page read wrong is still an
   issue. The README and CONTRIBUTING say where each kind of message goes, and
   the documentation's footer links GitHub, Discussions and PyPI.
+- Sluicer can be sponsored: GitHub shows the button, the package's metadata
+  names the page as its funding, and the README and the documentation link
+  it.
 
 ### Fixed
 - On Windows the command line wrote its JSON and markdown to a file or a pipe

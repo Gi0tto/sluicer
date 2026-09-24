@@ -377,6 +377,10 @@ reported privately, as
 [CONTRIBUTING.md](https://github.com/Gi0tto/sluicer/blob/main/CONTRIBUTING.md)
 says how to set up, what CI checks and where each part of the code lives.
 
+Sluicer is built and kept up by one person. If it saves you time or a bill,
+[sponsoring it](https://github.com/sponsors/Gi0tto) keeps the scoreboards
+measured and the extractors honest as the web changes.
+
 ## Licence
 
 MIT, with no vendored code, and two exceptions: `sluicer/audit/schema_org.py`
