@@ -323,7 +323,11 @@ _SEPARATORS = " :|,;-\u2013\u2014>/\u00b7\u2022"
 
 
 def _edges(text: str) -> str:
-    return " ".join(text.split()).strip(_SEPARATORS)
+    """A value as compared: spaces collapsed, the template's separators off
+    both ends, and case folded, as the other scoreboards compare titles: a
+    label taken from one element, "Body of Evidence", is the page's
+    "Body Of Evidence" in another."""
+    return " ".join(text.split()).strip(_SEPARATORS).casefold()
 
 
 def metrics(tally: Counter[str]) -> dict[str, float]:

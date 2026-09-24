@@ -80,7 +80,12 @@ def one_site(root: Path, site: dict[str, Any]) -> dict[str, Any]:
             row[name] = [run.fields.get(name), flagged]
         answers[page_id] = row
     return {
-        "learnt": {f.name: f.path for f in extractor.fields} if extractor else {},
+        "learnt": {
+            f.name: f"after {f.anchor.label!r}" if getattr(f, "anchor", None) else f.path
+            for f in extractor.fields
+        }
+        if extractor
+        else {},
         "unlearnt": unlearnt,
         "answers": answers,
         "broken_runs": broken,
