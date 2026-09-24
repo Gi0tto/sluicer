@@ -59,7 +59,12 @@ that drifted (with `failed`, the checks it broke) and for a heal that lost data
   field its share of empty rows, the one shape its values shared if they did,
   and a few sample values.
 
-The file is plain JSON, meant to be read and, if you need to, edited.
+The file is plain JSON, meant to be read and, if you need to, edited. Every
+value is checked when it is read, not only its key: a share that is not a
+number from 0 to 1 (`"missing": "nan"`), rows that are not two counts, a shape
+of other letters than L, N, P and S, two fields of one name, a path that is not
+one. An edit that would quietly turn a check off is refused with a message
+naming it, and `sluicer run` and `heal` exit 2, as for a file that is not JSON.
 
 ## Pointing at what you want
 

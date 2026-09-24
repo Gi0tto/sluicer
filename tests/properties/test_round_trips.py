@@ -33,12 +33,25 @@ listing_fields = st.builds(
     shape=st.none() | shapes,
     samples=st.lists(text, max_size=5).map(tuple),
 )
+# What compile writes, and what from_json reads back: a container is a path
+# of steps, a member a tag and its classes, the rows the fewest and the most,
+# and one field of each name. Anything else is refused as a file that would
+# check less than it says.
+steps = st.from_regex(
+    r"[a-z][a-z0-9]{0,5}(\.[a-z][a-z0-9_-]{0,5})?(\[[1-9][0-9]?\])?", fullmatch=True
+)
 listings = st.builds(
     Listing,
-    container=text,
-    member=text,
-    rows=st.tuples(st.integers(0, 10**6), st.integers(0, 10**6)),
-    fields=st.lists(listing_fields, min_size=1, max_size=6).map(tuple),
+    container=st.lists(steps, min_size=1, max_size=5).map(
+        lambda path: ">".join(["html", *path])
+    ),
+    member=st.from_regex(
+        r"[a-z][a-z0-9]{0,5}(\.[a-z][a-z0-9_-]{0,5}){0,2}", fullmatch=True
+    ),
+    rows=st.tuples(st.integers(0, 10**6), st.integers(0, 10**6)).map(sorted).map(tuple),
+    fields=st.lists(
+        listing_fields, min_size=1, max_size=6, unique_by=lambda f: f.name
+    ).map(tuple),
 )
 extractors = st.builds(
     Extractor,

@@ -5,6 +5,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- An extractor file is checked value by value when it is read. Edited by hand
+  to `"missing": "nan"`, a field's presence was never checked again: no
+  comparison is true of NaN, and the run passed a page without the field. So
+  did a `missing` of `true`, `1.5` or `"0"`, an `empty` of 5, and rows or
+  counts written as text. Shares must be numbers from 0 to 1, rows two counts,
+  shapes made of L, N, P and S, lists lists, names one per field and paths
+  paths; any other file is refused with a message naming the value, and the
+  command line exits 2, as it does for a file that is not JSON.
 - `heal` never moves a listing chosen by examples on one coincidence. With
   its old place gone and every item new, one related product costing what a
   book used to drew the listing of prices into the related strip, a move and

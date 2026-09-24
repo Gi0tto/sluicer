@@ -279,67 +279,142 @@ def _extractor_of(body: Any) -> Extractor:
         )
     listing = None
     if body["listing"] is not None:
-        raw = body["listing"]
-        rows = [int(n) for n in raw["rows"]]
-        if len(rows) != 2:
-            raise ValueError("a listing's rows are the fewest and the most")
-        listing = Listing(
-            container=_text(raw["container"]),
-            member=_text(raw["member"]),
-            rows=(rows[0], rows[1]),
-            # Absent from a 0.2 file, which learnt nothing about empty rows.
-            empty=float(raw.get("empty", 0.0)),
-            chosen=raw.get("chosen", False) is True,
-            siblings=tuple(
-                None if n is None else int(n) for n in raw.get("siblings", [])
-            ),
-            fields=tuple(
-                ListingField(
-                    name=_text(f["name"]),
-                    path=_text(f["path"]),
-                    missing=float(f["missing"]),
-                    shape=None if f["shape"] is None else _text(f["shape"]),
-                    # Absent from a 0.3 file, which learnt no reading.
-                    reads=_reading(f.get("reads")),
-                    samples=tuple(_text(v) for v in f["samples"]),
-                )
-                for f in raw["fields"]
-            ),
-        )
-        if not listing.fields:
-            raise ValueError("a listing with no fields checks nothing")
+        listing = _listing_of_file(body["listing"])
     summary = body["summary"]
     if not isinstance(summary, dict):
         raise ValueError("the summary is a mapping of question to shape")
-    return Extractor(
-        learnt_from=tuple(_text(v) for v in body["learnt_from"]),
-        summary={
-            _text(q): None if shp is None else _text(shp) for q, shp in summary.items()
-        },
-        types=tuple(_text(v) for v in body["types"]),
-        listing=listing,
-        notes=tuple(_text(v) for v in body.get("notes", [])),
-        version=str(body.get("sluicer", "")),
+    fields = tuple(
+        PageField(
+            name=_text(f["name"]),
+            path=_path(f["path"], attribute=True),
+            shape=_shape(f["shape"]),
+            reads=_reading(f.get("reads")),
+            samples=tuple(_text(v) for v in _list(f["samples"], "samples")),
+            anchor=_anchor_of(f.get("anchor")),
+            # Absent from a file before 0.7.1, which learnt none.
+            label=None if f.get("label") is None else _text(f["label"]),
+        )
         # Absent from a file with none, and from every file before 0.4.
+        for f in _list(body.get("fields", []), "fields")
+    )
+    _unique(f.name for f in fields)
+    return Extractor(
+        learnt_from=tuple(_text(v) for v in _list(body["learnt_from"], "learnt_from")),
+        summary={_text(q): _shape(shp) for q, shp in summary.items()},
+        types=tuple(_text(v) for v in _list(body["types"], "types")),
+        listing=listing,
+        notes=tuple(_text(v) for v in _list(body.get("notes", []), "notes")),
+        version=str(body.get("sluicer", "")),
+        fields=fields,
+    )
+
+
+def _listing_of_file(raw: Any) -> Listing:
+    """A listing as its file holds it, every value checked: a value no check
+    can be true of -- ``"missing": "nan"`` -- turns the check off without a
+    word, and a run then passes a page it should fail."""
+    rows = _list(raw["rows"], "rows")
+    if (
+        len(rows) != 2
+        or any(type(n) is not int for n in rows)
+        or not 0 <= rows[0] <= rows[1]
+    ):
+        raise ValueError(f"a listing's rows are the fewest and the most, not {rows!r}")
+    container = _path(raw["container"])
+    member = _text(raw["member"])
+    if not _MEMBER.fullmatch(member):
+        raise ValueError(f"{member!r} is not a row's kind, a tag and its classes")
+    chosen = raw.get("chosen", False)
+    if type(chosen) is not bool:
+        raise ValueError(f"chosen is true or false, not {chosen!r}")
+    siblings = _list(raw.get("siblings", []), "siblings")
+    if siblings and (
+        len(siblings) != container.count(">")
+        or any(n is not None and (type(n) is not int or n < 1) for n in siblings)
+    ):
+        raise ValueError(
+            "siblings are a count of one or more, or null, for each step of the "
+            f"container below html, not {siblings!r}"
+        )
+    listing = Listing(
+        container=container,
+        member=member,
+        rows=(rows[0], rows[1]),
+        # Absent from a 0.2 file, which learnt nothing about empty rows.
+        empty=_share(raw.get("empty", 0.0), "empty"),
+        chosen=chosen,
+        siblings=tuple(siblings),
         fields=tuple(
-            PageField(
+            ListingField(
                 name=_text(f["name"]),
                 path=_text(f["path"]),
-                shape=None if f["shape"] is None else _text(f["shape"]),
+                missing=_share(f["missing"], "missing"),
+                shape=_shape(f["shape"]),
+                # Absent from a 0.3 file, which learnt no reading.
                 reads=_reading(f.get("reads")),
-                samples=tuple(_text(v) for v in f["samples"]),
-                anchor=_anchor_of(f.get("anchor")),
-                # Absent from a file before 0.7.1, which learnt none.
-                label=None if f.get("label") is None else _text(f["label"]),
+                samples=tuple(_text(v) for v in _list(f["samples"], "samples")),
             )
-            for f in body.get("fields", [])
+            for f in _list(raw["fields"], "fields")
         ),
     )
+    if not listing.fields:
+        raise ValueError("a listing with no fields checks nothing")
+    _unique(f.name for f in listing.fields)
+    return listing
+
+
+# A step of a path: a tag and its first class, and [n] when it was one of n.
+_STEP = r"[^\s\[\]>@]+(?:\[[1-9][0-9]*\])?"
+_PATH = re.compile(rf"{_STEP}(?:>{_STEP})*")
+_MEMBER = re.compile(r"[^\s\[\]>@.]+(?:\.[^\s\[\]>@.]+)*")
+
+
+def _path(value: Any, attribute: bool = False) -> str:
+    """A place as ``path_of`` writes it, and ``@name`` after it when allowed."""
+    text = _text(value)
+    where, at, name = text.partition("@") if attribute else (text, "", "")
+    if not _PATH.fullmatch(where) or (at and not re.fullmatch(r"[\w:-]+", name)):
+        raise ValueError(f"{text!r} is not a path to an element")
+    return text
+
+
+def _share(value: Any, what: str) -> float:
+    """A share learnt of the rows, a number from 0 to 1."""
+    if type(value) not in (int, float) or not 0 <= value <= 1:
+        raise ValueError(f"{what} is a share from 0 to 1, not {value!r}")
+    return float(value)
+
+
+def _shape(value: Any) -> str | None:
+    """A shape as ``shape`` writes it, or None for none."""
+    if value is None:
+        return None
+    text = _text(value)
+    if not set(text) <= set("LNPS"):
+        raise ValueError(f"a shape is made of L, N, P and S, not {text!r}")
+    return text
+
+
+def _list(value: Any, what: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise ValueError(f"{what} is a list, not {value!r}")
+    return value
+
+
+def _unique(names: Any) -> None:
+    """Two fields of one name would read as one, the second over the first."""
+    seen: set[str] = set()
+    for name in names:
+        if name in seen:
+            raise ValueError(f"two fields named {name!r}")
+        seen.add(name)
 
 
 def _anchor_of(raw: Any) -> Anchor | None:
     if raw is None:
         return None
+    if not isinstance(raw, dict):
+        raise ValueError(f"a label is read after or as a prefix, not {raw!r}")
     anchor = Anchor(label=_text(raw["label"]), kind=_text(raw["kind"]))
     if anchor.kind not in ("after", "prefix") or not anchor.label:
         raise ValueError(f"a label is read after or as a prefix, not {raw!r}")

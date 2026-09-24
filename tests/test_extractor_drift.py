@@ -1069,3 +1069,72 @@ def test_heal_never_moves_a_chosen_listing_on_one_coincidence():
     )
     healed, changes = heal(learnt, [redesigned])
     assert healed.listing.container == "html>body>main>div.b"
+
+
+def _file(**change):
+    """An extractor's file, with one part of it changed by hand."""
+    body = json.loads(learn(shop_page(books(10))).to_json())
+    for where, value in change.items():
+        *parents, key = where.split("__")
+        node = body
+        for part in parents:
+            node = node[int(part)] if part.isdigit() else node[part]
+        node[key] = value
+    return json.dumps(body)
+
+
+@pytest.mark.parametrize(
+    ("change", "said"),
+    [
+        ({"listing__fields__0__missing": "nan"}, "missing is a share from 0 to 1"),
+        ({"listing__fields__0__missing": float("nan")}, "missing is a share"),
+        ({"listing__fields__0__missing": True}, "missing is a share"),
+        ({"listing__fields__0__missing": "0"}, "missing is a share"),
+        ({"listing__fields__0__missing": 1.5}, "missing is a share"),
+        ({"listing__fields__0__missing": -0.1}, "missing is a share"),
+        ({"listing__empty": 5}, "empty is a share from 0 to 1"),
+        ({"listing__empty": "0.0"}, "empty is a share"),
+        ({"listing__rows": ["5", "6"]}, "rows are the fewest and the most"),
+        ({"listing__rows": [6, 5]}, "rows are the fewest and the most"),
+        ({"listing__rows": [1.5, 6]}, "rows are the fewest and the most"),
+        ({"listing__fields__0__shape": "XYZ"}, "a shape is made of L, N, P and S"),
+        ({"listing__fields__1__name": "a.title"}, "two fields named 'a.title'"),
+        ({"listing__chosen": "yes"}, "chosen is true or false"),
+        ({"listing__siblings": [1, "1", 1]}, "siblings"),
+        ({"listing__siblings": [1, 0, 1]}, "siblings"),
+        ({"listing__siblings": [1, 1]}, "siblings"),
+        ({"listing__container": "html>body>div[x]>ol.row"}, "not a path"),
+        ({"listing__container": "html>body>div[0]>ol.row"}, "not a path"),
+        ({"listing__member": "li>a"}, "not a row's kind"),
+        ({"learnt_from": "page 1"}, "learnt_from is a list"),
+        ({"types": "Product"}, "types is a list"),
+        ({"summary": {"price": "money"}}, "a shape is made of L, N, P and S"),
+        ({"listing__fields__0__samples": "abc"}, "samples is a list"),
+    ],
+)
+def test_a_file_edited_into_one_that_checks_less_is_refused(change, said):
+    """``"missing": "nan"`` read as a float that no comparison is true of: the
+    field's presence was never checked again, and the run passed a page with
+    none of it. Every value is checked as it is read, not only its key."""
+    with pytest.raises(ValueError, match=said):
+        Extractor.from_json(_file(**change))
+
+
+def test_every_file_this_version_writes_is_read_back_the_same():
+    for extractor in (
+        learn(shop_page(books(10)), shop_page(books(8))),
+        compile_extractor(SPECS, want={"price": "41.90", "sku": "BP-1"}),
+        compile_extractor([_sections(("Pick", 1), ("All", 12))], want={"n": "All 3"}),
+    ):
+        assert Extractor.from_json(extractor.to_json()) == extractor
+
+
+def test_run_refuses_a_file_whose_check_was_edited_away(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(_file(listing__fields__0__missing="nan"), encoding="utf-8")
+    page_ = tmp_path / "p.html"
+    page_.write_text(shop_page(books(10)), encoding="utf-8")
+    result = _cli("run", str(bad), str(page_))
+    assert result.exit_code == 2
+    assert "not an extractor" in result.stderr
+    assert "missing is a share from 0 to 1" in result.stderr
