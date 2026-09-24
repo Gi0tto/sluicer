@@ -277,3 +277,62 @@ def test_an_rfc_2822_date_needs_its_year_in_four_digits(written):
 )
 def test_an_rfc_2822_date_with_its_year_in_four_digits_is_read(written, meant):
     assert iso_date(written) == meant
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("Jun 16, 2025, 10:00 PM", "2025-06-16T22:00:00"),
+        ("Tue, 03 Jun 2025 10:00 PM", "2025-06-03T22:00:00"),
+        ("Dec 1, 2024 11:30 PM EST", "2024-12-01T23:30:00-05:00"),
+        ("Jun 16, 2025, 10:00 AM", "2025-06-16T10:00:00"),
+        ("Jun 16, 2025, 12:05 AM", "2025-06-16T00:05:00"),
+        ("Jun 16, 2025, 12:05 PM", "2025-06-16T12:05:00"),
+        ("Jun 16, 2025, 10:00 p.m.", "2025-06-16T22:00:00"),
+        ("Jun 16, 2025, 9:15:30 pm", "2025-06-16T21:15:30"),
+    ],
+)
+def test_a_twelve_hour_clock_is_read_with_its_half_of_the_day(written, meant):
+    """``email.utils`` took "PM" for a time zone it did not know, and dropped it."""
+    assert iso_date(written) == meant
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "Jun 16, 2025, 13:05 PM",
+        "Jun 16, 2025, 0:05 AM",
+        "Jun 16, 2025, 10:00 AM 11:00 PM",
+    ],
+)
+def test_a_twelve_hour_clock_that_cannot_be_one_is_not_read(written):
+    assert iso_date(written) is None
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("2022-05-04T03:00:00 UTC", "2022-05-04T03:00:00+00:00"),
+        ("2022-05-04 03:00 UTC", "2022-05-04T03:00:00+00:00"),
+        ("2022-05-04T03:00:00UTC", "2022-05-04T03:00:00+00:00"),
+        ("2026-03-09 16:00:22 +0100 UTC", "2026-03-09T16:00:22+01:00"),
+    ],
+)
+def test_a_trailing_utc_is_the_offset_it_names(written, meant):
+    """It was read and dropped, against "a date keeps the offset the page gave it"."""
+    assert iso_date(written) == meant
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("2025-01-01T10:00:00+23:59", "2025-01-01T10:00:00+23:59"),
+        ("2025-01-01T10:00:00-2359", "2025-01-01T10:00:00-23:59"),
+        ("2025-01-01T10:00:00+00:00", "2025-01-01T10:00:00+00:00"),
+        ("2025-01-01T10:00:00+24:00", None),
+        ("2025-01-01T10:00:00+23:60", None),
+        ("2025-01-01T10:00:00-24:00", None),
+    ],
+)
+def test_an_offset_is_at_most_23_59_either_way(written, meant):
+    assert iso_date(written) == meant

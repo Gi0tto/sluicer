@@ -93,7 +93,7 @@ _ENGLISH_MONTHS = {
 _ISO = re.compile(
     r"(\d{4})-(\d{2})-(\d{2})"
     r"(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,]\d+)?)?"
-    r"\s*(Z|[+-]\d{2}:?\d{2})?(?:\s*UTC)?)?"
+    r"\s*(Z|[+-]\d{2}:?\d{2})?(\s*UTC)?)?"
 )
 # Every language CLDR covers, English's own spellings first: "Sept" is English.
 _MONTHS = {**MONTHS, **_ENGLISH_MONTHS}
@@ -134,6 +134,10 @@ _JAVASCRIPT = re.compile(
     r"\s+GMT([+-]\d{4})(?:\s+\([^()]*\))?"
 )
 _WEEKDAY = re.compile(r"^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+", re.I)
+# A twelve-hour clock's time and its half of the day: 10:00 PM, 9:15:30 a.m.
+_HALF_OF_THE_DAY = re.compile(
+    r"(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp]\.?\s?[Mm]\.?)(?!\w)"
+)
 # What ``email.utils`` splits a date on.
 _TOKENS = re.compile(r"[\s,]+")
 
@@ -223,11 +227,28 @@ def _from_rfc_2822(text: str) -> str | None:
     the page may have meant another century or another field: a guess.
     RFC 850's ``03-Jun-2025`` writes the year inside its date's token, and
     ``-2025`` is an offset, not a year.
+
+    A twelve-hour clock, ``10:00 PM``, is read with its half of the day: to
+    ``email.utils`` "PM" was a zone it did not know, and the evening was the
+    morning. An hour no such clock shows, ``13:05 PM``, is not read.
     """
+    halves = list(_HALF_OF_THE_DAY.finditer(text))
+    if len(halves) > 1:
+        return None
+    half = halves[0] if halves else None
+    if half is not None:
+        # Taken out, or "PM" is a zone email.utils does not know, and ignores.
+        text = text[: half.start(3)] + text[half.end(3) :]
     try:
         parsed = email.utils.parsedate_to_datetime(text)
     except (TypeError, ValueError, IndexError):
         return None
+    if half is not None:
+        hour, minute = int(half.group(1)), int(half.group(2))
+        if not 1 <= hour <= 12 or (parsed.hour, parsed.minute) != (hour, minute):
+            return None
+        after_noon = half.group(3)[0] in "Pp"
+        parsed = parsed.replace(hour=hour % 12 + (12 if after_noon else 0))
     year = f"{parsed.year:04}"
     if not any(
         token == year or (any(c.isalpha() for c in token) and year in token.split("-"))
@@ -253,11 +274,13 @@ def _from_javascript(match: re.Match[str]) -> str | None:
 
 
 def _from_iso(match: re.Match[str]) -> str | None:
-    year, month, day, hour, minute, second, zone = match.groups()
+    year, month, day, hour, minute, second, zone, utc = match.groups()
     date = _day(int(year), int(month), int(day))
     if date is None or hour is None:
         return date
-    return _at(date, hour, minute, second, zone)
+    # A trailing UTC with no offset before it is the offset it names; after
+    # one, the offset written is the one kept.
+    return _at(date, hour, minute, second, zone or ("+00:00" if utc else None))
 
 
 def _at(

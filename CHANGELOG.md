@@ -37,6 +37,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `Tue, 03 Jun 25 10:00:00 GMT` as 2025 by a rule of its own, and a
   three-digit year as the first millennium's. Such a date now has no
   normalised value.
+- A twelve-hour clock is read with its half of the day: `Jun 16, 2025, 10:00
+  PM` was normalised to 10:00, the morning, since `email.utils` took "PM" for
+  a zone it did not know, and `Dec 1, 2024 11:30 PM EST` lost its zone too.
+  An hour no such clock shows, `13:05 PM`, is not read. A trailing `UTC` with
+  no offset before it is now the offset `+00:00`: it was read and dropped. On
+  the benchmark pages, seven dates on four pages that end in `UTC` gain their
+  offset.
 
 ## 0.7.0 - 2026-09-24
 
