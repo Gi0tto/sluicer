@@ -24,9 +24,38 @@ No corpus is committed here; each is downloaded into `bench/cache/`.
 - Title, author and date (`bench/score.py`): a title is right when it equals
   the label, lowercased and spaces collapsed, or one contains the other and
   the shorter is at least 0.6 of the longer; an author when the shared name
-  tokens cover half the label's and a quarter of the answer's; a date when
-  both parse to the same calendar day. An answer where the label is empty is
-  an invention.
+  tokens cover half the label's and a quarter of the answer's; a date by the
+  rule below. An answer where the label is empty is an invention.
+- A date (fixed on 2026-09-24; before it, dateutil filled a part a date does
+  not write with the day the scorer ran, so "March 2021" matched a label of
+  2021-03-24 on the 24th of a month only, and "10:52" matched today). Both
+  sides are parsed by dateutil with a fixed default, never the clock, and the
+  parts each writes -- year, month, day -- are known by parsing it under two
+  defaults that differ in every part.
+  - **The label decides what must be said.** A hit when the answer writes
+    every part the label writes, and each is the label's. A label of `2015-11`
+    is matched by any day of November 2015; a label of `2018-07-10` is not
+    matched by `July 2018`, nor by a time with no date.
+  - **Day first or month first.** Numbers written with dots are read day
+    first (`10.12.2022` is 10 December), as every language that writes dates
+    with dots does; numbers written with slashes month first, dateutil's
+    order (`11/01/2023` is 1 November). Every date label the scoreboards
+    score is written year first: WCXB's (the as-served pages' too) and
+    trafilatura's as `YYYY-MM-DD` (one WCXB label is `YYYY-MM`), fundus's as
+    `YYYY-MM-DD hh:mm:ss`, most with a UTC offset. Only answers are written
+    otherwise.
+  - **Time zones.** When both carry a UTC offset they name an instant, and
+    the answer is read in the label's offset before its calendar date is
+    compared: metascraper writes every date in UTC, and fundus's labels in
+    the publisher's own. Otherwise each date is read as written, since a
+    label with no offset says no instant to convert to.
+  - Measured on 2026-09-24 against the results then in `bench/cache/`: the
+    old rule gave the same counts on every third day of 2026, and the new
+    one changes five outcomes, all from wrong to hit -- metascraper's dates
+    on four news pages (UTC against a label in +02:00 to +09:00) and one of
+    Sluicer's on trafilatura's set (`10.12.2022`). The scoreboards to
+    regenerate: news and trafilatura's set, whose numbers change, and the
+    WCXB and as-served scoreboards, whose method text states the rule.
 - Products: Zyte's `evaluate.py`, unchanged.
 - SWDE (`bench/swde.py`): an answer is right when it equals one of the page's
   labels with spaces collapsed, the separators `: | , ; - – — > / · •` taken

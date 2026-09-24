@@ -44,6 +44,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   exit 2, as a wrong option does.
 
 ### Changed
+- The benchmark's date rule no longer depends on the day it runs: dateutil
+  filled a part a date does not write with today's, so "March 2021" matched
+  2021-03-24 on the 24th of a month only. A date is now a hit when the answer
+  writes every part the label writes, alike; dots are read day first, slashes
+  month first, and with a UTC offset on both the answer is read in the
+  label's (`bench/PREREG.md`). It changes five outcomes on the news
+  scoreboard and trafilatura's set, all from wrong to hit, when they are next
+  regenerated.
 - Every sentence a scoreboard's generator writes about its results is
   counted from them. `bench/run.py` wrote "Sluicer gives none where the page
   states none" beside a table in which it invented 42 authors and 8 dates,
