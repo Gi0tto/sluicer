@@ -53,6 +53,18 @@ The next reading is the release after 0.7.0. All ten camera sites were read
 while the benchmark was built, before the split, so the held-out camera sites
 are not a clean test; the scoreboard says so.
 
+## `--visible`: made on WCXB's development split, measured on everything else
+
+Fixed on 2026-09-24, before a line of it was written. The rules that read a
+byline, a date or a title off the visible page are made reading only the
+1,358 pages of WCXB's `dev` split, in the archive already pinned at
+`c039d5e`, their labels, and Sluicer's answers on them. No scoreboard page is
+read while they are made: WCXB's test split, the pages as served, the news
+fixtures, trafilatura's set and Zyte's products are all held out, scored, and
+each shows two columns, what the page declares and what `--visible` adds. A
+guess read off the visible page is never part of the summary, and every
+invention it makes is counted in its own column.
+
 ## What counts as worse
 
 `bench/floors.json` holds, for every scoreboard, Sluicer's hit rate and share
