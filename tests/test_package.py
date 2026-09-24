@@ -186,7 +186,7 @@ def test_every_file_that_states_the_version_or_the_licence_agrees():
     assert stated(r"^version: (.+)$", citation) == version
 
     licence = stated(r'^license = "(.+)"$', pyproject)
-    assert licence == "MIT AND CC-BY-SA-3.0"
+    assert licence == "MIT AND CC-BY-SA-3.0 AND Unicode-3.0"
     assert plugin["license"] == licence
     listed = stated(r"^license:\n((?:  - .+\n)+)", citation).splitlines()
     assert " AND ".join(line.removeprefix("  - ") for line in listed) == licence

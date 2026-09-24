@@ -67,6 +67,32 @@ still believed. When only text is available and lxml cannot parse it, the
 retry reads it as UTF-8 whatever the document claims, because the text has
 already been decoded.
 
+**No guess from the visible page, measured.** Sluicer answers what a page
+declares and never guesses from what it shows, though trafilatura, which
+`sluicer[markdown]` installs, can: `examples/04_a_guess_from_the_visible_page.py`
+puts its guess beside Sluicer's answer, named a guess, when the page declares
+no author or date. Measured where Sluicer answers nothing, the guess is right
+on 48 of the 114 WCXB pages where it names an author and on 76 of the 312
+where it names a date; on 23 of 64 and 17 of 178 of the same pages as served;
+on 16 of 21 and 3 of 7 news pages; and on 110 of 183 and 190 of 311 of the
+pages trafilatura annotated to measure itself. Inside the summary such an
+answer would look exactly like a declared one; kept apart, it is taken for
+what it is worth.
+
+**A date's month is read by its name in any language CLDR covers.**
+`normalised` reads a date's month by its name in any of the 430 languages and
+regions CLDR 48.2 covers at its modern level (`sluicer/calendar_names.py`,
+under the Unicode License v3, with its source), in the orders they write it:
+`10. Mai 2023`, `10 de mayo de 2023`, Hungarian's `2023. május 10.`, and the
+numbers with units of Chinese, Japanese and Korean, `2023年5月10日`. Five
+names that mean two months in two languages are not read -- `listopad` is
+November in Polish and October in Croatian -- nor a date with a time after
+it in words, nor any all-number form but ISO's. A Thai month's year from 2400
+on is the Buddhist era's and is converted. On the 2,680 pages of the
+scoreboards and of trafilatura's evaluation set, pages declare dates in these
+forms almost never: one more date is read, `28. Dezember 2022`, and none
+changes.
+
 **RDFa is read as Lite, not as a graph.** The RDFa reader stops where the graph begins: `vocab`, `prefix`, `typeof`, `property` and
 `resource` are read, and chained subjects, typed literals and inference are not.
 Anyone who needs the full graph is better served by a triple store than by this
@@ -269,8 +295,10 @@ known.
 enumeration terms in `sluicer/audit/schema_org.py` are read from schema.org's
 own export, which is published under CC BY-SA 3.0; the module names its source
 and release, and it alone is distributed under CC BY-SA 3.0, as `LICENSE`
-says, with the licence's text in `LICENSES/`. The rest of sluicer is MIT. Google's pages are CC BY 4.0, and each rule cites the page it
-comes from.
+says, with the licence's text in `LICENSES/`. The rest of sluicer is MIT, but
+for CLDR's month and weekday names, with which dates are read (see the
+extraction path above).
+Google's pages are CC BY 4.0, and each rule cites the page it comes from.
 
 **TDMRep is read from HTML pages and their headers, and the site's file.**
 Its metadata in EPUB and PDF files is not read, since sluicer reads no such

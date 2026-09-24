@@ -240,8 +240,13 @@ alarm. See [drift](drift.md).
 
 ## Licence
 
-MIT, with no vendored code. The base install needs `lxml` and `click`, both
-BSD-3-Clause. The extras pull a wider tree that is not all permissive: `tld` is
+MIT, with no vendored code, and two exceptions: `sluicer/audit/schema_org.py`
+holds schema.org's type and enumeration names, which schema.org publishes
+under CC BY-SA 3.0, and `sluicer/calendar_names.py` holds CLDR's month and
+weekday names, which Unicode publishes under the Unicode License v3; each of
+the two files is distributed under its own (the package's licence expression
+is `MIT AND CC-BY-SA-3.0 AND Unicode-3.0`). The base install needs `lxml`
+and `click`, both BSD-3-Clause. The extras pull a wider tree that is not all permissive: `tld` is
 tri-licensed MPL-1.1, GPL-2.0-only or LGPL-2.1-or-later, `orjson` is MPL-2.0
 alongside Apache-2.0 or MIT, and `certifi` is MPL-2.0. CI lists every licence
 in that tree and fails on one nobody has read; see

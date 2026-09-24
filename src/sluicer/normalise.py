@@ -1,11 +1,12 @@
 """What a summary's dates, price and currency mean, when that is certain.
 
-Pages write a date as ``2026-03-06T09:00:00+01:00``, ``Jun 16, 2025`` or
-``Tue, 03 Jun 2025 10:00:00 GMT``, and a price as ``41.90``, ``£51.77`` or
-``1.299,00 €``. The summary keeps what the page wrote; this reads it into one
-form: ISO 8601 for a date, a plain decimal for an amount, the ISO 4217 code for
-a currency. Where the text could mean two things -- ``03/04/2025``, ``1,299``,
-``$`` -- there is no normalised value: a guess would look exactly like a fact.
+Pages write a date as ``2026-03-06T09:00:00+01:00``, ``Jun 16, 2025``,
+``10. Mai 2023`` or ``Tue, 03 Jun 2025 10:00:00 GMT``, and a price as
+``41.90``, ``£51.77`` or ``1.299,00 €``. The summary keeps what the page
+wrote; this reads it into one form: ISO 8601 for a date, a plain decimal for an
+amount, the ISO 4217 code for a currency. Where the text could mean two things
+-- ``03/04/2025``, ``1,299``, ``$`` -- there is no normalised value: a guess
+would look exactly like a fact.
 
 A date keeps the offset the page gave it and is never moved to UTC, so a date
 stays the date the page's readers saw.
@@ -16,7 +17,10 @@ from __future__ import annotations
 import datetime
 import email.utils
 import re
+import unicodedata
 from typing import TYPE_CHECKING
+
+from sluicer.calendar_names import MONTHS, WEEKDAYS
 
 if TYPE_CHECKING:
     # For its annotation only: the summary reads amounts with this module.
@@ -64,7 +68,7 @@ _SYMBOLS = {
     "s$": "SGD",
 }
 
-_MONTHS = {
+_ENGLISH_MONTHS = {
     name: number
     for number, names in enumerate(
         (
@@ -91,10 +95,38 @@ _ISO = re.compile(
     r"(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,]\d+)?)?"
     r"\s*(Z|[+-]\d{2}:?\d{2})?(?:\s*UTC)?)?"
 )
-_MONTH_FIRST = re.compile(r"([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})")
-_DAY_FIRST = re.compile(r"(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})")
-# PubMed writes a citation's date year first: "2023 Jan 7".
-_YEAR_FIRST = re.compile(r"(\d{4})\s+([A-Za-z]{3,9})\.?\s+(\d{1,2})")
+# Every language CLDR covers, English's own spellings first: "Sept" is English.
+_MONTHS = {**MONTHS, **_ENGLISH_MONTHS}
+# A month's name as written, in any script -- "Mai", "ม.ค.", "जनवरी" -- and in
+# more than one word where a language writes it so, Scottish Gaelic's "am
+# màrt", Romansh's "da december": the shortest run with no digit or comma
+# that the date around it allows, looked up whole.
+_NAME = r"([^\s\d,](?:[^\d,]*?[^\s\d,])?)\.?"
+_MONTH_FIRST = re.compile(_NAME + r"\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})")
+# "16 June 2025", "10. Mai 2023", "1er mai 2023", "10 de mayo de 2023", and the
+# mark Russian and Ukrainian write after the year, the letters U+0433 and U+0440.
+_DAY_FIRST = re.compile(
+    r"(\d{1,2})(?:st|nd|rd|th|er|\.|º|ª)?\s*(?:de\s+)?"
+    + _NAME
+    + r",?\s+(?:de\s+|del\s+)?(\d{4})(?:\s*[\u0433\u0440]\.?)?"
+)
+# Year first: PubMed's "2023 Jan 7", Hungarian's "2023. május 10.", and
+# Lithuanian's "2023 m. gegužės 10 d.".
+_YEAR_FIRST = re.compile(
+    r"(\d{4})\.?\s*(?:m\.\s*)?" + _NAME + r"\s+(\d{1,2})\.?(?:\s*d\.)?"
+)
+# Chinese, Japanese and Korean write a date in numbers, each with its unit:
+# "2023年5月10日", "2023년 5월 10일". Unambiguous, the units saying which is which.
+_UNITS = re.compile(r"(\d{4})\s*[年년]\s*(\d{1,2})\s*[月월]\s*(\d{1,2})\s*[日일]")
+# Thai writes a date's year in the Buddhist era, 543 ahead of the common one:
+# "10 ม.ค. 2566" is 10 January 2023. A year from 2400 on beside a Thai month
+# is that era's; a smaller one is the common era's, as Thai also writes it.
+_THAI = re.compile(f"[{chr(0x0E00)}-{chr(0x0E7F)}]")
+_BUDDHIST_ERA_FROM = 2400
+_BUDDHIST_ERA_OFFSET = 543
+# A weekday in any language before the date, with its comma: "Mittwoch, 10.
+# Mai 2023". Without the comma only an English one, as before.
+_ANY_WEEKDAY = re.compile(r"^([^\s\d,]+?)\.?,\s+")
 # The month, day, year, time and offset of JavaScript's Date.toString(), the
 # weekday already taken off: "Oct 24 2025 03:22:33 GMT+0000 (GMT)".
 _JAVASCRIPT = re.compile(
@@ -135,11 +167,15 @@ def iso_date(text: str) -> str | None:
 
     Read: ISO 8601 and its common variants (a space for the ``T``, an offset
     without a colon, a trailing ``UTC``), RFC 2822 (``Tue, 03 Jun 2025 10:00:00
-    GMT``), English month names either side of the day (``Jun 16, 2025``,
-    ``16 June 2025``) or after the year, as PubMed writes a citation's date
-    (``2023 Jan 7``), and JavaScript's ``Date.toString()`` (``Fri Oct 24 2025
-    03:22:33 GMT+0000 (GMT)``). Not read: all-number forms other than ISO's,
-    since ``03/04/2025`` is March in one country and April in another.
+    GMT``), a month's name in any language CLDR covers either side of the day
+    (``Jun 16, 2025``, ``16 June 2025``, ``10. Mai 2023``, ``10 de mayo de
+    2023``, Russian's with its year mark) or after the year (PubMed's ``2023 Jan 7``,
+    Hungarian's ``2023. május 10.``), a weekday before it with its comma,
+    the numbers with units Chinese, Japanese and Korean write (``2023年5月10日``),
+    and JavaScript's ``Date.toString()`` (``Fri Oct 24 2025 03:22:33 GMT+0000
+    (GMT)``). A Thai month's year from 2400 on is the Buddhist era's, and is
+    converted. Not read: all-number forms other than ISO's, since
+    ``03/04/2025`` is March in one country and April in another.
     """
     text = text.strip()
     iso = _ISO.fullmatch(text)
@@ -152,7 +188,14 @@ def iso_date(text: str) -> str | None:
             parsed = None
         if parsed is not None:
             return parsed.isoformat()
+    units = _UNITS.fullmatch(text)
+    if units:
+        year, month, day = (int(part) for part in units.groups())
+        return _day(year, month, day)
     words = _WEEKDAY.sub("", text)
+    weekday = _ANY_WEEKDAY.match(words)
+    if weekday and _month_or_day(weekday.group(1)) in WEEKDAYS:
+        words = words[weekday.end() :]
     javascript = _JAVASCRIPT.fullmatch(words)
     if javascript:
         return _from_javascript(javascript)
@@ -163,17 +206,25 @@ def iso_date(text: str) -> str | None:
     ):
         match = pattern.fullmatch(words)
         if match:
-            month = _MONTHS.get(match.group(month_at).lower())
-            if month is None:
-                return None
-            return _day(int(match.group(year_at)), month, int(match.group(day_at)))
+            name = match.group(month_at)
+            named = _MONTHS.get(_month_or_day(name))
+            if named is not None:
+                year = int(match.group(year_at))
+                if year >= _BUDDHIST_ERA_FROM and _THAI.search(name):
+                    year -= _BUDDHIST_ERA_OFFSET
+                return _day(year, named, int(match.group(day_at)))
     return None
+
+
+def _month_or_day(name: str) -> str:
+    """A month's or weekday's name as the tables spell it."""
+    return unicodedata.normalize("NFC", name).casefold().rstrip(".")
 
 
 def _from_javascript(match: re.Match[str]) -> str | None:
     """A ``Date.toString()``: its moment, at the offset it was written in."""
     name, day, year, hour, minute, second, zone = match.groups()
-    month = _MONTHS.get(name.lower())
+    month = _ENGLISH_MONTHS.get(name.lower())
     date = _day(int(year), month, int(day)) if month else None
     if date is None:
         return None

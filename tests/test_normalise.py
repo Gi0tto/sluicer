@@ -29,6 +29,24 @@ from sluicer.normalise import ISO_4217, amount, currency, iso_date
             "Fri Oct 24 2025 05:22:33 GMT+0200 (Central European Summer Time)",
             "2025-10-24T05:22:33+02:00",
         ),
+        # A month's name in any language CLDR covers, in the orders they write:
+        ("10. Mai 2023", "2023-05-10"),
+        ("Mittwoch, 10. Mai 2023", "2023-05-10"),
+        ("1er mai 2023", "2023-05-01"),
+        ("10 de mayo de 2023", "2023-05-10"),
+        ("Mayo 3, 2025", "2025-05-03"),  # Filipino writes it so
+        ("10 maggio 2023", "2023-05-10"),
+        ("10 \u043c\u0430\u044f 2023 \u0433.", "2023-05-10"),
+        ("10 \u039c\u03b1\u0390\u03bf\u03c5 2023", "2023-05-10"),
+        ("2023. május 10.", "2023-05-10"),
+        ("2023 m. gegužės 10 d.", "2023-05-10"),
+        ("12 \u0926\u093f\u0938\u0902\u092c\u0930 2024", "2024-12-12"),  # Hindi
+        # Chinese, Japanese and Korean, in numbers with their units:
+        ("2023年5月10日", "2023-05-10"),
+        ("2023 년 5 월 10 일", "2023-05-10"),
+        # Thai's year is the Buddhist era's from 2400 on, the common era's below:
+        ("10 \u0e21.\u0e04. 2566", "2023-01-10"),
+        ("10 \u0e21.\u0e04. 2023", "2023-01-10"),
     ],
 )
 def test_a_date_is_read_into_iso_8601(written, meant):
@@ -43,7 +61,9 @@ def test_a_date_is_read_into_iso_8601(written, meant):
         "2025-02-30",
         "2026-01-01T25:00:00",
         "Jan 24, 2026T00:00:00-05:00",  # seen on a page as served
-        "Mayo 3, 2025",
+        "10 listopad 2023",  # November in Polish and Czech, October in Croatian
+        "10 foo 2023",
+        "Berlin, 10 May 2023",  # a weekday's comma, not any word's
         "2023 Jan 32",
         "Thu, 08/21/2025 - 13:40",  # seen on a page as served; all numbers
         "Fri Oct 24 2025 03:22:33",  # no offset, so no moment

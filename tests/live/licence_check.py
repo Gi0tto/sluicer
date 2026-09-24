@@ -39,8 +39,10 @@ PERMISSIVE = frozenset(
 """Licences that ask nothing of the code that uses them beyond a notice."""
 
 READ = {
-    "sluicer": "MIT AND CC-BY-SA-3.0: CC BY-SA 3.0 on one file of schema.org's"
-    " names, sluicer/audit/schema_org.py, and MIT on the rest",
+    "sluicer": "MIT AND CC-BY-SA-3.0 AND Unicode-3.0: CC BY-SA 3.0 on one file"
+    " of schema.org's names, sluicer/audit/schema_org.py, the Unicode License"
+    " v3 on one file of CLDR's month and weekday names,"
+    " sluicer/calendar_names.py, and MIT on the rest",
     "certifi": "MPL-2.0: file-level copyleft on certifi's own files, unmodified",
     "orjson": "MPL-2.0 AND (Apache-2.0 OR MIT): the same, for its bundled parts",
     "tld": "MPL-1.1 OR GPL-2.0-only OR LGPL-2.1-or-later: taken under MPL-1.1",
