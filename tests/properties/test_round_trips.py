@@ -9,7 +9,7 @@ read and rewritten never shows a diff.
 
 from __future__ import annotations
 
-from hypothesis import assume, given, strategies as st
+from hypothesis import given, strategies as st
 from strategies import pages
 
 from sluicer.extractor import (
@@ -33,12 +33,25 @@ listing_fields = st.builds(
     shape=st.none() | shapes,
     samples=st.lists(text, max_size=5).map(tuple),
 )
+# What compile writes, and what from_json reads back: a container is a path
+# of steps, a member a tag and its classes, the rows the fewest and the most,
+# and one field of each name. Anything else is refused as a file that would
+# check less than it says.
+steps = st.from_regex(
+    r"[a-z][a-z0-9]{0,5}(\.[a-z][a-z0-9_-]{0,5})?(\[[1-9][0-9]?\])?", fullmatch=True
+)
 listings = st.builds(
     Listing,
-    container=text,
-    member=text,
-    rows=st.tuples(st.integers(0, 10**6), st.integers(0, 10**6)),
-    fields=st.lists(listing_fields, min_size=1, max_size=6).map(tuple),
+    container=st.lists(steps, min_size=1, max_size=5).map(
+        lambda path: ">".join(["html", *path])
+    ),
+    member=st.from_regex(
+        r"[a-z][a-z0-9]{0,5}(\.[a-z][a-z0-9_-]{0,5}){0,2}", fullmatch=True
+    ),
+    rows=st.tuples(st.integers(0, 10**6), st.integers(0, 10**6)).map(sorted).map(tuple),
+    fields=st.lists(
+        listing_fields, min_size=1, max_size=6, unique_by=lambda f: f.name
+    ).map(tuple),
 )
 extractors = st.builds(
     Extractor,
@@ -70,14 +83,4 @@ def test_so_does_every_extractor_learnt_from_drawn_pages(drawn):
         extractor = compile_extractor([(page.html(), page.url) for page in drawn])
     except NothingToLearn:
         return
-    # A known defect, reported and left to extractor.py: an answer or a column
-    # made only of characters with no letter, digit, punctuation or symbol in
-    # them (a combining accent, an escape) is learnt with the empty shape, and
-    # from_json refuses the file to_json wrote. Delete this line with the fix.
-    assume(
-        "" not in extractor.summary.values()
-        and not (
-            extractor.listing and any(f.shape == "" for f in extractor.listing.fields)
-        )
-    )
     _assert_round_trip(extractor)

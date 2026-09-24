@@ -478,7 +478,10 @@ def score_pair(pair: dict[str, Any], with_scrapling: bool) -> dict[str, Any]:
     except NothingToLearn:
         # What the command line reports as "nothing to heal from".
         healed, changes = None, []
-    if healed is None or healed.listing is None:
+    # A lost listing stays in the healed extractor as it was, so a forced one
+    # keeps failing; it is still no listing found on B.
+    lost = any(c.kind == "listing-lost" for c in changes)
+    if healed is None or healed.listing is None or lost:
         judged = {"verdict": "no listing on B", "matched": 0, "fields": {}}
         b_rows: list[Row] = []
     else:

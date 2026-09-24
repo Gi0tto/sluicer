@@ -17,6 +17,43 @@ Dates are the day the work landed. Anything not listed here did not happen.
   it shows, and `sluicer compile PAGE --want NAME=VALUE` for the fields a
   person can point to, leaving out the options already given.
 
+### Changed
+- The benchmark's date rule no longer depends on the day it runs: dateutil
+  filled a part a date does not write with today's, so "March 2021" matched
+  2021-03-24 on the 24th of a month only. A date is now a hit when the answer
+  writes every part the label writes, alike; dots are read day first, slashes
+  month first, and with a UTC offset on both the answer is read in the
+  label's (`bench/PREREG.md`). It changes five outcomes on the news
+  scoreboard and trafilatura's set, all from wrong to hit, when they are next
+  regenerated.
+- Every sentence a scoreboard's generator writes about its results is
+  counted from them. `bench/run.py` wrote "Sluicer gives none where the page
+  states none" beside a table in which it invented 42 authors and 8 dates,
+  and "authors and dates are where the gap is" whatever the run; the products
+  scoreboard's error classes, the news scoreboard's "most of the authors",
+  trafilatura's set's "nearly every snippet", the extruct page's "raises on
+  none" and "for the same reasons", and the served scoreboard's capture
+  scores were written once by hand and printed on every run. The scoreboards
+  show it when they are next regenerated.
+- `sluicer --help` lists the commands in four sections -- Read a page, Whole
+  sites, Extractors, Servers -- instead of one alphabetical list.
+- The suite runs in a random order (pytest-randomly, now a development
+  dependency), and CI seeds the order with the run's id. Two tests passed only
+  in file order: one cleared the `mcp` package from `sys.modules` but not
+  `mcp.server.mcpserver`, and one failed after a test that reloaded
+  `sluicer.markdown`, which left a second `MarkdownExtraMissing` class the CLI
+  did not catch. No test reloads a module now.
+- `compile`, `run` and `heal` parse each page once. They parsed it again to
+  read what it declares, and `heal` again for each part it healed. The groups a
+  page repeats and its text nodes are worked out once per page while learning,
+  not once per example, and a label is looked up rather than searched for on
+  every candidate, which made a page of labelled rows quadratic: 4,000 rows
+  took 1.86 s, now 0.19 s. On 11 of SWDE's development sites, three seed
+  pages each and 200 pages run, best of three runs interleaved: `compile`
+  1.14 s to 0.52 s, `run` 278 to 321 pages a second. Every output is the
+  same: the extractors, the runs and the heals there, SWDE's development half
+  answer for answer, and the drift benchmark's results.
+
 ### Fixed
 - The scoreboards say which pages Sluicer's rules were made on. Five of the
   six, and the drift benchmark, had rules written, measured on their pages and
@@ -58,33 +95,71 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer mcp --tools bogus`, and `SLUICER_MCP_TOOLS=bogus sluicer-mcp`,
   printed a traceback; they print the one line that lists the ten tools and
   exit 2, as a wrong option does.
+- A column or an answer made only of characters with no letter, digit,
+  punctuation or symbol in them, a combining accent alone, is learnt with no
+  shape. It was learnt with the empty one, and `compile` wrote a file that
+  `run` refused.
+- An extractor file is checked value by value when it is read. Edited by hand
+  to `"missing": "nan"`, a field's presence was never checked again: no
+  comparison is true of NaN, and the run passed a page without the field. So
+  did a `missing` of `true`, `1.5` or `"0"`, an `empty` of 5, and rows or
+  counts written as text. Shares must be numbers from 0 to 1, rows two counts,
+  shapes made of L, N, P and S, lists lists, names one per field and paths
+  paths; any other file is refused with a message naming the value, and the
+  command line exits 2, as it does for a file that is not JSON.
+- `heal` never moves a listing chosen by examples on one coincidence. With
+  its old place gone and every item new, one related product costing what a
+  book used to drew the listing of prices into the related strip, a move and
+  no loss, so it was written. A group must now hold at least half of one
+  column's old values to be where the listing went; otherwise it is lost.
+- `heal` keeps a listing chosen by examples where it is while it keeps its
+  contract there. On a page that had not changed it moved the listing to a
+  sidebar listing the same books, and wrote it; on the same template with
+  every item new it reported the listing lost. And a lost listing now stays in
+  the healed extractor as it was: written with `--force`, an extractor without
+  it passed every page, those with no rows at all among them.
+- `heal` never moves a page field into another product's place. After a
+  redesign that also changed the product's price, a related product costing
+  the old price drew the field into the related strip, and the healed
+  extractor read that product's price and passed. A page field now moves only
+  among the page's own places, never its navigation, asides or listings, and
+  a move two own places claim, reading different values, is `ambiguous`. A
+  heal of page fields on pages that declare nothing no longer stops with
+  "nothing to heal from".
+- A box of the same kind inserted before a numbered listing fails the run.
+  The listing at `section.box[2]` read the box that became second, 4 rows
+  instead of 12, and passed, although the docs promised a strip inserted
+  before a listing is caught. An extractor now learns how many elements
+  matched each step of its listing's path on the pages learnt (`siblings`),
+  and a numbered step with more or fewer of its kind fails the `listing`
+  check. A file from 0.7.0 has none and is read as before. The drift
+  benchmark's outcomes are unchanged: 23 survived, 21 failed loudly, none
+  silently, no false alarm.
+- `diff` reports a price in another currency as `changed`, not `rewritten`:
+  `£41.90` and `$41.90` are the same number, and were read as noise. A price's
+  currency is the one its sign or code names, `£` and `GBP` alike, else the
+  one the page declares; `$`, which names several, is only itself.
+- A page field read by its place fails when its row moved. Learnt from pages
+  that agreed on the SKU's row, a page with its table's rows in another order
+  read the weight, "1 kg", as the SKU and passed. A field read by its place
+  now learns the label every page given puts right before it, once -- text
+  ending with a colon, or in a `<th>`, `<dt>` or `<label>` -- and a page that
+  says the label once, before something else, fails the `field` check; `heal`
+  then reads the field after its label. On SWDE's development half this flags
+  575 wrong answers that passed (2,921 to 2,346 unflagged) and no right one;
+  a label taken from any text, links included, flagged 1,204 right answers.
+- Two examples one column holds are no listing. `compile --want price=41.90
+  --want sku=BP-1` on a product's table, the price and the SKU in two of its
+  rows, learnt a listing of the table's rows with both columns the same `td`,
+  and a new page read price "Bosch", sku "Bosch" and exited 0. Each example
+  now needs a column of its own; with none, the examples are the page's own
+  values, and the price and the SKU are read where each sits.
+- An example is one amount however many zeros it is written with: `--want
+  price=8` finds the page's `£8.00`, on the page, in a listing's rows and after
+  a label. Amounts were compared as the text `amount` gives back, `8` against
+  `8.00`, and the comparison was written out three times; it is one now, and
+  numeric.
 
-### Changed
-- The benchmark's date rule no longer depends on the day it runs: dateutil
-  filled a part a date does not write with today's, so "March 2021" matched
-  2021-03-24 on the 24th of a month only. A date is now a hit when the answer
-  writes every part the label writes, alike; dots are read day first, slashes
-  month first, and with a UTC offset on both the answer is read in the
-  label's (`bench/PREREG.md`). It changes five outcomes on the news
-  scoreboard and trafilatura's set, all from wrong to hit, when they are next
-  regenerated.
-- Every sentence a scoreboard's generator writes about its results is
-  counted from them. `bench/run.py` wrote "Sluicer gives none where the page
-  states none" beside a table in which it invented 42 authors and 8 dates,
-  and "authors and dates are where the gap is" whatever the run; the products
-  scoreboard's error classes, the news scoreboard's "most of the authors",
-  trafilatura's set's "nearly every snippet", the extruct page's "raises on
-  none" and "for the same reasons", and the served scoreboard's capture
-  scores were written once by hand and printed on every run. The scoreboards
-  show it when they are next regenerated.
-- `sluicer --help` lists the commands in four sections -- Read a page, Whole
-  sites, Extractors, Servers -- instead of one alphabetical list.
-- The suite runs in a random order (pytest-randomly, now a development
-  dependency), and CI seeds the order with the run's id. Two tests passed only
-  in file order: one cleared the `mcp` package from `sys.modules` but not
-  `mcp.server.mcpserver`, and one failed after a test that reloaded
-  `sluicer.markdown`, which left a second `MarkdownExtraMissing` class the CLI
-  did not catch. No test reloads a module now.
 
 ## 0.7.0 - 2026-09-24
 

@@ -318,7 +318,7 @@ Learn an extractor from pages of one template.
 - `pages`: the pages, each as ``(html, url)``.
 - `listing`: learn the listing the pages repeat. None, the default, learns one unless a page declares its own subject -- a product, an article -- whose page it is; True looks for one anyway.
 - `names`: what to call each page in ``learnt_from``; its address by default.
-- `want`: example values, by the name each is to have: ``{"price": "41.90", "title": "Brake pad set"}``. When a repeated group's rows hold every one -- the first such group, in page order -- they choose the listing and its columns, which are only the ones named. When no one group holds them all, or with ``listing=False``, they are the page's own values, a product page's price and title, each learnt where it sits on the page, the page's own place before its furniture and its listings. A value matches when it says the same with its spaces collapsed, or is the same amount.
+- `want`: example values, by the name each is to have: ``{"price": "41.90", "title": "Brake pad set"}``. When a repeated group's rows hold every one, each in a column of its own -- the first such group, in page order -- they choose the listing and its columns, which are only the ones named. When no one group holds them all, or with ``listing=False``, they are the page's own values, a product page's price and title, each learnt where it sits on the page, the page's own place before its furniture and its listings. A value matches when it says the same with its spaces collapsed, or is the same amount.
 
 **Raises**
 
