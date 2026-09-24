@@ -409,7 +409,8 @@ the date on 0.736, right on 0.779 with 83 invented, where trafilatura finds
 <summary><b>Is it ready for production?</b></summary>
 
 It is Beta: the interface may still change before 1.0, and every change is in
-the [changelog](https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md). Each
+the [changelog](https://github.com/Gi0tto/sluicer/blob/main/CHANGELOG.md).
+[What is stable](https://github.com/Gi0tto/sluicer/blob/main/docs/stability.md) says which parts will not change without a release of warning. Each
 release passes the full test suite on Python 3.10 to 3.14 and property tests
 that draw thousands of hostile pages, and is measured again on every
 scoreboard, before it is tagged.

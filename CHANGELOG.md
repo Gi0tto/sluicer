@@ -5,6 +5,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Added
+- `docs/stability.md`: what is stable before 1.0 (`extract()` and
+  `Extraction`, the summary's questions, the extractor file and its exit
+  codes, the MCP tools and their documented fields), what is experimental
+  (crawl, warc, feed, audit, diff, induce, `--visible`, the HTTP API), the
+  deprecation policy -- one minor release of warning, in this changelog,
+  before a stable part is removed -- and that one person maintains Sluicer on
+  a best-effort basis.
 - `extract` and `inspect` of a page that gives nothing say what may still read
   it: `--induce` for the rows it repeats, `--visible` for the byline and dates
   it shows, and `sluicer compile PAGE --want NAME=VALUE` for the fields a
