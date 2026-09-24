@@ -36,6 +36,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   author or date beside what the page declares, named a guess, for a caller
   who wants one. It stays out of the summary, and the known limits say why,
   with how often it is right where nothing is declared.
+- The README shows an extractor meeting a real redesign: learnt from Wayback
+  Machine captures of a software directory in 2016, it fails loudly on the
+  2024 page and `heal` says what moved. `scripts/demo.py` records it from the
+  commands as they ran. `scripts/social_card.py` draws the card a shared link
+  shows, and every page of the documentation now declares it, with the page's
+  title, in OpenGraph.
 
 ### Changed
 - The README is rewritten to be read in a minute: highlights, install, a quick

@@ -108,6 +108,19 @@ The page describes one product in three vocabularies; `result.records` holds it
 once, each field with its source and place. The same reading from the command
 line is `sluicer extract` for JSON, or `sluicer inspect` for the picture above.
 
+## See it meet a redesign
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/demo.gif" alt="An extractor learnt from a software directory in January 2016 replays a page of February 2016 and exits 0; on the page of June 2024, after the site's redesign, it fails loudly with exit 3, and heal says where the listing and each field went, with how many learnt values it found there" width="860">
+</p>
+
+A real site's software directory, as the Wayback Machine kept it. An extractor
+learnt from two pages of January 2016 replays a page of February 2016 and exits
+0; on the page of June 2024, after the site's redesign, it fails loudly and
+exits 3, where a selector would have returned nulls. `heal` then says where the
+listing and each field went, and on how many of the values it learnt each move
+rests. Every command ran for real; `scripts/demo.py` records them again.
+
 ## Use it
 
 ### From the command line

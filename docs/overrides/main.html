@@ -1,0 +1,17 @@
+{#- What a shared link to any page shows: its title, the site's description
+    and the card scripts/social_card.py draws. -#}
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {%- set title = config.site_name if page.is_homepage else page.title ~ " - " ~ config.site_name %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ config.site_name }}">
+  <meta property="og:title" content="{{ title | striptags }}">
+  <meta property="og:description" content="{{ config.site_description }}">
+  <meta property="og:url" content="{{ page.canonical_url }}">
+  <meta property="og:image" content="{{ config.site_url }}assets/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Sluicer: turn a web page into structured data.">
+  <meta name="twitter:card" content="summary_large_image">
+{% endblock %}

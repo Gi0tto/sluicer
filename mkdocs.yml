@@ -4,9 +4,12 @@ site_url: https://gi0tto.github.io/sluicer/
 repo_url: https://github.com/Gi0tto/sluicer
 repo_name: Gi0tto/sluicer
 edit_uri: edit/main/docs/
+# The theme's additions live beside the pages but are not pages.
+exclude_docs: /overrides/
 
 theme:
   name: material
+  custom_dir: docs/overrides
   logo: assets/mark-512.png
   favicon: assets/mark-512.png
   features:
