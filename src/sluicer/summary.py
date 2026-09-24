@@ -22,6 +22,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from html.entities import html5 as html5_names
 from typing import Any, TypeAlias
 from urllib.parse import urlsplit
 
@@ -802,10 +803,44 @@ def _from(
     if field.source == "jsonld" and text:
         # JSON-LD is JSON, but CMSs write HTML entities into it: Yoast titles
         # arrive as "Guide &#8226; Yoast".
-        text = _clean(html_entities.unescape(text))
+        text = _clean(_unescaped(text))
     if not text:
         return None
     return SummaryField(text, field.source, f"{record.type}.{prop}", field.where)
+
+
+# A character reference as ``html.unescape`` finds one: a number, or a name
+# with or without its semicolon.
+_REFERENCE = re.compile(r"&(#[0-9]+;?|#[xX][0-9a-fA-F]+;?|[^\t\n\f <&#;]{1,32};?)")
+
+
+def _unescaped(text: str) -> str:
+    """``text`` with its character references read as an attribute's are.
+
+    HTML lets a hundred-odd old names go without their semicolon, ``&reg``
+    and ``&sect`` among them, but in an attribute not before a letter, a digit
+    or ``=``, where the text is the rest of a word: that is how a browser keeps
+    ``?id=1&region=us&section=a`` in an ``href``. Read as ``html.unescape``
+    reads running text, every such address in a page's JSON-LD came out as
+    ``?id=1\u00aeion=us\u00a7ion=a``. Anything else is read as it reads it.
+    """
+    if "&" not in text:
+        return text
+    return _REFERENCE.sub(_character, text)
+
+
+def _character(reference: re.Match[str]) -> str:
+    written = reference.group(1)
+    if written.startswith("#") or written in html5_names:
+        return html_entities.unescape(reference.group())
+    # The longest old name the reference starts with, as the standard reads it.
+    for end in range(len(written) - 1, 1, -1):
+        if written[:end] in html5_names:
+            after = written[end]
+            if after == "=" or (after.isascii() and after.isalnum()):
+                return reference.group()
+            return html5_names[written[:end]] + written[end:]
+    return reference.group()
 
 
 def _text(value: JsonValue) -> str | None:

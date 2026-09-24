@@ -213,6 +213,33 @@ def test_html_entities_written_into_json_ld_are_read_as_characters():
     assert _summary(html)["title"][0] == "Guide • Yoast & you"
 
 
+def test_a_json_ld_address_keeps_a_query_that_spells_a_legacy_entity():
+    """``&reg`` and ``&sect`` need no semicolon in HTML, but not before a letter.
+
+    Read as ``html.unescape`` reads text, ``?id=1&region=us&section=a`` was
+    ``?id=1\u00aeion=us\u00a7ion=a``: the HTML standard leaves such a
+    reference alone in an attribute when a letter, a digit or ``=`` follows,
+    which is how a browser reads the same address in an ``href``.
+    """
+    address = "https://shop.example/p?id=1&region=us&section=a&para=2&copy=3"
+    html = _page(
+        {
+            "@type": "Product",
+            "name": "Pad &amp; pen",
+            "url": address,
+            "image": address + "&not=4",
+            "description": "Ben &amp; Jerry&#39;s &copy 2024 &lt;b&gt; &amp",
+        }
+    )
+
+    summary = _summary(html)
+
+    assert summary["url"][0] == address
+    assert summary["image"][0] == address + "&not=4"
+    assert summary["title"][0] == "Pad & pen"
+    assert summary["description"][0] == "Ben & Jerry's \u00a9 2024 <b> &"
+
+
 def test_a_locale_becomes_a_language_tag_when_the_page_has_no_lang():
     html = _page(head='<meta property="og:locale" content="en_US">')
 

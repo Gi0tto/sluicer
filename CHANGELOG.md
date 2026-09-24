@@ -10,6 +10,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   value. A GTIN or an amount written in another script's decimal digits,
   fullwidth or Arabic-Indic, is normalised in ASCII digits, as a date already
   was, and so is a date's offset.
+- A summary answer read from JSON-LD keeps an address's query:
+  `?id=1&region=us&section=a` was `?id=1®ion=us§ion=a`, the old entity
+  names HTML lets go without a semicolon read even before a letter. They are
+  now read as an attribute's are, which is how a browser keeps them in an
+  `href`; `&amp;`, `&#39;` and the rest are read as before. No answer on the
+  benchmark pages changed.
 
 ## 0.7.0 - 2026-09-24
 
