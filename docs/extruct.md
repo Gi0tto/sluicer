@@ -81,8 +81,9 @@ and the module named says how it is read.
   default `errors="strict"` that one block loses every syntax on the page; with
   `"log"` or `"ignore"` it loses every block of JSON-LD on the page. sluicer
   reads blocks as its own reader does -- a comment or CDATA wrapper, a byte
-  order mark, a trailing comma and a media type in another case forgiven -- and
-  skips a block that is still not JSON, keeping the rest.
+  order mark, JavaScript's comments, a trailing comma and a media type in
+  another case forgiven -- and skips a block that is still not JSON, keeping
+  the rest.
 - **Dublin Core** (`dublincore`). extruct files whatever follows a name's last
   dot, so `<meta name="description">`, `name="title"`, `citation.date` and
   `<link rel="license">` are Dublin Core elements to it. sluicer counts a name

@@ -21,6 +21,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   its graph. Only its graph was read, and the Product was lost. On the
   benchmark pages, two product pages gain the Brand that wraps their
   Products; no summary answer changed.
+- JSON-LD with JavaScript comments, `//` or `/* */`, is read: it was
+  skipped, though extruct reads it, so `sluicer.compat.extruct` did worse than
+  extruct. Comments are dropped outside strings only, and a trailing comma is
+  now mended outside strings only too: `"Pad, ]"` was read as `"Pad]"`. On
+  the benchmark pages, two of WCXB's development pages gain six records; no
+  summary answer changed.
 
 ## 0.7.0 - 2026-09-24
 

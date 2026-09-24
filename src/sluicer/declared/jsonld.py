@@ -34,7 +34,8 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
 
     Blocks are read as leniently as the consumers pages are written for: a raw
     newline inside a string, an HTML comment or CDATA wrapper, a byte order
-    mark and a trailing comma are all common and none loses the block. What
+    mark, JavaScript's ``//`` and ``/* */`` comments and a trailing comma are
+    all common and none loses the block; a string's text is never mended. What
     still is not JSON is skipped, and so is a block nested past the parser's
     limit; the good blocks on the page are kept.
 
@@ -79,7 +80,12 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
 
 _OPENING = re.compile(r"^\s*(?:(?://|/\*)\s*)?(?:<!\[CDATA\[|<!--)\s*(?:\*/)?")
 _CLOSING = re.compile(r"(?:(?://|/\*)\s*)?(?:\]\]>|-->)\s*(?:\*/)?\s*$")
-_TRAILING_COMMA = re.compile(r",\s*([}\]])")
+# A JSON string, read to its end or to the block's: what the two patterns
+# below look for inside one is text. Left open, it runs to the end, and so does
+# a comment, so no character is scanned twice whatever the block holds.
+_STRING = r'"(?:[^"\\]|\\.)*(?:"|\Z)'
+_COMMENT = re.compile(_STRING + r"|//[^\n]*|/\*.*?(?:\*/|\Z)", re.DOTALL)
+_TRAILING_COMMA = re.compile(_STRING + r"|,(?=\s*[}\]])", re.DOTALL)
 
 
 def _parse(raw: str, as_written: bool = True) -> object | None:
@@ -93,9 +99,7 @@ def _parse(raw: str, as_written: bool = True) -> object | None:
         unwrapped = _CLOSING.sub("", _OPENING.sub("", unwrapped))
     # The cleaned spellings are tried only after the text as written fails, so
     # a block that is valid JSON is never rewritten.
-    for candidate in dict.fromkeys(
-        (raw, unwrapped, _TRAILING_COMMA.sub(r"\1", unwrapped))
-    ):
+    for candidate in dict.fromkeys((raw, unwrapped, _mended(unwrapped))):
         try:
             parsed: object = (
                 json.loads(
@@ -112,6 +116,18 @@ def _parse(raw: str, as_written: bool = True) -> object | None:
             continue
         return parsed
     return None
+
+
+def _mended(text: str) -> str:
+    """``text`` without JavaScript's comments and a trailing comma's comma.
+
+    Both outside strings only. extruct strips the comments, so a block that
+    has them was read there and lost here; and a comma mended inside a string
+    changed its text, ``"Pad, ]"`` read as ``"Pad]"``. A comment is a space,
+    which is what it separates as.
+    """
+    text = _COMMENT.sub(lambda m: m[0] if m[0].startswith('"') else " ", text)
+    return _TRAILING_COMMA.sub(lambda m: m[0] if m[0].startswith('"') else "", text)
 
 
 def _is_ld_json(declared: str) -> bool:

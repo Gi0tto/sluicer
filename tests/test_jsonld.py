@@ -79,6 +79,60 @@ def test_a_trailing_comma_does_not_lose_the_block():
     ]
 
 
+def test_a_block_with_javascript_comments_is_still_read():
+    """extruct strips them, and pages write them; strings keep their slashes."""
+    body = (
+        '{"@type": "Product", // the product\n'
+        ' "name": "Pad // not a comment /* nor this */",'
+        ' /* its address */ "url": "https://shop.example/p", // last\n}'
+    )
+
+    assert _one(body) == [
+        {
+            "@type": "Product",
+            "name": "Pad // not a comment /* nor this */",
+            "url": "https://shop.example/p",
+        }
+    ]
+
+
+def test_a_comment_left_open_ends_the_block_and_never_the_reading():
+    assert _one('{"@type": "Product", "name": "Pad"} /* left open') == [
+        {"@type": "Product", "name": "Pad"}
+    ]
+
+
+def test_mending_a_trailing_comma_leaves_the_text_of_strings_alone():
+    """``,\\s*]`` inside a string is text: "Pad, ]" was mended into "Pad]"."""
+    body = (
+        '{"@type": "Product", "name": "Pad, ]", "description": "A, }",'
+        ' "q": "say \\", }", "sku": ["A", "B",],}'
+    )
+
+    assert _one(body) == [
+        {
+            "@type": "Product",
+            "name": "Pad, ]",
+            "description": "A, }",
+            "q": 'say ", }',
+            "sku": ["A", "B"],
+        }
+    ]
+
+
+def test_the_extruct_layer_reads_a_commented_block_as_extruct_does():
+    from sluicer.compat.extruct.jsonld import JsonLdExtractor
+
+    html = (
+        '<script type="application/ld+json">{"@type": "Product", // the product\n'
+        ' "name": "Pad", "price": 41.90}</script>'
+    )
+
+    assert JsonLdExtractor().extract(html) == [
+        {"@type": "Product", "name": "Pad", "price": 41.9}
+    ]
+
+
 def test_not_a_number_is_not_a_value():
     from sluicer import extract
 
