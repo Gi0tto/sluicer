@@ -14,6 +14,7 @@ reads their return types as objects to build those schemas.
 """
 
 import functools
+import importlib
 import inspect
 import json
 import logging
@@ -305,13 +306,12 @@ def build_server() -> Any:
         error=McpExtraMissing,
     ).ToolAnnotations
 
-    field = import_extra(
-        "pydantic",
-        "mcp",
-        doing="Running the MCP server",
-        package="the mcp package",
-        error=McpExtraMissing,
-    ).Field
+    # The SDK builds a tool's schema with pydantic, which arrives with it; the
+    # suite's stand-in for the SDK needs none, and a base install has none.
+    try:
+        field = importlib.import_module("pydantic").Field
+    except ModuleNotFoundError:
+        field = None
 
     def described(function: Callable[..., Any]) -> Callable[..., Any]:
         """Give each parameter, in the schema a client reads, what the tool's
@@ -321,6 +321,8 @@ def build_server() -> Any:
         unsaid = [name for name in signature.parameters if name not in notes]
         if unsaid:
             raise TypeError(f"{function.__name__} does not say what {unsaid} are")
+        if field is None:
+            return function
         function.__signature__ = signature.replace(  # type: ignore[attr-defined]
             parameters=[
                 one.replace(
