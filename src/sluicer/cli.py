@@ -19,9 +19,11 @@ Ctrl-C exits 130 with what it wrote intact, and ``--resume`` continues it.
 from __future__ import annotations
 
 import codecs
+import functools
 import io
 import json
 import logging
+import os
 import re
 import sys
 from collections.abc import Mapping
@@ -57,6 +59,7 @@ from sluicer.extractor import (
     run_extractor,
 )
 from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused, fetch as fetch_url
+from sluicer.fetch.http_rung import PROXY_ENV
 from sluicer.fetch.result import Fetched, ResponseTooLarge
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 from sluicer.http_api import (
@@ -241,10 +244,31 @@ _fetch_options = [
 ]
 
 
+_proxy_option = click.option(
+    "--proxy",
+    metavar="URL",
+    help="Fetch through this proxy (http://host:port, socks5h://host:port); "
+    "the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.",
+)
+
+
+def _with_proxy(command: click.decorators.FC) -> click.decorators.FC:
+    """``--proxy``, taken before the command runs: every fetch it makes, of a
+    page, a robots.txt, a sitemap or a site's files, reads ``SLUICER_PROXY``."""
+
+    @functools.wraps(command)
+    def through(*args: Any, proxy: str | None = None, **kwargs: Any) -> Any:
+        if proxy is not None:
+            os.environ[PROXY_ENV] = proxy
+        return command(*args, **kwargs)
+
+    return _proxy_option(through)  # type: ignore[return-value]
+
+
 def _with_fetch_options(command: click.decorators.FC) -> click.decorators.FC:
     for option in reversed(_fetch_options):
         command = option(command)
-    return command
+    return _with_proxy(command)
 
 
 def _read_source(
@@ -859,6 +883,7 @@ def _load_extractor(path: str) -> Extractor:
 )
 @click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
 @click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")
+@_with_proxy
 def compile_command(
     sources: tuple[str, ...],
     output: str,
@@ -932,6 +957,7 @@ def _write(path: str, text: str) -> None:
 @click.argument("sources", nargs=-1, required=True)
 @click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
 @click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")
+@_with_proxy
 def run_command(
     extractor_file: str, sources: tuple[str, ...], stealth: bool, no_robots: bool
 ) -> None:
@@ -983,6 +1009,7 @@ def run_command(
 )
 @click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
 @click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")
+@_with_proxy
 def heal_command(
     extractor_file: str,
     sources: tuple[str, ...],
@@ -1407,6 +1434,7 @@ def _llms_lines(label: str, llms: LlmsTxt) -> list[str]:
 @click.option(
     "--plain", is_flag=True, help="One address a line, for `sluicer batch -`."
 )
+@_with_proxy
 def map_command(url: str, limit: int, plain: bool) -> None:
     """List a site's addresses, from its sitemaps or its start page's links.
 
@@ -1512,6 +1540,7 @@ def _with_many_options(command: click.decorators.FC) -> click.decorators.FC:
     "--any-site", is_flag=True, help="Follow links that leave URL's site too."
 )
 @_with_many_options
+@_with_proxy
 def crawl_command(
     url: str,
     max_pages: int,
@@ -1660,6 +1689,7 @@ def warc_command(files: tuple[str, ...], induce: bool, microformats: bool) -> No
 @main.command("batch")
 @click.argument("urls_file")
 @_with_many_options
+@_with_proxy
 def batch_command(
     urls_file: str,
     out: str | None,

@@ -248,6 +248,7 @@ fetch(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = 16777216,
+    proxy: str | None = None,
 ) -> Fetched
 ```
 
@@ -256,13 +257,14 @@ Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 **Arguments**
 
 - `url`: an http(s) address.
-- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default. Injected so tests stay off the network.
+- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default. Injected so tests stay off the network. The default rungs are the real web, so a fetch with them holds the site in ``sluicer.fetch.gate`` for its whole length -- robots.txt, the page, any climb -- a second after anyone's last request to it. Injected rungs are the caller's to pace, as a crawl paces its own.
 - `obey_robots`: ask the site's robots.txt first (the default), and again for the host a redirect ended on.
 - `stealth`: append the stealth rung, which does not announce itself. Never automatic.
 - `robots_reader`: how robots.txt is read; built from the cheapest rung by default.
 - `allow_private`: when false, refuse addresses off the public internet: the one asked for before any request, and every one a redirect or the page itself names before it is requested. The MCP server sets it.
 - `resolve`: the name lookup ``allow_private`` decides with.
 - `max_bytes`: the most a page may weigh; heavier is ``ResponseTooLarge``, and never a reason to climb.
+- `proxy`: the proxy the default rungs and the stealth rung go through; ``SLUICER_PROXY`` when None, and none when that is unset. The environment's ``HTTPS_PROXY`` is never used. Through a proxy the private-network check still judges every address here, but the connection is the proxy's: see SECURITY.md.
 
 **Returns**
 
@@ -271,7 +273,9 @@ The ``Fetched`` page, with every climb, the final URL, and how long each rung to
 **Raises**
 
 - `RobotsRefused`: the site's robots.txt disallows the URL.
-- `AddressRefused`: ``allow_private`` is false and the address, or one a redirect led to, is private.
+- `SiteRefused`: the page the ladder was left with is a challenge page.
+- `PaymentRequired`: a rung was answered 402; no other rung is asked.
+- `AddressRefused`: the address, or one a redirect led to, is not http or https; or ``allow_private`` is false and it is private.
 - `ResponseTooLarge`: the page is heavier than ``max_bytes``.
 - `RedirectRefused`: an injected rung was given a rule for redirects, and a hop broke it.
 - `FetchFailed`: every rung failed, the URL is invalid, or its robots.txt could not be read.

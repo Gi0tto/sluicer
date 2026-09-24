@@ -27,7 +27,10 @@ Sluicer holds no credentials. There is no API key to leak because no feature
 takes one, which is a deliberate design constraint rather than an oversight.
 
 When the optional `fetch` extra is installed, page content is fetched and, on
-the higher rungs, rendered in a browser. That browser executes page JavaScript
+the higher rungs, rendered in a browser. Only over http and https: an address
+or a redirect to any other scheme -- `file://`, `gopher://`, `dict://` -- is
+refused before it is asked, whoever the caller is, and curl is told to speak
+nothing else. That browser executes page JavaScript
 in its own process. Treat fetching an untrusted URL with the same care you would
 treat opening it in your own browser.
 
@@ -57,10 +60,34 @@ rung. `tests/live/guard_check.py` shows a real Chromium reaching a private
 server by six routes without the guard and by none with it. Set
 `SLUICER_ALLOW_PRIVATE=1` to turn the filter off.
 
+No proxy is used unless one is asked for. libcurl reads `HTTPS_PROXY` and
+`HTTP_PROXY` itself, and until 0.7.1 a fetch went through whatever proxy the
+environment named, the browser through the system's; now only a proxy given
+as `fetch(proxy=...)`, `--proxy` or `SLUICER_PROXY` is used, and without one
+the browser is launched with `--no-proxy-server`. Through a proxy, the filter
+above holds less, and exactly this much:
+
+- It still judges every address before it is requested, the one asked for and
+  each hop of a redirect, by resolving the name on this machine: a name that
+  resolves here to a private address is refused, and so is a name that does
+  not resolve here at all, since it cannot be judged.
+- It no longer pins the connection. The proxy looks the name up again in its
+  own network and connects where that answer says, so a name that answers
+  differently the second time (DNS rebinding) reaches whatever the proxy can
+  reach, and "private" means private as seen from this machine, not from the
+  proxy's. A proxy inside another network can reach that network's private
+  addresses by a public name.
+- The proxy's own address is not judged: it is the one you named.
+
+If the proxy can reach something the filter is meant to keep Sluicer from,
+the egress control belongs in the proxy.
+
 `map_site` and `crawl_site` fetch many addresses from one an agent chose: every
 page, every sitemap and every hop of a redirect is judged by the same filter
 before it is requested, a crawl never leaves the site it started on, and both
-are bounded -- ten sitemaps or 25 pages, a minute each. A sitemap is parsed with
+are bounded: ten sitemaps or 25 pages, and no request started after a minute.
+A request already started when the minute is up runs to its own bound, below,
+so an answer can come that much later. A sitemap is parsed with
 no entity resolved and nothing fetched from inside it, and one that declares a
 document type is refused, so neither an external entity nor billion laughs
 reaches the parser.
@@ -98,8 +125,9 @@ What it does not do: it speaks plain HTTP, so beyond one machine the token
 crosses the network in the clear unless TLS is put in front of it; there is one
 token, not an identity per caller, no rate limit and no log beyond uvicorn's
 access log. A caller holding the token can make the machine fetch any public
-URL, as fast as four workers allow. Put it where you would put a `curl` that
-anyone holding the token may point.
+URL, four calls at once, one request at a time and a second apart to any one
+site. Put it where you would put a `curl` that anyone holding the token may
+point.
 
 ## What a page can still do to you
 
@@ -119,3 +147,14 @@ out, and counts, the records, rows, items or addresses past it. An answer
 that cannot be cut is refused as `too_large`. Before 0.7.1 only
 `extract_declared`'s records were bounded: a page with a two-megabyte
 `<title>` made a two-megabyte answer.
+
+It can be slow. A plain HTTP request ends twenty seconds after it started,
+connecting, every redirect hop and every byte of the body included
+(`HTTP_TIMEOUT_SECONDS`). Before 0.7.1 that bound did not reach the body: a
+server sending eight bytes a second held a request as long as it kept sending,
+and four such requests held every worker of `sluicer serve`, so it answered
+nothing else. A browser page is bounded by the browser's own timeout, thirty
+seconds for each thing it waits on (`BROWSER_TIMEOUT_MS`). A fetch makes a few
+such requests -- the site's robots.txt, then each rung it climbs -- and each
+keeps its own bound; nothing bounds the name lookups, which are the system
+resolver's.

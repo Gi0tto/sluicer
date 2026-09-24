@@ -273,3 +273,53 @@ def test_an_unreadable_robots_file_leaves_the_delay_unknown_not_zero():
 
     with pytest.raises(RobotsUnreachable):
         robots_delay("https://example.com/p", read=lambda url: stand_in)
+
+
+@pytest.fixture
+def real_protego(monkeypatch):
+    """The real protego, where the fake's stdlib parser would agree with anything.
+
+    The stdlib splits a user agent at its first slash, so it never met the
+    words after our name; protego looks for a group's name anywhere in it.
+    """
+    import importlib
+    import sys
+
+    monkeypatch.delitem(sys.modules, "protego")
+    try:
+        return importlib.import_module("protego")
+    except ModuleNotFoundError:
+        pytest.skip("the real protego arrives with the fetch extra")
+
+
+@pytest.mark.parametrize("word", ["https", "github", "gi0tto", "com"])
+def test_a_group_named_for_a_word_of_our_user_agent_is_not_ours(real_protego, word):
+    """RFC 9309 matches a group against the product token, and protego found
+    ``https`` in ``Sluicer/0.7.0 (+https://github.com/Gi0tto/sluicer)``: a
+    group written for another crawler refused us, and its delay paced us."""
+    from sluicer.fetch.identity import robots_delay
+
+    theirs = f"User-agent: {word}\nDisallow: /\nCrawl-delay: 30\n"
+    text = theirs + "\nUser-agent: *\nAllow: /\n"
+
+    assert robots_allows("https://example.com/p", read=lambda u: text, cache={})
+    assert robots_delay("https://example.com/p", read=lambda u: text, cache={}) == 0
+
+
+def test_our_own_group_is_ours_whatever_case_it_is_written_in(real_protego):
+    text = "User-agent: sluicer\nDisallow: /\n\nUser-agent: *\nAllow: /\n"
+
+    assert not robots_allows("https://example.com/p", read=lambda u: text, cache={})
+
+
+def test_the_audits_site_files_are_judged_by_the_product_token_too(real_protego):
+    from sluicer.audit.report import SiteFile
+    from sluicer.fetch.site import _refusal
+
+    robots = SiteFile(
+        "https://example.com/robots.txt",
+        200,
+        "User-agent: github\nDisallow: /\n\nUser-agent: *\nAllow: /\n",
+    )
+
+    assert _refusal("https://example.com/llms.txt", robots) is None

@@ -188,6 +188,7 @@ def _polite(run: str, failures: list[str]) -> None:
 
 def main() -> int:
     from sluicer.crawl import crawl, map_site
+    from sluicer.fetch import fetch
     from sluicer.fetch.identity import USER_AGENT
 
     failures: list[str] = []
@@ -261,6 +262,24 @@ def main() -> int:
             failures.append(f"resume: the file holds {written}, the rest was {rest}")
         print(f"resume: 4 pages, then {len(rest)} more, none asked twice")
 
+    # Two crawls and four single fetches of the one site, all at once: what two
+    # agents' crawl_site calls and parallel extract_declared calls do.
+    log.clear()
+    threads = [
+        threading.Thread(
+            target=lambda: list(crawl(main_url, max_pages=3, min_delay=MIN_DELAY))
+        )
+        for _ in range(2)
+    ] + [
+        threading.Thread(target=lambda path=path: fetch(MAIN + path))
+        for path in ("/a", "/b", "/c", "/new")
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    _polite("at once", failures)
+
     if _requests(OTHER_PORT):
         paths = [entry["path"] for entry in _requests(OTHER_PORT)]
         failures.append(f"the other site was asked: {paths}")
@@ -275,7 +294,8 @@ def main() -> int:
     if not failures:
         print(
             "crawl: sitemaps, robots, Crawl-delay, redirects, the loop, the slow "
-            "page and resuming all hold, and the other site was never asked"
+            "page, resuming and callers at once all hold, and the other site was "
+            "never asked"
         )
     return 1 if failures else 0
 

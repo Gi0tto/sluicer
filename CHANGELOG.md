@@ -16,6 +16,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   it: `--induce` for the rows it repeats, `--visible` for the byline and dates
   it shows, and `sluicer compile PAGE --want NAME=VALUE` for the fields a
   person can point to, leaving out the options already given.
+- `fetch(proxy=...)`, `SLUICER_PROXY` and `--proxy` on every command that
+  fetches: the proxy every request goes through, the HTTP rung's and the
+  browsers'. Crawls, maps, batches, the cache, the archive, the MCP server and
+  the HTTP API read `SLUICER_PROXY`.
 
 ### Changed
 - The benchmark's date rule no longer depends on the day it runs: dateutil
@@ -159,6 +163,80 @@ Dates are the day the work landed. Anything not listed here did not happen.
   a label. Amounts were compared as the text `amount` gives back, `8` against
   `8.00`, and the comparison was written out three times; it is one now, and
   numeric.
+- A redirect can no longer take a fetch off the web. The HTTP rung followed a
+  `Location` to any scheme its libcurl speaks: with the defaults every command
+  has, a server answering `302 gopher://127.0.0.1:6379/_SET...` had Sluicer send
+  those bytes to a Redis on the same machine, and `302 file:///etc/hosts` made
+  `sluicer markdown` print the file. Every hop must now be http or https, private
+  addresses allowed or not, curl is told to speak nothing else, the ladder
+  refuses an address off the web before any rung, and a page that landed off it
+  is refused (`AddressRefused`, `refused_address`).
+- The HTTP rung's twenty seconds now cover the body. curl_cffi turns a timeout
+  on a streamed response into "under a byte a second for that long", so a
+  server sending eight bytes a second held a request for as long as it kept
+  sending, and four of them held every worker of `sluicer serve`, which then
+  answered nothing, calls that fetch nothing included. One address -- connecting,
+  every redirect hop, every byte -- now ends by `HTTP_TIMEOUT_SECONDS` with a
+  `TimeoutError`. SECURITY.md said a map or a crawl took "a minute each"; it
+  stops starting requests after a minute, and now says so, with each request's
+  own bound.
+- robots.txt is read as text. The fetch ladder passed it through the HTML
+  parser, so a line like `Disallow: /a<b` opened a tag that swallowed every
+  rule after it, and pages the site disallowed were fetched; `&amp;` in a rule
+  became `&`. The audit already read the file raw, so the two could disagree
+  about one robots.txt. Only a body that is a whole HTML document, a browser's
+  rendering of a text file, has its text taken out.
+- A robots.txt group applies to Sluicer when it names Sluicer's product token,
+  as RFC 9309 says, not when its name is found anywhere in the user agent:
+  `User-agent: https`, `github` or `com` matched
+  `Sluicer/0.7.0 (+https://github.com/Gi0tto/sluicer)`, so another crawler's
+  rules refused Sluicer and its `Crawl-delay` paced it. `PRODUCT_TOKEN` is
+  what the ladder, the crawler and the audit's site files ask with.
+- The page cache never keeps a challenge page. When every rung got a
+  "Just a moment..." page served with 200, `--cache` kept it and gave it back
+  as the page, for `--max-age`, without asking the site; the docs said a
+  challenge was never kept, and now it is not.
+- A challenge page is never an answer. When the last rung also got one, or a
+  cheaper rung got one and the rung above it failed, the ladder returned it
+  as the page and the MCP server answered `ok: true`. It now raises
+  `SiteRefused`, a `FetchFailed`, answered as the new error code
+  `refused_by_site` (HTTP 403, not retryable) by the MCP server, the HTTP API
+  and a crawl's page.
+- A 402 Payment Required is an answer, not a page. Its body was extracted as
+  the site's, and when it looked like a challenge the browser was sent to ask
+  again. Any rung answered 402 now raises `PaymentRequired`, a `FetchFailed`,
+  and no other rung is asked; the MCP server, the HTTP API (402) and a crawl's
+  page say `payment_required`, not retryable. Sluicer never pays.
+- One request at a time per site now holds for the whole process. Two crawls
+  of one site at once asked it in pairs 0.000 s apart, and parallel MCP
+  `extract_declared` calls -- the SDK runs each on a thread -- arrived within
+  3 ms of each other, each reading robots.txt again, while the docs promised
+  one request at a time with its delay. Every fetch of the real web now holds
+  its site in `sluicer.fetch.gate`: a crawl, a map or a batch for each
+  request, with its delay; a single fetch, from the command line, the MCP
+  server or the HTTP API, for its whole visit, a second after the site's last
+  request. Measured on a local site, four parallel `extract_declared` calls:
+  8 requests 0.000 s apart before, 5 requests a second apart now.
+- `crawl --resume` and `batch --resume` read the file before they touch it.
+  They cut an unfinished last line off first and checked the file was a
+  crawl's after: pointed at a file of notes, `--resume` destroyed its last
+  line and then refused it, and a file with no newline at all was emptied and
+  crawled into. The file is now accepted first -- every line a page, the last
+  one the start of a page's line, the order this crawl's -- and only then is a
+  line a stopped crawl left half written cut off. A file refused is left as it
+  was.
+- No proxy is used unless one is asked for. libcurl read `HTTPS_PROXY` and
+  `HTTP_PROXY` itself, so a fetch went through whatever proxy the environment
+  named (measured: a CONNECT reached a local proxy nobody had given Sluicer),
+  and with a proxy the check against private addresses no longer pinned the
+  connection. The HTTP rung now tells curl to use none, and the browser is
+  launched with `--no-proxy-server`. SECURITY.md says what the check does and
+  does not do through a proxy.
+- The stealth rung no longer claims to come from Google. It inherited
+  scrapling's `google_search`, so every page it fetched was sent `Referer:
+  https://www.google.com/` (measured on a local server); it now sends none, as
+  the browser rung already did, and like it tries once within thirty seconds
+  instead of scrapling's three tries.
 
 
 ## 0.7.0 - 2026-09-24

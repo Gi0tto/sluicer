@@ -24,7 +24,7 @@ def public(host):
 
 def fake_curl(monkeypatch, replies, chunk=None):
     """A curl_cffi that answers ``replies`` in order: (status, body, headers)."""
-    seen = {"sessions": [], "urls": []}
+    seen = {"sessions": [], "urls": [], "asked": []}
 
     class Response:
         def __init__(self, reply):
@@ -50,13 +50,21 @@ def fake_curl(monkeypatch, replies, chunk=None):
 
         def get(self, url, **kwargs):
             seen["urls"].append(url)
+            seen["asked"].append(kwargs)
             reply = replies.pop(0)
             if isinstance(reply, Exception):
                 raise reply
             return Response(reply)
 
     curl = types.ModuleType("curl_cffi")
-    curl.CurlOpt = types.SimpleNamespace(MAXFILESIZE_LARGE="max", RESOLVE="resolve")
+    curl.CurlOpt = types.SimpleNamespace(
+        MAXFILESIZE_LARGE="max",
+        RESOLVE="resolve",
+        PROTOCOLS_STR="protocols",
+        REDIR_PROTOCOLS_STR="redir_protocols",
+        TIMEOUT_MS="timeout_ms",
+        PROXY="proxy",
+    )
     requests = types.ModuleType("curl_cffi.requests")
     requests.Session = Session
     monkeypatch.setitem(sys.modules, "curl_cffi", curl)
@@ -169,6 +177,153 @@ def test_a_redirect_into_a_private_address_is_refused_before_it_is_asked(
 
     assert refused.value.url == "http://10.0.0.1/admin"
     assert seen["urls"] == ["https://example.com/p"]
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "gopher://127.0.0.1:6379/_SET%20pwned%201%0D%0A",
+        "dict://127.0.0.1:11211/stats",
+        "file:///etc/hosts",
+        "ftp://example.com/file",
+    ],
+)
+def test_a_redirect_off_the_web_is_refused_before_it_is_asked(monkeypatch, target):
+    """curl speaks gopher, dict and file too. Measured before this was refused:
+    a 302 to gopher:// sent ``SET pwned 1`` to whatever listened on that port,
+    and a 302 to file:///etc/hosts returned the file as the page, with the
+    defaults every command line fetch has."""
+    seen = fake_curl(monkeypatch, [(302, b"", {"location": target}), PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(AddressRefused, match="only http and https") as refused:
+        http_rung()("https://example.com/p")
+
+    assert refused.value.url == target
+    assert seen["urls"] == ["https://example.com/p"]
+
+
+def test_curl_is_told_to_speak_only_http_and_https(monkeypatch):
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung()("https://example.com/p")
+
+    options = seen["sessions"][0]["curl_options"]
+    assert options["protocols"] == "http,https"
+    assert options["redir_protocols"] == "http,https"
+
+
+def test_an_address_off_the_web_is_never_asked_by_the_rung(monkeypatch):
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(AddressRefused, match="not file"):
+        http_rung()("file:///etc/hosts")
+
+    assert seen["urls"] == []
+
+
+def test_the_ladder_refuses_an_address_off_the_web_whatever_it_allows():
+    browser = _rung("browser")
+
+    with pytest.raises(AddressRefused, match="not file"):
+        fetch("file:///etc/hosts", rungs=[("browser", browser)], allow_private=True)
+
+    assert browser.calls == []
+
+
+def test_a_page_that_landed_off_the_web_is_refused():
+    """A rung that follows redirects itself is judged where it landed."""
+
+    def landed_elsewhere(url):
+        return Fetched(url="file:///etc/hosts", html="<p>ok</p>", status=200, rung="x")
+
+    with pytest.raises(AddressRefused, match="not file"):
+        fetch(
+            "https://example.com/p",
+            rungs=[("x", landed_elsewhere)],
+            robots_reader=lambda url: None,
+        )
+
+
+def test_curl_is_given_the_whole_deadline_not_a_floor_on_speed(monkeypatch):
+    """curl_cffi's timeout on a stream is "under a byte a second for that
+    long": a body dripped eight bytes a second held a request for as long as
+    it dripped. curl's own TIMEOUT_MS is the whole transfer, body included."""
+    seen = fake_curl(monkeypatch, [(302, b"", {"location": "/q"}), PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung(timeout=7)("https://example.com/p")
+
+    first, second = (s["curl_options"]["timeout_ms"] for s in seen["sessions"])
+    assert 0 < second <= first <= 7000, "each hop gets what is left of one deadline"
+
+
+def test_a_fetch_past_its_deadline_asks_nothing_more(monkeypatch):
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(TimeoutError, match="longer than 0 seconds"):
+        http_rung(timeout=0)("https://example.com/p")
+
+    assert seen["urls"] == []
+
+
+def test_curls_timeout_is_a_timeout(monkeypatch):
+    """Whatever class curl_cffi raises it as, code 28 is the deadline."""
+    timed_out = RuntimeError(
+        "Failed to perform, curl: (28) Operation timed out after 1501 milliseconds"
+    )
+    fake_curl(monkeypatch, [timed_out])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(TimeoutError, match="longer than 20 seconds") as raised:
+        http_rung()("https://example.com/p")
+
+    assert isinstance(raised.value, OSError), "callers catch OSError"
+
+
+def test_no_proxy_is_used_unless_one_is_asked_for(monkeypatch):
+    """libcurl reads HTTPS_PROXY itself: measured, a CONNECT reached a local
+    proxy nobody had named to Sluicer. An empty PROXY is curl's "none"."""
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:3128")
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:3128")
+    monkeypatch.delenv("SLUICER_PROXY", raising=False)
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung()("https://example.com/p")
+
+    assert seen["sessions"][0]["curl_options"]["proxy"] == ""
+    assert "proxy" not in seen["asked"][0]
+
+
+@pytest.mark.parametrize("by", ["argument", "environment"])
+def test_a_proxy_asked_for_is_the_one_used(monkeypatch, by):
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:3128")
+    kwargs = {}
+    if by == "argument":
+        kwargs["proxy"] = "socks5h://proxy.example:1080"
+    else:
+        monkeypatch.setenv("SLUICER_PROXY", "socks5h://proxy.example:1080")
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung(**kwargs)("https://example.com/p")
+
+    assert seen["asked"][0]["proxy"] == "socks5h://proxy.example:1080"
+    assert "proxy" not in seen["sessions"][0]["curl_options"]
+
+
+def test_an_empty_proxy_is_none(monkeypatch):
+    monkeypatch.setenv("SLUICER_PROXY", "socks5h://proxy.example:1080")
+    seen = fake_curl(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung(proxy="")("https://example.com/p")
+
+    assert seen["sessions"][0]["curl_options"]["proxy"] == ""
 
 
 def test_a_redirect_loop_ends(monkeypatch):
