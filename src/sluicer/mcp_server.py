@@ -14,14 +14,15 @@ reads their return types as objects to build those schemas.
 """
 
 import functools
+import inspect
 import json
 import logging
 import os
 import re
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 from sluicer import __version__, crawl as crawling, extractor as extractor_module
 from sluicer.api import extract
@@ -304,6 +305,34 @@ def build_server() -> Any:
         error=McpExtraMissing,
     ).ToolAnnotations
 
+    field = import_extra(
+        "pydantic",
+        "mcp",
+        doing="Running the MCP server",
+        package="the mcp package",
+        error=McpExtraMissing,
+    ).Field
+
+    def described(function: Callable[..., Any]) -> Callable[..., Any]:
+        """Give each parameter, in the schema a client reads, what the tool's
+        docstring says of it; a parameter it says nothing of is a bug."""
+        signature = inspect.signature(function)
+        notes = _parameter_notes(function.__doc__ or "", signature.parameters)
+        unsaid = [name for name in signature.parameters if name not in notes]
+        if unsaid:
+            raise TypeError(f"{function.__name__} does not say what {unsaid} are")
+        function.__signature__ = signature.replace(  # type: ignore[attr-defined]
+            parameters=[
+                one.replace(
+                    annotation=Annotated[
+                        one.annotation, field(description=notes[one.name])
+                    ]
+                )
+                for one in signature.parameters.values()
+            ]
+        )
+        return function
+
     def tool(title: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a tool under its title, saying what every one of them is.
 
@@ -311,19 +340,17 @@ def build_server() -> Any:
         anywhere, so a client that asks before a tool writes, as Codex's
         ``writes`` mode and Claude Code do, can run it without asking.
         """
-        return cast(
-            Callable[[Callable[..., Any]], Callable[..., Any]],
-            server.tool(
+        register = server.tool(
+            title=title,
+            annotations=annotations(
                 title=title,
-                annotations=annotations(
-                    title=title,
-                    read_only_hint=True,
-                    destructive_hint=False,
-                    idempotent_hint=True,
-                    open_world_hint=True,
-                ),
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+                open_world_hint=True,
             ),
         )
+        return lambda function: cast(Callable[..., Any], register(described(function)))
 
     @tool("Extract a page's declared data")
     @_answers_instead_of_raising
@@ -698,6 +725,25 @@ def build_server() -> Any:
         return cast(answers.CrawlAnswer, answer)
 
     return server
+
+
+def _parameter_notes(doc: str, names: Iterable[str]) -> dict[str, str]:
+    """What a tool's docstring says of each parameter: the line that opens with
+    its name and a colon, and the lines that continue it, up to a blank line
+    or the next parameter's -- as ``scripts/reference.py`` reads them."""
+    wanted = set(names)
+    notes: dict[str, str] = {}
+    current: str | None = None
+    for line in inspect.cleandoc(doc).splitlines():
+        opened = re.match(r"^(\w+): (.*)$", line)
+        if opened and opened.group(1) in wanted and opened.group(1) not in notes:
+            current = opened.group(1)
+            notes[current] = opened.group(2).strip()
+        elif current is not None and line.strip():
+            notes[current] += " " + line.strip()
+        else:
+            current = None
+    return notes
 
 
 def _within(name: str, value: int, least: int, most: int) -> None:

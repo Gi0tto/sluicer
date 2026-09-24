@@ -272,3 +272,22 @@ def test_the_mcp_registry_entry_is_the_package_it_names():
         }
     ]
     assert package["packageArguments"] == [{"type": "positional", "value": "mcp"}]
+
+
+def test_the_package_runs_as_a_module():
+    """``python -m sluicer`` is the command line, for a Python whose scripts
+    directory is not on PATH: Glama's image installs the package so, and
+    ``sluicer`` there was not found."""
+    import subprocess
+    import sys
+
+    import sluicer
+
+    ran = subprocess.run(
+        [sys.executable, "-m", "sluicer", "--version"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    assert sluicer.__version__ in ran.stdout

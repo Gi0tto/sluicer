@@ -4,6 +4,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Added
+- Every parameter of every MCP tool says what it is in the schema a client
+  reads, taken word for word from the tool's own description: all 28 said
+  nothing there, and clients and directories read it from there. A tool
+  that leaves a parameter unexplained is refused when the server starts.
+- `python -m sluicer` is the command line, for a Python whose scripts are
+  not on PATH; `python -m sluicer mcp` starts the MCP server.
+
 ### Changed
 - `LICENSE` holds the MIT License's text alone, so that GitHub and the
   tools that ask it recognise the licence; the two data files under their

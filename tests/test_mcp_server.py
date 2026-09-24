@@ -1168,3 +1168,42 @@ def test_the_crawl_tools_refuse_private_addresses_unless_told(monkeypatch):
     assert crawled["error"]["retryable"] is False
     assert mapped["error"]["code"] == "refused_address"
     assert fake.requests == []
+
+
+def test_every_parameter_says_what_it_is_in_the_schema_an_agent_reads():
+    """A client reads what a parameter means from its schema, not from the
+    tool's prose: all 28 had nothing there, and Glama's directory scores tools
+    on it. Each is its docstring's ``name: text`` paragraph, word for word."""
+    pytest.importorskip("mcp.server.mcpserver")
+    import asyncio
+
+    from sluicer.mcp_server import build_server
+
+    tools = {tool.name: tool for tool in asyncio.run(build_server().list_tools())}
+    assert set(tools) == TOOLS
+    for tool in tools.values():
+        for name, spec in tool.input_schema["properties"].items():
+            assert spec.get("description"), (tool.name, name)
+    said = tools["extract_declared"].input_schema["properties"]
+    assert said["html_or_url"]["description"] == (
+        "an http(s) URL to fetch, or the HTML itself."
+    )
+    assert said["induce"]["description"].endswith('those fields say source "induced".')
+
+
+def test_a_tool_that_leaves_a_parameter_unexplained_is_not_registered():
+    from sluicer.mcp_server import _parameter_notes
+
+    doc = """Do a thing.
+
+    url: where to go,
+    and how.
+    limit: how many.
+
+    Returns {"ok"}. url: is not a parameter here.
+    """
+    assert _parameter_notes(doc, ["url", "limit"]) == {
+        "url": "where to go, and how.",
+        "limit": "how many.",
+    }
+    assert _parameter_notes(doc, ["depth"]) == {}
