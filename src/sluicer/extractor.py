@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
 
+from lxml import etree
 from lxml.html import HtmlElement
 
 from sluicer import __version__
@@ -43,6 +44,8 @@ from sluicer.structure.shape import kind
 
 FORMAT = 1
 """The version of the file format ``to_json`` writes and ``from_json`` reads."""
+FORMAT_WITH_LABELS = 2
+"""The format of a file with a field read by its label, ``Anchor``."""
 
 REQUIRED_MISSING = 0.2
 """The share of rows that may lack a field every learnt row carried."""
@@ -120,6 +123,20 @@ class Listing:
 
 
 @dataclass(frozen=True)
+class Anchor:
+    """Where a page field is found by the template's own words rather than by
+    its place: the text a label on every page, once.
+
+    ``kind`` is ``after``, the text that follows the label's, as in
+    ``<th>Price:</th><td>$9.99</td>`` or ``<b>ISBN:</b> 978...``; or ``prefix``,
+    the rest of the text the label opens, as in ``<li>Pages: 310</li>``.
+    """
+
+    label: str
+    kind: str
+
+
+@dataclass(frozen=True)
 class PageField:
     """One value a page holds once, found where an example pointed.
 
@@ -135,6 +152,10 @@ class PageField:
     shape: str | None
     samples: tuple[str, ...]
     reads: str | None = None
+    anchor: Anchor | None = None
+    """Set when the pages given contradicted the place, or no element held the
+    value alone: the field is then read by its label, and ``path`` is where the
+    example was."""
 
 
 @dataclass(frozen=True)
@@ -159,7 +180,11 @@ class Extractor:
     def to_json(self) -> str:
         """The extractor as the JSON file it is kept in, stable key order."""
         body: dict[str, Any] = {
-            "format": FORMAT,
+            # A file whose fields are read by a label is format 2, which a
+            # reader of format 1 refuses: it would read the place alone.
+            "format": FORMAT_WITH_LABELS
+            if any(f.anchor for f in self.fields)
+            else FORMAT,
             "sluicer": self.version,
             "learnt_from": list(self.learnt_from),
             "summary": self.summary,
@@ -194,6 +219,11 @@ class Extractor:
                     "shape": f.shape,
                     "reads": f.reads,
                     "samples": list(f.samples),
+                    **(
+                        {"anchor": {"label": f.anchor.label, "kind": f.anchor.kind}}
+                        if f.anchor
+                        else {}
+                    ),
                 }
                 for f in self.fields
             ]
@@ -219,8 +249,11 @@ class Extractor:
 def _extractor_of(body: Any) -> Extractor:
     if not isinstance(body, dict) or type(body.get("format")) is not int:
         raise ValueError("not a sluicer extractor")
-    if body["format"] != FORMAT:
-        raise ValueError(f"an extractor of format {body['format']}, not {FORMAT}")
+    if body["format"] not in (FORMAT, FORMAT_WITH_LABELS):
+        raise ValueError(
+            f"an extractor of format {body['format']}, "
+            f"not {FORMAT} or {FORMAT_WITH_LABELS}"
+        )
     listing = None
     if body["listing"] is not None:
         raw = body["listing"]
@@ -269,10 +302,20 @@ def _extractor_of(body: Any) -> Extractor:
                 shape=None if f["shape"] is None else _text(f["shape"]),
                 reads=_reading(f.get("reads")),
                 samples=tuple(_text(v) for v in f["samples"]),
+                anchor=_anchor_of(f.get("anchor")),
             )
             for f in body.get("fields", [])
         ),
     )
+
+
+def _anchor_of(raw: Any) -> Anchor | None:
+    if raw is None:
+        return None
+    anchor = Anchor(label=_text(raw["label"]), kind=_text(raw["kind"]))
+    if anchor.kind not in ("after", "prefix") or not anchor.label:
+        raise ValueError(f"a label is read after or as a prefix, not {raw!r}")
+    return anchor
 
 
 def _text(value: Any) -> str:
@@ -757,32 +800,52 @@ def _learn_fields(
 
     The place is the deepest element whose text is the example, or an
     attribute of one that is, on the first page that has it; every page is
-    then read at that place.
+    then read at that place. When the other pages given contradict the place
+    -- it holds nothing on one, or a value that does not read as the example
+    does -- or no element holds the example alone, the field is read after
+    the label every page puts before it, when there is one.
 
     Raises:
         NothingToLearn: an example is on none of the pages, which names it,
             and why no listing held it either.
     """
-    places: dict[str, str] = {}
     notes: list[str] = []
+    fields = []
     for name, example in want.items():
         found = next((p for doc in docs if (p := _places(doc, example))), None)
-        if found is None:
+        path = found[0] if found else ""
+        against = _contradicted(docs, path, example) if found else None
+        anchored = _anchor_for(docs, example) if found is None or against else None
+        if found is None and anchored is None:
             also = f", and {no_listing}" if no_listing is not None else ""
             raise NothingToLearn(
                 f"no element on these pages holds {name}={example!r}{also}"
             )
-        if len(found) > 1:
+        anchor = None
+        if anchored is not None:
+            anchor, where = anchored
+            texts = [_text_nodes(doc) for doc in docs]
+            values = [v for nodes in texts if (v := _value_after(nodes, anchor)[0])]
             notes.append(
-                f"{name}={example!r} was in {len(found)} places on the page; "
-                f"the first, {found[0]}, was taken"
+                f"{name}={example!r} is read after the label {anchor.label!r}: "
+                + (
+                    f"at {path} the pages given also held {against}"
+                    if found
+                    else "no element holds it alone"
+                )
             )
-        places[name] = found[0]
-    fields = []
-    for name, path in places.items():
-        values = [v for doc in docs if (v := _value_at(doc, path))]
-        if len(values) < len(docs):
-            notes.append(f"{name} is at {path} on {len(values)} of {len(docs)} pages")
+            path = path or where
+        else:
+            if found is not None and len(found) > 1:
+                notes.append(
+                    f"{name}={example!r} was in {len(found)} places on the page; "
+                    f"the first, {found[0]}, was taken"
+                )
+            values = [v for doc in docs if (v := _value_at(doc, path))]
+            if len(values) < len(docs):
+                notes.append(
+                    f"{name} is at {path} on {len(values)} of {len(docs)} pages"
+                )
         present = list(dict.fromkeys(values))
         shapes = {shape(value) for value in values}
         reads = next(
@@ -796,10 +859,149 @@ def _learn_fields(
                 if len(shapes) == 1 and len(values) >= _SHAPE_EVIDENCE
                 else None,
                 samples=tuple(present[:_SAMPLES]),
-                reads=None if _is_address(path) else reads,
+                reads=None if anchor is None and _is_address(path) else reads,
+                anchor=anchor,
             )
         )
     return tuple(fields), notes
+
+
+# The longest text taken for a label: a label names a value, and a sentence
+# that happens to stand before one on every page is not one.
+_LABEL_MOST = 40
+
+
+def _contradicted(docs: list[Document], path: str, example: str) -> str | None:
+    """What one of the pages given holds at ``path`` against ``example``, or
+    None when every page agrees: nothing there, a value that does not read as
+    the example does (an amount, a date), or one far longer than it."""
+    readers = [read for read in _READERS.values() if read(example) is not None]
+    for doc in docs:
+        value = _value_at(doc, path)
+        if value is None:
+            return "nothing on one of them"
+        if any(read(value) is None for read in readers):
+            return repr(value)
+        if len(value) > 3 * len(example) + 10:
+            return repr(value[:60] + "...")
+    return None
+
+
+def _text_nodes(doc: Document) -> list[tuple[str, HtmlElement]]:
+    """The page's text, node by node in document order, spaces collapsed, with
+    the element each belongs to -- scripts, styles and the head left out."""
+    nodes: list[tuple[str, HtmlElement]] = []
+    skipping = 0
+    for event, element in itertools.islice(
+        etree.iterwalk(doc.tree, events=("start", "end")), 4 * _MOST_ELEMENTS
+    ):
+        tag = element.tag
+        if event == "start":
+            if isinstance(tag, str) and tag in _NOT_TEXT:
+                skipping += 1
+            elif (
+                not skipping
+                and isinstance(tag, str)
+                and (text := " ".join((element.text or "").split()))
+            ):
+                nodes.append((text, element))
+            continue
+        if isinstance(tag, str) and tag in _NOT_TEXT:
+            skipping -= 1
+        parent = element.getparent()
+        if (
+            not skipping
+            and parent is not None
+            and (text := " ".join((element.tail or "").split()))
+        ):
+            nodes.append((text, parent))
+    return nodes
+
+
+def _value_after(
+    nodes: list[tuple[str, HtmlElement]], anchor: Anchor
+) -> tuple[str | None, str]:
+    """The value ``anchor`` points at among a page's text nodes, and why not."""
+    if anchor.kind == "after":
+        at = [n for n, (text, _) in enumerate(nodes) if text == anchor.label]
+    else:
+        at = [
+            n
+            for n, (text, _) in enumerate(nodes)
+            if text.startswith(anchor.label) and len(text) > len(anchor.label)
+        ]
+    if len(at) != 1:
+        return None, (
+            f"no text {anchor.label!r}"
+            if not at
+            else f"{len(at)} places that say {anchor.label!r}, where there was one"
+        )
+    if anchor.kind == "prefix":
+        return nodes[at[0]][0][len(anchor.label) :].strip() or None, "found"
+    if at[0] + 1 >= len(nodes):
+        return None, f"nothing after {anchor.label!r}"
+    return nodes[at[0] + 1][0], "found"
+
+
+def _anchor_for(docs: list[Document], example: str) -> tuple[Anchor, str] | None:
+    """The label that stands before ``example`` on the first page that has it
+    and before a value on every page given, with the place of the element
+    that holds it; the label nearest to the value in the page's tree wins.
+
+    A label is text every page has once, and no longer than a label is: the
+    template's own words, as ``Price:`` or ``ISBN:``. One page cannot tell its
+    template's words from its own, so a single page has no label."""
+    if len(docs) < 2:
+        return None
+    wanted = " ".join(example.split())
+    worth = amount(wanted)
+
+    def same(text: str | None) -> bool:
+        if text is None:
+            return False
+        return text == wanted or (worth is not None and amount(text) == worth)
+
+    pages = [_text_nodes(doc) for doc in docs]
+    once = [
+        {text for text, count in Counter(t for t, _ in nodes).items() if count == 1}
+        for nodes in pages
+    ]
+    labels = set.intersection(*once) if once else set()
+    for nodes in pages:
+        best: tuple[int, Anchor, str] | None = None
+        for n, (text, owner) in enumerate(nodes):
+            candidates: list[tuple[int, Anchor]] = []
+            if same(text) and n > 0:
+                label, label_owner = nodes[n - 1]
+                if label in labels and len(label) <= _LABEL_MOST and not same(label):
+                    candidates.append(
+                        (_up_to_meet(label_owner, owner), Anchor(label, "after"))
+                    )
+            elif (cut := text.find(wanted)) > 0:
+                label = text[:cut].strip()
+                if label and len(label) <= _LABEL_MOST and same(text[cut:].strip()):
+                    candidates.append((0, Anchor(label, "prefix")))
+            for near, anchor in candidates:
+                values = [_value_after(page, anchor)[0] for page in pages]
+                if any(v is None for v in values) or not same(
+                    _value_after(nodes, anchor)[0]
+                ):
+                    continue
+                if best is None or near < best[0]:
+                    best = (near, anchor, path_of(owner))
+        if best is not None:
+            return best[1], best[2]
+    return None
+
+
+def _up_to_meet(label: HtmlElement, value: HtmlElement) -> int:
+    """Levels from the value's element up to the first it shares with the
+    label's: a label in the same row or item meets it at once."""
+    shared = {id(element) for element in [label, *label.iterancestors()]}
+    for steps, element in enumerate([value, *value.iterancestors()]):
+        if id(element) in shared:
+            return steps
+    return len(shared)
 
 
 def _places(doc: Document, example: str) -> list[str]:
@@ -912,13 +1114,21 @@ def _replay_fields(
 ) -> dict[str, str]:
     """Each page field's value, checked as it was learnt."""
     values: dict[str, str] = {}
+    texts: list[tuple[str, HtmlElement]] | None = None
     for f in fields:
-        value = _value_at(doc, f.path)
+        if f.anchor is None:
+            value = _value_at(doc, f.path)
+            said = "found" if value else "not found"
+        else:
+            texts = _text_nodes(doc) if texts is None else texts
+            value, said = _value_after(texts, f.anchor)
         checks.append(
             Check(
                 "field",
-                f"{f.name} at {f.path}",
-                "found" if value else "not found",
+                f"{f.name} at {f.path}"
+                if f.anchor is None
+                else f"{f.name} after {f.anchor.label!r}",
+                said,
                 value is not None,
             )
         )
@@ -1302,12 +1512,31 @@ def _heal_fields(
     """
     kept: list[PageField] = []
     changes: list[Change] = []
+    texts = [_text_nodes(doc) for doc in docs] if any(f.anchor for f in old) else []
     for f in old:
-        values = [v for doc in docs if (v := _value_at(doc, f.path))]
         read = _READERS[f.reads] if f.reads else None
-        if values and (read is None or all(read(v) for v in values)):
-            kept.append(_relearnt(f, f.path, values))
-            continue
+        if f.anchor is not None:
+            # Read by its label: kept while the label still points at a value
+            # that reads as it did, moved to the label now before one of its
+            # old values, and never back to a place its pages contradicted.
+            values = [v for nodes in texts if (v := _value_after(nodes, f.anchor)[0])]
+            if values and (read is None or all(read(v) for v in values)):
+                kept.append(_relearnt(f, f.path, values, f.anchor))
+                continue
+            again = next(
+                (a for sample in f.samples if (a := _anchor_for(docs, sample))), None
+            )
+            if again is not None:
+                anchor, where = again
+                found = [v for nodes in texts if (v := _value_after(nodes, anchor)[0])]
+                changes.append(Change("moved", f.name, f"after {anchor.label!r}"))
+                kept.append(_relearnt(f, where, found, anchor))
+                continue
+        else:
+            values = [v for doc in docs if (v := _value_at(doc, f.path))]
+            if values and (read is None or all(read(v) for v in values)):
+                kept.append(_relearnt(f, f.path, values))
+                continue
         moved = next(
             (
                 place
@@ -1326,8 +1555,11 @@ def _heal_fields(
     return tuple(kept), changes
 
 
-def _relearnt(f: PageField, path: str, values: list[str]) -> PageField:
-    """``f`` at ``path``, its samples those of the new pages, its reading kept."""
+def _relearnt(
+    f: PageField, path: str, values: list[str], anchor: Anchor | None = None
+) -> PageField:
+    """``f`` at ``path``, or after ``anchor``, its samples those of the new
+    pages, its reading kept."""
     shapes = {shape(v) for v in values}
     return PageField(
         name=f.name,
@@ -1337,6 +1569,7 @@ def _relearnt(f: PageField, path: str, values: list[str]) -> PageField:
         else None,
         samples=tuple(dict.fromkeys(values))[:_SAMPLES] or f.samples,
         reads=f.reads,
+        anchor=anchor,
     )
 
 

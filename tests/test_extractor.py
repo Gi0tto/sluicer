@@ -821,3 +821,112 @@ def test_an_amount_is_never_a_page():
 
     assert amount("£41.90") == "41.90"
     assert amount("£" + "1" * 70) is None
+
+
+def _spec(n: int, price: str, saving: str | None = None, isbn: str = "978000000000"):
+    """A product page that declares nothing, its facts in a table whose rows
+    depend on the product: a saving row appears only when there is one, and
+    moves the price down. The ISBN shares its item with its label."""
+    rows = [f"<tr><th>Title</th><td>Book {n}</td></tr>"]
+    if saving is not None:
+        rows.append(f"<tr><th>You save</th><td>{saving}</td></tr>")
+    rows.append(f"<tr><th>Price:</th><td>{price}</td></tr>")
+    html = (
+        "<html><head><title>Books</title></head><body><nav><a href='/'>Home</a>"
+        f"</nav><main><table class='facts'>{''.join(rows)}</table><ul>"
+        f"<li><b>ISBN:</b> {isbn}</li><li>Pages: 3{n}0</li></ul></main>"
+        "<footer>Books &amp; more</footer></body></html>"
+    )
+    return html, f"https://books.example/b/{n}"
+
+
+def test_a_place_the_other_pages_contradict_is_read_after_its_label():
+    """On one of the three pages the price's place holds the saving: the row
+    before it moved it. The pages given say so, and the label says where the
+    price is on every one of them."""
+    pages = [_spec(1, "$12.00"), _spec(2, "$8.50"), _spec(3, "$9.99", "$3.00 (23%)")]
+    learnt = compile_extractor(pages, listing=False, want={"price": "$12.00"})
+    [price] = learnt.fields
+    assert price.anchor is not None and price.anchor.label == "Price:"
+    assert any("Price:" in note for note in learnt.notes)
+    for n, value, saving in ((4, "$7.25", "$1.00 (12%)"), (5, "$20.00", None)):
+        run = run_extractor(learnt, *_spec(n, value, saving))
+        assert run.ok, failed(run)
+        assert run.fields == {"price": value}
+
+
+def test_a_place_the_other_pages_agree_with_stays_a_place():
+    pages = [_spec(n, f"${n}.00") for n in (1, 2, 3)]
+    learnt = compile_extractor(pages, listing=False, want={"price": "$1.00"})
+    [price] = learnt.fields
+    assert price.anchor is None
+    assert price.path.endswith("td")
+
+
+def test_a_value_that_shares_its_element_with_its_label_is_learnt():
+    """``<li><b>ISBN:</b> 978...</li>``: no element's whole text is the value,
+    and 0.6 could not learn it at all."""
+    pages = [_spec(n, "$1.00", isbn=f"97800000000{n}") for n in (1, 2, 3)]
+    learnt = compile_extractor(pages, listing=False, want={"isbn": "978000000001"})
+    [isbn] = learnt.fields
+    assert isbn.anchor is not None and isbn.anchor.label == "ISBN:"
+    run = run_extractor(learnt, *_spec(7, "$1.00", isbn="9780441017775"))
+    assert run.ok, failed(run)
+    assert run.fields == {"isbn": "9780441017775"}
+
+
+def test_a_value_after_a_label_in_the_same_text_is_learnt():
+    pages = [_spec(n, "$1.00") for n in (1, 2, 3)]
+    learnt = compile_extractor(pages, listing=False, want={"pages": "310"})
+    [count] = learnt.fields
+    assert count.anchor is not None and count.anchor.label == "Pages:"
+    assert run_extractor(learnt, *_spec(4, "$1.00")).fields == {"pages": "340"}
+
+
+def test_a_page_without_the_label_fails_loudly():
+    pages = [_spec(1, "$12.00"), _spec(2, "$8.50"), _spec(3, "$9.99", "$3.00 (23%)")]
+    learnt = compile_extractor(pages, listing=False, want={"price": "$12.00"})
+    html, url = _spec(4, "$5.00")
+    run = run_extractor(learnt, html.replace("Price:", "Cost:"), url)
+    assert not run.ok
+    assert failed(run) == ["field"]
+    assert "price" not in run.fields
+    doubled = html.replace("<footer>", "<p>Price:</p><footer>")
+    assert failed(run_extractor(learnt, doubled, url)) == ["field"]
+
+
+def test_an_anchored_extractor_is_kept_as_format_two_and_read_back():
+    """A 0.6 reader would read the place alone and never the label: a file
+    with a label is format 2, which 0.6 refuses; one without stays format 1."""
+    pages = [_spec(1, "$12.00"), _spec(2, "$8.50"), _spec(3, "$9.99", "$3.00 (23%)")]
+    learnt = compile_extractor(pages, listing=False, want={"price": "$12.00"})
+    text = learnt.to_json()
+    assert json.loads(text)["format"] == 2
+    again = Extractor.from_json(text)
+    assert again.fields == learnt.fields
+    plain = compile_extractor([_product()], want={"price": "41.90"})
+    assert json.loads(plain.to_json())["format"] == 1
+    assert Extractor.from_json(plain.to_json()).fields == plain.fields
+
+
+def test_heal_follows_a_field_to_its_new_label():
+    pages = [_spec(1, "$12.00"), _spec(2, "$8.50"), _spec(3, "$9.99", "$3.00 (23%)")]
+    learnt = compile_extractor(pages, listing=False, want={"price": "$12.00"})
+    redesigned = [
+        (html.replace("Price:", "Our price"), url)
+        for html, url in (_spec(1, "$12.00"), _spec(2, "$8.50"))
+    ]
+    assert failed(run_extractor(learnt, *redesigned[0])) == ["field"]
+    healed, changes = heal(learnt, redesigned)
+    [price] = healed.fields
+    assert price.anchor is not None and price.anchor.label == "Our price"
+    assert [(c.kind, c.before) for c in changes if c.before == "price"] == [
+        ("moved", "price")
+    ]
+    run = run_extractor(
+        healed,
+        *(html.replace("Price:", "Our price") for html in [_spec(6, "$4.40")[0]]),
+        "https://books.example/b/6",
+    )
+    assert run.ok, failed(run)
+    assert run.fields == {"price": "$4.40"}

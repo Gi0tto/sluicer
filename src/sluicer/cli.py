@@ -790,7 +790,12 @@ def compile_command(
     if extractor.fields:
         learnt.append(
             f"{len(extractor.fields)} page fields ("
-            + ", ".join(f"{f.name} at {f.path}" for f in extractor.fields)
+            + ", ".join(
+                f"{f.name} after {f.anchor.label!r}"
+                if f.anchor
+                else f"{f.name} at {f.path}"
+                for f in extractor.fields
+            )
             + ")"
         )
     if extractor.listing is not None:

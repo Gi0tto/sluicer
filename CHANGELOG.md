@@ -13,6 +13,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   still the most often right when it answers a date, 0.734 against 0.573.
 
 ### Added
+- A page field is read after its label when the pages it was learnt from
+  contradict its place. `compile --want` still learns where the example sits;
+  when that place holds nothing on another of the pages given, or a value that
+  does not read as the example does -- the saving, where a row the product
+  lacked moved the price down -- the field is read after the text every page
+  puts once before it, as `Price:`, and a note says why. A value that shares
+  its element with its label, `<b>ISBN:</b> 978...` or `Pages: 310`, is learnt
+  the same way, where before it could not be learnt at all. Two pages at least
+  are needed: one cannot tell its template's words from its own. A page
+  without the label, or with it twice, fails the run, and `heal` follows a
+  field to its new label by its old values. An extractor with such a field is
+  written as format 2, which 0.6 refuses rather than reading the place alone.
 - Every parameter of every MCP tool says what it is in the schema a client
   reads, taken word for word from the tool's own description: all 28 said
   nothing there, and clients and directories read it from there. A tool
