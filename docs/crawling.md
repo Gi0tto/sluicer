@@ -72,7 +72,9 @@ A page that failed is an answer like any other: it comes back with its
   clock does not matter; one longer than `max_delay` answers the site's next
   pages `rate_limited`, retryable later. Without one, the site's delay doubles
   for the rest of the crawl, up to `max_delay`. Scrapy retries both statuses
-  without reading `Retry-After`; Crawlee reads it.
+  without reading `Retry-After`; Crawlee reads it on a 429 only, and only when
+  the crawler is set to pace the site (a `ThrottlingRequestManager`, or
+  `sameDomainDelaySecs` in its JavaScript version).
 - **Under our own name.** Every request says `Sluicer/<version>`. The stealth
   rung is never part of a crawl.
 
