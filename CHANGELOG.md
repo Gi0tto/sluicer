@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
+## 0.5.0 - 2026-09-24
 
 ### Added
 - `Extraction.conflicts`: every question the page answers in two ways that
