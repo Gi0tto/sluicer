@@ -193,7 +193,8 @@ export interface Sluicer {
 export interface CreateOptions {
   /**
    * Also install the markdown extra (trafilatura) from PyPI, for
-   * `toMarkdown`. Adds a few seconds and some megabytes of downloads.
+   * `toMarkdown`. Adds about three seconds and 14 MB of downloads to every
+   * start: Pyodide's cache keeps its own packages, not PyPI's.
    */
   markdown?: boolean;
   /** Where Pyodide keeps the packages it downloads. Node only. */

@@ -38,6 +38,7 @@ nav:
       - Extractors: extractors.md
       - In your agent: agents.md
       - HTTP API: http-api.md
+      - In JavaScript: javascript.md
       - Crawling: crawling.md
       - Web archives: warc.md
       - Audit: audit.md

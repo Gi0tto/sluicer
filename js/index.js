@@ -24,7 +24,8 @@ export class SluicerError extends Error {
 }
 
 /**
- * Start Pyodide and install Sluicer in it. Takes one to three seconds; every
+ * Start Pyodide and install Sluicer in it. Takes about a second (1.1 to 1.4
+ * measured in Node, docs/javascript.md), four with the markdown extra; every
  * call on the returned object after that is synchronous and takes
  * milliseconds.
  */
