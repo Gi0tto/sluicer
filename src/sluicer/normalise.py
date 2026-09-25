@@ -141,6 +141,11 @@ _HALF_OF_THE_DAY = re.compile(
 )
 # What ``email.utils`` splits a date on.
 _TOKENS = re.compile(r"[\s,]+")
+# A time of day, and the word after it: ``email.utils`` reads that word as the
+# zone, whatever it is.
+_TIME_AND_NEXT = re.compile(r"\d{1,2}:\d{2}(?::\d{2})?(?=([\s,]+)(\S+))")
+# The zones ``email.utils`` knows by name, and an offset with its sign.
+_ZONE = re.compile(r"(?:[+-]\d{4}|UT|UTC|GMT|Z|[ECMP][SD]T|A[SD]T)\b", re.IGNORECASE)
 
 
 def normalised(summary: dict[str, SummaryField]) -> dict[str, str]:
@@ -232,6 +237,11 @@ def _from_rfc_2822(text: str) -> str | None:
     A twelve-hour clock, ``10:00 PM``, is read with its half of the day: to
     ``email.utils`` "PM" was a zone it did not know, and the evening was the
     morning. An hour no such clock shows, ``13:05 PM``, is not read.
+
+    Only a zone is an offset: ``email.utils`` reads whatever word follows the
+    time as one, and "10:05 am 4 min read" was at +00:04. A word after the
+    time that is neither an offset with its sign nor a zone it knows by name
+    ends the date there, which then has no offset.
     """
     halves = list(_HALF_OF_THE_DAY.finditer(text))
     if len(halves) > 1:
@@ -240,6 +250,10 @@ def _from_rfc_2822(text: str) -> str | None:
     if half is not None:
         # Taken out, or "PM" is a zone email.utils does not know, and ignores.
         text = text[: half.start(3)] + text[half.end(3) :]
+    time = _TIME_AND_NEXT.search(text)
+    if time is not None and not _zone_or_year(time, text):
+        # "10:05 am 4 min read": the 4 is no zone, and was read as +00:04.
+        text = text[: time.end()]
     try:
         parsed = email.utils.parsedate_to_datetime(text)
     except (TypeError, ValueError, IndexError):
@@ -257,6 +271,21 @@ def _from_rfc_2822(text: str) -> str | None:
     ):
         return None
     return parsed.isoformat()
+
+
+def _zone_or_year(time: re.Match[str], text: str) -> bool:
+    """Whether the word after ``time`` is the date's zone, or its year.
+
+    asctime's order writes the year after the time, ``03 Jun 10:00:00 2025``;
+    four digits there are the year only where none was written before it.
+    """
+    after = time.group(2)
+    if _ZONE.match(after):
+        return True
+    return bool(
+        re.fullmatch(r"\d{4}", after)
+        and not re.search(r"(?<!\d)\d{4}(?!\d)", text[: time.start()])
+    )
 
 
 def _month_or_day(name: str) -> str:

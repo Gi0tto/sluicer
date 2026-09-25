@@ -32,13 +32,17 @@ field says `"source": "induced"`.
 
 ## The MCP tools
 
-- `extract_declared(html_or_url, induce=false, at=null, respect_tdm=false)` --
-  the summary and the records. `at` is a date (`2024`, `2024-06-01`): the URL
+- `extract_declared(html_or_url, induce=false, at=null, respect_tdm=false,
+  records=true, visible=false)` -- the summary and the records.
+  `records=false` keeps only the summary and what was normalised, a small
+  answer. `visible=true` adds the title, author and dates the page shows a
+  reader, as guesses in `visible`, never in the summary. `at` is a date (`2024`, `2024-06-01`): the URL
   as the Wayback Machine captured it nearest to then, and `fetch.archived`
   says which capture. `respect_tdm=true` answers `tdm_reserved` instead of a
   page whose site reserves its text and data mining rights.
-- `page_markdown(html_or_url, front_matter=false, at=null, respect_tdm=false)`
-  -- the main content as markdown.
+- `page_markdown(html_or_url, front_matter=false, at=null, respect_tdm=false,
+  offset=0, max_chars=30000)` -- the main content as markdown, in slices like
+  `fetch_page`'s.
 - `fetch_page(url, offset=0, max_chars=30000)` -- the HTML, in slices of at
   most 60,000 characters (`next_offset` says where the next starts), and what
   the fetch cost. Prefer the other two: they return what is in the page, not
@@ -174,8 +178,9 @@ sluicer crawl https://example.com/ --max-pages 50 -o site.jsonl   # --resume con
 ```
 
 Exit codes: 0 something found (a record or a summary answer, a `<title>` alone
-included), 1 the page gives nothing at all, 2 could not be read, 3 a page broke an extractor's contract, or
-an audit found a documented rule broken.
+included), 1 the page gives nothing at all, 2 could not be read, 3 a page broke an extractor's contract, a
+heal lost a field or left a move undecided, or an audit found a documented rule
+broken. `diff` exits 1 when something changed.
 
 When the same kind of page will be read again and again -- a listing checked
 daily, a product page watched -- compile an extractor once and run it: each run
@@ -211,5 +216,6 @@ browser once starts its next pages there.
 **Two products on one page stay two products.** Records merge across
 vocabularies, never within one.
 
-**Empty means empty.** No records means the page declared nothing, and no value
-is ever invented to fill the gap.
+**Empty means empty.** No records means the page declared nothing. Every value
+is one the page declares; the scoreboards count a declared value on a page
+whose label is empty as invented.

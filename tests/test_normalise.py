@@ -391,3 +391,23 @@ def test_a_json_price_written_with_an_exponent_is_the_summary_s_price():
 
     assert result.summary["price"].value == "1.5e3"
     assert result.normalised["price"] == "1500"
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        # Found by review on a page as served: "4 min read" was an offset.
+        ("May 24, 2026 10:05 am 4 min read", "2026-05-24T10:05:00"),
+        ("May 24, 2026, 10:05 PM 12 comments", "2026-05-24T22:05:00"),
+        ("May 24, 2026 10:05 4 min read", "2026-05-24T10:05:00"),
+        ("Tue, 03 Jun 2025 10:05 PM 1200", "2025-06-03T22:05:00"),
+        ("Tue, 03 Jun 2025 10:00:00 4", "2025-06-03T10:00:00"),
+        # A zone the date writes is still its offset.
+        ("Tue, 03 Jun 2025 10:00:00 GMT", "2025-06-03T10:00:00+00:00"),
+        ("Tue, 03 Jun 2025 10:00:00 +0200", "2025-06-03T10:00:00+02:00"),
+        ("Tue, 03 Jun 2025 10:00 PM EST", "2025-06-03T22:00:00-05:00"),
+        ("Tue, 03 Jun 2025 10:00:00 -0000 (UTC)", "2025-06-03T10:00:00"),
+    ],
+)
+def test_only_a_zone_after_the_time_is_its_offset(written, meant):
+    assert iso_date(written) == meant

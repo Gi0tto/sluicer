@@ -54,7 +54,6 @@ _BOMS = (
     (codecs.BOM_UTF16_BE, "utf-16-be"),
 )
 _XML_DECLARATION = re.compile(rb"^\s*<\?xml[^>]*encoding\s*=\s*[\"']([^\"']+)")
-_COMMENT = re.compile(rb"<!--.*?-->", re.DOTALL)
 _META = re.compile(rb"<meta\b", re.IGNORECASE)
 _TAG_END = re.compile(rb"[>\"']")
 _ATTRIBUTE = re.compile(
@@ -114,6 +113,25 @@ def _utf8(data: bytes) -> bool:
     return True
 
 
+def _without_comments(data: bytes) -> bytes:
+    """``data`` without its ``<!-- -->`` comments, read to their first end.
+
+    A comment never closed stays, and so does every one after it, which
+    cannot close either. The pattern that did this asked the rest of the head
+    for an end from every ``<!--``: 64 KiB of them took four seconds.
+    """
+    kept: list[bytes] = []
+    copied = at = 0
+    while (at := data.find(b"<!--", at)) != -1:
+        close = data.find(b"-->", at + 4)
+        if close == -1:
+            break
+        kept.append(data[copied:at])
+        copied = at = close + 3
+    kept.append(data[copied:])
+    return b"".join(kept)
+
+
 def _declared_encoding(data: bytes) -> str | None:
     match = _XML_DECLARATION.match(data)
     if match:
@@ -121,7 +139,7 @@ def _declared_encoding(data: bytes) -> str | None:
         if found is not None:
             return found
     # Comments first: a "<body" written inside one ends nothing.
-    head = _COMMENT.sub(b"", data[:_SNIFF_LIMIT])
+    head = _without_comments(data[:_SNIFF_LIMIT])
     body = _BODY.search(head)
     if body:
         head = head[: body.start()]

@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <strong>Web scrapers that fail loudly when a site changes,<br>instead of quietly returning empty or wrong values.</strong><br>
+  <strong>Web scrapers that fail loudly when a site changes,<br>instead of quietly returning empty values.</strong><br>
   No model, no API key, no bill.
 </p>
 
@@ -30,12 +30,12 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/demo.gif" alt="An extractor learnt from a software directory in January 2016 replays a page of February 2016 and exits 0; on the page of June 2024, after the site's redesign, it fails loudly with exit 3, and heal says where the listing and each field went, with how many learnt values it found there" width="860">
+  <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/demo.gif" alt="An extractor learnt from a software directory in January 2016 replays a page of February 2016 and exits 0; on the page of June 2024, after the site's redesign, it fails loudly with exit 3, and heal says where the listing and most of its fields went, with how many learnt values it found there" width="860">
 </p>
 <p align="center"><em>
   A real site, as the Wayback Machine kept it. The extractor learnt in January
   2016 still fits in February. After the 2024 redesign it stops with exit code
-  3, and <code>heal</code> shows where each field moved.
+  3, and <code>heal</code> shows where the listing and most of its fields moved.
 </em></p>
 
 Most scrapers break without a sound. The site changes its markup, and the
@@ -58,7 +58,7 @@ from. No model reads any page, so the same page always gives the same answer.
 ```bash
 uv pip install sluicer
 
-# Learn an extractor from three pages of one template, from one example value.
+# Learn an extractor from three pages built on one template, given one value from the first.
 sluicer compile p1.html p2.html p3.html --want price=41.90 -o shop.json
 
 # Replay it on any page of that template: the values as JSON, or exit 3 if the page changed.
@@ -69,9 +69,14 @@ sluicer heal shop.json https://shop.example/p/1 -o shop.json
 ```
 
 Exit codes follow grep: 0 found -- a record or a summary answer, a `<title>`
-alone included -- 1 the page gives neither, 2 could not read, and 3 for a page
-that broke its extractor, a heal that lost a field, or an audit that found a
-documented rule broken. A drifted page never exits 0.
+alone included -- 1 found nothing, 2 could not read the page, and 3 when a page
+broke its extractor's checks, a heal lost a field or left a move undecided, or
+an audit found a documented rule broken. `diff` exits 1 when something changed.
+
+The checks are about structure: a run fails when a field is no longer where it
+was learnt, no longer reads the way it did, or no longer has its shape. A change
+that keeps all three, such as a different number in the price's place, passes:
+on SWDE, 17% of the extractors' wrong answers were flagged.
 
 Reading what a page declares needs no example at all. The product page read
 here is
@@ -120,8 +125,9 @@ and `protego` (robots.txt) alone: the HTTP client is Python's own.
 | `microformats` | microformats2, which is off by default |
 | `fetch` | deprecated since 0.8: `browser` and `stealth` together, what it installed before |
 
-For the browser, once: `uvx --from "sluicer[browser]" playwright install chromium`.
-Without it, plain HTTP still works, and a page that needed a browser says so.
+To let Sluicer use a browser, install one once:
+`uvx --from "sluicer[browser]" playwright install chromium`. Without it, plain
+HTTP still works, and a page that needed a browser says so.
 
 </details>
 
@@ -129,15 +135,18 @@ Without it, plain HTTP still works, and a page that needed a browser says so.
 
 | you have | run | and get |
 |---|---|---|
-| a page, as HTML or a URL | `sluicer extract page.html` | every record it declares, a 25-question summary, its conflicts, each value with where it came from |
+| a page, as HTML or a URL | `sluicer extract page.html` | every record it declares, a summary that answers 25 questions, its conflicts, each value with where it came from |
 | many pages of one template | `sluicer compile ... --want price=41.90`, then `sluicer run` | the fields you gave an example of, from every page, checked |
 | a page that declares nothing | `sluicer extract page.html --induce` | the rows its markup repeats: a listing's cards, a table's lines |
 | a whole site | `sluicer map URL`, `sluicer crawl URL -o site.jsonl` | its addresses from its sitemaps, or every page it links to, read politely |
-| a list of URLs, a feed, a web archive | `sluicer batch urls.txt`, `sluicer feed URL`, `sluicer warc crawl.warc.gz` | one JSON line per page |
+| a list of URLs, a web archive | `sluicer batch urls.txt`, `sluicer warc crawl.warc.gz` | one JSON line per page |
+| a feed | `sluicer feed URL` | its items, as one JSON document |
 | an article | `sluicer markdown URL` | its main text as Markdown |
 
-Sluicer announces itself on every request, obeys robots.txt and `Crawl-delay`,
-and waits when a site asks it to. `sluicer --help` lists every command, and
+Every request names Sluicer, and robots.txt and `Crawl-delay` are obeyed; a
+crawl waits when a site asks it to. Only a command that reads single pages or
+learns an extractor can be told otherwise, with `--stealth` or `--no-robots`;
+`map`, `crawl` and `batch` cannot. `sluicer --help` lists every command, and
 [the command line reference](https://github.com/Gi0tto/sluicer/blob/main/docs/reference/cli.md)
 explains each one.
 
@@ -148,10 +157,11 @@ claude mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp   # Claude Code
 codex mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp    # Codex
 ```
 
-The MCP server has ten read-only tools, from `extract_declared` to
-`compile_extractor`, `run_extractor` and `heal_extractor`. Every answer says
-whether it can be used as it is, and nothing is fetched from your own machine
-or network unless you allow it.
+The MCP server has ten read-only tools, among them `extract_declared`,
+`compile_extractor`, `run_extractor` and `heal_extractor`. Every answer carries
+`ok`, true only when it can be used as it is. The server does not fetch
+localhost, private networks or cloud metadata addresses unless it is started
+with `SLUICER_ALLOW_PRIVATE=1`.
 [In your agent](https://github.com/Gi0tto/sluicer/blob/main/docs/agents.md)
 covers Cursor, VS Code, Gemini CLI, Claude Desktop, Zed, LangChain, the OpenAI
 Agents SDK and Pydantic AI. For any other language, `sluicer serve` offers the
@@ -162,30 +172,32 @@ same tools over HTTP ([HTTP API](https://github.com/Gi0tto/sluicer/blob/main/doc
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/swde-dark.svg">
-    <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/swde-light.svg" alt="Extractors learnt from three pages of each of 80 real sites and read on their other 124,291 pages: Sluicer scores a mean F1 of 0.849 and is right on 0.972 of its answers, with 12,059 wrong answers; Scrapling's adaptive selectors score 0.671 and 0.864, with 56,058" width="760">
+    <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/swde-light.svg" alt="Extractors learnt from three pages of each of 80 real sites and read on their other 124,051 pages: Sluicer scores a mean F1 of 0.849 and is right on 0.972 of its answers, with 12,059 wrong answers; Scrapling's adaptive selectors score 0.671 and 0.864, with 56,058" width="760">
   </picture>
 </p>
 
 Every number below comes from a public test set, and every scoreboard gives the
-command that produces it again. Where another tool does better, the table says
-so.
+command that produces it again. Where another tool does better on what a row
+measures, the row shows it.
 
 | scoreboard | what is measured | Sluicer | beside it |
 |---|---|---|---|
-| [SWDE](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-swde.md), 80 sites | extractors learnt from three pages, run on 124,291 more | F1 0.849, 12,059 wrong answers | Scrapling 0.671, 56,058 wrong |
-| [Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md), 44 real redesigns | a site's change noticed | 0 failed silently, 0 false alarms | -- |
+| [SWDE](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-swde.md), 80 sites | extractors learnt from three pages, run on the other 124,051 | F1 0.849, 12,059 wrong answers | Scrapling 0.671, 56,058 wrong |
+| [Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md), 44 before/after pairs on 25 sites | a change noticed: 21 changed, 23 did not | 0 failed silently, 0 false alarms | -- |
 | [Products](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md), 140 pages | price, availability (F1) | 0.750, 0.907 | Zyte's paid API 0.918, 0.957 |
 | [WCXB](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md), 511 pages | title, author, date found; dates invented | 0.727, 0.532, 0.581; 8 invented | trafilatura 0.745, 0.750, 0.838; 216 invented |
-| [As served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md), 360 pages | dates right when it answers | 0.734 | newspaper4k 0.658 |
+| [As served](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-served.md), 360 pages | dates found; right when it answers | 0.780; 0.734 | trafilatura 0.855; 0.393 |
 | [News](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-news.md), 21 languages | title, author, date found | 0.871, 0.829, 0.970 | trafilatura 0.852, 0.879, 0.970 |
 | [trafilatura's set](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-evaldata.md), 990 pages | title, author, date found | 0.776, 0.468, 0.585 | trafilatura 0.738, 0.669, 0.865 |
 
 Sluicer reads only what a page states in its markup, so on titles, authors and
 dates it answers less often than tools that also read the visible text, and it
-invents far less. Its rules were written while reading the pages of these
+invents far fewer dates. Its rules were written while reading the pages of these
 scoreboards, so the numbers show how it does on pages it was tuned on. The one
-held-out test is the half of SWDE's sites nobody read while making the rules,
-where it scores 0.845 (its ten camera sites were read before the split).
+held-out test is the half of SWDE's sites whose pages and errors were not read
+while making the rules; its numbers were looked at three times, once to decide
+whether to keep a rule. There it scores 0.845, including five camera sites that
+were read before the split and so are not a clean test.
 [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md)
 records which pages each rule was made on.
 
@@ -195,11 +207,11 @@ records which pages each rule was made on.
   them from the visible text and finds more of them. Sluicer's `--visible`
   option guesses them too, but it is new and not yet measured on the
   scoreboards.
-- **You need an article's full text.** `sluicer markdown` hands that job to
-  trafilatura; for anything beyond it, use trafilatura directly.
-- **The site blocks bots.** Sluicer is not built to get past bot protection.
-  It announces itself on every request; only a single page fetched with
-  `--stealth` leaves that out, and a crawl never does.
+- **You need an article's full text.** `sluicer markdown` uses trafilatura for
+  it; if you need trafilatura's options or other output formats, use it
+  directly.
+- **The site blocks bots.** Sluicer is not built to get past bot protection:
+  every request names it, unless a single-page command is given `--stealth`.
 
 [Why Sluicer](https://github.com/Gi0tto/sluicer/blob/main/docs/why.md) compares
 it with extruct, trafilatura, Scrapling, Crawl4AI and Firecrawl, and says when
@@ -229,13 +241,18 @@ explains, and see
 [CONTRIBUTING.md](https://github.com/Gi0tto/sluicer/blob/main/CONTRIBUTING.md)
 to set up a checkout.
 
-Sluicer is built and maintained by one person. If it saves you time or a bill,
-[sponsoring it](https://github.com/sponsors/Gi0tto) keeps the scoreboards
-measured and the extractors honest as the web changes.
+Sluicer is built and maintained by one person. If it saves you time or money,
+[sponsoring it](https://github.com/sponsors/Gi0tto) pays for keeping the
+scoreboards measured and the extractors working as the web changes.
 
 ## Licence
 
 MIT, except two data files under their own licences: schema.org's type names
-(CC BY-SA 3.0) and CLDR's month and weekday names (Unicode License v3). The
-[licence notes](https://github.com/Gi0tto/sluicer/blob/main/docs/known-limits.md)
-list both, and what the extras install.
+(CC BY-SA 3.0) and CLDR's month and weekday names (Unicode License v3); the
+package's licence expression is `MIT AND CC-BY-SA-3.0 AND Unicode-3.0`. The base
+install needs `lxml` and `click`, both BSD-3-Clause. The extras pull a wider
+tree that is not all permissive: `tld` is MPL-1.1, GPL-2.0-only or
+LGPL-2.1-or-later, `orjson` is MPL-2.0 alongside Apache-2.0 or MIT, and
+`certifi` is MPL-2.0. CI lists every licence in that tree and fails on one
+nobody has read; [NOTICE](https://github.com/Gi0tto/sluicer/blob/main/NOTICE)
+says more.
