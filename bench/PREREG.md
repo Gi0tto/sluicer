@@ -125,10 +125,10 @@ byline, a date or a title off the visible page are made reading only the
 read while they are made: WCXB's test split, the pages as served, the news
 fixtures, trafilatura's set and Zyte's products are held out from
 `--visible`'s rules -- not from the summary's, which were made on them, as the
-first section says -- scored, and each shows two columns, what the page
-declares and what `--visible` adds. A
-guess read off the visible page is never part of the summary, and every
-invention it makes is counted in its own column.
+first section says. When `--visible` is scored, each of them will show two
+columns, what the page declares and what `--visible` adds; as of 0.7.1 none
+does yet. A guess read off the visible page is never part of the summary, and
+every invention it makes will be counted in its own column.
 
 ## What counts as worse
 

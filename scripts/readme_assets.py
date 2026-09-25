@@ -143,6 +143,15 @@ def dates_svg(dark: bool) -> str:
     return "\n".join(parts) + "\n"
 
 
+def _swde_scored() -> str:
+    """How many pages SWDE's scoreboard scored, as it writes the number: the
+    pages less each site's three seeds, which the tools learn from."""
+    table = (ROOT / "docs" / "scoreboard-swde.md").read_text(encoding="utf-8")
+    found = re.search(r"every other page, ([\d,]+) in all", " ".join(table.split()))
+    assert found is not None, "scoreboard-swde.md no longer says how many it scored"
+    return found.group(1)
+
+
 def _swde_rows() -> list[tuple[str, float, float, int]]:
     """Each tool's row on SWDE: name, mean F1, right when answering, wrong
     answers, read off the published scoreboard."""
@@ -173,7 +182,8 @@ def swde_svg(dark: bool) -> str:
         f'viewBox="0 0 {width} {height}" font-family="-apple-system, Segoe UI, '
         'Helvetica, Arial, sans-serif">',
         f'<text x="{left}" y="26" font-size="15" font-weight="600" fill="{ink}">'
-        "Learnt from 3 pages, read on 124,291 pages of 80 real sites (SWDE)</text>",
+        f"Learnt from 3 pages, read on {_swde_scored()} more of 80 real sites (SWDE)"
+        "</text>",
         f'<rect x="{left}" y="40" width="12" height="12" rx="2" fill="{score}"/>',
         f'<text x="{left + 18}" y="51" font-size="12" fill="{muted}">mean F1</text>',
         f'<rect x="{left + 110}" y="40" width="12" height="12" rx="2" fill="{right}"/>',
@@ -385,7 +395,7 @@ def swde_alt() -> str:
             said.append(f"{who} score {f1:.3f} and {correct:.3f}, with {wrong:,}")
     return (
         "Extractors learnt from three pages of each of 80 real sites and read on "
-        "their other 124,291 pages: " + "; ".join(said)
+        f"their other {_swde_scored()} pages: " + "; ".join(said)
     )
 
 

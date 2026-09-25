@@ -323,3 +323,27 @@ def test_the_audits_site_files_are_judged_by_the_product_token_too(real_protego)
     )
 
     assert _refusal("https://example.com/llms.txt", robots) is None
+
+
+def test_a_robots_txt_is_parsed_once_however_many_addresses_ask(monkeypatch):
+    """Found by review: the text was remembered and parsed again for every
+    address, and a crawl asks for every page it reads; a 16 MiB robots.txt
+    took 2.5 s for each."""
+    import protego
+
+    from sluicer.fetch.identity import robots_refusal
+
+    parsed = []
+    real = protego.Protego.parse
+
+    def counting(text):
+        parsed.append(1)
+        return real(text)
+
+    monkeypatch.setattr(protego.Protego, "parse", staticmethod(counting))
+    cache: dict = {}
+    text = "User-agent: *\nDisallow: /private\n"
+    for page in range(20):
+        robots_refusal(f"https://site.example/{page}", lambda _: text, cache)
+    assert robots_refusal("https://site.example/private/1", lambda _: text, cache)
+    assert len(parsed) == 1
