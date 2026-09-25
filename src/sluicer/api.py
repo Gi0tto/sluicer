@@ -112,6 +112,29 @@ def extract(
     return _extract_document(doc, sent, induce, microformats, visible)
 
 
+async def aextract(
+    html: str | bytes,
+    url: str | None = None,
+    induce: bool = False,
+    microformats: bool = False,
+    headers: Mapping[str, str] | None = None,
+    visible: bool = False,
+) -> Extraction:
+    """``extract``, awaited: the same arguments and the same ``Extraction``,
+    read on a worker thread of the loop's default executor so that a large
+    page does not hold the event loop while it is parsed.
+
+    Nothing is fetched: ``html`` is the page, as for ``extract``. To fetch
+    one from a coroutine, ``await sluicer.fetch.afetch(url)`` and hand its
+    ``html`` and ``headers`` here.
+    """
+    import asyncio
+
+    return await asyncio.to_thread(
+        extract, html, url, induce, microformats, headers, visible
+    )
+
+
 def _extract_document(
     doc: Document,
     sent: dict[str, str],

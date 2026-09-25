@@ -22,11 +22,37 @@ uv pip install "sluicer[markdown]"
 With pip instead: `pip install "sluicer[markdown]"`.
 
 The base install reads every page you have on disk and fetches pages from the
-web over plain HTTP, with nothing installed but `lxml`, `click` and `protego`;
+web over plain HTTP, with nothing installed but `lxml`, `click` and `protego`
+(and `tomli` on Python 3.10);
 the extra adds turning a page into markdown. A page that is an empty shell a
 script fills in needs a browser: add the `browser` extra, and install its
 Chromium once with `uvx --from "sluicer[browser]" playwright install chromium`.
 The [extras](index.md#install) are listed on the home page.
+
+### Shell completion
+
+`sluicer` completes its commands and their options in bash (4.4 or later),
+zsh and fish, from a script it prints when `_SLUICER_COMPLETE` names the
+shell. Write the script once, then load it from the shell's startup file:
+
+```bash
+# bash
+_SLUICER_COMPLETE=bash_source sluicer > ~/.sluicer-complete.bash
+echo '. ~/.sluicer-complete.bash' >> ~/.bashrc
+
+# zsh (the line goes after compinit in ~/.zshrc)
+_SLUICER_COMPLETE=zsh_source sluicer > ~/.sluicer-complete.zsh
+echo '. ~/.sluicer-complete.zsh' >> ~/.zshrc
+
+# fish, which reads the completions directory itself
+_SLUICER_COMPLETE=fish_source sluicer > ~/.config/fish/completions/sluicer.fish
+```
+
+Written to a file, the script costs nothing when a shell starts;
+`eval "$(_SLUICER_COMPLETE=zsh_source sluicer)"` in the startup file works as
+well, and runs `sluicer` each time. Write it again after upgrading, so a new
+command or option completes too. macOS's own `/bin/bash` is 3.2, which the
+script does not support; zsh, its default shell, is fine.
 
 ## 2. Read a page
 
@@ -151,6 +177,39 @@ Pass bytes when you have them, as here: the page's own charset is then read
 from them. `sluicer.to_markdown(page)` gives the readable content, and
 `sluicer.fetch.fetch(url)` the page itself with what fetching it cost. Every
 public function is in the [Python reference](reference/python.md).
+
+### From a coroutine
+
+`sluicer.aextract` and `sluicer.fetch.afetch` take what `extract` and `fetch`
+take and give what they give, awaited, with the event loop left free while a
+page is fetched or parsed:
+
+```python
+import asyncio
+
+import sluicer
+from sluicer.fetch import afetch
+
+
+async def titles(urls):
+    pages = await asyncio.gather(*(afetch(url) for url in urls))
+    results = await asyncio.gather(
+        *(sluicer.aextract(p.html, url=p.url, headers=p.headers) for p in pages)
+    )
+    return [r.summary["title"].value for r in results if "title" in r.summary]
+```
+
+Each runs its sync twin on a worker thread of the loop's default executor, so
+nothing about fetching changes: the same ladder, the same limits, the same
+exceptions. Nor does politeness. Fetches of one site, from any number of
+coroutines, threads or crawls in the process, still go one at a time, a
+second after the last one ended, and read robots.txt once; `gather` over
+fifty pages of one site takes fifty seconds, and over fifty sites about one.
+Coroutines waiting for one site wait on the loop and take a worker thread
+only when their turn comes, so a slow site never holds the executor's
+threads from the others. A coroutine cancelled while it waits asks nothing;
+one cancelled after its request went stops waiting, and the request ends on
+its thread.
 
 ## 6. When a page declares nothing
 
