@@ -1,13 +1,14 @@
 # A Sluicer that can fetch, read, and serve an agent or any HTTP client, in one
 # image.
 #
-# The base install is only lxml and click; this image takes the extras because
-# an image nobody can fetch with is an image nobody wants.
+# The base install fetches over plain HTTP; this image adds the markdown, MCP
+# and HTTP API extras, so that one image serves every door.
 #
 # The browser is a build argument, because it is most of the image. Built as
 # is, the image fetches with the plain HTTP rung only: a page that makes the
-# ladder climb reaches a browser rung with no browser installed, and that climb
-# fails. Build with the browser when you need it:
+# ladder climb reaches a browser rung that is not installed, the climb fails,
+# and the HTTP page comes back saying so. Build with the browser -- the
+# `browser` extra and its Chromium -- when you need it:
 #   docker build --build-arg WITH_BROWSER=1 -t sluicer .
 FROM python:3.13-slim
 
@@ -23,7 +24,8 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 
-RUN pip install --no-cache-dir '.[fetch,markdown,mcp,api]' \
+RUN if [ "$WITH_BROWSER" = "1" ]; then extras='api,browser'; else extras='api'; fi \
+    && pip install --no-cache-dir ".[$extras]" \
     && python -c "import sluicer; print('sluicer', sluicer.__version__)"
 
 # Chromium's system libraries arrive through apt, so this runs as root, before
