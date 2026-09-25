@@ -39,6 +39,12 @@ PYTHON: list[tuple[str, str, list[str]]] = [
         "sluicer",
         ["extract", "Extraction", "SummaryField", "Record", "Field", "induce"],
     ),
+    (
+        "Selecting by hand",
+        "sluicer",
+        ["parse", "Page", "Selection", "Selected", "SelectorError"],
+    ),
+    ("The selector language", "sluicer.selectors", ["selector", "Selector"]),
     ("The main content as markdown", "sluicer", ["to_markdown"]),
     (
         "What a value means",
@@ -51,6 +57,7 @@ PYTHON: list[tuple[str, str, list[str]]] = [
         "sluicer.extractor",
         ["compile_extractor", "run_extractor", "heal", "Extractor", "Run"],
     ),
+    ("Hand-written extractors", "sluicer.written", ["Written", "WrittenField"]),
     ("Many pages", "sluicer.crawl", ["map_site", "crawl", "extract_many"]),
     ("Feeds", "sluicer.feeds", ["read_feed"]),
     ("Web archives", "sluicer.warc", ["read_warc", "extract_warc"]),

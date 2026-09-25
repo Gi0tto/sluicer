@@ -23,11 +23,13 @@ remove or rename one of them warns first.
   answer a page gives may change, the shape of the answer does not.
 - **The extractor file and its exit codes.** A file `sluicer compile` writes
   is read by every later release: the `format` field says which version it
-  is (1, or 2 for a field read after its label), and a release refuses a
-  format newer than it knows rather than reading it wrong. `sluicer run`
+  is (1, 2 for a field read after its label, or 3 for fields written as
+  selectors), and a release refuses a format newer than it knows rather
+  than reading it wrong. `sluicer run`
   exits 0 when every page kept to the extractor and 3 when one broke it;
   `sluicer heal` exits 3 when a field, a summary answer, a type or the listing
-  was lost; 2 is a page that could not be read. See [Extractors](extractors.md).
+  was lost, or a selector a person wrote was broken; 2 is a page that could
+  not be read. See [Extractors](extractors.md).
 - **The MCP tools.** The ten tool names -- `extract_declared`,
   `page_markdown`, `fetch_page`, `compile_extractor`, `run_extractor`,
   `heal_extractor`, `audit_page`, `read_feed`, `map_site`, `crawl_site` -- their

@@ -30,7 +30,7 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 from lxml import etree
@@ -45,10 +45,17 @@ from sluicer.structure.groups import chrome, repeating_groups
 from sluicer.structure.records import _label, records_from
 from sluicer.structure.shape import kind
 
+if TYPE_CHECKING:
+    from sluicer.written import Written
+
 FORMAT = 1
 """The version of the file format ``to_json`` writes and ``from_json`` reads."""
 FORMAT_WITH_LABELS = 2
 """The format of a file with a field read by its label, ``Anchor``."""
+FORMAT_WRITTEN = 3
+"""The format of a file whose fields a person wrote as selectors (see
+``sluicer.written``), which a reader of formats 1 and 2 refuses: it would
+check the page against none of them."""
 
 REQUIRED_MISSING = 0.2
 """The share of rows that may lack a field every learnt row carried."""
@@ -203,13 +210,18 @@ class Extractor:
     fields: tuple[PageField, ...] = ()
     """Values the page holds once, learnt from examples where it has no
     listing that holds them (``compile --want``)."""
+    written: Written | None = None
+    """Fields a person named by selector, and the rows they are read in
+    (``compile --select``), in place of a learnt listing and page fields."""
 
     def to_json(self) -> str:
         """The extractor as the JSON file it is kept in, stable key order."""
         body: dict[str, Any] = {
             # A file whose fields are read by a label is format 2, which a
             # reader of format 1 refuses: it would read the place alone.
-            "format": FORMAT_WITH_LABELS
+            "format": FORMAT_WRITTEN
+            if self.written is not None
+            else FORMAT_WITH_LABELS
             if any(f.anchor for f in self.fields)
             else FORMAT,
             "sluicer": self.version,
@@ -261,6 +273,10 @@ class Extractor:
                 }
                 for f in self.fields
             ]
+        if self.written is not None:
+            from sluicer.written import written_json
+
+            body["select"] = written_json(self.written)
         return json.dumps(body, indent=2, ensure_ascii=False) + "\n"
 
     @classmethod
@@ -283,11 +299,25 @@ class Extractor:
 def _extractor_of(body: Any) -> Extractor:
     if not isinstance(body, dict) or type(body.get("format")) is not int:
         raise ValueError("not a sluicer extractor")
-    if body["format"] not in (FORMAT, FORMAT_WITH_LABELS):
+    if body["format"] not in (FORMAT, FORMAT_WITH_LABELS, FORMAT_WRITTEN):
         raise ValueError(
             f"an extractor of format {body['format']}, "
-            f"not {FORMAT} or {FORMAT_WITH_LABELS}"
+            f"not {FORMAT}, {FORMAT_WITH_LABELS} or {FORMAT_WRITTEN}"
         )
+    written = None
+    if body["format"] == FORMAT_WRITTEN or "select" in body:
+        from sluicer.written import written_of
+
+        if body["format"] != FORMAT_WRITTEN:
+            raise ValueError("a file of hand-written selectors is format 3")
+        if body.get("listing") is not None or body.get("fields"):
+            raise ValueError(
+                "a hand-written extractor's fields are its selectors: it holds "
+                "no learnt listing or page fields beside them"
+            )
+        written = written_of(body["select"])
+        # A file written by hand needs only its selectors.
+        body = {"learnt_from": [], "summary": {}, "types": [], "listing": None, **body}
     listing = None
     if body["listing"] is not None:
         listing = _listing_of_file(body["listing"])
@@ -317,6 +347,7 @@ def _extractor_of(body: Any) -> Extractor:
         notes=tuple(_text(v) for v in _list(body.get("notes", []), "notes")),
         version=str(body.get("sluicer", "")),
         fields=fields,
+        written=written,
     )
 
 
@@ -473,10 +504,11 @@ class Run:
 
 
 LOSSES = frozenset(
-    {"vanished", "summary-lost", "type-lost", "listing-lost", "ambiguous"}
+    {"vanished", "summary-lost", "type-lost", "listing-lost", "ambiguous", "broken"}
 )
 """The kinds of change that stop heal from writing: data the page no longer
-has, or a move two places had equal claim to, which a person decides."""
+has, a move two places had equal claim to, or a selector a person wrote that
+the page broke, which a person decides."""
 
 
 @dataclass(frozen=True)
@@ -486,7 +518,9 @@ class Change:
     ``kind`` is one of container, member, kept, moved, new, summary-gained,
     type-gained, or one of ``LOSSES``: vanished, summary-lost, type-lost,
     listing-lost, ambiguous -- a move two new places had equal claim to, left
-    out of the healed extractor for a person to decide.
+    out of the healed extractor for a person to decide -- or broken, a
+    hand-written field, or the rows, whose selector the page no longer bears
+    out, kept as written for a person to rewrite.
     """
 
     kind: str
@@ -525,6 +559,8 @@ def compile_extractor(
     listing: bool | None = None,
     names: Sequence[str] | None = None,
     want: Mapping[str, str] | None = None,
+    select: Mapping[str, str] | None = None,
+    rows: str | None = None,
 ) -> Extractor:
     """Learn an extractor from pages of one template.
 
@@ -544,12 +580,35 @@ def compile_extractor(
             learnt where it sits on the page, the page's own place before its
             furniture and its listings. A value matches when it says the
             same with its spaces collapsed, or is the same amount.
+        select: fields a person writes instead of examples, by the name each
+            is to have: ``{"title": "h1", "price": "span.price::text"}``, each
+            a selector, CSS or XPath (see ``sluicer.selectors.selector``).
+            Nothing is learnt of where they are; from the pages, if any are
+            given, each field's presence, shape and reading is, and what the
+            pages declare. A selector that gives nothing on a page it is
+            written from is an error that names it.
+        rows: with ``select``, the selector of a listing's rows, each field
+            then read inside each row: ``li.product``, and ``.//a`` for an
+            XPath inside it.
 
     Raises:
         NothingToLearn: the pages declare nothing and repeat nothing, or no
-            repeated group holds every example in ``want``.
-        ValueError: ``want`` with ``listing=False``, or a name that is empty.
+            repeated group holds every example in ``want``, or a selector in
+            ``select`` gives nothing on a page given.
+        SelectorError: a selector in ``select`` or ``rows`` cannot be read;
+            a ``ValueError``.
+        ValueError: ``want`` with ``listing=False``, or a name that is empty;
+            ``select`` with ``want`` or ``listing``, or ``rows`` without it.
     """
+    if select is not None or rows is not None:
+        if want is not None or listing is not None or select is None:
+            raise ValueError(
+                "select= names the fields by selector and rows= their listing's "
+                "rows; want= and listing= are the learnt way, and one is chosen"
+            )
+        from sluicer.written import compile_written
+
+        return compile_written(pages, select, rows, names)
     if not pages:
         raise NothingToLearn("an extractor needs at least one page")
     if want is not None and (not want or any(not name.strip() for name in want)):
@@ -659,6 +718,10 @@ def run_extractor(
         run.rows = _replay_listing(extractor.listing, doc, run.checks)
     if extractor.fields:
         run.fields = _replay_fields(extractor.fields, doc, run.checks)
+    if extractor.written is not None:
+        from sluicer.written import replay_written
+
+        run.rows, run.fields = replay_written(extractor.written, doc, run.checks)
     if not run.checks:
         run.checks.append(
             Check("extractor", "an extractor that checks something", "nothing", False)
@@ -694,7 +757,14 @@ def heal(
     """
     docs = [load(html, url=url) for html, url in pages]
     old_listing = extractor.listing
-    if old_listing is not None and old_listing.chosen:
+    if extractor.written is not None:
+        # A hand-written extractor learns only what the pages declare: its
+        # selectors say where the rest is.
+        try:
+            fresh = _compile_again(docs, False, names)
+        except NothingToLearn:
+            fresh = _learnt_nothing(docs, names)
+    elif old_listing is not None and old_listing.chosen:
         # Where it was, while it still keeps its contract there: a listing's
         # items change from one visit to the next, and a sidebar that lists
         # some of the same ones is not where it went.
@@ -741,6 +811,12 @@ def heal(
         # Kept as it was, so a run keeps failing where it is not: an
         # extractor written without it, with --force, would pass every page.
         listing = extractor.listing
+    written = extractor.written
+    if written is not None:
+        from sluicer.written import heal_written
+
+        written, written_changes = heal_written(written, docs)
+        changes.extend(written_changes)
     healed = Extractor(
         learnt_from=fresh.learnt_from,
         summary=fresh.summary,
@@ -748,6 +824,7 @@ def heal(
         listing=listing,
         notes=fresh.notes,
         fields=fields,
+        written=written,
     )
     return healed, changes
 
@@ -2036,34 +2113,53 @@ def _replay_listing(
             if value is not None:
                 kept[f.name] = value
         rows.append(kept)
+    _check_rows(listing.fields, rows, len(members), listing.empty, checks)
+    return rows
+
+
+def _check_rows(
+    fields: Sequence[ListingField],
+    rows: list[dict[str, str]],
+    members: int,
+    empty_learnt: float,
+    checks: list[Check],
+    slots: bool = True,
+) -> None:
+    """The checks a listing's rows are held to, read from ``members``
+    elements: there are some, no more of them empty than were, and each
+    column is there, reads and is shaped as learnt, and still varies.
+
+    ``slots`` is False for columns a person named by selector, which
+    induction never numbered: ``span.tag2`` is then a class, not a slot.
+    """
     # Never zero; a short page of the same template -- the last of a
     # pagination, a small category -- is not a drift.
     checks.append(Check("rows", "at least 1 row", str(len(rows)), bool(rows)))
     if not rows:
-        return rows
-    if len(members) >= _SHAPE_EVIDENCE:
+        return
+    if members >= _SHAPE_EVIDENCE:
         # Skeletons waiting for a script are members with nothing in them: a
         # short page that is not short.
-        empty = 1 - len(rows) / len(members)
-        allowed = listing.empty + REQUIRED_MISSING
+        empty = 1 - len(rows) / members
+        allowed = empty_learnt + REQUIRED_MISSING
         checks.append(
             Check(
                 "rows",
                 f"at most {allowed:.0%} of the listing's members empty",
-                f"{len(members) - len(rows)} of {len(members)} empty",
+                f"{members - len(rows)} of {members} empty",
                 empty <= allowed,
             )
         )
-    paths = {f.path for f in listing.fields}
-    for f in listing.fields:
+    paths = {f.path for f in fields}
+    for f in fields:
         present = [row[f.name] for row in rows if row.get(f.name)]
         share = len(present) / len(rows)
         learnt = 1 - f.missing
-        if _a_later_repeat(f.path, paths):
+        if slots and _a_later_repeat(f.path, paths):
             # The third tag of a card is a count, not a column: pages differ in
             # how many their rows carry, and none of them has drifted.
             pass
-        elif learnt == 1 and not _a_numbered_slot(f.path, paths):
+        elif learnt == 1 and not (slots and _a_numbered_slot(f.path, paths)):
             floor = 1 - REQUIRED_MISSING
             checks.append(
                 Check(
@@ -2113,7 +2209,6 @@ def _replay_listing(
                     distinct > 1,
                 )
             )
-    return rows
 
 
 # -- healing ------------------------------------------------------------------

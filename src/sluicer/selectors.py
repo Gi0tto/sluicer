@@ -172,10 +172,22 @@ def _xpath(text: str) -> Selector:
     if not text:
         raise SelectorError("a selector is empty")
     try:
-        etree.XPath(text)
+        # Asked of an empty page once, so what only evaluating tells -- a
+        # prefix nothing binds, a function lxml does not know, an answer that
+        # is a number rather than nodes -- is said when the selector is
+        # written, not first on some page an extractor is run on.
+        given = etree.XPath(text)(_EMPTY)
     except etree.XPathError as why:
         raise SelectorError(f"{text!r} is not an XPath: {why}") from None
+    if not isinstance(given, list):
+        raise SelectorError(
+            f"{text!r} gives {_what(given)}, not elements, their text or their "
+            "attributes: a value with no place on the page"
+        )
     return Selector(text, "xpath", text, "selected")
+
+
+_EMPTY = etree.Element("html")
 
 
 # lxml's compiled XPath is kept one per thread: the HTTP server answers two
@@ -249,7 +261,12 @@ class Selected:
 
 
 class Selection(tuple[Selected, ...]):
-    """The values a selector gave, in the page's order, each a ``Selected``."""
+    """The values a selector gave, in the page's order, each a ``Selected``.
+
+    A tuple, with ``get()`` for the first value, or a default when there is
+    none, ``getall()`` for every value, and ``css``, ``xpath`` and ``select``
+    to select inside each of its elements in turn.
+    """
 
     __slots__ = ()
 
@@ -280,8 +297,10 @@ class Selection(tuple[Selected, ...]):
 class Page:
     """A page parsed once, to select from as many times as needed.
 
-    ``url`` is the address it came from, which its links are resolved
-    against. ``parse`` makes one.
+    ``css(selector)`` and ``xpath(selector)`` give a ``Selection`` of the
+    values a selector of that language gives, ``select(selector)`` of one in
+    either, told apart as ``selector`` tells them. ``url`` is the address the
+    page came from, which its links are resolved against. ``parse`` makes one.
     """
 
     def __init__(self, doc: Document) -> None:
@@ -429,3 +448,9 @@ def parse(
     Never raises: any input, however broken, is a page, if an empty one.
     """
     return Page(load(html, url=url, charset=charset(lowered(headers))))
+
+
+def _element_of(one: Selected) -> HtmlElement | None:
+    """The element ``one`` is the whole text of, or None for a text or an
+    attribute: what a listing's rows must be."""
+    return one._node

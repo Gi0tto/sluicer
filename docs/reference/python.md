@@ -152,6 +152,114 @@ Return one record per row of the page's most promising repeated shape.
 
 Records whose fields all have ``source="induced"`` and are named by where they sit (``div.meta>span.sku``), or ``[]``. Groups are tried in ranked order and the first that yields records wins: a group whose members hold bare text, in no element of their own, has nothing to name a field after and yields none.
 
+## Selecting by hand
+
+### `sluicer.parse`
+
+```python
+parse(
+    html: str | bytes,
+    url: str | None = None,
+    headers: Mapping[str, str] | None = None,
+) -> Page
+```
+
+Parse a page to select from, with ``css``, ``xpath`` and ``select``.
+
+**Arguments**
+
+- `html`: the page. Bytes are best: the page's own charset is then honoured, as ``extract`` honours it.
+- `url`: the address the page came from, which its links resolve against.
+- `headers`: the response's headers; their ``Content-Type`` charset decodes bytes, ahead of the page's own, as for ``extract``.
+
+Never raises: any input, however broken, is a page, if an empty one.
+
+### `sluicer.Page`
+
+```python
+class Page
+```
+
+A page parsed once, to select from as many times as needed.
+
+``css(selector)`` and ``xpath(selector)`` give a ``Selection`` of the
+values a selector of that language gives, ``select(selector)`` of one in
+either, told apart as ``selector`` tells them. ``url`` is the address the
+page came from, which its links are resolved against. ``parse`` makes one.
+
+### `sluicer.Selection`
+
+```python
+class Selection
+```
+
+The values a selector gave, in the page's order, each a ``Selected``.
+
+A tuple, with ``get()`` for the first value, or a default when there is
+none, ``getall()`` for every value, and ``css``, ``xpath`` and ``select``
+to select inside each of its elements in turn.
+
+### `sluicer.Selected`
+
+```python
+class Selected
+```
+
+One value a selector gave, and where it was: ``value``, the text or the
+attribute read, its spaces collapsed; ``where``, the XPath of its element.
+
+A value read from an element can be selected inside, as the page is, by
+``css``, ``xpath`` and ``select``: the rows of a listing, then each row's
+fields. A text or an attribute has nothing inside it.
+
+### `sluicer.SelectorError`
+
+```python
+class SelectorError
+```
+
+A selector that cannot be read, or asks for what is not on a page: the
+message names the selector and says why.
+
+## The selector language
+
+### `sluicer.selectors.selector`
+
+```python
+selector(text: str) -> Selector
+```
+
+Read a selector in Sluicer's selector language.
+
+``xpath:`` or ``css:`` before it says which it is. Otherwise one that
+begins as only an XPath can -- ``/``, ``./``, ``../``, ``(`` or ``@`` -- is
+an XPath, and anything else CSS: ``//h1`` and ``(//li)[1]`` are XPath,
+``h1``, ``.price`` and ``li > a::attr(href)`` CSS.
+
+**Raises**
+
+- `SelectorError`: the text is empty, or not a selector of its kind.
+
+### `sluicer.selectors.Selector`
+
+```python
+class Selector:
+    text: str
+    kind: str
+    xpath: str
+    reads: str
+    attribute: str | None
+```
+
+A selector as written and as it is evaluated.
+
+``kind`` is ``css`` or ``xpath``. For CSS, ``xpath`` is what the
+selector's elements are found by, and ``reads`` says what of each is
+read: ``element`` its whole text, ``text`` its own text nodes (``::text``),
+``attribute`` the one named by ``attribute`` (``::attr(name)``). An
+XPath reads what it selects, an element, a text or an attribute, and its
+``reads`` is ``selected``.
+
 ## The main content as markdown
 
 ### `sluicer.to_markdown`
@@ -322,6 +430,8 @@ compile_extractor(
     listing: bool | None = None,
     names: Sequence[str] | None = None,
     want: Mapping[str, str] | None = None,
+    select: Mapping[str, str] | None = None,
+    rows: str | None = None,
 ) -> Extractor
 ```
 
@@ -333,11 +443,14 @@ Learn an extractor from pages of one template.
 - `listing`: learn the listing the pages repeat. None, the default, learns one unless a page declares its own subject -- a product, an article -- whose page it is; True looks for one anyway.
 - `names`: what to call each page in ``learnt_from``; its address by default.
 - `want`: example values, by the name each is to have: ``{"price": "41.90", "title": "Brake pad set"}``. When a repeated group's rows hold every one, each in a column of its own -- the first such group, in page order -- they choose the listing and its columns, which are only the ones named. When no one group holds them all, or with ``listing=False``, they are the page's own values, a product page's price and title, each learnt where it sits on the page, the page's own place before its furniture and its listings. A value matches when it says the same with its spaces collapsed, or is the same amount.
+- `select`: fields a person writes instead of examples, by the name each is to have: ``{"title": "h1", "price": "span.price::text"}``, each a selector, CSS or XPath (see ``sluicer.selectors.selector``). Nothing is learnt of where they are; from the pages, if any are given, each field's presence, shape and reading is, and what the pages declare. A selector that gives nothing on a page it is written from is an error that names it.
+- `rows`: with ``select``, the selector of a listing's rows, each field then read inside each row: ``li.product``, and ``.//a`` for an XPath inside it.
 
 **Raises**
 
-- `NothingToLearn`: the pages declare nothing and repeat nothing, or no repeated group holds every example in ``want``.
-- `ValueError`: ``want`` with ``listing=False``, or a name that is empty.
+- `NothingToLearn`: the pages declare nothing and repeat nothing, or no repeated group holds every example in ``want``, or a selector in ``select`` gives nothing on a page given.
+- `SelectorError`: a selector in ``select`` or ``rows`` cannot be read; a ``ValueError``.
+- `ValueError`: ``want`` with ``listing=False``, or a name that is empty; ``select`` with ``want`` or ``listing``, or ``rows`` without it.
 
 ### `sluicer.extractor.run_extractor`
 
@@ -395,6 +508,7 @@ class Extractor:
     notes: tuple[str, ...]
     version: str
     fields: tuple[PageField, ...]
+    written: Written | None
 ```
 
 What a template's pages were learnt to hold, as a replayable contract.
@@ -416,6 +530,48 @@ class Run:
 ```
 
 An extractor replayed on one page. ``ok`` is False when any check failed.
+
+## Hand-written extractors
+
+### `sluicer.written.Written`
+
+```python
+class Written:
+    fields: tuple[WrittenField, ...]
+    rows: str | None
+    empty: float
+```
+
+The fields of a hand-written extractor, and the rows they are read in.
+
+``rows`` is the selector of a listing's rows, each field read inside
+each one, or None when the fields are the page's own. ``empty`` is the
+largest share of a learnt page's rows that held none of the fields.
+
+### `sluicer.written.WrittenField`
+
+```python
+class WrittenField:
+    name: str
+    selector: str
+    shape: str | None
+    reads: str | None
+    samples: tuple[str, ...]
+    missing: float
+    first: bool
+```
+
+One field a person named by selector, and what the pages it was
+written from showed of it.
+
+``selector`` is as written, CSS or XPath; in a listing it is read inside
+each row. The value is its first non-empty one, and ``first`` says it may
+have several: False holds it to one, since a second value where there
+was one -- an old price beside the new -- makes the first the wrong one.
+``missing`` is the share of learnt rows without it, ``shape`` and
+``reads`` are learnt as a learnt field's are, and ``samples`` are a few
+of its values. Every one of them is at its strictest when no page taught
+it: required, held to one value, shape and reading unchecked.
 
 ## Many pages
 
