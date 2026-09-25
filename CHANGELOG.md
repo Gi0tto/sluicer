@@ -2,6 +2,51 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Added
+- `bench/rdfa_conformance.py` and `docs/scoreboard-rdfa.md`: Sluicer's two
+  RDFa readers and extruct's against the W3C RDFa test suite, as rdfa.info
+  runs it, from `rdfa/rdfa.github.io` at a pinned commit (W3C Test Suite
+  License and W3C 3-clause BSD License), downloaded into `bench/cache/rdfa/`
+  and never committed. Every test written for HTML5 is run under each RDFa
+  1.1 set it is listed in, 237 runs; each answer is read into a graph and
+  asked the test's own SPARQL query by rdflib, in an environment of its own
+  (`bench/requirements/rdflib.txt`) that no install of Sluicer needs. On RDFa
+  1.1's 170 tests `sluicer.compat.extruct` passes 137 and extruct 132, which
+  raises on five documents that write `about="[]"` or `resource="[]"`;
+  `extract()`'s reader, which reads RDFa Lite into records that name no
+  subject, passes 7, and 21 of the 162 runs that name a subject when the
+  names are set aside. Held against the suite's expected graphs, subjects
+  aside, that reader gives 99 of RDFa 1.1's values right and 1 wrong, a
+  term with no `vocab` read as schema.org's, and misses 248, where
+  `compat.extruct` gives 333 right and 13 wrong, extruct's own 13. The
+  scoreboard files each test under a feature and says, for every test the
+  reader fails, which part of RDFa it leaves out on purpose;
+  `docs/known-limits.md` now names each of those parts.
+
+### Fixed
+- RDFa: a property on an element whose `rel` or `rev` names a term takes the
+  element's words, not its address, which is the link's: data-vocabulary.org's
+  breadcrumbs, `<a href="/" rel="v:url" property="v:title">Home</a>`, gave
+  the address as the title, on 10 of the 3,976 cached corpus pages, and now
+  give `Home`, as RDFa Core's processing rules and the W3C suite's test 0334
+  say.
+  A `rel` of HTML's own words, such as `nofollow`, still leaves the address
+  to the property, as HTML+RDFa says (test 0312). No summary changes.
+- RDFa: a `typeof` element whose `property` has `content` or `datatype` is a
+  subject holding that property, as RDFa Core's processing rules say and the
+  W3C suite's test 0317 checks; it was read as a link to an empty subject and
+  dropped. A `datatype` asks for the words, never the element's address.
+  Drupal 7 writes a node's author and tags this way, `<span
+  typeof="sioc:UserAccount" property="foaf:name" datatype="">`: over the
+  3,976 cached corpus pages, 8 pages gain 36 records -- 13 accounts and
+  people with their names, 23 tags with their labels -- and one record, a
+  tag, gains its label. That tag's page had it as its summary type,
+  `skos:Concept`, since OpenGraph's fields were folded into it; with seven
+  tags the page is a listing of them, and its type is `og:type`'s `article`.
+  Nothing else in `extract()`'s answer over the corpus moves.
+
 ## 0.8.0 - 2026-09-25
 
 ### Added
@@ -288,25 +333,6 @@ Dates are the day the work landed. Anything not listed here did not happen.
   processed by PyLD with the test's options and compared by the suite's own
   rules, and PyLD reading the pages itself checks the harness. Every failure
   is listed with its reason, the rules fixed in `bench/PREREG.md` first.
-- `bench/rdfa_conformance.py` and `docs/scoreboard-rdfa.md`: Sluicer's two
-  RDFa readers and extruct's against the W3C RDFa test suite, as rdfa.info
-  runs it, from `rdfa/rdfa.github.io` at a pinned commit (W3C Test Suite
-  License and W3C 3-clause BSD License), downloaded into `bench/cache/rdfa/`
-  and never committed. Every test written for HTML5 is run under each RDFa
-  1.1 set it is listed in, 237 runs; each answer is read into a graph and
-  asked the test's own SPARQL query by rdflib, in an environment of its own
-  (`bench/requirements/rdflib.txt`) that no install of Sluicer needs. On RDFa
-  1.1's 170 tests `sluicer.compat.extruct` passes 137 and extruct 132, which
-  raises on five documents that write `about="[]"` or `resource="[]"`;
-  `extract()`'s reader, which reads RDFa Lite into records that name no
-  subject, passes 7, and 21 of the 162 runs that name a subject when the
-  names are set aside. Held against the suite's expected graphs, subjects
-  aside, that reader gives 99 of RDFa 1.1's values right and 1 wrong, a
-  term with no `vocab` read as schema.org's, and misses 248, where
-  `compat.extruct` gives 333 right and 13 wrong, extruct's own 13. The
-  scoreboard files each test under a feature and says, for every test the
-  reader fails, which part of RDFa it leaves out on purpose;
-  `docs/known-limits.md` now names each of those parts.
 
 ### Changed
 - **Upgrading.** A type of another vocabulary than schema.org that a page's
@@ -983,41 +1009,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `extract` on an empty error page names the status, where it suggested
   `compile --want` on the site's error. A crawl and the MCP tools record
   the status as before.
-- RDFa: a property on an element whose `rel` or `rev` names a term takes the
-  element's words, not its address, which is the link's: data-vocabulary.org's
-  breadcrumbs, `<a href="/" rel="v:url" property="v:title">Home</a>`, gave
-  the address as the title, on 10 of the 3,976 cached corpus pages, and now
-  give `Home`, as RDFa Core's processing rules and the W3C suite's test 0334
-  say.
-  A `rel` of HTML's own words, such as `nofollow`, still leaves the address
-  to the property, as HTML+RDFa says (test 0312). No summary changes.
-- RDFa: a `typeof` element whose `property` has `content` or `datatype` is a
-  subject holding that property, as RDFa Core's processing rules say and the
-  W3C suite's test 0317 checks; it was read as a link to an empty subject and
-  dropped. A `datatype` asks for the words, never the element's address.
-  Drupal 7 writes a node's author and tags this way, `<span
-  typeof="sioc:UserAccount" property="foaf:name" datatype="">`: over the
-  3,976 cached corpus pages, 8 pages gain 36 records -- 13 accounts and
-  people with their names, 23 tags with their labels -- and one record, a
-  tag, gains its label. That tag's page had it as its summary type,
-  `skos:Concept`, since OpenGraph's fields were folded into it; with seven
-  tags the page is a listing of them, and its type is `og:type`'s `article`.
-  Nothing else in `extract()`'s answer over the corpus moves.
 
 ## 0.7.1 - 2026-09-25
 
 ### Added
-- `docs/state-of-declared-data.md`: what pages declare about themselves,
-  counted on every HTML page of four Common Crawl WARC files of
-  `CC-MAIN-2026-39`, chosen by a rule `bench/PREREG.md` fixed before any was
-  downloaded: the vocabularies, the types, the records folded across
-  vocabularies, the conflicts, the JSON-LD blocks that are not JSON and how
-  many Sluicer still reads, what normalises, canonicals and `hreflang`, robots
-  and TDMRep declarations, each rate with its Wilson interval, beside Web Data
-  Commons' counts for October 2024 where they measure the same thing.
-  Written by `bench/declared_report.py` from its counts,
-  `bench/declared-counts.json`; the files are pinned by SHA-256 in
-  `bench/declared-manifest.json`.
 - `docs/stability.md`: what is stable before 1.0 (`extract()` and
   `Extraction`, the summary's questions, the extractor file and its exit
   codes, the MCP tools and their documented fields), what is experimental
