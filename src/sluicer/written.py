@@ -41,6 +41,9 @@ from sluicer.extractor import (
     ListingField,
     NothingToLearn,
     Page as Source,
+    _by_page,
+    _by_page_json,
+    _by_page_of,
     _check_rows,
     _compiled,
     _fits,
@@ -76,8 +79,10 @@ class WrittenField:
     was one -- an old price beside the new -- makes the first the wrong one.
     ``missing`` is the share of learnt rows without it, ``shape`` and
     ``reads`` are learnt as a learnt field's are, and ``samples`` are a few
-    of its values. Every one of them is at its strictest when no page taught
-    it: required, held to one value, shape and reading unchecked.
+    of its values; ``absent_on_a_page`` and ``alike_on_a_page`` are what a
+    learnt column's are (``ListingField``). Every one of them is at its
+    strictest when no page taught it: required, held to one value, shape and
+    reading unchecked.
     """
 
     name: str
@@ -87,6 +92,8 @@ class WrittenField:
     samples: tuple[str, ...] = ()
     missing: float = 0.0
     first: bool = False
+    absent_on_a_page: bool = False
+    alike_on_a_page: bool = False
 
 
 @dataclass(frozen=True)
@@ -245,6 +252,7 @@ def _learn_rows(
     learnt listing's columns are."""
     notes: list[str] = []
     held: list[dict[str, str]] = []
+    by_page: list[list[dict[str, str]]] = []
     doubled: Counter[str] = Counter()
     addresses: Counter[str] = Counter()
     empty = 0.0
@@ -264,6 +272,7 @@ def _learn_rows(
         kept = [row for row in read if row]
         empty = max(empty, round(1 - len(kept) / len(elements), 4))
         held.extend(kept)
+        by_page.append(kept)
     fields = []
     for name, text in select.items():
         present = [row[name] for row in held if name in row]
@@ -289,6 +298,9 @@ def _learn_rows(
                 samples=tuple(dict.fromkeys(present))[:_SAMPLES],
                 missing=round(1 - len(present) / len(held), 4) if held else 0.0,
                 first=bool(doubled[name]),
+                **_by_page(
+                    [[row[name] for row in kept if name in row] for kept in by_page]
+                ),
             )
         )
     return Written(tuple(fields), rows, empty), notes
@@ -402,6 +414,8 @@ def _replayed(
             shape=f.shape,
             samples=f.samples,
             reads=f.reads,
+            absent_on_a_page=f.absent_on_a_page,
+            alike_on_a_page=f.alike_on_a_page,
         )
         _check_rows([column], rows, len(elements), written.empty, own, slots=False)
         said.extend((f.name, check) for check in own[len(level) :])
@@ -445,8 +459,10 @@ def _seldom(f: WrittenField, rows: int) -> str | None:
     listing leaves unchecked -- and that is under ``BY_CHANCE``; else None.
 
     A person named the column, and a selector a redesign broke finds it in no
-    row: a sale badge renamed passed every page as a day with no sale."""
-    if not 1 - _COMMON < f.missing < 1:
+    row: a sale badge renamed passed every page as a day with no sale. Rows
+    are not what carries a badge by chance, though, pages are: a column a
+    page it was learnt from carried in no row holds no page to it."""
+    if not 1 - _COMMON < f.missing < 1 or f.absent_on_a_page:
         return None
     chance = f.missing**rows
     if chance >= BY_CHANCE:
@@ -575,6 +591,7 @@ def written_json(written: Written) -> dict[str, Any]:
                 "reads": f.reads,
                 "samples": list(f.samples),
                 "first": f.first,
+                **(_by_page_json(f) if in_rows else {}),
             }
             for f in written.fields
         ],
@@ -628,4 +645,5 @@ def _field_of(raw: Any, in_rows: bool) -> WrittenField:
         samples=tuple(_text(v) for v in _list(raw.get("samples", []), "samples")),
         missing=_share(raw.get("missing", 0.0), "missing"),
         first=first,
+        **_by_page_of(raw),
     )

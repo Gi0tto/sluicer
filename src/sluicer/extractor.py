@@ -115,6 +115,15 @@ class ListingField:
     ``sluicer.normalise``), which the shape alone cannot say: ``12.99`` and
     ``2025-01-02`` are both digits and punctuation, and two columns that swap
     them keep their shapes."""
+    absent_on_a_page: bool = False
+    """A page it was learnt from carried it in no row. ``missing`` pools the
+    rows of every page, and a column comes and goes by the page -- a "Sold
+    out" badge on half of one category and on none of the next -- so a page
+    without it is then no evidence it is gone."""
+    alike_on_a_page: bool = False
+    """A page it was learnt from gave it one value in every row, of
+    ``_SHAPE_EVIDENCE`` or more: a brand the same across one brand's page,
+    another on the next. A page that does the same has not drifted."""
 
 
 @dataclass(frozen=True)
@@ -252,6 +261,7 @@ class Extractor:
                         "shape": f.shape,
                         "reads": f.reads,
                         "samples": list(f.samples),
+                        **_by_page_json(f),
                     }
                     for f in self.listing.fields
                 ],
@@ -351,6 +361,38 @@ def _extractor_of(body: Any) -> Extractor:
     )
 
 
+def _by_page_json(f: Any) -> dict[str, bool]:
+    """What a column's file says of its learning pages one by one: only what
+    was so, since a key left out keeps every check."""
+    return {
+        key: True for key in ("absent_on_a_page", "alike_on_a_page") if getattr(f, key)
+    }
+
+
+def _by_page_of(raw: dict[str, Any]) -> dict[str, bool]:
+    """``_by_page_json`` read back, each value checked."""
+    read = {}
+    for key in ("absent_on_a_page", "alike_on_a_page"):
+        value = raw.get(key, False)
+        if type(value) is not bool:
+            raise ValueError(f"{key} is true or false, not {value!r}")
+        read[key] = value
+    return read
+
+
+def _by_page(pages: list[list[str]]) -> dict[str, bool]:
+    """What a column's values, page by page, say that pooled they do not: a
+    page carried it in no row, or a page of ``_SHAPE_EVIDENCE`` values or
+    more gave it one value in every row. Each turns off the check a page it
+    was learnt from would fail (``ListingField``)."""
+    return {
+        "absent_on_a_page": any(not values for values in pages),
+        "alike_on_a_page": any(
+            len(values) >= _SHAPE_EVIDENCE and len(set(values)) == 1 for values in pages
+        ),
+    }
+
+
 def _listing_of_file(raw: Any) -> Listing:
     """A listing as its file holds it, every value checked: a value no check
     can be true of -- ``"missing": "nan"`` -- turns the check off without a
@@ -406,6 +448,8 @@ def _listing_of_file(raw: Any) -> Listing:
                 # Absent from a 0.3 file, which learnt no reading.
                 reads=_reading(f.get("reads")),
                 samples=tuple(_text(v) for v in _list(f["samples"], "samples")),
+                # Absent from a file before 0.8, which pooled every page.
+                **_by_page_of(f),
             )
             for f in _list(raw["fields"], "fields")
         ),
@@ -945,7 +989,7 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
             f"the listing is at {container} on {places[(container, member)]} of "
             f"{len(docs)} pages; the others were ignored"
         )
-    rows: list[dict[str, str]] = []
+    rows: list[list[dict[str, str]]] = []
     counts: list[int] = []
     empty = 0.0
     for c, m, members, doc in found:
@@ -953,16 +997,14 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
             continue
         page_rows = _rows_of(members, doc)
         counts.append(len(page_rows))
-        rows.extend(page_rows)
+        rows.append(page_rows)
         # Counted as a replay counts: every child of the learnt kind.
         replayed = _members(members[0].getparent(), member)
         if replayed:
             carried = len(_rows_of(replayed, doc))
             empty = max(empty, round(1 - carried / len(replayed), 4))
-    paths = list(dict.fromkeys(path for row in rows for path in row))
-    fields = tuple(
-        _profile(path, path, [row.get(path) for row in rows]) for path in paths
-    )
+    paths = list(dict.fromkeys(path for page in rows for row in page for path in row))
+    fields = tuple(_profile(path, path, _column(rows, path)) for path in paths)
     rows_range = (min(counts), max(counts))
     learnt_on = [doc for c, m, _, doc in found if (c, m) == (container, member)]
     return Listing(
@@ -1018,7 +1060,7 @@ def _learn_wanted(
             "each in a column of its own"
         )
     container, member = chosen
-    rows: list[dict[str, str]] = []
+    rows: list[list[dict[str, str]]] = []
     counts: list[int] = []
     empty = 0.0
     for doc in docs:
@@ -1028,7 +1070,7 @@ def _learn_wanted(
         if not page_rows:
             continue
         counts.append(len(page_rows))
-        rows.extend(page_rows)
+        rows.append(page_rows)
         empty = max(empty, round(1 - len(page_rows) / len(members), 4))
     notes = [
         f"{name}={want[name]!r} was in {len(paths)} places in a row; "
@@ -1045,8 +1087,7 @@ def _learn_wanted(
             "the others were ignored"
         )
     fields = tuple(
-        _profile(name, path, [row.get(path) for row in rows])
-        for name, path in columns.items()
+        _profile(name, path, _column(rows, path)) for name, path in columns.items()
     )
     listing = Listing(
         container,
@@ -1133,7 +1174,7 @@ def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
 def _listing_at(docs: list[Document], container: str, member: str) -> Listing:
     """The listing at ``container``, rows of ``member``, every column of it, as
     the pages that have it hold it. One of them must."""
-    rows: list[dict[str, str]] = []
+    rows: list[list[dict[str, str]]] = []
     counts: list[int] = []
     empty = 0.0
     for doc in docs:
@@ -1142,13 +1183,11 @@ def _listing_at(docs: list[Document], container: str, member: str) -> Listing:
         page_rows = _rows_of(members, doc) if members else []
         if page_rows:
             counts.append(len(page_rows))
-            rows.extend(page_rows)
+            rows.append(page_rows)
             empty = max(empty, round(1 - len(page_rows) / len(members), 4))
     # Never empty: the group was found on one of these pages, at this path.
-    paths = list(dict.fromkeys(path for row in rows for path in row))
-    fields = tuple(
-        _profile(path, path, [row.get(path) for row in rows]) for path in paths
-    )
+    paths = list(dict.fromkeys(path for page in rows for row in page for path in row))
+    fields = tuple(_profile(path, path, _column(rows, path)) for path in paths)
     return Listing(
         container,
         member,
@@ -1874,7 +1913,15 @@ def _listing_of(doc: Document) -> list[HtmlElement] | None:
     return None
 
 
-def _profile(name: str, path: str, values: list[str | None]) -> ListingField:
+def _column(rows: list[list[dict[str, str]]], path: str) -> list[list[str | None]]:
+    """What each page's rows hold at ``path``, page by page."""
+    return [[row.get(path) for row in page] for page in rows]
+
+
+def _profile(name: str, path: str, pages: list[list[str | None]]) -> ListingField:
+    """A column as the rows of its pages show it, ``pages`` its values page by
+    page: pooled, and what a page alone said (``_by_page``)."""
+    values = [value for page in pages for value in page]
     present = [value for value in values if value]
     shapes = {shape(value) for value in present}
     # A shape learnt from a handful of values is a coincidence, not a rule.
@@ -1886,6 +1933,7 @@ def _profile(name: str, path: str, values: list[str | None]) -> ListingField:
         shape=(shapes.pop() or None) if shaped and not _is_address(path) else None,
         samples=tuple(dict.fromkeys(present))[:_SAMPLES],
         reads=_reads(present) if not _is_address(path) else None,
+        **_by_page([[value for value in page if value] for page in pages]),
     )
 
 
@@ -2330,9 +2378,9 @@ def _check_rows(
                     share >= floor,
                 )
             )
-        elif learnt >= _COMMON:
+        elif learnt >= _COMMON and not f.absent_on_a_page:
             # Most rows had it, and how many varies from page to page; gone from
-            # every row is gone.
+            # every row is gone, unless a page it was learnt from had it in none.
             checks.append(
                 Check("field", f"{f.name} in some rows", f"in {share:.0%}", share > 0)
             )
@@ -2374,7 +2422,11 @@ def _check_rows(
                     kept_shape > 0 if few else kept_shape >= SHAPE_KEPT,
                 )
             )
-        if len(f.samples) >= _VARIED and len(present) >= _SHAPE_EVIDENCE:
+        if (
+            len(f.samples) >= _VARIED
+            and len(present) >= _SHAPE_EVIDENCE
+            and not f.alike_on_a_page
+        ):
             distinct = len(set(present))
             checks.append(
                 Check(
@@ -2642,6 +2694,8 @@ def _heal_listing(
             shape=f.shape,
             samples=f.samples,
             reads=f.reads,
+            absent_on_a_page=f.absent_on_a_page,
+            alike_on_a_page=f.alike_on_a_page,
         )
         for f in new.fields
         # A new column keeps its path as its name, unless a moved one took it;

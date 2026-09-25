@@ -210,6 +210,18 @@ field's values must keep its shape, and a shape needs five values to be learnt
 or to be held to that half; a page with fewer values is held to one at least.
 Editing the JSON changes what was learnt, not the thresholds.
 
+**A rare column is missed only from enough rows, and never by the page.** A
+hand-written listing's column fewer than half the learnt rows carried -- a
+sale badge -- fails a page none of whose rows carries it only when that is
+under a 1% chance, taken row by row: a page of ten rows without a badge
+three rows in ten carried is 2.8%, and passes, whether nothing is on sale
+that day or a redesign broke the badge's selector. When a page it was
+learnt from carried it in no row, no page is held to it at all, since
+badges come by the page. A learnt listing holds a column fewer than half
+its rows carried to nothing, and a column is not held to differ from row to
+row when a page it was learnt from gave it one value in each of five rows or
+more.
+
 **Two free-text columns can swap unnoticed** on a page the extractor was not
 learnt from: a title and a brand keep their shapes, and neither reads as an
 amount or a date. A swap is caught when one side read as an amount or a date

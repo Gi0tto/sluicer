@@ -305,6 +305,79 @@ def test_a_column_few_rows_carry_fails_when_no_row_of_a_long_page_does():
     assert short.ok and not none_on_sale.ok
 
 
+def _category(rows: int, start: int, badged: int = 0, brand: str | None = None):
+    """A category page of ``rows`` parts, the first ``badged`` sold out, each
+    of its own brand or all of ``brand``."""
+    return listing(
+        [
+            f'<a class="title" href="/p/{n}">Part {n}</a>'
+            f'<span class="price">£{n}.99</span>'
+            f'<span class="brand">{brand or f"Brand {n}"}</span>'
+            + ('<span class="sold">Sold out</span>' if n - start < badged else "")
+            for n in range(start, start + rows)
+        ]
+    )
+
+
+CATEGORY = {"title": "a.title", "price": "span.price", "brand": "span.brand"}
+
+
+def test_a_column_a_learning_page_had_in_no_row_holds_no_page_to_it():
+    """A "Sold out" badge on half the rows of one category and on none of
+    two others: taken as rows each carrying it one time in six, a page of
+    thirty without it was a 0.42% chance, and the extractor failed two of
+    the three pages it was learnt from. Badges come by the page; a column a
+    learning page carried in no row is not missed from a page that does the
+    same."""
+    pages = [
+        (_category(30, 0, badged=15), "https://shop.example/c/brakes"),
+        (_category(30, 100), "https://shop.example/c/filters"),
+        (_category(30, 200), "https://shop.example/c/wipers"),
+    ]
+    extractor = compile_extractor(
+        pages, select={**CATEGORY, "sold": "span.sold"}, rows="li.product"
+    )
+    sold = extractor.written.fields[-1]
+    assert (sold.missing, sold.absent_on_a_page) == (0.8333, True)
+    again = Extractor.from_json(extractor.to_json())
+    assert again.written == extractor.written
+
+    for each in (extractor, again):
+        for html, url in [*pages, (_category(30, 300), "https://shop.example/c/x")]:
+            run = run_extractor(each, html, url)
+            assert run.ok, (url, [(c.expected, c.got) for c in run.checks if not c.ok])
+
+
+@pytest.mark.parametrize(
+    "pages",
+    [
+        # A column most rows carry, on every row of two pages and none of the
+        # third: pooled, two rows in three, and held to some row on each.
+        [(_category(30, 100 * n, badged=30 * (n < 2)), None) for n in range(3)],
+        # A brand the same in every row of each page, and another on each
+        # page: pooled, three brands, and held to differ from row to row.
+        [
+            (_category(30, 100 * n, brand=b), None)
+            for n, b in enumerate(("Bosch", "ATE", "Brembo"))
+        ],
+    ],
+    ids=["most-rows-but-not-one-page", "one-value-per-page"],
+)
+def test_no_extractor_fails_a_page_it_was_learnt_from(pages):
+    """What a listing's rows hold is learnt from all its pages' rows pooled,
+    and a page is held to it alone: a page it was learnt from failed a rule
+    the pool made. Learnt or written, each page it was learnt from passes."""
+    pages = [(html, f"https://shop.example/c/{n}") for n, (html, _) in enumerate(pages)]
+    learnt = compile_extractor(pages, listing=True)
+    sold = {"sold": "span.sold"} if b"Sold out" in pages[0][0] else {}
+    written = compile_extractor(pages, select={**CATEGORY, **sold}, rows="li.product")
+    for extractor in (learnt, written):
+        extractor = Extractor.from_json(extractor.to_json())
+        for html, url in pages:
+            run = run_extractor(extractor, html, url)
+            assert run.ok, (url, [(c.expected, c.got) for c in run.checks if not c.ok])
+
+
 def test_heal_reports_a_column_no_new_row_carries_broken():
     old = on_sale()
 

@@ -456,7 +456,24 @@ Dates are the day the work landed. Anything not listed here did not happen.
   when no new row carried it. `heal` now reports it `broken` when the new
   pages' rows together make that as unlikely. Ten rows without the badge
   (2.8%) still pass, and a page of twenty on which truly nothing is on sale
-  fails as a redesign would.
+  fails as a redesign would. The rows of one page are not what a badge comes
+  by, though: a column a page it was learnt from carried in no row holds no
+  page to it, so an extractor learnt from three category pages of thirty, a
+  "Sold out" badge on half of one and on none of the others, passes the two
+  without it (they were a 0.42% chance, taken row by row), and fails nothing
+  for a badge truly gone from such a template either
+  (`docs/known-limits.md`).
+- A listing learnt or written from several pages no longer fails one of them
+  for what the pages' rows said only when pooled. A column most rows carried
+  was held to some row on every page, though a page it was learnt from had
+  it in none; a column of three values was held to differ from row to row,
+  though each page gave it one value in every row -- a brand, on each
+  brand's page. The extractor failed the pages it was learnt from, with
+  exit 3, since 0.7.1 for a learnt listing. Each column's file now says
+  when a page it was learnt from carried it in no row
+  (`"absent_on_a_page": true`) or gave it one value in every row
+  (`"alike_on_a_page": true`), and that check is not made; a file without
+  them, 0.7.1's among them, keeps every check.
 - A hand-written field is taken for an address, with no shape or reading to
   hold it to, only when its values are read from an `href` or a `src`. 0.8.0
   decided from the selector's text, and `.//a[@href]` -- the links that have

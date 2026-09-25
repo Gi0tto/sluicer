@@ -614,6 +614,8 @@ class WrittenField:
     samples: tuple[str, ...]
     missing: float
     first: bool
+    absent_on_a_page: bool
+    alike_on_a_page: bool
 ```
 
 One field a person named by selector, and what the pages it was
@@ -625,8 +627,10 @@ have several: False holds it to one, since a second value where there
 was one -- an old price beside the new -- makes the first the wrong one.
 ``missing`` is the share of learnt rows without it, ``shape`` and
 ``reads`` are learnt as a learnt field's are, and ``samples`` are a few
-of its values. Every one of them is at its strictest when no page taught
-it: required, held to one value, shape and reading unchecked.
+of its values; ``absent_on_a_page`` and ``alike_on_a_page`` are what a
+learnt column's are (``ListingField``). Every one of them is at its
+strictest when no page taught it: required, held to one value, shape and
+reading unchecked.
 
 ## Many pages
 
