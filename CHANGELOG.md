@@ -388,6 +388,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A found configuration file whose macOS access list lets only its owner
+  write it is read: `chmod +a "user:$(whoami) allow write"` counted as
+  others writing it. One whose list lets anyone else write it is refused as
+  before, now saying how to remove the entry (`chmod -a# N`, or `chmod -N`
+  for the whole list) instead of `chmod go-w`, which changes the mode bits
+  and leaves the list as it was. Found by the second correctness review.
 - A value at the top of a configuration file is judged by every command that
   takes its key, whether or not the command's own table sets the key too.
   `format = "jsonl"` with `[crawl]` and `[batch]` each setting `format =

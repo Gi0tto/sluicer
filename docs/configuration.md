@@ -62,8 +62,11 @@ fetch are kept, who can reach `sluicer serve`, and whether robots.txt is
 obeyed. Only a file you name, with `--config` or `SLUICER_CONFIG`, sets
 those; one found that tries is refused, naming the key and what to do. It must
 also be yours, and writable by you alone: one someone else can write, in a
-shared directory above yours or through a macOS access list, is refused too. A
-file you name is read as you named it.
+shared directory above yours or through a macOS access list, is refused too.
+`chmod go-w` takes the mode's write bits away; an access list is not in them,
+so `ls -le` shows its entries, `chmod -a# N` removes entry N and `chmod -N`
+the whole list. An entry that lets only you, the file's owner, write it is no
+reason to refuse it. A file you name is read as you named it.
 
 ## What wins
 

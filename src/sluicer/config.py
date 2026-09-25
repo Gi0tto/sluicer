@@ -317,16 +317,23 @@ def _check_owner(path: Path) -> None:
     if not hasattr(os, "getuid"):
         return
     status = path.stat()
+    fix = "make it yours alone (chmod go-w)"
     if status.st_uid != os.getuid():
         why = "belongs to another user"
-    elif status.st_mode & 0o022 or _listed_writers(path):
+    elif status.st_mode & 0o022:
         why = "others can write it"
+    elif _listed_writers(path, status.st_uid):
+        # chmod go-w changes the mode bits, and the list is not in them.
+        why = "others can write it through its access list"
+        fix = (
+            "remove the entries that let them (ls -le lists them, chmod -a# N "
+            "removes entry N, chmod -N the whole list)"
+        )
     else:
         return
     raise ConfigError(
         f"{path} {why}, and a configuration file sets what is sent on your "
-        f"behalf: make it yours alone (chmod go-w), name it with --config, or "
-        f"run with --no-config."
+        f"behalf: {fix}, name it with --config, or run with --no-config."
     )
 
 
@@ -338,23 +345,28 @@ _ACL_EXTENDED_ALLOW = 1
 _ACL_CHANGES = (1 << 2, 1 << 4, 1 << 5, 1 << 12, 1 << 13)
 
 
-def _listed_writers(path: Path) -> bool:
-    """Whether an access list on ``path`` allows anyone to change it.
+def _listed_writers(path: Path, owner: int) -> bool:
+    """Whether an access list on ``path`` allows anyone but ``owner``, the
+    file's owner, to change it.
 
     macOS keeps access lists beside the mode bits, which do not show them:
-    ``chmod +a "everyone allow write"`` leaves a file ``-rw-------``. Linux's
+    ``chmod +a "everyone allow write"`` leaves a file ``-rw-------``. An entry
+    naming the owner allows no more than the owner may do anyway. Linux's
     lists show in the group bits, which the mode check reads. Where the list
     cannot be asked for, there is taken to be none, as on a system with no
     owners.
     """
     if sys.platform != "darwin":
         return False
-    return _darwin_listed_writers(path)
+    return _darwin_listed_writers(path, owner)
 
 
-def _darwin_listed_writers(path: Path) -> bool:  # pragma: no cover - macOS only
+def _darwin_listed_writers(path: Path, owner: int) -> bool:  # pragma: no cover
     """``_listed_writers`` on macOS, through libc. CI measures coverage on
-    Linux; tests/test_config.py runs this on macOS, where it is reached."""
+    Linux; tests/test_config.py runs this on macOS, where it is reached.
+
+    An entry names a user or a group by a UUID, which ``mbr_uid_to_uuid``
+    gives for the owner; where it cannot, every entry counts."""
     import ctypes
     import ctypes.util
 
@@ -363,6 +375,7 @@ def _darwin_listed_writers(path: Path) -> bool:  # pragma: no cover - macOS only
         get_file, get_entry = libc.acl_get_file, libc.acl_get_entry
         get_tag, get_permset = libc.acl_get_tag_type, libc.acl_get_permset
         get_perm, free = libc.acl_get_perm_np, libc.acl_free
+        get_qualifier, uid_to_uuid = libc.acl_get_qualifier, libc.mbr_uid_to_uuid
     except (OSError, AttributeError):
         return False
     get_file.restype = ctypes.c_void_p
@@ -372,6 +385,11 @@ def _darwin_listed_writers(path: Path) -> bool:  # pragma: no cover - macOS only
     get_permset.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
     get_perm.argtypes = [ctypes.c_void_p, ctypes.c_int]
     free.argtypes = [ctypes.c_void_p]
+    get_qualifier.restype = ctypes.c_void_p
+    get_qualifier.argtypes = [ctypes.c_void_p]
+    uid_to_uuid.argtypes = [ctypes.c_uint32, ctypes.c_void_p]
+    uuid = ctypes.create_string_buffer(16)
+    own = uuid.raw if uid_to_uuid(owner, uuid) == 0 else None
     acl = get_file(os.fsencode(path), _ACL_TYPE_EXTENDED)
     if not acl:
         return False
@@ -386,7 +404,15 @@ def _darwin_listed_writers(path: Path) -> bool:  # pragma: no cover - macOS only
                 continue
             if get_permset(entry, ctypes.byref(perms)) != 0:
                 continue
-            if any(get_perm(perms, change) == 1 for change in _ACL_CHANGES):
+            if not any(get_perm(perms, change) == 1 for change in _ACL_CHANGES):
+                continue
+            named = get_qualifier(entry)
+            try:
+                whom = ctypes.string_at(named, 16) if named else None
+            finally:
+                if named:
+                    free(named)
+            if own is None or whom != own:
                 return True
         return False
     finally:

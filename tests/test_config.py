@@ -620,6 +620,24 @@ def test_a_file_found_that_an_access_list_lets_others_write_is_refused(here, cra
 
     assert result.exit_code == 2 and crawled == []
     assert "others can write" in result.stderr
+    # chmod go-w changes the mode bits, which do not hold the list.
+    assert "chmod -N" in result.stderr and "go-w" not in result.stderr
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS's access lists")
+def test_an_access_list_entry_for_the_owner_is_no_reason_to_refuse(here, crawled):
+    """Found by the second review: an entry letting the file's own owner
+    write it was counted as others writing it."""
+    import getpass
+
+    found = _write(here / "sluicer.toml", "delay = 4\n")
+    found.chmod(0o600)
+    _acl(found, f"user:{getpass.getuser()} allow write,append,delete")
+
+    result = _run("crawl", URL)
+
+    assert "others can write" not in result.stderr
+    assert crawled[0]["min_delay"] == 4
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="macOS's access lists")
