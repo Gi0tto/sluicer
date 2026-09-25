@@ -5,6 +5,27 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Added
+- The image on the GitHub Container Registry: `ghcr.io/gi0tto/sluicer`, for
+  amd64 and arm64, at each release's version and at `latest`. The release
+  builds it from the tagged source on a runner of each architecture, and
+  pushes it only after a client has listed its ten tools from it over stdio,
+  its HTTP API has listed them too, it has been seen to run unprivileged, and
+  its licences have been found in it. The push waits for the repository
+  variable `PUBLISH_TO_GHCR`, as PyPI's waits for `PUBLISH_TO_PYPI`.
+- The image carries, under `/usr/share/licenses/sluicer/`, Sluicer's LICENSE,
+  NOTICE and LICENSES/, and in `THIRD-PARTY.txt` the licence text of every
+  Python package installed in it, lxml's bundled libxml2 and libxslt among
+  them; the build stops when a package installed no licence file.
+
+### Fixed
+- The image's wheel was built without NOTICE and LICENSES/, since the
+  Dockerfile copied LICENSE alone: 0.7.0's image shipped schema.org's and
+  CLDR's data with neither their licences nor the notice saying which files
+  they cover.
+
+## 0.7.1
+
+### Added
 - `docs/stability.md`: what is stable before 1.0 (`extract()` and
   `Extraction`, the summary's questions, the extractor file and its exit
   codes, the MCP tools and their documented fields), what is experimental

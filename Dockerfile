@@ -12,8 +12,7 @@
 
 # The first stage builds the wheel from the source it is given, and only that
 # wheel is installed below: never a sluicer from PyPI, whose latest release is
-# not necessarily the source being built. The release workflow checks that the
-# wheel installed here is, file for file, the one it built and tested.
+# not necessarily the source being built.
 FROM python:3.13-slim AS wheel
 
 WORKDIR /src
@@ -33,7 +32,7 @@ FROM python:3.13-slim
 ARG WITH_BROWSER=0
 # The version the labels state. The build stops if the wheel says another, and
 # a test holds this line to pyproject.toml.
-ARG SLUICER_VERSION=0.7.0
+ARG SLUICER_VERSION=0.7.1
 
 LABEL org.opencontainers.image.title="Sluicer" \
       org.opencontainers.image.description="The data a web page declares, with where each value came from. No model, no API key." \
@@ -53,10 +52,17 @@ COPY --from=wheel /wheels /wheels
 # finds them without knowing Python's layout.
 COPY LICENSE NOTICE /usr/share/licenses/sluicer/
 COPY LICENSES /usr/share/licenses/sluicer/LICENSES
+COPY packaging/third_party.py /tmp/third_party.py
 
+# Then the licences of everything the extras bring, in THIRD-PARTY.txt beside
+# Sluicer's: an image is a copy of every package in it, and BSD, MIT and
+# Apache-2.0 ask for their text to go with a copy. The build stops if a
+# package installed no licence file.
 RUN wheel=$(ls /wheels/sluicer-*.whl) \
     && pip install --no-cache-dir "${wheel}[fetch,markdown,mcp,api]" \
     && rm -rf /wheels \
+    && python /tmp/third_party.py /usr/share/licenses/sluicer/THIRD-PARTY.txt \
+    && rm /tmp/third_party.py \
     && python -c "import sluicer, importlib.metadata as md; \
 names = {f.name for f in md.files('sluicer') if 'licenses' in f.parts}; \
 assert {'LICENSE', 'NOTICE', 'CC-BY-SA-3.0.txt', 'Unicode-3.0.txt'} <= names, names; \

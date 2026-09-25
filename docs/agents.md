@@ -157,6 +157,24 @@ write its full path, which `which uvx` prints.
 }
 ```
 
+**In Docker** -- the image's default command is the MCP server over stdio,
+so a client starts it with `-i`:
+
+```json
+{
+  "mcpServers": {
+    "sluicer": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "ghcr.io/gi0tto/sluicer"]
+    }
+  }
+}
+```
+
+Each release from 0.8.0 publishes the image, for amd64 and arm64, after a
+client has listed its ten tools from it; the [HTTP API](http-api.md#in-docker)
+page says what it carries.
+
 **Anything else that speaks MCP** -- over stdio, the command above.
 
 ## In your own agent's code

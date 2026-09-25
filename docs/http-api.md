@@ -47,18 +47,23 @@ it, or the token crosses the network in the clear.
 
 ### In Docker
 
-The image carries the extra. Inside a container the server has to listen on
-every interface to be reachable through a published port, so it needs a token:
+The image carries the extra. From 0.8.0 each release publishes it, for amd64
+and arm64, as `ghcr.io/gi0tto/sluicer` (at the version, and at `latest`), or
+build it from a checkout with `docker build -t sluicer .`. Inside a container
+the server has to listen on every interface to be reachable through a
+published port, so it needs a token:
 
 ```bash
-docker build -t sluicer .
 docker run --rm -p 127.0.0.1:8000:8000 -e SLUICER_API_TOKEN="$SLUICER_API_TOKEN" \
-  sluicer sluicer serve --host 0.0.0.0
+  ghcr.io/gi0tto/sluicer sluicer serve --host 0.0.0.0
 ```
 
 `-p 127.0.0.1:8000:8000` publishes it on the host's loopback only; write
-`-p 8000:8000` to publish it on every interface of the host. Build with
-`--build-arg WITH_BROWSER=1` for pages that need the browser rung.
+`-p 8000:8000` to publish it on every interface of the host. The published
+image has no browser; build with `--build-arg WITH_BROWSER=1` for pages that
+need the browser rung. It runs as an unprivileged user, and carries Sluicer's
+licences and those of everything it installs under
+`/usr/share/licenses/sluicer/`.
 
 ## Call it
 

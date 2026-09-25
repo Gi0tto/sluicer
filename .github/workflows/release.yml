@@ -68,6 +68,89 @@ jobs:
           "
           .venv/bin/sluicer --version
 
+  image:
+    # Built from the tagged source, like any build of the Dockerfile, on a
+    # runner of each architecture: an arm64 image built under emulation is
+    # also tested under it, and a Mac runs arm64. Each is tested as a client
+    # uses it before anything is pushed, so a tag always proves its image and
+    # only the push waits for the owner to turn it on.
+    name: The image on ${{ matrix.arch }} answers over MCP and HTTP, then is pushed
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the image
+        run: docker build -t sluicer:release .
+      - name: A client lists its ten tools over stdio
+        # A real MCP handshake with the image, as an agent's client starts it:
+        # an image that installs but cannot answer tools/list stops here.
+        run: python3 packaging/mcp_smoke.py -- docker run -i --rm sluicer:release
+      - name: It serves the tools over HTTP, as nobody, with its licences
+        run: |
+          uid=$(docker run --rm sluicer:release id -u)
+          test "$uid" != 0 || { echo "the image runs as root"; exit 1; }
+          docker run --rm sluicer:release sh -c 'cd /usr/share/licenses/sluicer &&
+            test -s LICENSE && test -s NOTICE && test -s LICENSES/CC-BY-SA-3.0.txt &&
+            test -s LICENSES/Unicode-3.0.txt && grep -q "^lxml " THIRD-PARTY.txt'
+          docker run -d --name api -p 127.0.0.1:8000:8000 -e SLUICER_API_TOKEN=release \
+            sluicer:release sluicer serve --host 0.0.0.0
+          for attempt in $(seq 30); do
+            curl -fsS http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+          count=$(curl -fsS -H 'Authorization: Bearer release' http://127.0.0.1:8000/v1/tools \
+            | python3 -c 'import json, sys; print(len(json.load(sys.stdin)["tools"]))')
+          test "$count" = 10 || { echo "the HTTP API lists $count tools"; exit 1; }
+          docker rm -f api
+      - name: Push it to the GitHub Container Registry
+        # Off until the repository variable PUBLISH_TO_GHCR is true, as the
+        # PyPI job waits for PUBLISH_TO_PYPI. The workflow's own token pushes,
+        # and the image's source label links the package to this repository.
+        if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_TO_GHCR == 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME#v}-${{ matrix.arch }}"
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag sluicer:release "$image"
+          docker push "$image"
+
+  image-index:
+    # One name for both architectures, so `docker pull` picks the machine's
+    # own. imagetools puts the description on the index, where the registry
+    # reads it for an image of several architectures.
+    name: One name for both architectures, at the version and at latest
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_TO_GHCR == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          version="${GITHUB_REF_NAME#v}"
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.description=The data a web page declares, with where each value came from. No model, no API key." \
+            --annotation "index:org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --annotation "index:org.opencontainers.image.licenses=MIT AND CC-BY-SA-3.0 AND Unicode-3.0" \
+            --tag "${image}:${version}" --tag "${image}:latest" \
+            "${image}:${version}-amd64" "${image}:${version}-arm64"
+
   publish:
     name: Publish to PyPI
     needs: [build, installs]
