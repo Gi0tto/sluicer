@@ -5,6 +5,10 @@ promises.
   the transfer stops once it passes the bound, after decompression, so a
   small gzip that inflates to gigabytes costs the bound and no more. A
   ``Content-Length`` past it is refused before the body is read.
+* **A whole body or none.** A body that ends before the ``Content-Length``
+  its server announced, or whose gzip, deflate or zstd stream ends before
+  its end, is a ``ProtocolError``: the start of a page is never returned, or
+  kept by a cache, as the page, and its connection is not kept either.
 * **A deadline.** One fetch, every redirect hop and every byte of the body
   included, ends by ``HTTP_TIMEOUT_SECONDS``: a server that drips its body a
   few bytes a second is cut off there, not when it is done.
@@ -77,6 +81,7 @@ from sluicer.fetch.wire import (
     Proxy,
     Target,
     Timed,
+    Truncated,
     within,
 )
 
@@ -403,9 +408,18 @@ def _body(response: http.client.HTTPResponse, url: str, max_bytes: int) -> bytes
             if not chunk:
                 break
             body += decoder.feed(chunk, max_bytes - len(body))
+        if response.length:
+            # read1 answers b"" when the connection ends, however much of the
+            # announced length never came: the count is left to its caller.
+            raise ProtocolError(
+                f"{url} sent a body cut short: {response.length} bytes of the "
+                "length it announced never came"
+            )
         body += decoder.finish(max_bytes - len(body))
     except Overflow:
         raise ResponseTooLarge(url, max_bytes) from None
+    except Truncated as short:
+        raise ProtocolError(f"{url} sent a body cut short: {short}") from None
     if len(body) > max_bytes:
         raise ResponseTooLarge(url, max_bytes)
     return bytes(body)

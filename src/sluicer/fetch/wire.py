@@ -547,6 +547,15 @@ class Overflow(Exception):
     """A body decoded to more than the room it was given."""
 
 
+class Truncated(ValueError):
+    """A body's compressed stream ended before its end: the framing said the
+    body was whole, and what it held was the start of one."""
+
+    def __init__(self, encoding: str) -> None:
+        super().__init__(f"its {encoding} stream ended before its end")
+        self.encoding = encoding
+
+
 def _stage(url: str, name: str) -> _Inflate | _Zstd:
     if name in ("gzip", "x-gzip"):
         return _Inflate(16 + zlib.MAX_WBITS)
@@ -558,57 +567,81 @@ def _stage(url: str, name: str) -> _Inflate | _Zstd:
 
 
 class _Inflate:
-    """gzip, or deflate as zlib wraps it (or raw, as some servers send it)."""
+    """gzip, or deflate as zlib wraps it (or raw, as some servers send it).
+
+    Which deflate it is is decided on its first two bytes, zlib's header: the
+    first read may bring one, and one byte was no header yet, so the second
+    read failed zlib's check. Every gzip member is read, one after another in
+    a loop: a call per member inside the last one's was 3,000 empty members,
+    60 KB, and a ``RecursionError``.
+    """
 
     def __init__(self, wbits: int, raw_fallback: bool = False) -> None:
         self.wbits = wbits
         self.raw_fallback = raw_fallback
         self.started = False
+        # The first byte of deflate, held until a second says which it is.
+        self.held = b""
         self.inflate = zlib.decompressobj(wbits)
 
     def feed(self, data: bytes, room: int) -> bytes:
-        if not data:
-            return b""
-        try:
-            out = self.inflate.decompress(data, room + 1)
-        except zlib.error:
-            if self.started or not self.raw_fallback:
-                raise
-            self.inflate = zlib.decompressobj(-zlib.MAX_WBITS)
-            out = self.inflate.decompress(data, room + 1)
-        self.started = True
-        if len(out) > room:
-            raise Overflow
-        if self.inflate.eof and self.inflate.unused_data and self.wbits > 16:
-            # Another gzip member follows: read it too, as gzip does.
-            rest = self.inflate.unused_data
-            self.inflate = zlib.decompressobj(self.wbits)
-            out += self.feed(rest, room - len(out))
+        if self.raw_fallback and not self.started:
+            data = self.held + data
+            if len(data) < 2:
+                self.held = data
+                return b""
+            self.held = b""
+        members = self.wbits > 16
+        out = b""
+        while data:
+            if members and self.inflate.eof:
+                # Another gzip member follows: read it too, as gzip does.
+                self.inflate = zlib.decompressobj(self.wbits)
+            try:
+                piece = self.inflate.decompress(data, room - len(out) + 1)
+            except zlib.error:
+                if self.started or not self.raw_fallback:
+                    raise
+                self.inflate = zlib.decompressobj(-zlib.MAX_WBITS)
+                piece = self.inflate.decompress(data, room - len(out) + 1)
+            self.started = True
+            out += piece
+            if len(out) > room:
+                raise Overflow
+            data = self.inflate.unused_data if members and self.inflate.eof else b""
         return out
 
     def finish(self, room: int) -> bytes:
         out = self.inflate.flush()
         if len(out) > room:
             raise Overflow
+        if self.held or (self.started and not self.inflate.eof):
+            # No bytes at all is an empty body; some bytes and no end is the
+            # start of one.
+            raise Truncated("gzip" if self.wbits > 16 else "deflate")
         return out
 
 
 class _Zstd:
     def __init__(self, module: ModuleType) -> None:
         self.module = module
+        self.started = False
         self.inflate = module.ZstdDecompressor()
 
     def feed(self, data: bytes, room: int) -> bytes:
-        if not data:
-            return b""
-        out = bytes(self.inflate.decompress(data, room + 1))
-        if len(out) > room:
-            raise Overflow
-        if self.inflate.eof and self.inflate.unused_data:
-            rest = self.inflate.unused_data
-            self.inflate = self.module.ZstdDecompressor()
-            out += self.feed(rest, room - len(out))
+        out = b""
+        while data:
+            if self.inflate.eof:
+                # Another frame follows, read as zstd reads it.
+                self.inflate = self.module.ZstdDecompressor()
+            out += bytes(self.inflate.decompress(data, room - len(out) + 1))
+            self.started = True
+            if len(out) > room:
+                raise Overflow
+            data = self.inflate.unused_data if self.inflate.eof else b""
         return out
 
     def finish(self, room: int) -> bytes:
+        if self.started and not self.inflate.eof:
+            raise Truncated("zstd")
         return b""

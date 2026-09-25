@@ -479,6 +479,21 @@ Dates are the day the work landed. Anything not listed here did not happen.
   Dockerfile copied LICENSE alone: 0.7.0's image shipped schema.org's and
   CLDR's data with neither their licences nor the notice saying which files
   they cover.
+- The HTTP rung never returns part of a body as the page. A server that
+  announced a `Content-Length` and closed the connection before sending it
+  all had what came returned with its status, 200, and kept by `--cache` as
+  the page: the standard library's `read1()` answers an empty read at the end
+  of the connection, which was taken for the end of the body. It is a
+  `ProtocolError`, and that connection is not kept.
+- A body whose gzip, deflate or zstd stream ends before its end -- the
+  framing whole, the compressed stream cut -- is a `ProtocolError`, not the
+  page it began. 0.7.1 returned the words it held as the page too.
+- A raw deflate body whose first read brought one byte is decoded: whether
+  deflate is zlib's or raw was decided on that byte, which is no zlib header
+  yet, and the next read failed zlib's check.
+- A body of thousands of gzip or zstd members is read in a loop: each member
+  was read by a call inside the last one's, and 3,000 empty gzip members,
+  60 KB, raised `RecursionError`.
 
 ## 0.7.1 - 2026-09-25
 

@@ -53,6 +53,129 @@ def test_a_chunked_body_is_read_to_its_end(monkeypatch):
     assert http_rung()("https://example.com/p").html == "<p>ok</p>"
 
 
+def test_a_body_cut_short_of_its_length_is_not_a_page(monkeypatch):
+    """The server announced 2000 bytes and closed after 11: what came is a
+    fragment of the page, and handed back with 200 it was taken, and kept by
+    a cache, as the page. curl called it error 18; so is it here."""
+    cut = b"HTTP/1.1 200 OK\r\nContent-Length: 2000\r\n\r\n<html>half"
+    seen = fake_http(monkeypatch, [cut])
+    from sluicer.fetch.http_rung import ProtocolError, http_rung
+
+    with pytest.raises(ProtocolError, match="cut short"):
+        http_rung()("https://example.com/p")
+
+    assert seen.sockets[0].closed, "a connection that ended mid-body is not kept"
+    assert seen.pool._idle == []
+
+
+def test_a_page_cut_short_fails_the_ladder_and_is_not_cached(monkeypatch, tmp_path):
+    from sluicer.fetch.cache import Cache, fetch_cached
+    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.ladder import FetchFailed
+
+    cut = b"HTTP/1.1 200 OK\r\nContent-Length: 2000\r\n\r\n<html>half"
+    fake_http(monkeypatch, [cut])
+    cache = Cache(tmp_path)
+
+    with pytest.raises(FetchFailed, match="cut short"):
+        fetch_cached(
+            "https://example.com/p",
+            cache,
+            rungs=[("http", http_rung())],
+            obey_robots=False,
+        )
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def _cut(body: bytes) -> bytes:
+    return body[: len(body) // 2]
+
+
+@pytest.mark.parametrize(
+    ("encoding", "encode"),
+    [
+        ("gzip", lambda body: _cut(gzip.compress(body))),
+        ("deflate", lambda body: _cut(zlib.compress(body))),
+        ("deflate", lambda body: _cut(zlib.compress(body)[2:-4])),
+        # The stream is whole and the gzip trailer that checks it is missing.
+        ("gzip", lambda body: gzip.compress(body)[:-8]),
+    ],
+)
+def test_a_compressed_body_cut_short_is_not_a_page(monkeypatch, encoding, encode):
+    """The framing was whole -- the length said, every byte came -- and the
+    compressed stream inside it ended before its end: half a page, which
+    inflated to the words it held and was returned as the page."""
+    page = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
+    fake_http(monkeypatch, [(200, encode(page), {"Content-Encoding": encoding})])
+    from sluicer.fetch.http_rung import ProtocolError, http_responses
+
+    with pytest.raises(ProtocolError, match="cut short"):
+        http_responses()("https://example.com/p")
+
+
+@pytest.mark.skipif(wire.ZSTD is None, reason="this Python has no zstd")
+def test_a_zstd_body_cut_short_is_not_a_page(monkeypatch):
+    page = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
+    cut = _cut(wire.ZSTD.compress(page))
+    fake_http(monkeypatch, [(200, cut, {"Content-Encoding": "zstd"})])
+    from sluicer.fetch.http_rung import ProtocolError, http_responses
+
+    with pytest.raises(ProtocolError, match="cut short"):
+        http_responses()("https://example.com/p")
+
+
+def test_an_empty_body_announced_as_compressed_is_empty(monkeypatch):
+    """No bytes at all is no stream to have cut short: a 204 or an empty 404
+    sent with the site's usual Content-Encoding."""
+    fake_http(monkeypatch, [(404, b"", {"Content-Encoding": "gzip"})])
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == b""
+
+
+def test_raw_deflate_whose_first_read_is_one_byte_is_decoded():
+    """Whether deflate is zlib's or raw was decided on the first read, and one
+    byte is no zlib header yet: the second read then failed the check."""
+    page = b"<html><body>" + b"hello world " * 200 + b"</body></html>"
+    squeeze = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+    raw = squeeze.compress(page) + squeeze.flush()
+    for first in (1, 2, 3):
+        decoder = wire.Decoder("https://example.com/p", "deflate")
+        out = decoder.feed(raw[:first], 1 << 20) + decoder.feed(raw[first:], 1 << 20)
+        assert out + decoder.finish(1 << 20) == page
+
+
+def test_zlib_deflate_read_a_byte_at_a_time_is_decoded(monkeypatch):
+    page = b"<html><body>" + b"hello world " * 200 + b"</body></html>"
+    fake_http(
+        monkeypatch,
+        [(200, zlib.compress(page), {"Content-Encoding": "deflate"})],
+        chunk=1,
+    )
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == page
+
+
+@pytest.mark.skipif(wire.ZSTD is None, reason="this Python has no zstd")
+@pytest.mark.parametrize("encoding", ["gzip", "zstd"])
+def test_thousands_of_empty_members_are_read_without_recursion(encoding):
+    """Each member after the first was read by a call inside the last one's:
+    3,000 empty gzip members, 60 KB, raised RecursionError."""
+    member = gzip.compress(b"") if encoding == "gzip" else wire.ZSTD.compress(b"")
+    decoder = wire.Decoder("https://example.com/p", encoding)
+    body = member * 3000 + (
+        gzip.compress(b"<p>end</p>")
+        if encoding == "gzip"
+        else wire.ZSTD.compress(b"<p>end</p>")
+    )
+
+    out = decoder.feed(body, 1 << 20) + decoder.finish(1 << 20)
+
+    assert out == b"<p>end</p>"
+
+
 def test_a_length_announced_past_the_bound_is_refused_unread(monkeypatch):
     """What curl's own bound did: the length is read before the body is."""
     seen = fake_http(monkeypatch, [(200, b"x" * 5000, {})])
