@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
-from sluicer.fetch import robots_reader_from
+from sluicer.fetch import STICKY, RungMemory, robots_reader_from
 from sluicer.fetch.address import _resolve
 from sluicer.fetch.http_rung import Response
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, Redirects, Rung
@@ -18,12 +18,14 @@ class Web:
     ``rungs`` fetch its pages, through the ladder. ``read`` reads a robots.txt,
     as the ladder would. ``get`` fetches what is not a page -- a sitemap -- as
     the bytes that came back. ``default_web`` builds the real ones; a test hands
-    in fakes.
+    in fakes. ``memory`` is the rung each site needed, which its next page
+    starts at: the process's for the real web, none for a fake unless given.
     """
 
     rungs: Sequence[tuple[str, Rung]]
     read: Callable[[str], str | None]
     get: Callable[[str], Response]
+    memory: RungMemory | None = None
 
 
 def default_web(
@@ -46,4 +48,4 @@ def default_web(
     rungs = default_rungs(allow_private, resolve, max_bytes, redirects)
     plain = http_rung(allow_private, resolve, max_bytes)
     get = http_responses(allow_private, resolve, max_bytes)
-    return Web(rungs=rungs, read=robots_reader_from(plain), get=get)
+    return Web(rungs=rungs, read=robots_reader_from(plain), get=get, memory=STICKY)

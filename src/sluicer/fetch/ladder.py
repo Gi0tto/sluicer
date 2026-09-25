@@ -8,6 +8,13 @@ A rung that raises is a rung that failed: the climb is recorded and the next
 rung tried. If a later rung fails after a cheaper one brought a page back, that
 page is returned; if every rung failed, ``FetchFailed`` is raised.
 
+What a site needed is remembered for the process (``RungMemory``): once a
+page of a site came back only from a costlier rung, because the cheaper one's
+page was a refusal, a challenge or a shell, the site's next pages start at
+that rung, and say so in their first climb. A rung that failed teaches
+nothing; a remembered rung that fails is forgotten, and the ladder starts
+again from the bottom. The stealth rung is never remembered.
+
 The site's robots.txt is asked before any rung runs. A refusal raises
 ``RobotsRefused`` rather than returning an empty ``Fetched``: "the site said
 no" and "the site had nothing" must never look alike. For the same reason a
@@ -18,8 +25,11 @@ left with, ``SiteRefused`` is raised.
 from __future__ import annotations
 
 import re
+import threading
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
+from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from sluicer.api import extract
@@ -31,8 +41,10 @@ from sluicer.fetch.address import (
     why_not_public,
     why_not_web,
 )
-from sluicer.fetch.gate import GATE, after
+from sluicer.fetch.gate import GATE, after, site_key
 from sluicer.fetch.identity import (
+    ROBOTS_CACHE_HOSTS,
+    ROBOTS_TTL_SECONDS,
     UNAVAILABLE,
     UNREACHABLE,
     RobotsUnreachable,
@@ -56,6 +68,7 @@ __all__ = [
     "RedirectRefused",
     "ResponseTooLarge",
     "RobotsRefused",
+    "RungMemory",
     "SiteRefused",
     "fetch",
     "robots_reader_from",
@@ -124,6 +137,74 @@ class PaymentRequired(FetchFailed):
             climbs,
             "the site answered 402 Payment Required; Sluicer does not pay",
         )
+
+
+@dataclass(frozen=True)
+class Needed:
+    """The rung a site needed, why, and when that was learnt."""
+
+    rung: str
+    reason: str
+    learnt: float
+
+
+class RungMemory:
+    """The rung each site needed, for as long as the process runs.
+
+    Keyed by site as the gate paces it (``sluicer.fetch.gate.site_key``: the
+    host with or without ``www.``). ``limit`` sites are kept, the least
+    recently learnt forgotten first, each for ``ttl`` seconds: a site that
+    renders its pages on the server again is asked of plain HTTP again the
+    next day. ``clock`` is injected by tests.
+    """
+
+    NEVER = frozenset({"stealth"})
+    """Rungs never remembered: a disguise is asked for page by page."""
+
+    def __init__(
+        self,
+        limit: int = ROBOTS_CACHE_HOSTS,
+        ttl: float = ROBOTS_TTL_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.limit = limit
+        self.ttl = ttl
+        self.clock = clock
+        self._sites: OrderedDict[str, Needed] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def recall(self, url: str) -> Needed | None:
+        """What ``url``'s site needed, while it is remembered."""
+        key = site_key(url)
+        with self._lock:
+            found = self._sites.get(key)
+            if found is not None and self.clock() - found.learnt > self.ttl:
+                del self._sites[key]
+                return None
+            return found
+
+    def learn(self, url: str, rung: str, reason: str) -> None:
+        """Remember that ``url``'s site needed ``rung``, for ``reason``."""
+        if rung in self.NEVER:
+            return
+        key = site_key(url)
+        with self._lock:
+            self._sites[key] = Needed(rung, reason, self.clock())
+            self._sites.move_to_end(key)
+            while len(self._sites) > self.limit:
+                self._sites.popitem(last=False)
+
+    def forget(self, url: str) -> None:
+        with self._lock:
+            self._sites.pop(site_key(url), None)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._sites.clear()
+
+
+STICKY = RungMemory()
+"""The process's memory: what every fetch of the real web learns and uses."""
 
 
 def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
@@ -201,6 +282,7 @@ def fetch(
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
     proxy: str | None = None,
+    memory: RungMemory | None = None,
 ) -> Fetched:
     """Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 
@@ -232,6 +314,10 @@ def fetch(
             environment's ``HTTPS_PROXY`` is never used. Through a proxy the
             private-network check still judges every address here, but the
             connection is the proxy's: see SECURITY.md.
+        memory: what each site needed before, and learns what this page
+            needs: a site whose page came back only from the browser starts
+            its next page there. The process's (``STICKY``) with the default
+            rungs; none with injected ones unless handed one.
 
     Returns:
         The ``Fetched`` page, with every climb, the final URL, and how long
@@ -278,8 +364,12 @@ def fetch(
     read = (
         robots_reader if robots_reader is not None else robots_reader_from(rungs[0][1])
     )
+    if memory is None and gated:
+        memory = STICKY
     if not gated:
-        return _climb(url, rungs, obey_robots, read, allow_private, resolve, max_bytes)
+        return _climb(
+            url, rungs, obey_robots, read, allow_private, resolve, max_bytes, memory
+        )
     with GATE.turn(url) as ready:
         return _climb(
             url,
@@ -289,6 +379,7 @@ def fetch(
             allow_private,
             resolve,
             max_bytes,
+            memory,
         )
 
 
@@ -300,19 +391,37 @@ def _climb(
     allow_private: bool,
     resolve: Callable[[str], Iterable[str]],
     max_bytes: int,
+    memory: RungMemory | None = None,
 ) -> Fetched:
-    """``fetch``'s requests: robots.txt, then the rungs, cheapest first."""
+    """``fetch``'s requests: robots.txt, then the rungs, cheapest first, or
+    from the one ``memory`` says the site needed."""
     if obey_robots:
         refusal = _robots(url, read)
         if refusal is not None:
             raise RobotsRefused(url, refusal)
 
     climbs: list[Climb] = []
+    start = 0
+    names = [name for name, _ in rungs]
+    known = memory.recall(url) if memory is not None else None
+    if known is not None and known.rung in names[1:]:
+        start = names.index(known.rung)
+        climbs.append(
+            Climb(
+                names[0],
+                known.rung,
+                f"an earlier page of {site_key(url)} needed it: {known.reason}",
+            )
+        )
     best: Fetched | None = None
     # Why ``best`` is a challenge, when it is one: never a page to fall back to.
     best_refused: str | None = None
+    # Why the cheapest rung's page was not enough, for ``memory`` to learn.
+    needed: str | None = None
     last = len(rungs) - 1
-    for index, (name, rung) in enumerate(rungs):
+    index = start
+    while index <= last:
+        name, rung = rungs[index]
         started = time.monotonic()
         try:
             result = rung(url)
@@ -324,10 +433,25 @@ def _climb(
             # A refusal or a page too heavy is the page's answer, not the
             # rung's: the next rung would be told the same, at a higher cost.
             final = isinstance(e, (AddressRefused, RedirectRefused, ResponseTooLarge))
+            if index == start > 0 and not final and memory is not None:
+                # What the site needed failed this time: forgotten, and the
+                # ladder starts again from its cheapest rung.
+                memory.forget(url)
+                climbs.append(
+                    Climb(
+                        name,
+                        names[0],
+                        f"{failure}; starting again from {names[0]}",
+                        seconds=seconds,
+                    )
+                )
+                start = index = 0
+                continue
             if index < last and not final:
                 climbs.append(
                     Climb(name, rungs[index + 1][0], failure, seconds=seconds)
                 )
+                index += 1
                 continue
             if best is None:
                 if final:
@@ -353,15 +477,24 @@ def _climb(
         )
         reason = why_climb(result.status, result.html, found_records=found)
         if reason is None:
-            return _checked(result, url, allow_private, resolve, obey_robots, read)
+            checked = _checked(result, url, allow_private, resolve, obey_robots, read)
+            if memory is not None and index > 0:
+                if needed is not None:
+                    memory.learn(url, name, needed)
+                elif index == start and known is not None:
+                    memory.learn(url, name, known.reason)
+            return checked
         challenge = challenge_marker(result.html, found_records=found) is not None
         if index == last:
             checked = _checked(result, url, allow_private, resolve, obey_robots, read)
             if challenge:
                 raise SiteRefused(url, climbs, reason)
             return checked
+        if index == 0:
+            needed = reason
         best, best_refused = result, reason if challenge else None
         climbs.append(Climb(name, rungs[index + 1][0], reason, seconds=result.seconds))
+        index += 1
 
     raise AssertionError("the ladder ran out of rungs without returning a page")
 

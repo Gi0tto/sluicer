@@ -32,6 +32,8 @@ def test_the_fetch_package_has_a_surface_of_its_own():
         "RedirectRefused",
         "ResponseTooLarge",
         "RobotsRefused",
+        "RungMemory",
+        "STICKY",
         "SiteRefused",
         "fetch",
         "robots_reader_from",

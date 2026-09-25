@@ -249,6 +249,7 @@ def fake_fetch(
         resolve=None,
         max_bytes=None,
         proxy=None,
+        memory=None,
     ):
         fetch.calls.append({"url": url, "allow_private": allow_private})
         if raises is not None:

@@ -252,6 +252,7 @@ fetch(
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = 16777216,
     proxy: str | None = None,
+    memory: RungMemory | None = None,
 ) -> Fetched
 ```
 
@@ -268,6 +269,7 @@ Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 - `resolve`: the name lookup ``allow_private`` decides with.
 - `max_bytes`: the most a page may weigh; heavier is ``ResponseTooLarge``, and never a reason to climb.
 - `proxy`: the proxy the default rungs and the stealth rung go through; ``SLUICER_PROXY`` when None, and none when that is unset. The environment's ``HTTPS_PROXY`` is never used. Through a proxy the private-network check still judges every address here, but the connection is the proxy's: see SECURITY.md.
+- `memory`: what each site needed before, and learns what this page needs: a site whose page came back only from the browser starts its next page there. The process's (``STICKY``) with the default rungs; none with injected ones unless handed one.
 
 **Returns**
 

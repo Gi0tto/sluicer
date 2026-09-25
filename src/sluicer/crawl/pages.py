@@ -555,6 +555,7 @@ class _Visitor:
                 allow_private=self.allow_private,
                 resolve=self.resolve,
                 max_bytes=self.max_bytes,
+                memory=self.web.memory,
             )
         except RobotsRefused as refused:
             return failed("refused_by_robots", str(refused))

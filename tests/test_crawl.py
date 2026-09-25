@@ -939,3 +939,59 @@ def test_a_page_that_asks_to_be_paid_says_so():
     assert only.error is not None and only.error.code == "payment_required"
     assert only.error.retryable is False
     assert only.extraction is None, "a 402's body is not the page"
+
+
+def test_a_site_that_needed_the_browser_is_asked_of_it_from_its_second_page():
+    """Measured on 0.7.0: a five-page JS site crawled at 3.22 s a page, every
+    document asked twice, of plain HTTP and then of the browser."""
+    from sluicer.fetch.ladder import RungMemory
+
+    def shell(*links):
+        anchors = "".join(f'<a href="{link}">{link}</a>' for link in links)
+        return (
+            "<html><body><div id='root'></div>"
+            + "<script src='/app.js'></script>" * 80
+            + anchors
+            + "</body></html>"
+        )
+
+    fake = FakeWeb(
+        {
+            f"{ROOT}/": shell("/a", "/b"),
+            f"{ROOT}/a": shell(),
+            f"{ROOT}/b": shell(),
+        }
+    )
+    browser = FakeWeb(
+        {
+            f"{ROOT}/": page("Home", "/a", "/b"),
+            f"{ROOT}/a": page("A"),
+            f"{ROOT}/b": page("B"),
+        },
+        clock=fake.clock,
+    )
+    web = Web(
+        rungs=[("http", fake.rung), ("browser", browser.rung)],
+        read=fake.web().read,
+        get=fake.get,
+        memory=RungMemory(),
+    )
+
+    pages = list(crawl(f"{ROOT}/", web=web, clock=fake.clock, sleep=fake.clock.sleep))
+
+    # The fake's rungs both call their pages "http"; the climbs say which ran.
+    assert [[c.to_rung for c in p.climbs] for p in pages] == [["browser"]] * 3
+    assert [url for url in fake.asked() if not url.endswith("robots.txt")] == [
+        f"{ROOT}/"
+    ]
+    assert browser.asked() == [f"{ROOT}/", f"{ROOT}/a", f"{ROOT}/b"]
+    assert all(p.climbs[0].seconds == 0.0 for p in pages[1:])
+
+
+def test_the_real_web_remembers_for_the_process(monkeypatch):
+    from sluicer.crawl.web import default_web
+    from sluicer.fetch.ladder import STICKY
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+
+    assert default_web().memory is STICKY
