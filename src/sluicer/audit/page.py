@@ -9,8 +9,9 @@ a page lacking one breaks no rule a search engine enforces.
 from __future__ import annotations
 
 from sluicer.audit.report import Finding
+from sluicer.declared.links import canonicals
 from sluicer.declared.opengraph import read_opengraph
-from sluicer.document import Document, trimmed
+from sluicer.document import Document, base_url, join
 
 _GOOGLE = "https://developers.google.com/search/docs/"
 TITLE_RULE = _GOOGLE + "appearance/title-link"
@@ -75,12 +76,9 @@ def page_findings(doc: Document) -> list[Finding]:
 
 
 def _canonical(doc: Document) -> list[Finding]:
-    declared = [
-        trimmed(link.get("href"))
-        for link in doc.tree.xpath("//link[@rel][@href]")
-        if "canonical" in (link.get("rel") or "").lower().split()
-    ]
-    declared = [href for href in declared if href]
+    """Read as ``links`` reads it: from the head only, where Google accepts a
+    canonical, and two canonicals that resolve to one address are one."""
+    declared = canonicals(doc)
     if not declared:
         return [
             _warning(
@@ -91,7 +89,12 @@ def _canonical(doc: Document) -> list[Finding]:
             )
         ]
     found: list[Finding] = []
-    distinct = list(dict.fromkeys(declared))
+    base = base_url(doc)
+    # Each address once, as the page first wrote it.
+    resolved: dict[str, str] = {}
+    for href in declared:
+        resolved.setdefault(join(base, href), href)
+    distinct = list(resolved.values())
     if len(distinct) > 1:
         found.append(
             _warning(
@@ -103,7 +106,7 @@ def _canonical(doc: Document) -> list[Finding]:
                 value=distinct[1],
             )
         )
-    for href in distinct:
+    for href in declared:
         if not href.lower().startswith(("http://", "https://")):
             found.append(
                 _warning(

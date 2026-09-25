@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import datetime
 import html as html_entities
+import math
 import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from html.entities import html5 as html5_names
 from typing import Any, TypeAlias
 from urllib.parse import urlsplit
 
@@ -172,6 +174,10 @@ _TITLE_NAMES = ("citation_title",)
 _BYLINE = re.compile(r"^\s*by\s+", re.IGNORECASE)
 _TITLE_SEPARATORS = (" - ", " | ", " \u2013 ", " \u2014 ", " \u00b7 ", " :: ", " / ")
 
+# The page's own <title>, not an icon's or a formula's: libxml2's HTML parser
+# has no namespaces, so an inline <svg><title> looks like HTML's, and on a
+# page with no head title it was the page's.
+_PAGE_TITLE = "//title[not(ancestor::svg or ancestor::math)]"
 _WHITESPACE = re.compile(r"\s+")
 _SCHEMA_ORG = re.compile(r"^https?://(?:www\.)?schema\.org/", re.IGNORECASE)
 
@@ -318,7 +324,7 @@ def read_summary(
             meta(twitter, "twitter", "title", "twitter:"),
             meta(dublincore, "dublincore", "title", "dc."),
             _named(doc, _TITLE_NAMES),
-            _element_text(doc, "//title", "<title>"),
+            _element_text(doc, _PAGE_TITLE, "<title>"),
         ],
         "description": [
             own("description"),
@@ -488,12 +494,22 @@ def _subject(
     named as its site still has a subject.
     """
     counts = Counter(name for record in records for name in set(record.types))
+    # Each type's one record is found once, not once per record of that type:
+    # asked for every product of a listing, it was the square of the listing,
+    # 5.5 seconds for a page of four thousand products.
+    chosen: dict[str, Record | None] = {}
+
+    def one_of_many(name: str) -> Record | None:
+        if name not in chosen:
+            chosen[name] = _one_of_many(records, name)
+        return chosen[name]
+
     candidates = [
         (rank, index, record)
         for index, record in enumerate(records)
         if (rank := _rank(record)) is not None
         and all(
-            counts[name] < _A_LISTING or _one_of_many(records, name) is record
+            counts[name] < _A_LISTING or one_of_many(name) is record
             for name in record.types
         )
     ]
@@ -802,10 +818,44 @@ def _from(
     if field.source == "jsonld" and text:
         # JSON-LD is JSON, but CMSs write HTML entities into it: Yoast titles
         # arrive as "Guide &#8226; Yoast".
-        text = _clean(html_entities.unescape(text))
+        text = _clean(_unescaped(text))
     if not text:
         return None
     return SummaryField(text, field.source, f"{record.type}.{prop}", field.where)
+
+
+# A character reference as ``html.unescape`` finds one: a number, or a name
+# with or without its semicolon.
+_REFERENCE = re.compile(r"&(#[0-9]+;?|#[xX][0-9a-fA-F]+;?|[^\t\n\f <&#;]{1,32};?)")
+
+
+def _unescaped(text: str) -> str:
+    """``text`` with its character references read as an attribute's are.
+
+    HTML lets a hundred-odd old names go without their semicolon, ``&reg``
+    and ``&sect`` among them, but in an attribute not before a letter, a digit
+    or ``=``, where the text is the rest of a word: that is how a browser keeps
+    ``?id=1&region=us&section=a`` in an ``href``. Read as ``html.unescape``
+    reads running text, every such address in a page's JSON-LD came out as
+    ``?id=1\u00aeion=us\u00a7ion=a``. Anything else is read as it reads it.
+    """
+    if "&" not in text:
+        return text
+    return _REFERENCE.sub(_character, text)
+
+
+def _character(reference: re.Match[str]) -> str:
+    written = reference.group(1)
+    if written.startswith("#") or written in html5_names:
+        return html_entities.unescape(reference.group())
+    # The longest old name the reference starts with, as the standard reads it.
+    for end in range(len(written) - 1, 1, -1):
+        if written[:end] in html5_names:
+            after = written[end]
+            if after == "=" or (after.isascii() and after.isalnum()):
+                return reference.group()
+            return html5_names[written[:end]] + written[end:]
+    return reference.group()
 
 
 def _text(value: JsonValue) -> str | None:
@@ -823,7 +873,9 @@ def _listed(value: Any) -> list[Any]:
 def _names(value: JsonValue) -> str | None:
     """Every name ``value`` gives, in order, once each, or None."""
     items = value if isinstance(value, list) else [value]
-    names: list[str] = []
+    # Once each, in order, without asking a list for each name whether it
+    # held it: forty thousand authors took four seconds.
+    names: dict[str, None] = {}
     for item in items:
         if isinstance(item, dict):
             name = _text(item.get("name", "")) if "name" in item else None
@@ -832,8 +884,8 @@ def _names(value: JsonValue) -> str | None:
                 name = " ".join(part for part in parts if part) or None
         else:
             name = _text(item)
-        if name and not _is_address(name) and name not in names:
-            names.append(name)
+        if name and name not in names and not _is_address(name):
+            names[name] = None
     return ", ".join(names) or None
 
 
@@ -1097,7 +1149,8 @@ def _price_kind(spec: dict[str, JsonValue]) -> str:
     return "regular" if kind.lower() in _REGULAR else "other"
 
 
-_NUMBER = re.compile(r"\d(?:[\d.,'\s]*\d)?")
+# One number as a price is written, or as JSON writes one: 1.5e3 is one.
+_NUMBER = re.compile(r"\d(?:[\d.,'\s]*\d)?(?:[eE][+-]?\d+)?")
 
 
 def _one_amount(found: SummaryField | None) -> SummaryField | None:
@@ -1187,10 +1240,16 @@ def _crumb_name(item: dict[str, JsonValue]) -> str | None:
 
 
 def _position(value: JsonValue | None, order: int) -> float:
+    """A crumb's ``position``, or where it was written when it states none.
+
+    Not a NaN, which compares false with everything and left ``sorted`` no
+    order to keep, nor an infinity, which is no place in a list either.
+    """
     try:
-        return float(str(value)) if value is not None else float(order)
+        found = float(str(value)) if value is not None else float(order)
     except ValueError:
         return float(order)
+    return found if math.isfinite(found) else float(order)
 
 
 def _type(record: Record | None) -> SummaryField | None:
@@ -1218,7 +1277,7 @@ def _headline_or_name(
         text.casefold()
         for text in (
             opengraph.get("title"),
-            *(title.text_content() for title in doc.tree.xpath("//title")),
+            *(title.text_content() for title in doc.tree.xpath(_PAGE_TITLE)),
         )
         if text
     )
@@ -1248,12 +1307,7 @@ def _named(
     author tag is the paper and whose second is the reporter has the
     reporter as its author.
     """
-    found: dict[str, list[tuple[str, HtmlElement]]] = {}
-    for meta in doc.tree.xpath("//meta[@name][@content]"):
-        text = _clean(meta.get("content"))
-        if text:
-            name = (meta.get("name") or "").strip().lower()
-            found.setdefault(name, []).append((text, meta))
+    found = _meta_names(doc)
     for name in names:
         if name in found:
             # Each name once, at the first tag that gives it. Never empty: a
@@ -1275,15 +1329,38 @@ def _named(
     return None
 
 
+def _meta_names(doc: Document) -> dict[str, list[tuple[str, HtmlElement]]]:
+    """Every ``<meta name>`` with a text, by its name lowercased, in page order.
+
+    Read once per page: the summary asks it four times, for a title, two kinds
+    of author and a date.
+    """
+    found: dict[str, list[tuple[str, HtmlElement]]] | None = doc.memo.get(
+        "summary.meta_names"
+    )
+    if found is None:
+        found = doc.memo["summary.meta_names"] = {}
+        for meta in doc.tree.xpath("//meta[@name][@content]"):
+            text = _clean(meta.get("content"))
+            if text:
+                name = (meta.get("name") or "").strip().lower()
+                found.setdefault(name, []).append((text, meta))
+    return found
+
+
 def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
     """A ``<meta itemprop>`` outside any item, as templates put in the head.
 
     The microdata standard ignores it, having no item to give it to, so the
-    microdata reader does too. It is still the page stating the value.
+    microdata reader does too. It is still the page stating the value. The
+    tags are found once per page, for the three questions that ask.
     """
-    for meta in doc.tree.xpath(
-        "//meta[@itemprop][@content][not(ancestor::*[@itemscope])]"
-    ):
+    orphans: list[HtmlElement] | None = doc.memo.get("summary.orphan_itemprops")
+    if orphans is None:
+        orphans = doc.memo["summary.orphan_itemprops"] = doc.tree.xpath(
+            "//meta[@itemprop][@content][not(ancestor::*[@itemscope])]"
+        )
+    for meta in orphans:
         if prop in (meta.get("itemprop") or "").split():
             text = _clean(meta.get("content"))
             if text:

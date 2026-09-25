@@ -52,7 +52,7 @@ Measured with extruct 0.18.0 on Python 3.14, by `bench/extruct_compat.py`. A cel
 | uniform microformats | 360 / 360 | 140 / 140 | 20 / 20 |
 | uniform Dublin Core | 47 / 360 | 6 / 140 | 19 / 20 |
 
-`extruct.extract(html, base_url=url)`, every argument else at its default, raises on 4 of the 520 pages; sluicer's raises on none. The same call over every page took 28.7 s in extruct and 25.9 s in sluicer.
+`extruct.extract(html, base_url=url)`, every argument else at its default, raises on 4 of the 520 pages; sluicer's raises on none. The same call over every page took 28.7 s in extruct and 21.7 s in sluicer.
 
 Every difference, by what explains it:
 
@@ -81,8 +81,9 @@ and the module named says how it is read.
   default `errors="strict"` that one block loses every syntax on the page; with
   `"log"` or `"ignore"` it loses every block of JSON-LD on the page. sluicer
   reads blocks as its own reader does -- a comment or CDATA wrapper, a byte
-  order mark, a trailing comma and a media type in another case forgiven -- and
-  skips a block that is still not JSON, keeping the rest.
+  order mark, JavaScript's comments, a trailing comma and a media type in
+  another case forgiven -- and skips a block that is still not JSON, keeping
+  the rest.
 - **Dublin Core** (`dublincore`). extruct files whatever follows a name's last
   dot, so `<meta name="description">`, `name="title"`, `citation.date` and
   `<link rel="license">` are Dublin Core elements to it. sluicer counts a name

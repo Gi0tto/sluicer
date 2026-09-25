@@ -18,6 +18,7 @@ import datetime
 import email.utils
 import re
 import unicodedata
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sluicer.calendar_names import MONTHS, WEEKDAYS
@@ -93,7 +94,7 @@ _ENGLISH_MONTHS = {
 _ISO = re.compile(
     r"(\d{4})-(\d{2})-(\d{2})"
     r"(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,]\d+)?)?"
-    r"\s*(Z|[+-]\d{2}:?\d{2})?(?:\s*UTC)?)?"
+    r"\s*(Z|[+-]\d{2}:?\d{2})?(\s*UTC)?)?"
 )
 # Every language CLDR covers, English's own spellings first: "Sept" is English.
 _MONTHS = {**MONTHS, **_ENGLISH_MONTHS}
@@ -134,6 +135,12 @@ _JAVASCRIPT = re.compile(
     r"\s+GMT([+-]\d{4})(?:\s+\([^()]*\))?"
 )
 _WEEKDAY = re.compile(r"^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+", re.I)
+# A twelve-hour clock's time and its half of the day: 10:00 PM, 9:15:30 a.m.
+_HALF_OF_THE_DAY = re.compile(
+    r"(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp]\.?\s?[Mm]\.?)(?!\w)"
+)
+# What ``email.utils`` splits a date on.
+_TOKENS = re.compile(r"[\s,]+")
 
 
 def normalised(summary: dict[str, SummaryField]) -> dict[str, str]:
@@ -182,12 +189,9 @@ def iso_date(text: str) -> str | None:
     if iso:
         return _from_iso(iso)
     if "," in text[:12] and ":" in text:
-        try:
-            parsed = email.utils.parsedate_to_datetime(text)
-        except (TypeError, ValueError, IndexError):
-            parsed = None
-        if parsed is not None:
-            return parsed.isoformat()
+        rfc_2822 = _from_rfc_2822(text)
+        if rfc_2822 is not None:
+            return rfc_2822
     units = _UNITS.fullmatch(text)
     if units:
         year, month, day = (int(part) for part in units.groups())
@@ -216,6 +220,45 @@ def iso_date(text: str) -> str | None:
     return None
 
 
+def _from_rfc_2822(text: str) -> str | None:
+    """An RFC 2822 date, read by ``email.utils``, when its year is written whole.
+
+    ``email.utils`` reads a two-digit year by a rule of its own, 25 as 2025
+    and 69 as 1969, and a three-digit one as the first millennium's, where
+    the page may have meant another century or another field: a guess.
+    RFC 850's ``03-Jun-2025`` writes the year inside its date's token, and
+    ``-2025`` is an offset, not a year.
+
+    A twelve-hour clock, ``10:00 PM``, is read with its half of the day: to
+    ``email.utils`` "PM" was a zone it did not know, and the evening was the
+    morning. An hour no such clock shows, ``13:05 PM``, is not read.
+    """
+    halves = list(_HALF_OF_THE_DAY.finditer(text))
+    if len(halves) > 1:
+        return None
+    half = halves[0] if halves else None
+    if half is not None:
+        # Taken out, or "PM" is a zone email.utils does not know, and ignores.
+        text = text[: half.start(3)] + text[half.end(3) :]
+    try:
+        parsed = email.utils.parsedate_to_datetime(text)
+    except (TypeError, ValueError, IndexError):
+        return None
+    if half is not None:
+        hour, minute = int(half.group(1)), int(half.group(2))
+        if not 1 <= hour <= 12 or (parsed.hour, parsed.minute) != (hour, minute):
+            return None
+        after_noon = half.group(3)[0] in "Pp"
+        parsed = parsed.replace(hour=hour % 12 + (12 if after_noon else 0))
+    year = f"{parsed.year:04}"
+    if not any(
+        token == year or (any(c.isalpha() for c in token) and year in token.split("-"))
+        for token in _TOKENS.split(text)
+    ):
+        return None
+    return parsed.isoformat()
+
+
 def _month_or_day(name: str) -> str:
     """A month's or weekday's name as the tables spell it."""
     return unicodedata.normalize("NFC", name).casefold().rstrip(".")
@@ -232,11 +275,13 @@ def _from_javascript(match: re.Match[str]) -> str | None:
 
 
 def _from_iso(match: re.Match[str]) -> str | None:
-    year, month, day, hour, minute, second, zone = match.groups()
+    year, month, day, hour, minute, second, zone, utc = match.groups()
     date = _day(int(year), int(month), int(day))
     if date is None or hour is None:
         return date
-    return _at(date, hour, minute, second, zone)
+    # A trailing UTC with no offset before it is the offset it names; after
+    # one, the offset written is the one kept.
+    return _at(date, hour, minute, second, zone or ("+00:00" if utc else None))
 
 
 def _at(
@@ -254,7 +299,7 @@ def _at(
         digits = zone.replace(":", "")
         if int(digits[1:3]) > 23 or int(digits[3:]) > 59:
             return None
-        offset = f"{digits[0]}{digits[1:3]}:{digits[3:]}"
+        offset = f"{digits[0]}{int(digits[1:3]):02}:{int(digits[3:]):02}"
     return f"{date}T{moment.isoformat()}{offset}"
 
 
@@ -266,6 +311,12 @@ def _day(year: int, month: int, day: int) -> str | None:
 
 
 _AMOUNT = re.compile(r"[\d.,\s']+")
+_SPACE_OR_APOSTROPHE = re.compile(r"[\s']")
+# A number as JSON writes one with an exponent, sign left out: a price has none.
+_EXPONENT = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?[eE][+-]?[0-9]+")
+# Thousands grouped with a space or an apostrophe: one to three digits, then
+# threes, then perhaps a separator and what follows it.
+_SPACED = re.compile(r"\d{1,3}(?:[\s']\d{3})+(?:[.,]\d+)?")
 # Longer than any price written with its symbol and grouping: past it, a text
 # is a sentence or a page, and reading it as one would cost its length for
 # every currency symbol there is.
@@ -280,11 +331,16 @@ def amount(text: str) -> str | None:
     and a comma appear, the last one is the decimal separator. When only one
     appears once, it is the decimal separator unless exactly three digits follow
     it: ``1,299`` and ``1.299`` are refused, since each is a thousand somewhere
-    and a little over one somewhere else (``0.999`` is not ambiguous).
+    and a little over one somewhere else (``0.999`` is not ambiguous). Digits
+    grouped by a separator, a space or an apostrophe are grouped in thousands,
+    ``1 299,00`` or ``1'299.00``, or the text is refused: ``12 50`` is not 1250.
+    A number JSON writes with an exponent, ``1.5e3``, is the amount it names.
     """
     stripped = text.strip()
     if len(stripped) > _LONGEST_AMOUNT:
         return None
+    if _EXPONENT.fullmatch(stripped):
+        return _from_exponent(stripped)
     for symbol in _BY_LENGTH:
         lowered = stripped.lower()
         if lowered.startswith(symbol):
@@ -299,8 +355,12 @@ def amount(text: str) -> str | None:
         or not any(c.isdigit() for c in stripped)
     ):
         return None
-    # \s holds the no-break spaces French and Swiss prices group with.
-    number = re.sub(r"[\s']", "", stripped)
+    # \s holds the no-break spaces French and Swiss prices group with. A space
+    # or an apostrophe only ever groups thousands: "12 50" is two numbers, or
+    # twelve and a half, and never 1250.
+    if _SPACE_OR_APOSTROPHE.search(stripped) and not _SPACED.fullmatch(stripped):
+        return None
+    number = _SPACE_OR_APOSTROPHE.sub("", stripped)
     points, commas = number.count("."), number.count(",")
     if points and commas:
         decimal = "." if number.rfind(".") > number.rfind(",") else ","
@@ -323,8 +383,21 @@ def amount(text: str) -> str | None:
         number = number.replace(separator, "")
     if not re.fullmatch(r"\d+(\.\d+)?", number):
         return None
-    whole, _, fraction = number.partition(".")
+    whole, _, fraction = _in_ascii(number).partition(".")
     whole = whole.lstrip("0") or "0"
+    return f"{whole}.{fraction}" if fraction else whole
+
+
+def _from_exponent(number: str) -> str | None:
+    """A number JSON wrote with an exponent, ``1.5e3``, as a plain decimal.
+
+    Its point is a point and nothing is grouped, so it is never ambiguous;
+    an exponent that would write more digits than a price holds is refused.
+    """
+    value = Decimal(number)
+    if abs(value.adjusted()) > _LONGEST_AMOUNT:
+        return None
+    whole, _, fraction = format(value, "f").partition(".")
     return f"{whole}.{fraction}" if fraction else whole
 
 
@@ -348,14 +421,29 @@ def gtin(text: str) -> str | None:
     were wrong.
     """
     digits = re.sub(r"[\s-]", "", text)
-    if not digits.isdigit() or len(digits) not in (8, 12, 13, 14):
+    # Decimal digits only: ``str.isdigit`` also takes a superscript two, which
+    # ``int`` refuses, and that was a traceback from a page that wrote one.
+    if not digits.isdecimal() or len(digits) not in (8, 12, 13, 14):
         return None
+    digits = _in_ascii(digits)
     body, check = digits[:-1], int(digits[-1])
     total = sum(
         int(digit) * (3 if position % 2 == 0 else 1)
         for position, digit in enumerate(reversed(body))
     )
     return digits if (10 - total % 10) % 10 == check else None
+
+
+def _in_ascii(digits: str) -> str:
+    """``digits`` with every decimal digit written as its ASCII one.
+
+    ``\\d`` and ``int`` read every script's decimal digits, fullwidth and
+    Arabic-Indic among them, and a normalised value is one form whatever
+    the page's script: a date's are rewritten by ``int``, and these the same.
+    """
+    if digits.isascii():
+        return digits
+    return "".join(str(unicodedata.decimal(c)) if c.isdecimal() else c for c in digits)
 
 
 def currency(text: str) -> str | None:
