@@ -557,6 +557,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is spent, as `map_site(time_budget=)` and the MCP tool already did; the
   command line had no bound but the fifty sitemaps, each after the site's
   delay of up to a minute.
+- The Shopify template reads a products.json nested past any shop: a
+  product whose tags nested 5,000 lists deep raised `RecursionError` out of
+  the crawl, and 100,000 did so from the JSON parser. What nests deeper than
+  a page's JSON-LD is read is left out, and JSON too deep to parse is not a
+  products.json.
 
 ## 0.7.1 - 2026-09-25
 
