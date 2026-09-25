@@ -1000,6 +1000,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## 0.7.1 - 2026-09-25
 
 ### Added
+- `docs/state-of-declared-data.md`: what pages declare about themselves,
+  counted on every HTML page of four Common Crawl WARC files of
+  `CC-MAIN-2026-39`, chosen by a rule `bench/PREREG.md` fixed before any was
+  downloaded: the vocabularies, the types, the records folded across
+  vocabularies, the conflicts, the JSON-LD blocks that are not JSON and how
+  many Sluicer still reads, what normalises, canonicals and `hreflang`, robots
+  and TDMRep declarations, each rate with its Wilson interval, beside Web Data
+  Commons' counts for October 2024 where they measure the same thing.
+  Written by `bench/declared_report.py` from its counts,
+  `bench/declared-counts.json`; the files are pinned by SHA-256 in
+  `bench/declared-manifest.json`.
 - `docs/stability.md`: what is stable before 1.0 (`extract()` and
   `Extraction`, the summary's questions, the extractor file and its exit
   codes, the MCP tools and their documented fields), what is experimental

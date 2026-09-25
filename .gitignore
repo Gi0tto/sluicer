@@ -26,3 +26,4 @@ exitcode.txt
 /js/NOTICE
 /js/LICENSES/
 /js/*.tgz
+bench/commoncrawl/

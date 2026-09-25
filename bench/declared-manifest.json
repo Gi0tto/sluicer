@@ -1,0 +1,35 @@
+{
+  "crawl": "CC-MAIN-2026-39",
+  "listing": {
+    "path": "crawl-data/CC-MAIN-2026-39/warc.paths.gz",
+    "lines": 100000,
+    "sha256": "3742ee3efd216b9dd87194121a021cc251fd0648ba4eb5bc7fd56937cf5383c3"
+  },
+  "rule": "index floor((2k+1)*N/8), k = 0..3, in the listing's order",
+  "files": [
+    {
+      "index": 12500,
+      "path": "crawl-data/CC-MAIN-2026-39/segments/1788492699627.53/warc/CC-MAIN-20260906015231-20260906045231-00500.warc.gz",
+      "bytes": 942569331,
+      "sha256": "2ffa9e966f482827a53b97fe68f7acefdc39124beb7ff334866f81f36ceaaff8"
+    },
+    {
+      "index": 37500,
+      "path": "crawl-data/CC-MAIN-2026-39/segments/1788492699835.34/warc/CC-MAIN-20260909055742-20260909085742-00500.warc.gz",
+      "bytes": 915031341,
+      "sha256": "e20e5bc41518abfc72bb1d222275fc05aedae828f5ffcffa4b563e82fac45101"
+    },
+    {
+      "index": 62500,
+      "path": "crawl-data/CC-MAIN-2026-39/segments/1788492700124.88/warc/CC-MAIN-20260912100909-20260912130909-00500.warc.gz",
+      "bytes": 947833110,
+      "sha256": "227d09081ab2836ff74403b24329e8afe9eb78a273f54e7529f08a39753e61eb"
+    },
+    {
+      "index": 87500,
+      "path": "crawl-data/CC-MAIN-2026-39/segments/1788492995497.76/warc/CC-MAIN-20260915142231-20260915172231-00500.warc.gz",
+      "bytes": 932336516,
+      "sha256": "45d372d9ffd7226ea80835af36b18160dca08e2e202b8e3398226717fc19812d"
+    }
+  ]
+}

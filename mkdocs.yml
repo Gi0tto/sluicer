@@ -61,6 +61,7 @@ nav:
       - Speed and weight: speed.md
       - "Conformance: JSON-LD in HTML": conformance-jsonld.md
       - The field, measured: field-survey.md
+      - The state of declared data: state-of-declared-data.md
   - Project:
       - Why Sluicer: why.md
       - FAQ: faq.md
