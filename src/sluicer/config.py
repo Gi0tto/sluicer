@@ -103,6 +103,8 @@ PER_RUN = {
     "at": "it names one capture",
     "want": "it names one extractor's values",
     "listing": "it describes one extractor's pages",
+    "select": "it names one extractor's fields",
+    "rows": "it names one extractor's rows",
     "force": "it overrides one refusal, once",
     "stealth": "the stealth rung is asked for page by page, never by default",
     "any-site": "a crawl leaves the site it was given only when that run asks",

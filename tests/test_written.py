@@ -611,3 +611,16 @@ def test_select_exits_one_on_nothing_and_two_on_a_selector_it_cannot_read():
     assert "gives nothing" in nothing.stderr
     assert broken.exit_code == 2
     assert "'td['" in broken.stderr
+
+
+@pytest.mark.parametrize("key", ["select", "rows"])
+def test_a_configuration_file_cannot_name_an_extractor_s_selectors(tmp_path, key):
+    """Like --want, --select and --rows describe one extractor: a default
+    for them would write every extractor with the same fields."""
+    config = tmp_path / "sluicer.toml"
+    config.write_text(f'[compile]\n{key} = "h1"\n', encoding="utf-8")
+
+    result = _cli("--config", str(config), "compile", "-o", str(tmp_path / "x.json"))
+
+    assert result.exit_code == 2
+    assert key in result.stderr and "one extractor" in result.stderr

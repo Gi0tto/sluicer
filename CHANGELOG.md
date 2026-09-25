@@ -191,7 +191,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   losses, kept as written, and heal exits 3.
 - The MCP tool `select_values(html_or_url, selector)`, the eleventh: each
   value with its place, a `count`, and `values_left_out` past the 75,000-byte
-  bound. `compile_extractor` takes `select` and `rows`.
+  bound. `compile_extractor` takes `select` and `rows`. A configuration file
+  cannot set `select` or `rows`, as it cannot set `want`: each names one
+  extractor's fields.
 
 ### Changed
 - `cssselect` (1.2 or later) joins the base install, for the CSS selectors:
