@@ -512,7 +512,9 @@ def test_a_top_level_value_every_command_refuses_is_refused_naming_them(here, fe
         '[serve]\nhost = "0.0.0.0"\n',
     ],
 )
-def test_a_file_found_by_searching_may_not_say_where_requests_go(here, fetched, text):
+def test_a_file_found_by_searching_may_not_say_where_requests_go(
+    here, fetched, text, monkeypatch
+):
     """Found by security review: a repository's sluicer.toml, found from the
     directory it was cloned into, set a proxy, and a --cookie session went to
     it in plain HTTP. What is sent, to whom, where the pages are kept, who can
@@ -527,8 +529,17 @@ def test_a_file_found_by_searching_may_not_say_where_requests_go(here, fetched, 
     assert "--config" in result.stderr and "planted" not in result.output
     assert "18431" not in result.output
 
+    # Named, the same file is read; a cache is fetched through, recorded too.
+    monkeypatch.setattr(
+        "sluicer.fetch.cache.fetch_cached",
+        lambda url, cache, **kwargs: (
+            fetched.append({"url": url})
+            or Fetched(url=url, html="<title>t</title>", status=200, rung="http")
+        ),
+    )
     named = _run("--config", str(found), "fetch", URL)
-    assert named.exit_code == 0 or "serve" in text, named.output
+    assert named.exit_code == 0, named.output
+    assert fetched
 
 
 def test_a_pyproject_found_by_searching_may_not_either(here, fetched):
