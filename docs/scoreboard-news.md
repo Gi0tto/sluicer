@@ -4,7 +4,7 @@ The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on news pages from 42 countries'
 publishers, in 21 declared languages, with their scripts:
 as fundus fetched them, stored re-encoded as UTF-8.
-Regenerated on 2026-09-25 from commit `bd8e6fc` by
+Regenerated on 2026-09-25 from commit `9c9836a` by
 `uv run bench/news.py`, against fundus at `c1b86b675018`; the method is in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -37,25 +37,60 @@ Hit rate is hits over the pages that carry a label (263 titles, 257 authors, 263
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.7.1 | 0.871 | 0.829 | 0.970 | 4 | 0 |
-| trafilatura 2.2.0 | 0.852 | 0.879 | 0.970 | 3 | 0 |
-| metascraper 5.58.1 | 0.726 | 0.864 | 0.981 | 5 | 0 |
-| newspaper4k 0.9.6 | 0.779 | 0.767 | 0.932 | 1 | 0 |
+| sluicer 0.7.1 | 0.871 (0.82–0.91) | 0.829 (0.77–0.87) | 0.970 (0.94–0.99) | 4 | 0 |
+| trafilatura 2.2.0 | 0.852 (0.80–0.89) | 0.879 (0.83–0.92) | 0.970 (0.94–0.99) | 3 | 0 |
+| metascraper 5.58.1 | 0.726 (0.66–0.78) | 0.864 (0.81–0.91) | 0.981 (0.95–1.00) | 5 | 0 |
+| newspaper4k 0.9.6 | 0.779 (0.72–0.83) | 0.767 (0.71–0.82) | 0.932 (0.89–0.96) | 1 | 0 |
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.1 | title | 229 | 34 | 0 | 0 | 0 | 0.871 | 0.871 |
-| sluicer 0.7.1 | author | 213 | 13 | 31 | 2 | 4 | 0.829 | 0.926 |
-| sluicer 0.7.1 | date | 255 | 0 | 8 | 0 | 0 | 0.970 | 1.000 |
-| trafilatura 2.2.0 | title | 224 | 39 | 0 | 0 | 0 | 0.852 | 0.852 |
-| trafilatura 2.2.0 | author | 226 | 12 | 19 | 3 | 3 | 0.879 | 0.938 |
-| trafilatura 2.2.0 | date | 255 | 8 | 0 | 0 | 0 | 0.970 | 0.970 |
-| metascraper 5.58.1 | title | 191 | 72 | 0 | 0 | 0 | 0.726 | 0.726 |
-| metascraper 5.58.1 | author | 222 | 31 | 4 | 1 | 5 | 0.864 | 0.860 |
-| metascraper 5.58.1 | date | 258 | 2 | 3 | 0 | 0 | 0.981 | 0.992 |
-| newspaper4k 0.9.6 | title | 205 | 44 | 14 | 0 | 0 | 0.779 | 0.823 |
-| newspaper4k 0.9.6 | author | 197 | 32 | 28 | 5 | 1 | 0.767 | 0.857 |
-| newspaper4k 0.9.6 | date | 245 | 0 | 18 | 0 | 0 | 0.932 | 1.000 |
+| sluicer 0.7.1 | title | 229 | 34 | 0 | 0 | 0 | 0.871 (0.82–0.91) | 0.871 (0.82–0.91) |
+| sluicer 0.7.1 | author | 213 | 13 | 31 | 2 | 4 | 0.829 (0.77–0.87) | 0.926 (0.88–0.96) |
+| sluicer 0.7.1 | date | 255 | 0 | 8 | 0 | 0 | 0.970 (0.94–0.99) | 1.000 (0.98–1.00) |
+| trafilatura 2.2.0 | title | 224 | 39 | 0 | 0 | 0 | 0.852 (0.80–0.89) | 0.852 (0.80–0.89) |
+| trafilatura 2.2.0 | author | 226 | 12 | 19 | 3 | 3 | 0.879 (0.83–0.92) | 0.938 (0.89–0.97) |
+| trafilatura 2.2.0 | date | 255 | 8 | 0 | 0 | 0 | 0.970 (0.94–0.99) | 0.970 (0.94–0.99) |
+| metascraper 5.58.1 | title | 191 | 72 | 0 | 0 | 0 | 0.726 (0.66–0.78) | 0.726 (0.66–0.78) |
+| metascraper 5.58.1 | author | 222 | 31 | 4 | 1 | 5 | 0.864 (0.81–0.91) | 0.860 (0.81–0.90) |
+| metascraper 5.58.1 | date | 258 | 2 | 3 | 0 | 0 | 0.981 (0.95–1.00) | 0.992 (0.97–1.00) |
+| newspaper4k 0.9.6 | title | 205 | 44 | 14 | 0 | 0 | 0.779 (0.72–0.83) | 0.823 (0.77–0.87) |
+| newspaper4k 0.9.6 | author | 197 | 32 | 28 | 5 | 1 | 0.767 (0.71–0.82) | 0.857 (0.80–0.90) |
+| newspaper4k 0.9.6 | date | 245 | 0 | 18 | 0 | 0 | 0.932 (0.89–0.96) | 1.000 (0.98–1.00) |
+
+## How sure, and what differs
+
+Each rate above carries its 95% Wilson score interval, the bounds
+rounded outwards to two places. Sluicer against each other tool:
+
+| Sluicer against | field | rate | difference (95% interval) | verdict |
+|---|---|---|---|---|
+| trafilatura 2.2.0 | title | hit rate | +0.019 (-0.039 to +0.077) | inconclusive |
+| trafilatura 2.2.0 | title | right when answering | +0.019 (-0.039 to +0.077) | inconclusive |
+| trafilatura 2.2.0 | author | hit rate | -0.051 (-0.086 to -0.015) | worse |
+| trafilatura 2.2.0 | author | right when answering | -0.012 (-0.042 to +0.018) | inconclusive |
+| trafilatura 2.2.0 | date | hit rate | 0.000 (-0.020 to +0.023) | inconclusive |
+| trafilatura 2.2.0 | date | right when answering | +0.030 (+0.011 to +0.054) | better |
+| metascraper 5.58.1 | title | hit rate | +0.144 (+0.079 to +0.210) | better |
+| metascraper 5.58.1 | title | right when answering | +0.144 (+0.079 to +0.210) | better |
+| metascraper 5.58.1 | author | hit rate | -0.035 (-0.078 to +0.008) | inconclusive |
+| metascraper 5.58.1 | author | right when answering | +0.066 (+0.034 to +0.101) | better |
+| metascraper 5.58.1 | date | hit rate | -0.011 (-0.031 to +0.004) | inconclusive |
+| metascraper 5.58.1 | date | right when answering | +0.008 (0.000 to +0.020) | inconclusive |
+| newspaper4k 0.9.6 | title | hit rate | +0.091 (+0.038 to +0.145) | better |
+| newspaper4k 0.9.6 | title | right when answering | +0.047 (-0.001 to +0.097) | inconclusive |
+| newspaper4k 0.9.6 | author | hit rate | +0.062 (+0.011 to +0.114) | better |
+| newspaper4k 0.9.6 | author | right when answering | +0.070 (+0.026 to +0.114) | better |
+| newspaper4k 0.9.6 | date | hit rate | +0.038 (+0.011 to +0.069) | better |
+| newspaper4k 0.9.6 | date | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
+
+The difference is the first side's rate minus the second's, over the
+same pages. Its interval is the 95% percentile interval of 10,000
+resamples of the pages, drawn together for both sides (`bench/stats.py`,
+seed 20260924): **better** when the interval is above zero, **worse**
+when it is below, **inconclusive** when it holds zero. These are
+18 comparisons, made with no correction for making many: where two
+sides did not differ at all, about one in twenty would still be called
+better or worse, so read the verdicts as a table, not one at a time.
 
 ## By language
 
@@ -146,7 +181,7 @@ Each page is counted under the language its `<html lang>` declares.
 
 | tool | seconds for all pages | packages installed |
 |---|---|---|
-| sluicer 0.7.1 | 1.16 | 3 |
+| sluicer 0.7.1 | 1.07 | 3 |
 | trafilatura 2.2.0 | 2.10 | 17 |
 | metascraper 5.58.1 | 2.39 | 125 |
 | newspaper4k 0.9.6 | 15.71 | 22 |
