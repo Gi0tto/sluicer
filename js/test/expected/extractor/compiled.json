@@ -11,7 +11,7 @@
   ],
   "answer": {
     "format": 1,
-    "sluicer": "0.7.0",
+    "sluicer": "0.7.1",
     "learnt_from": [
       "https://shop.example/shop_v1.html",
       "https://shop.example/shop_v1_page2.html"
@@ -29,6 +29,11 @@
         6
       ],
       "empty": 0.0,
+      "siblings": [
+        1,
+        1,
+        1
+      ],
       "fields": [
         {
           "name": "a.title",
