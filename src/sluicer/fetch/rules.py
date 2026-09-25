@@ -43,8 +43,11 @@ _CHALLENGE_MARKERS = (
     "enable javascript and cookies to continue",
 )
 
-_TITLE = re.compile(r"(?is)<title\b[^>]*>(.*?)</title>")
-_TAGS = re.compile(r"(?s)<(script|style).*?</\1>|<[^>]+>")
+_TITLE_OPENS = re.compile(r"(?i)<title\b")
+_TITLE_CLOSES = re.compile(r"(?i)</title>")
+# The elements whose content is stripped with their tags: a script's code and
+# a style sheet are no text a reader sees.
+_STRIPPED_WHOLE = ("script", "style")
 # A script that runs: one with a source, or an inline one that is not data.
 _SCRIPT = re.compile(
     r"<script\b(?![^>]*\btype\s*=\s*[\"']?application/(?:ld\+)?json)[^>]*>",
@@ -54,7 +57,7 @@ _SCRIPT = re.compile(
 
 def why_climb(status: int, html: str, found_records: bool) -> str | None:
     """Return the reason to climb a rung, or None to stay where we are."""
-    text = _TAGS.sub(" ", html).strip()
+    text = strip_tags(html).strip()
     marker = _challenge(html, text, found_records)
     if marker is not None:
         # Before the status: "a page standing in front of the content" is the
@@ -69,7 +72,7 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
         return None
 
     # Both remaining rules are about a page that gave us nothing, so both are
-    # off once something was declared about a thing: _TAGS strips <script>
+    # off once something was declared about a thing: strip_tags drops <script>
     # bodies, so a complete JSON-LD block counts as zero characters of text,
     # and climbing would buy a browser for a page already extracted.
     if found_records or len(text) >= TEXT_FLOOR:
@@ -96,7 +99,7 @@ def challenge_marker(html: str, found_records: bool) -> str | None:
     ``why_climb``'s first rule, alone: whatever the status, a page that is
     this is the site standing in front of the content, never the content.
     """
-    return _challenge(html, _TAGS.sub(" ", html).strip(), found_records)
+    return _challenge(html, strip_tags(html).strip(), found_records)
 
 
 def _challenge(html: str, text: str, found_records: bool) -> str | None:
@@ -106,9 +109,9 @@ def _challenge(html: str, text: str, found_records: bool) -> str | None:
     counts only on a page that is not content: nothing declared about a thing,
     and less visible text than ``CHALLENGE_TEXT_CEILING``.
     """
-    title = _TITLE.search(html)
+    title = page_title(html)
     if title is not None:
-        said = " ".join(title.group(1).split()).lower().rstrip(".\u2026 ")
+        said = " ".join(title.split()).lower().rstrip(".\u2026 ")
         if said in _CHALLENGE_TITLES or said.startswith(_CHALLENGE_TITLE_PREFIXES):
             return said
     if found_records or len(text) >= CHALLENGE_TEXT_CEILING:
@@ -118,3 +121,74 @@ def _challenge(html: str, text: str, found_records: bool) -> str | None:
         if marker in lowered:
             return marker
     return None
+
+
+def strip_tags(html: str) -> str:
+    """``html`` with each tag, and each script and style whole, as one space.
+
+    A ``<script>`` or ``<style>`` goes with everything up to its end tag, and
+    one never closed is a tag like any other; a ``<`` with no ``>`` after it
+    is text. The pattern that did this, ``<(script|style).*?</\\1>|<[^>]+>``,
+    looked for the end tag again from every place one opened: a page of a
+    hundred thousand unclosed ``<script>`` tags took a minute, after its
+    fetch and outside every deadline. Here each end is looked for once.
+    """
+    ends = {name: _Next(html, f"</{name}>") for name in _STRIPPED_WHOLE}
+    closing = _Next(html, ">")
+    kept: list[str] = []
+    copied = at = 0
+    while (at := html.find("<", at)) != -1:
+        end = -1
+        for name in _STRIPPED_WHOLE:
+            if html.startswith(name, at + 1):
+                close = ends[name].at_or_after(at + 1 + len(name))
+                if close != -1:
+                    end = close + len(name) + 3
+                break
+        if end == -1:
+            close = closing.at_or_after(at + 1)
+            if close > at + 1:
+                end = close + 1
+        if end == -1:
+            at += 1
+            continue
+        kept += (html[copied:at], " ")
+        copied = at = end
+    kept.append(html[copied:])
+    return "".join(kept)
+
+
+def page_title(html: str) -> str | None:
+    """The text of the page's first ``<title>``, as written, or None.
+
+    Only the first opening can answer: a later one has its ``>`` and its end
+    tag no sooner. Asked from every opening, as a pattern does, a page of
+    forty thousand unclosed ``<title>`` tags took seconds.
+    """
+    opening = _TITLE_OPENS.search(html)
+    if opening is None:
+        return None
+    start = html.find(">", opening.end())
+    if start == -1:
+        return None
+    close = _TITLE_CLOSES.search(html, start + 1)
+    return html[start + 1 : close.start()] if close else None
+
+
+class _Next:
+    """Where ``needle`` next starts in ``text``, asked at points that only
+    move forward: each place is found once, whatever the number of askings.
+    """
+
+    __slots__ = ("found", "needle", "text")
+
+    def __init__(self, text: str, needle: str) -> None:
+        self.text, self.needle = text, needle
+        self.found: int | None = None
+
+    def at_or_after(self, point: int) -> int:
+        found = self.found
+        if found is not None and (found == -1 or found >= point):
+            return found
+        self.found = found = self.text.find(self.needle, point)
+        return found
