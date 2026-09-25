@@ -591,6 +591,26 @@ def test_a_batch_keeps_its_order_reads_each_address_once_and_answers_bad_ones():
     assert fake.gaps("example.com") == [1.0, 1.0]
 
 
+def test_a_batch_never_repeats_the_password_of_an_address_it_cannot_take():
+    """A crawl takes no address with a login in it, and said so in a line that
+    named it whole, password and all."""
+    fake = FakeWeb(shop())
+
+    (page,) = extract_many(
+        ["https://me:secret@example.com/p"],
+        web=fake.web(),
+        clock=fake.clock,
+        sleep=fake.clock.sleep,
+    )
+
+    assert page.error.code == "bad_input"
+    assert page.url == "https://me:***@example.com/p"
+    assert "secret" not in page.error.message
+    with pytest.raises(ValueError) as refused:
+        list(crawl("https://me:secret@example.com/", web=fake.web()))
+    assert "secret" not in str(refused.value) and "me:***@" in str(refused.value)
+
+
 def paced(fake, **options):
     """Options that pace a crawl or a batch by ``fake``'s clock, its web left to
     ``as_default`` so the redirect rule is wired as in production."""

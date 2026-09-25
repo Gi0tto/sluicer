@@ -22,6 +22,8 @@ from typing import NoReturn
 
 import click
 
+from sluicer.fetch.address import shown
+
 NOTHING_FOUND = 1
 COULD_NOT_READ = 2
 CONTRACT_BROKEN = 3
@@ -29,5 +31,7 @@ INTERRUPTED = 130
 
 
 def _fail(message: str, cause: BaseException | None = None) -> NoReturn:
-    click.echo(message, err=True)
+    """Say ``message`` and exit ``COULD_NOT_READ``; a password in an address
+    it names is written ``***``."""
+    click.echo(shown(message), err=True)
     raise SystemExit(COULD_NOT_READ) from cause

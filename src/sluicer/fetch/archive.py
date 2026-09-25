@@ -23,7 +23,7 @@ import re
 from collections.abc import Callable, Iterable
 from urllib.parse import urlsplit
 
-from sluicer.fetch.address import _resolve
+from sluicer.fetch.address import _resolve, without_credentials
 from sluicer.fetch.gate import GATE, after, ungated
 from sluicer.fetch.ladder import FetchFailed, fetch
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, Capture, Fetched
@@ -93,7 +93,9 @@ def fetch_archived(
     if urlsplit(url).scheme not in ("http", "https"):
         raise ValueError(f"{url!r} is not an http(s) address")
     asked = timestamp(at)
-    address = f"https://{ARCHIVE}/web/{asked}id_/{url}"
+    # A capture is of the page as anyone reads it: a password in the address
+    # is the site's to be sent, never the archive's.
+    address = f"https://{ARCHIVE}/web/{asked}id_/{without_credentials(url)}"
     real = rung is None
     if rung is None:
         from sluicer.fetch.http_rung import http_rung

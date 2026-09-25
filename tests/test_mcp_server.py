@@ -456,6 +456,43 @@ def test_fetch_page_reads_a_url_with_no_fetching_extra(monkeypatch):
     assert "Words." in result["html"]
 
 
+def test_fetch_page_never_repeats_a_password_in_the_address(monkeypatch):
+    """Measured on 0.8.0 (the second security review's userinfo.py): the
+    answer's ``url`` on success, and its message on failure, carried the
+    password of ``http://alice:PW123@...``."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    absent(monkeypatch, "scrapling", "playwright")
+    _web_of_one_page(monkeypatch, "<html><body>" + "Words. " * 60 + "</body></html>")
+
+    fetched = registered["fetch_page"]("https://alice:PW123@example.com/p")
+    refused = registered["fetch_page"]("http://alice:PW123@127.0.0.1/p")
+
+    assert fetched["ok"] is True and fetched["url"] == (
+        "https://alice:***@example.com/p"
+    )
+    assert refused["error"]["code"] == "refused_address"
+    assert "PW123" not in json.dumps(refused)
+    assert "alice:***@" in refused["error"]["message"]
+
+
+def test_no_error_repeats_a_password_it_was_handed(monkeypatch):
+    """The last word on every error a tool answers: an address the tool
+    could not take is named with its password hidden too."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    refused = registered["fetch_page"]("ftp://me:secret@files.example/p")
+
+    assert refused["error"]["code"] == "bad_input"
+    assert "secret" not in refused["error"]["message"]
+    assert "me:***@" in refused["error"]["message"]
+
+
 def test_page_markdown_without_the_markdown_extra_reports_it_as_an_error(monkeypatch):
     """Replaces a test that asserted the defect.
 

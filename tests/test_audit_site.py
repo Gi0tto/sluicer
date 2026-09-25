@@ -423,6 +423,21 @@ class Rung:
         return Fetched(url=url, html=body, status=status, rung="http")
 
 
+def test_the_sites_files_are_read_as_anyone_reads_them():
+    """A page's address may carry a user and password; the site's own files
+    are read without them, as they are read without the caller's headers
+    and cookies. Asked of an address whose password was hidden, they were
+    sent the login ``user:***``."""
+    from sluicer.fetch.site import read_tdmrep_file
+
+    rung = Rung({})
+
+    read_site("https://me:***@example.com/p", rung=rung)
+    read_tdmrep_file("https://me:secret@example.com/p", rung=rung)
+
+    assert all("@" not in asked for asked in rung.asked), rung.asked
+
+
 def test_the_four_files_are_read_from_the_sites_root():
     rung = Rung(
         {

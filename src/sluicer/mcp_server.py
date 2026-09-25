@@ -37,6 +37,7 @@ from sluicer.fetch import (
     RobotsRefused,
     SiteRefused,
 )
+from sluicer.fetch.address import shown
 from sluicer.fetch.archive import NotArchived
 from sluicer.fetch.http_rung import PROXY_ENV, chosen_proxy
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
@@ -225,12 +226,14 @@ def _held_to_the_bound(name: str, answer: Any) -> Any:
 def _error(
     code: str, failure: Exception, retryable: bool = False, **detail: str | None
 ) -> dict[str, Any]:
-    known = {key: value for key, value in detail.items() if value is not None}
+    # The last word on every error: an address handed in is named with its
+    # password hidden, whatever raised.
+    known = {key: shown(value) for key, value in detail.items() if value is not None}
     return {
         "ok": False,
         "error": {
             "code": code,
-            "message": str(failure),
+            "message": shown(str(failure)),
             "retryable": retryable,
             **known,
         },

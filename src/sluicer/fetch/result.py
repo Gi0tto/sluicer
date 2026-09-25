@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+
+from sluicer.fetch.address import shown
 
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 """The most a page may weigh, in bytes of HTML, before the fetch gives up on it.
@@ -23,8 +25,8 @@ class ResponseTooLarge(Exception):
     """
 
     def __init__(self, url: str, limit: int) -> None:
-        super().__init__(f"{url} is larger than {limit} bytes; it was not read")
-        self.url = url
+        super().__init__(shown(f"{url} is larger than {limit} bytes; it was not read"))
+        self.url = shown(url)
         self.limit = limit
 
 
@@ -37,8 +39,8 @@ class EmptyBody(ValueError):
     """
 
     def __init__(self, url: str, rung: str, status: int) -> None:
-        super().__init__(f"the {rung} rung returned no HTML for {url!r}")
-        self.url = url
+        super().__init__(shown(f"the {rung} rung returned no HTML for {url!r}"))
+        self.url = shown(url)
         self.status = status
 
 
@@ -52,11 +54,11 @@ class RedirectRefused(Exception):
 
     def __init__(self, url: str, target: str, reason: str) -> None:
         super().__init__(
-            f"{url} redirects to {target}, which is not followed: {reason}"
+            shown(f"{url} redirects to {target}, which is not followed: {reason}")
         )
-        self.url = url
-        self.target = target
-        self.reason = reason
+        self.url = shown(url)
+        self.target = shown(target)
+        self.reason = shown(reason)
 
 
 Redirects = Callable[[str, str], str | None]
@@ -133,6 +135,16 @@ class Fetched:
     """The capture the page was read from, when it came from an archive."""
     cached: CacheHit | None = None
     """How the page came from a cache, when it did."""
+
+
+def shown_fetched(fetched: Fetched) -> Fetched:
+    """``fetched`` as its caller is handed it: the password of the address it
+    landed on, and of any address a climb names, hidden (``shown``)."""
+    fetched.url = shown(fetched.url)
+    fetched.climbs = [
+        replace(climb, reason=shown(climb.reason)) for climb in fetched.climbs
+    ]
+    return fetched
 
 
 Rung = Callable[[str], Fetched]

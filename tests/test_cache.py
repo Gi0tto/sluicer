@@ -438,6 +438,28 @@ def test_a_page_is_kept_whole_or_not_at_all(tmp_path, monkeypatch):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_a_password_in_the_address_is_never_written_to_the_cache(tmp_path):
+    """Measured on 0.8.0 (the second security review's userinfo.py): the
+    entry for ``http://alice:PW123@...`` kept that address as its ``url``.
+    The password still tells two logins' pages apart."""
+    clock, site = Clock(), Site()
+    cache = Cache(tmp_path, clock=clock, max_age=3600)
+    alice = "https://alice:PW123@shop.example/p"
+
+    first = fetch_cached(alice, cache, rungs=[("http", site.rung)])
+    again = fetch_cached(alice, cache, rungs=[("http", site.rung)])
+    other = fetch_cached(
+        "https://alice:other@shop.example/p", cache, rungs=[("http", site.rung)]
+    )
+
+    assert first.url == again.url == "https://alice:***@shop.example/p"
+    assert again.cached is not None and other.cached is None
+    assert len(site.pages) == 2
+    written = [entry.read_text(encoding="utf-8") for entry in tmp_path.iterdir()]
+    assert len(written) == 2
+    assert not any("PW123" in text or "other@" in text for text in written)
+
+
 def test_a_revalidation_sends_the_callers_headers_beside_the_validators(tmp_path):
     clock, site = Clock(), Site()
     cache = Cache(tmp_path, clock=clock)

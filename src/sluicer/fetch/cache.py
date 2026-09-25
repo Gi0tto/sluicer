@@ -37,7 +37,7 @@ from sluicer.api import extract
 from sluicer.declared.headers import charset
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import sniff_encoding
-from sluicer.fetch.address import _resolve
+from sluicer.fetch.address import _resolve, shown
 from sluicer.fetch.gate import GATE, after, ungated
 from sluicer.fetch.http_rung import Response
 from sluicer.fetch.identity import outgoing
@@ -92,6 +92,8 @@ class Cache:
         self.clock = clock
 
     def _path(self, url: str) -> Path:
+        # Of the whole address, a password included: two logins' pages are
+        # two entries, though each writes its address with the password hidden.
         key = hashlib.sha256(url.encode("utf-8", "replace")).hexdigest()[:32]
         return self.directory / f"{key}.json"
 
@@ -108,7 +110,7 @@ class Cache:
             return None
         if not isinstance(entry, dict) or entry.get("format") != _FORMAT:
             return None
-        if entry.get("url") != url or not isinstance(entry.get("html"), str):
+        if entry.get("url") != shown(url) or not isinstance(entry.get("html"), str):
             return None
         stored = entry.get("stored")
         if (
@@ -132,7 +134,11 @@ class Cache:
         return entry
 
     def write(self, url: str, fetched: Fetched) -> None:
-        """Keep ``fetched`` for ``url``: only a 2xx page, and never its cookies."""
+        """Keep ``fetched`` for ``url``: only a 2xx page, and never its cookies.
+
+        Nor a password in either address: each is written ``***``
+        (``address.shown``), and the file is named by a digest of ``url``.
+        """
         if not 200 <= fetched.status < 300:
             return
         html = fetched.html
@@ -142,8 +148,8 @@ class Cache:
             url,
             {
                 "format": _FORMAT,
-                "url": url,
-                "landed": fetched.url,
+                "url": shown(url),
+                "landed": shown(fetched.url),
                 "status": fetched.status,
                 "rung": fetched.rung,
                 "stored": self.clock(),

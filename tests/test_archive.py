@@ -127,6 +127,25 @@ def test_only_an_http_address_is_asked_for():
         fetch_archived("ftp://shop.example/p", "2020", rung=archive())
 
 
+def test_the_archive_is_never_sent_the_password_of_the_address():
+    """Found beside the second security review: the address was put in the
+    archive's own path whole, so ``--at`` handed web.archive.org the password
+    of ``https://alice:PW123@shop.example/p/1``. A capture is of the page as
+    anyone reads it."""
+    rung = archive()
+
+    with pytest.raises(NotArchived) as missing:
+        fetch_archived(
+            "http://alice:PW123@shop.example/p/1", "2020", rung=archive(status=404)
+        )
+    fetch_archived("http://alice:PW123@shop.example/p/1", "2020", rung=rung)
+
+    assert rung.asked[-1] == (
+        "https://web.archive.org/web/2020id_/http://shop.example/p/1"
+    )
+    assert "PW123" not in str(missing.value) and "PW123" not in missing.value.url
+
+
 def test_a_redirect_is_followed_only_within_the_archive():
     assert _within_archive(CAPTURE, "https://web.archive.org/web/2020id_/x") is None
     assert "leads off web.archive.org" in _within_archive(

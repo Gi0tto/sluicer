@@ -40,6 +40,8 @@ from types import ModuleType
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
+from sluicer.fetch.address import shown
+
 ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 """What every request says it would like back: a page, or anything else."""
 
@@ -102,16 +104,6 @@ class ProxyRefused(ConnectionError):
 class UnusableProxy(ValueError):
     """A proxy address Sluicer cannot use. Its message names the address
     without its password, which a message would carry into a log."""
-
-
-def shown(address: str) -> str:
-    """``address`` as a message may name it: a password in it is ``***``."""
-    scheme, separator, rest = address.partition("//")
-    if not separator or "@" not in rest:
-        return address
-    who, _, where = rest.rpartition("@")
-    user, colon, _ = who.partition(":")
-    return f"{scheme}//{user}{':***' if colon else ''}@{where}"
 
 
 @dataclass(frozen=True)

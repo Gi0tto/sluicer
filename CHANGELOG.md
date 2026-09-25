@@ -388,6 +388,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A password in an address (`https://user:password@host/page`) is sent to
+  the origin it names and never repeated. Every exception a fetch raises and
+  its `url`, `Fetched.url` and its climbs, `fetch_page`'s and every tool's
+  answer over MCP and the HTTP API (`url` on success, `message` and `url` on
+  failure), the command line's messages, a batch's lines and the cache's
+  entries write it `user:***`, as a proxy's password already was; the cache
+  still keeps two logins' pages apart, by a digest of the whole address. Each
+  repeated it, also in 0.7.1 (the second security review's `userinfo.py`).
+  `--at` also put the whole address in the path of its request to the
+  Wayback Machine, also in 0.7.1: the archive is asked for the page without
+  it now, as are a site's `llms.txt` and TDMRep file read from a page's
+  address.
 - The page cache (`--cache`, `Cache`) keeps each page in a file only its
   user can read (0600), in a directory it makes 0700, whatever the umask.
   Under the usual umask they were 0644 and 0755, also in 0.7.1, so a page

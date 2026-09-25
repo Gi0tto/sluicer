@@ -45,6 +45,18 @@ its mode, since it is yours and may be shared on purpose, and a page kept
 before stays as it was until it is written again. Windows has no such modes.
 The MCP server and the HTTP API take none.
 
+A user and password written in the address itself
+(`https://user:password@host/page`) are sent to that origin, as curl sends
+them, and to its robots.txt, and never repeated: every error a fetch raises
+and its `url`, the address a fetched page hands back and its climbs, the MCP
+server's and the HTTP API's answers, the command line's messages, a batch's
+lines and the cache's entries write it `user:***`, as a proxy's password
+already was. The cache still keeps two logins' pages apart, by a digest of
+the whole address. Before, 0.7.1 included, each of them repeated the
+password, and `--at` put the whole address in the path of its request to the
+Wayback Machine, which is now asked for the page without it, as are a site's
+`llms.txt` and TDMRep file. A crawl takes no address with a login in it.
+
 A configuration file (`sluicer.toml`, or `[tool.sluicer]` in
 `pyproject.toml`) is read by the command line only. One found by searching the
 directories above the one you run in may be a repository's you cloned, so it

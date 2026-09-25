@@ -16,7 +16,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from sluicer.audit.report import Site, SiteFile
 from sluicer.declared.tdmrep import WELL_KNOWN
-from sluicer.fetch.address import AddressRefused, _resolve
+from sluicer.fetch.address import AddressRefused, _resolve, without_credentials
 from sluicer.fetch.gate import GATE, after
 from sluicer.fetch.http_rung import http_rung
 from sluicer.fetch.identity import PRODUCT_TOKEN, protego, robots_url_for
@@ -63,7 +63,9 @@ def read_site(
 
 
 def _read_site(url: str, rung: Rung, obey_robots: bool) -> Site:
-    """``read_site``, through ``rung``."""
+    """``read_site``, through ``rung``: the site's files are read as anyone
+    reads them, without a user and password the page's address carries."""
+    url = without_credentials(url)
     robots = _read(rung, robots_url_for(url))
     parts = urlsplit(url)
     files = []
@@ -107,7 +109,9 @@ def read_tdmrep_file(
 
 
 def _read_tdmrep(url: str, rung: Rung, obey_robots: bool) -> SiteFile:
-    """``read_tdmrep_file``, through ``rung``."""
+    """``read_tdmrep_file``, through ``rung``, without a user and password the
+    page's address carries."""
+    url = without_credentials(url)
     parts = urlsplit(url)
     address = urlunsplit((parts.scheme, parts.netloc, WELL_KNOWN, "", ""))
     if obey_robots:
