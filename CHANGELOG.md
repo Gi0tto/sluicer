@@ -30,6 +30,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   say.
   A `rel` of HTML's own words, such as `nofollow`, still leaves the address
   to the property, as HTML+RDFa says (test 0312). No summary changes.
+- RDFa: a `typeof` element whose `property` has `content` or `datatype` is a
+  subject holding that property, as RDFa Core's processing rules say and the
+  W3C suite's test 0317 checks; it was read as a link to an empty subject and
+  dropped. A `datatype` asks for the words, never the element's address.
+  Drupal 7 writes a node's author and tags this way, `<span
+  typeof="sioc:UserAccount" property="foaf:name" datatype="">`: over the
+  3,976 cached corpus pages, 8 pages gain 36 records -- 13 accounts and
+  people with their names, 23 tags with their labels -- and one record, a
+  tag, gains its label. That tag's page had it as its summary type,
+  `skos:Concept`, since OpenGraph's fields were folded into it; with seven
+  tags the page is a listing of them, and its type is `og:type`'s `article`.
+  Nothing else in `extract()`'s answer over the corpus moves.
 
 ## 0.7.1
 

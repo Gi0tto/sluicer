@@ -19,7 +19,9 @@ terms are left to the OpenGraph reader, which reads the same ``<meta
 property>`` tags.
 
 A ``property`` that is itself a ``typeof`` has that subject as its value,
-nested, as in microdata. A property declared twice is a list in document order.
+nested, as in microdata, unless its ``content`` or ``datatype`` asks for a
+literal: then the property is the new subject's own. A property declared twice
+is a list in document order.
 
 RDFa is rare: across twenty well-known pages measured on 2026-09-22, one
 carried it. The reader exists for compatibility. It describes things, so it is
@@ -89,7 +91,7 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     left = [max(_PAGE_FLOOR, 10 * len(doc.html))]
     found: list[dict[str, Any]] = []
     for subject in doc.tree.xpath("//*[@typeof]"):
-        is_a_property = subject.get("property") is not None
+        is_a_property = subject.get("property") is not None and not _own(subject)
         if is_a_property and _nearest_subject(subject) is not None:
             continue
         item = _subject(doc, subject, 0, left)
@@ -121,7 +123,7 @@ def _subject(
         if not names:
             continue
         value: Any
-        if prop.get("typeof") is not None:
+        if prop is not subject and prop.get("typeof") is not None:
             if depth >= _MAX_DEPTH:
                 continue
             before = left[0]
@@ -154,18 +156,39 @@ def _subject(
 
 
 def _properties(subject: HtmlElement) -> list[HtmlElement]:
-    """The elements carrying ``subject``'s properties, in document order."""
-    found: list[HtmlElement] = []
+    """The elements carrying ``subject``'s properties, in document order.
+
+    A subject that holds its own property is the first of them, and one
+    below ``subject`` is not among them: it is a subject of its own.
+    """
+    found: list[HtmlElement] = [subject] if _own(subject) else []
     pending = list(reversed(subject))
     while pending:
         element = pending.pop()
         if not isinstance(element.tag, str):
             continue
-        if element.get("property") is not None:
+        if element.get("property") is not None and not _own(element):
             found.append(element)
         if element.get("typeof") is None:
             pending.extend(reversed(element))
     return found
+
+
+def _own(element: HtmlElement) -> bool:
+    """Whether ``element`` is a subject whose ``property`` is its own.
+
+    ``typeof`` with ``property`` makes a new subject, and the property links
+    the subject around it to the new one -- unless ``content`` or ``datatype``
+    asks for a literal. Then, as RDFa Core's processing rules have it, the
+    property and its literal belong to the new subject, and nothing links to
+    it: Drupal 7's ``<span typeof="sioc:UserAccount" property="foaf:name"
+    datatype="">`` is an account and its name.
+    """
+    return (
+        element.get("typeof") is not None
+        and element.get("property") is not None
+        and (element.get("content") is not None or element.get("datatype") is not None)
+    )
 
 
 def _nearest_subject(element: HtmlElement) -> HtmlElement | None:
@@ -191,17 +214,20 @@ def _value(doc: Document, element: HtmlElement) -> str:
     link's object and the title is the words, as RDFa Core's processing rules
     have it. HTML+RDFa ignores the plain words HTML writes there, such as
     ``nofollow``, on an element with a property, so only a ``rel`` or ``rev``
-    naming a term, a CURIE or an IRI, takes the addresses.
+    naming a term, a CURIE or an IRI, takes the addresses. A ``datatype``
+    asks for a literal, so its value is the words too: a Drupal tag,
+    ``<a href="/tags/x" property="rdfs:label" datatype="">x</a>``, is labelled
+    ``x``. The words are kept and the type is not.
     """
     content: str | None = element.get("content")
     if content:
         return content.strip()
-    linked = _links(element)
+    literal = element.get("datatype") is not None or _links(element)
     resource = trimmed(element.get("resource"))
-    if resource and not linked:
+    if resource and not literal:
         return absolute(doc, resource)
     attr = _VALUE_ATTRS.get(element.tag)
-    if attr is not None and (attr == "datetime" or not linked):
+    if attr is not None and (attr == "datetime" or not literal):
         declared: str | None = element.get(attr)
         found = (declared or "").strip() if attr == "datetime" else trimmed(declared)
         if found:
