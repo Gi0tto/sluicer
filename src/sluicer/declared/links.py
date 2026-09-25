@@ -73,13 +73,15 @@ def canonicals(doc: Document) -> list[str]:
     is one address; two different ones are a conflict, and Google then uses
     neither.
     """
-    found: list[str] = []
+    # A dict keeps them once each, in page order: a list asked whether it held
+    # each new one, and forty thousand canonicals took four seconds.
+    found: dict[str, None] = {}
     for link in doc.tree.xpath("//head//link[@rel][@href]"):
         if "canonical" in (link.get("rel") or "").lower().split():
             href = clean_address(link.get("href") or "")
-            if href and href not in found:
-                found.append(href)
-    return found
+            if href:
+                found.setdefault(href)
+    return list(found)
 
 
 def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:

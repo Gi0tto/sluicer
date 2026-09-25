@@ -71,6 +71,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- Four readers kept each name once by asking a list, for every new name,
+  whether it held it already: the head's canonicals (and so the audit's), a
+  JSON-LD author list, an RDFa attribute's terms and a robots.txt's
+  `User-agent` lines. Forty thousand of any took about four and a half
+  seconds, and the sixteen mebibytes a fetch allows would have taken
+  minutes; each now takes 0.02 to 0.1 s. The answers are the same, in the
+  same order: `extract()` gives byte-identical output on the 5,976 cached
+  corpus pages.
 - The scoreboards say which pages Sluicer's rules were made on. Five of the
   six, and the drift benchmark, had rules written, measured on their pages and
   kept because the numbers there rose -- `b86aa19` was "Measured on WCXB's

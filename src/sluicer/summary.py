@@ -873,7 +873,9 @@ def _listed(value: Any) -> list[Any]:
 def _names(value: JsonValue) -> str | None:
     """Every name ``value`` gives, in order, once each, or None."""
     items = value if isinstance(value, list) else [value]
-    names: list[str] = []
+    # Once each, in order, without asking a list for each name whether it
+    # held it: forty thousand authors took four seconds.
+    names: dict[str, None] = {}
     for item in items:
         if isinstance(item, dict):
             name = _text(item.get("name", "")) if "name" in item else None
@@ -882,8 +884,8 @@ def _names(value: JsonValue) -> str | None:
                 name = " ".join(part for part in parts if part) or None
         else:
             name = _text(item)
-        if name and not _is_address(name) and name not in names:
-            names.append(name)
+        if name and name not in names and not _is_address(name):
+            names[name] = None
     return ", ".join(names) or None
 
 
