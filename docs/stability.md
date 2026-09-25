@@ -50,6 +50,11 @@ release of warning first:
 - `sluicer audit` and `sluicer.audit`, whose findings follow Google's
   documentation as it changes
 - `sluicer diff` and `sluicer.diff`
+- selecting by hand: `sluicer select`, `sluicer.parse` and `Page`, the
+  `select_values` MCP tool, and extractors written by selector (`compile
+  --select`): what a selector's values are and the checks such an extractor
+  is held to. A file `compile --select` writes is read by every later
+  release, as any extractor file is
 - `--induce` and `sluicer.induce`: which rows are read from a page that
   declares nothing
 - `--visible` and `visible=True`: the guesses, their rules and the `rule`

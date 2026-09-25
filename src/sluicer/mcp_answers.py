@@ -184,6 +184,21 @@ class PageAnswer(TypedDict, total=False):
     next_offset: int | None
 
 
+class SelectedAnswer(TypedDict):
+    value: str
+    where: str
+
+
+class SelectAnswer(TypedDict, total=False):
+    ok: Required[bool]
+    error: ErrorDetail
+    url: str | None
+    values: list[SelectedAnswer]
+    values_left_out: int
+    count: int
+    fetch: FetchRecord
+
+
 class CompileAnswer(TypedDict, total=False):
     ok: Required[bool]
     error: ErrorDetail

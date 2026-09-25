@@ -580,7 +580,7 @@ Records, fields and summary answers are typed; a field's value is any JSON, as
 the page declared it, and the extractor object is a plain mapping whose shape
 is documented in [extractors](extractors.md), not in the schema.
 
-**The ten tools are pinned by set equality**, so an eleventh cannot appear
+**The eleven tools are pinned by set equality**, so a twelfth cannot appear
 unnoticed. The HTTP door is held to that same list, not to a second one.
 
 ## In the HTTP API

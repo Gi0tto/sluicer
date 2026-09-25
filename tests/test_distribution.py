@@ -162,7 +162,7 @@ FAKE_SERVER = textwrap.dedent(
 def test_the_smoke_check_passes_on_sluicer_s_own_server():
     pytest.importorskip("mcp")
     listed = _script("mcp_smoke").check([sys.executable, "-m", "sluicer", "mcp"])
-    assert len(listed) == 10
+    assert len(listed) == 11
 
 
 def test_the_smoke_check_fails_on_a_server_that_lists_other_tools(tmp_path):
@@ -345,7 +345,7 @@ def test_the_bundle_s_settings_are_the_variables_the_server_reads():
     # the server reads "true" as on, and anything else as off.
     assert settings["allow_private"]["type"] == "boolean"
     assert settings["allow_private"]["default"] is False
-    # Empty is all ten: the server ignores an empty SLUICER_MCP_TOOLS.
+    # Empty is all eleven: the server ignores an empty SLUICER_MCP_TOOLS.
     assert settings["tools"]["default"] == ""
 
 

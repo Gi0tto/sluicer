@@ -47,11 +47,17 @@ field says `"source": "induced"`.
   most 60,000 characters (`next_offset` says where the next starts), and what
   the fetch cost. Prefer the other two: they return what is in the page, not
   all of it.
-- `compile_extractor(pages, listing=null, want=null)` -- learn an extractor from
-  two or three pages of one template. Keep the object it returns. `want` maps a
-  column's name to a value you can see on the first page (`{"title": "Pads"}`):
-  the extractor then reads the list or the page fields holding those values,
-  under those names.
+- `compile_extractor(pages, listing=null, want=null, select=null, rows=null)`
+  -- learn an extractor from two or three pages of one template. Keep the
+  object it returns. `want` maps a column's name to a value you can see on the
+  first page (`{"title": "Pads"}`): the extractor then reads the list or the
+  page fields holding those values, under those names. When you know the
+  selectors, `select` maps each name to one instead (`{"price":
+  "span.price::text"}`), and `rows` is the listing's rows (`"li.product"`);
+  pages are then optional, and a run fails when a selector finds nothing.
+- `select_values(html_or_url, selector)` -- what a CSS (`::text`,
+  `::attr(href)`) or XPath selector gives on a page, each value with the XPath
+  of its element. Try a selector here before putting it in `select`.
 - `run_extractor(extractor, html_or_url)` -- replay it on any page of that
   template: plain rows, and `ok: false` with the reason when the page drifted.
   Never use rows from a run that is not ok as if nothing happened.
@@ -90,15 +96,15 @@ and on a crawled page `redirected_off_site` (with its `target`),
 only for `fetch_failed` and `rate_limited`); or, from
 `run_extractor`, `failed`, the checks the page broke; or, from
 `heal_extractor`, `lost`, when the page no longer has a field the old extractor
-read. An error is never text that could be mistaken for the page. The server
+read, or a selector you wrote no longer holds (heal never rewrites one). An error is never text that could be mistaken for the page. The server
 refuses addresses off the public internet (`localhost`, `10.x`, cloud metadata)
 -- redirects and a browser's requests included -- unless it was started with
 `SLUICER_ALLOW_PRIVATE=1`.
 
 No answer weighs more than 75,000 bytes of JSON, about 25,000 tokens. Past
 that a tool leaves out what the answer can do without and says so: a count in
-`records_left_out`, `items_left_out`, `urls_left_out`, `rows_left_out` or
-`pages_left_out`, the names of the summary answers it dropped in
+`records_left_out`, `items_left_out`, `urls_left_out`, `rows_left_out`,
+`values_left_out` or `pages_left_out`, the names of the summary answers it dropped in
 `summary_left_out`, or a shorter slice with its `next_offset`. An answer that
 cannot be cut, such as a huge extractor, is `too_large`.
 

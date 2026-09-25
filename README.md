@@ -158,8 +158,8 @@ claude mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp   # Claude Code
 codex mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp    # Codex
 ```
 
-The MCP server has ten read-only tools, among them `extract_declared`,
-`compile_extractor`, `run_extractor` and `heal_extractor`. Every answer carries
+The MCP server has eleven read-only tools, among them `extract_declared`,
+`select_values`, `compile_extractor`, `run_extractor` and `heal_extractor`. Every answer carries
 `ok`, true only when it can be used as it is. The server does not fetch
 localhost, private networks or cloud metadata addresses unless it is started
 with `SLUICER_ALLOW_PRIVATE=1`.

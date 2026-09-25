@@ -1,6 +1,6 @@
 # MCP tools
 
-The 10 tools the server lists to an agent, each with its
+The 11 tools the server lists to an agent, each with its
 description and parameters exactly as the agent receives them. Generated
 from the running server by `scripts/reference.py`; how to add the server to
 a client is in [In your agent](../agents.md).
@@ -110,6 +110,8 @@ Learn an extractor from pages of one template, to replay later for free.
 - `pages`: http(s) URLs, or the HTML itself, of pages built from one template -- two or three pages of one listing, or of one kind of product page.
 - `listing`: learn the rows the pages repeat; by default only where they declare nothing about a thing.
 - `want`: example values one row of the listing holds, by the name each column is to have, as {"price": "41.90", "title": "Brake pad set"}: they choose the listing and the columns, and only those columns are kept. A value that no row holds is an error that names it.
+- `select`: instead of want, each field by a CSS or XPath selector you write, as {"title": "h1", "price": "span.price::text"}; pages may then be empty. Where the fields are is not learnt; what the pages show of them is, and a run fails when a selector finds nothing. Try a selector first with select_values.
+- `rows`: with select, the selector of a listing's rows ("li.product"), each field then read inside each row.
 
 Returns {"ok", "extractor"}: keep that object and hand it to
 run_extractor. It holds what the pages declared, the listing's place,
@@ -122,6 +124,8 @@ writes it to a file.
 | `pages` | array | required |
 | `listing` | boolean or null | `None` |
 | `want` | object or null | `None` |
+| `select` | object or null | `None` |
+| `rows` | string or null | `None` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
 
@@ -164,7 +168,9 @@ keeps its old name, so rows read with the healed extractor keep their
 columns, and its change carries the evidence: how many of the values it
 was learnt with were found in the new place. "lost" is true when a
 change is data the page no longer has -- vanished, summary-lost,
-type-lost, listing-lost -- and then ok is false: the old extractor,
+type-lost, listing-lost, or broken: a selector written by hand that
+the pages no longer bear out, which heal never rewrites -- and then
+ok is false: the old extractor,
 which keeps failing, is the safer one to keep until a person looks.
 A healed extractor heavier than 75,000 bytes is too_large.
 
@@ -287,6 +293,33 @@ pages_left_out.
 | `max_depth` | integer | `2` |
 | `include` | array or null | `None` |
 | `exclude` | array or null | `None` |
+| `respect_tdm` | boolean | `False` |
+
+Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
+
+## `select_values`
+
+**Select values on a page**
+
+Say what a CSS or XPath selector gives on a page, and where each value is.
+
+- `html_or_url`: an http(s) URL to fetch, or the HTML itself.
+- `selector`: CSS, with ::text for an element's own text and ::attr(name) for an attribute ("span.price::text", "a::attr(href)"), or XPath ("//h1", "//a/@href"), told apart by how it begins: an XPath begins with /, ./, ( or @, or is written after "xpath:".
+- `respect_tdm`: answer tdm_reserved when the site reserves its text and data mining rights (TDMRep).
+
+Returns {"ok", "url", "values", "count"}, and "fetch" for a URL:
+values are {"value", "where"}, the text or attribute read, spaces
+collapsed, links resolved, and the XPath of its element; count is
+how many the selector gave. A selector that cannot be read is
+bad_input naming it; one that gives nothing is ok with no values.
+Past 75,000 bytes the last values are left out, counted in
+values_left_out. Use it to try the selectors compile_extractor's
+select takes.
+
+| parameter | type | default |
+|---|---|---|
+| `html_or_url` | string | required |
+| `selector` | string | required |
 | `respect_tdm` | boolean | `False` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
