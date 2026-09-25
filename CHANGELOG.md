@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
+## 0.9.0 - 2026-09-26
 
 ### Added
 - `bench/rdfa_conformance.py` and `docs/scoreboard-rdfa.md`: Sluicer's two

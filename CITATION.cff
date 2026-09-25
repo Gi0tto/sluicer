@@ -11,7 +11,7 @@ license:
   - CC-BY-SA-3.0
   - Unicode-3.0
 version: 0.9.0
-date-released: "2026-09-25"
+date-released: "2026-09-26"
 abstract: >-
   Sluicer reads the structured data a web page already declares, in JSON-LD,
   microdata, RDFa, Dublin Core, OpenGraph, the Twitter card, HTML's own metadata
