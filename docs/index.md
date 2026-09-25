@@ -56,7 +56,7 @@ from. No model reads any page, so the same page always gives the same answer.
 ## Quick start
 
 ```bash
-uv pip install "sluicer[fetch]"
+uv pip install sluicer
 
 # Learn an extractor from three pages of one template, from one example value.
 sluicer compile p1.html p2.html p3.html --want price=41.90 -o shop.json
@@ -99,26 +99,29 @@ page.html` shows the same reading laid out for a person.
 ## Install
 
 ```bash
-uv pip install "sluicer[fetch,markdown,mcp]"
+uv pip install "sluicer[browser,markdown,mcp]"
 ```
 
 `pip install` works the same way, and `uv tool install` gives you the command
 in an environment of its own. The base install, `uv pip install sluicer`, reads
-HTML you already have, with `lxml` and `click` alone.
+HTML you already have and fetches pages over plain HTTP, with `lxml`, `click`
+and `protego` (robots.txt) alone: the HTTP client is Python's own.
 
 <details>
 <summary>What each extra adds</summary>
 
 | extra | adds |
 |---|---|
-| `fetch` | fetching: plain HTTP first, a browser only when the page proves it needs one |
+| `browser` | a browser, Playwright's Chromium, for a page plain HTTP brings back as an empty shell |
+| `stealth` | the stealth rung, by scrapling: one page, only when asked with `--stealth`, never in a crawl |
 | `markdown` | a page's main content as Markdown, by trafilatura |
-| `mcp` | the MCP server, with `fetch` and `markdown` |
+| `mcp` | the MCP server, with `markdown`; add `browser` for pages that need one |
 | `api` | the HTTP API, with `mcp` |
 | `microformats` | microformats2, which is off by default |
+| `fetch` | deprecated since 0.8: `browser` and `stealth` together, what it installed before |
 
-For the browser, once: `uvx --from "sluicer[fetch]" scrapling install`. Without
-it, plain HTTP still works, and a page that needed a browser says so.
+For the browser, once: `uvx --from "sluicer[browser]" playwright install chromium`.
+Without it, plain HTTP still works, and a page that needed a browser says so.
 
 </details>
 

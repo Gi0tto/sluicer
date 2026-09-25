@@ -8,23 +8,25 @@ page, understand what came back, and do the same from Python and from an agent.
 As a command, in an environment of its own:
 
 ```bash
-uv tool install "sluicer[fetch,markdown]"
+uv tool install "sluicer[markdown]"
 sluicer --version
 ```
 
-With pipx instead: `pipx install "sluicer[fetch,markdown]"`. As a library, in
-your project's environment:
+With pipx instead: `pipx install "sluicer[markdown]"`. As a library, in your
+project's environment:
 
 ```bash
-uv pip install "sluicer[fetch,markdown]"
+uv pip install "sluicer[markdown]"
 ```
 
-With pip instead: `pip install "sluicer[fetch,markdown]"`.
+With pip instead: `pip install "sluicer[markdown]"`.
 
-The two extras add fetching pages from the web and turning them into markdown.
-Without them Sluicer still reads every page you already have on disk, with
-nothing installed but `lxml` and `click`. The [extras](index.md#install) are
-listed on the home page.
+The base install reads every page you have on disk and fetches pages from the
+web over plain HTTP, with nothing installed but `lxml`, `click` and `protego`;
+the extra adds turning a page into markdown. A page that is an empty shell a
+script fills in needs a browser: add the `browser` extra, and install its
+Chromium once with `uvx --from "sluicer[browser]" playwright install chromium`.
+The [extras](index.md#install) are listed on the home page.
 
 ## 2. Read a page
 
@@ -106,9 +108,25 @@ trying Sluicer on; the same pages are in the repository's `examples/site/`.
 Sluicer asks with plain HTTP first, under its own name, `Sluicer/<version>`,
 after reading the site's robots.txt, and climbs to a browser only when the
 answer it got was a refusal (401, 403, 407 or 429), a challenge page, or an
-empty shell a script fills in. Every climb is reported with its reason. A site
-that says no in its robots.txt gets no request at all: the command exits 2 and
-says why.
+empty shell a script fills in. Every climb is reported with its reason, and a
+site that needed the browser once is asked of it first for its next pages. A
+site that says no in its robots.txt gets no request at all: the command exits
+2 and says why.
+
+To keep the page itself, as the ladder brought it back, for `compile` or any
+other command to read later:
+
+```bash
+sluicer fetch https://gi0tto.github.io/sluicer/demo/article.html -o article.html
+```
+
+A page behind a login takes the site's own cookie or token, sent to that site
+and to no other it redirects to; Sluicer's name is never replaced:
+
+```bash
+sluicer extract https://example.com/account --cookie session=abc123
+sluicer fetch https://api.example.com/items -H "Authorization: Bearer $TOKEN"
+```
 
 ## 5. From Python
 

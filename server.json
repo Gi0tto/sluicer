@@ -21,7 +21,7 @@
           "type": "named",
           "name": "--with",
           "value": "sluicer[mcp]==0.7.1",
-          "description": "The MCP extra, which brings fetching and markdown, at this version."
+          "description": "The MCP extra, which brings markdown, at this version; plain HTTP fetching is in every install."
         }
       ],
       "packageArguments": [

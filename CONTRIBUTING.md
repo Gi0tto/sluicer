@@ -90,7 +90,7 @@ answers changed, on how many pages, and whether the labels call them right.
 | `src/sluicer/crawl/` | maps, crawls and batches, and the politeness that paces them |
 | `src/sluicer/audit/` | a page's markup held to what Google documents |
 | `src/sluicer/cli.py`, `mcp_server.py`, `http_api.py` | the command line, the MCP server and the HTTP door |
-| `tests/` | the suite; `tests/properties/` the properties; `tests/live/` the checks CI runs against real curl, browsers and installs |
+| `tests/` | the suite; `tests/properties/` the properties; `tests/live/` the checks CI runs against real sockets, browsers and installs |
 | `bench/` | the scoreboards and the drift benchmark; [`bench/README.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/README.md) says how each is run |
 | `examples/` | scripts that run as they are, on `examples/site/`, a made-up site served on your machine |
 | `docs/` | the documentation site |
