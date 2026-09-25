@@ -599,9 +599,10 @@ def test_a_document_type_is_refused_before_the_parser_reads_it(declared, monkeyp
     monkeypatch.setattr(lxml.etree, "iterparse", must_not_parse)
     body = f"<?xml version='1.0'?>{declared}<urlset {NS}></urlset>"
 
-    for encoded in (body.encode(), body.encode("utf-16")):
+    # libxml2 reads UTF-16 without its byte order mark, and UTF-32, too.
+    for codec in ("utf-8", "utf-16", "utf-16-le", "utf-32", "utf-32-le"):
         with pytest.raises(SitemapUnreadable, match="declares a document type"):
-            parse_sitemap(encoded)
+            parse_sitemap(body.encode(codec))
 
 
 def test_a_page_built_to_make_the_refusal_slow_is_refused_in_linear_time():

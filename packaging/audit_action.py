@@ -60,8 +60,9 @@ def audit(page: str, site: bool) -> dict[str, Any]:
     command = [sys.executable, "-m", "sluicer", "audit", "--json"]
     if not site:
         command.append("--no-site")
+    # After "--", a page is a page whatever it is named: "--help" was an option.
     done = subprocess.run(
-        [*command, page], capture_output=True, text=True, encoding="utf-8"
+        [*command, "--", page], capture_output=True, text=True, encoding="utf-8"
     )
     if done.returncode == 2 or not done.stdout.strip():
         reason = done.stderr.strip().splitlines()[-1:] or ["no answer"]

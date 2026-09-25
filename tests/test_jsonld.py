@@ -1,6 +1,9 @@
+import re
 from pathlib import Path
 
-from sluicer.declared.jsonld import _parse, read_jsonld
+from hypothesis import given, strategies as st
+
+from sluicer.declared.jsonld import _parse, _without_closing, read_jsonld
 from sluicer.document import load
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -456,3 +459,181 @@ def test_a_context_of_terms_defined_through_each_other_costs_a_bounded_amount():
     )
 
     assert list(record.fields) == ["t4999", "http://example.com/x/x/"]
+
+
+def _page(block: str) -> str:
+    script = f'<script type="application/ld+json">{block}</script>'
+    return f"<html><head>{script}</head></html>"
+
+
+def test_a_word_written_as_its_own_name_wins_over_one_spelt_otherwise():
+    """Found by review: ``schema:price`` and ``price`` name one property, and
+    the first written won, so the price was 6 where 0.7.1 and every reader
+    that goes by the key read 5. The key written as the name wins, wherever
+    it stands; among other spellings, the first written."""
+    from sluicer import extract
+
+    for offer in (
+        '{"@type": "Offer", "schema:price": "6", "price": "5"}',
+        '{"@type": "Offer", "price": "5", "schema:price": "6"}',
+        '{"@type": "Offer", "http://schema.org/price": "7", "schema:price": "6",'
+        ' "price": "5"}',
+    ):
+        found = extract(
+            _page(
+                '{"@context": "https://schema.org", "@type": "Product", "name": "N",'
+                f' "offers": {offer}}}'
+            )
+        )
+        assert found.records[0].fields["offers"].value == {
+            "@type": "Offer",
+            "price": "5",
+        }, offer
+        assert (found.summary["price"].value, found.summary["price"].where) == (
+            "5",
+            "/html/head/script[1]#/offers/price",
+        ), offer
+
+    record = _record(
+        '{"@context": "https://schema.org", "@type": "Product",'
+        ' "schema:sku": "A", "sku": "B", "schema:gtin": "1",'
+        ' "http://schema.org/gtin": "2", "mpn": "", "schema:mpn": "M"}'
+    )
+    assert {name: (f.value, f.where) for name, f in record.fields.items()} == {
+        "sku": ("B", "/html/head/script[1]#/sku"),
+        "gtin": ("1", "/html/head/script[1]#/schema:gtin"),
+        "mpn": ("M", "/html/head/script[1]#/schema:mpn"),
+    }
+
+
+def test_a_value_named_otherwise_than_written_is_placed_at_the_key_written():
+    """Found by review: the pointer named the key the record calls the value
+    by, ``/offers/price``, and the page wrote ``schema:price``: a pointer to a
+    key the block does not have."""
+    from sluicer import extract
+
+    found = extract(
+        _page(
+            '{"@context": "https://schema.org", "@type": "Product", "name": "N",'
+            ' "offers": [{"@type": "Offer", "schema:price": "6",'
+            ' "schema:seller": {"@type": "Organization", "schema:name": "S"}}]}'
+        )
+    )
+
+    assert (found.summary["price"].value, found.summary["price"].where) == (
+        "6",
+        "/html/head/script[1]#/offers/0/schema:price",
+    )
+    offers = found.records[0].fields["offers"]
+    from sluicer.declared.located import place
+
+    assert place(offers.value, offers.where, [0, "seller", "name"]) == (
+        "/html/head/script[1]#/offers/0/schema:seller/schema:name"
+    )
+
+
+def test_the_audit_reads_the_word_written_as_its_own_name_too():
+    from sluicer.audit.records import normalise
+    from sluicer.declared.jsonld import Terms
+
+    assert normalise(
+        {
+            "@context": "https://schema.org",
+            "@type": "Offer",
+            "schema:price": "6",
+            "price": "5",
+        },
+        terms=Terms(),
+    ) == {"@type": ["Offer"], "price": "5"}
+
+
+def test_a_vocabulary_is_read_through_the_contexts_around_it_not_its_own():
+    """Found by review: ``{"@vocab": "ex:", "ex": ...}`` was read through
+    its own context's ``ex``, where JSON-LD 1.1 reads ``@vocab`` before the
+    terms beside it are defined (PyLD 3.3 gives ``ex:name``); a prefix or a
+    term of a context around it is read, as PyLD reads it."""
+    for context, named in (
+        ('{"@vocab": "ex:", "ex": "http://example.com/"}', "ex:"),
+        ('[{"ex": "http://example.com/"}, {"@vocab": "ex:"}]', "http://example.com/"),
+        ('[{"v": "http://example.com/"}, {"@vocab": "v"}]', "http://example.com/"),
+    ):
+        record = _record(f'{{"@context": {context}, "@type": "Thing", "name": "N"}}')
+        assert (record.type, list(record.fields)) == (
+            named + "Thing",
+            [named + "name"],
+        ), context
+
+
+def test_schema_org_s_namespace_with_a_fragment_is_schema_org_s():
+    """Found by review: ``@vocab`` written ``http://schema.org/#`` named every
+    word ``http://schema.org/#name`` and lost the title 0.7.1 read."""
+    from sluicer import extract
+
+    found = extract(
+        _page(
+            '{"@context": {"@vocab": "http://schema.org/#"}, "@type": "Article",'
+            ' "headline": "H"}'
+        )
+    )
+
+    assert (found.records[0].type, list(found.records[0].fields)) == (
+        "Article",
+        ["headline"],
+    )
+    assert found.summary["title"].value == "H"
+
+
+def test_schema_is_schema_org_s_prefix_only_where_the_context_leaves_it_so():
+    """Suspected by review: ``schema:Product`` was schema.org's Product
+    though the block's context defines ``schema`` as a word that is no
+    prefix, making ``schema:Product`` an address of its own (PyLD 3.3 keeps
+    it). Where the context says nothing of ``schema`` it is schema.org's, as
+    pages mean it."""
+    for context in (
+        '{"schema": "http://example.com/v"}',
+        '{"schema": {"@id": "http://example.com/"}}',
+    ):
+        record = _record(
+            f'{{"@context": {context}, "@type": "schema:Product", "schema:name": "N"}}'
+        )
+        assert (record.type, list(record.fields)) == (
+            "schema:Product",
+            ["schema:name"],
+        ), context
+    for block in (
+        '{"@type": "schema:Product", "schema:name": "N"}',
+        '{"@context": "https://w3id.org/x", "@type": "schema:Product",'
+        ' "schema:name": "N"}',
+        '{"@context": {"schema": "https://schema.org/"}, "@type": "schema:Product",'
+        ' "schema:name": "N"}',
+    ):
+        record = _record(block)
+        assert (record.type, list(record.fields)) == ("Product", ["name"]), block
+
+
+# --- a block's wrapper -----------------------------------------------------------
+
+# The pattern that took a closing wrapper off, kept as the oracle: two runs of
+# whitespace side by side before the end, which a block that does not end
+# there makes backtrack from every place a mark stands.
+_OLD_CLOSING = re.compile(r"(?:(?://|/\*)\s*)?(?:\]\]>|-->)\s*(?:\*/)?\s*$")
+
+
+def test_a_block_ending_in_a_mark_and_then_text_is_read_in_a_moment():
+    """Found by review: ``-->``, forty thousand spaces and a letter took the
+    closing pattern seconds on every page that carried the block."""
+    import time
+
+    block = '{"@type": "Thing", "name": "x"}-->' + " " * 40_000 + "x"
+    started = time.perf_counter()
+    _parse(block)
+
+    assert time.perf_counter() - started < 1
+
+
+_WRAPPER_PIECES = ["-->", "]]>", "//", "/*", "*/", " ", "\n", "\t", "x", "-", "]"]
+
+
+@given(st.lists(st.sampled_from(_WRAPPER_PIECES), max_size=12).map("".join))
+def test_a_closing_wrapper_comes_off_as_the_pattern_took_it_off(text):
+    assert _without_closing(text) == _OLD_CLOSING.sub("", text)

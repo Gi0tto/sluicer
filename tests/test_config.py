@@ -76,7 +76,9 @@ def _run(*args: str, env: dict[str, str] | None = None):
 
 
 def test_a_file_gives_the_defaults_a_command_takes(here, fetched):
-    _write(
+    # Named: a file found by searching may not set a proxy, a header, a
+    # cookie or no-robots (see the tests at the end).
+    named = _write(
         here / "sluicer.toml",
         'proxy = "http://127.0.0.1:8080"\n'
         'header = ["Accept-Language: de-DE", "X-Team: data"]\n'
@@ -85,7 +87,7 @@ def test_a_file_gives_the_defaults_a_command_takes(here, fetched):
         "json = true\n",
     )
 
-    result = _run("fetch", URL)
+    result = _run("--config", str(named), "fetch", URL)
 
     assert result.exit_code == 0, result.output
     (asked,) = fetched
@@ -97,7 +99,7 @@ def test_a_file_gives_the_defaults_a_command_takes(here, fetched):
 
 
 def test_the_command_line_wins_over_the_file(here, fetched):
-    _write(
+    named = _write(
         here / "sluicer.toml",
         'proxy = "http://127.0.0.1:8080"\n'
         'header = ["X-Team: data"]\n'
@@ -106,6 +108,8 @@ def test_the_command_line_wins_over_the_file(here, fetched):
     )
 
     result = _run(
+        "--config",
+        str(named),
         "fetch",
         URL,
         "--proxy",
@@ -128,10 +132,12 @@ def test_the_command_line_wins_over_the_file(here, fetched):
 def test_the_environment_wins_over_the_file_and_loses_to_the_command_line(
     here, fetched
 ):
-    _write(here / "sluicer.toml", 'proxy = "http://file:8080"\n')
+    named = str(_write(here / "sluicer.toml", 'proxy = "http://file:8080"\n'))
 
-    _run("fetch", URL, env={PROXY_ENV: "http://environment:8080"})
+    _run("--config", named, "fetch", URL, env={PROXY_ENV: "http://environment:8080"})
     _run(
+        "--config",
+        named,
         "fetch",
         URL,
         "--proxy",
@@ -317,9 +323,9 @@ def test_a_key_that_cannot_be_used_is_refused_before_anything_runs(
     ],
 )
 def test_a_secret_the_file_holds_is_never_repeated(here, fetched, text):
-    _write(here / "sluicer.toml", text)
+    named = _write(here / "sluicer.toml", text)
 
-    result = _run("fetch", URL)
+    result = _run("--config", str(named), "fetch", URL)
 
     assert result.exit_code == 2 and fetched == []
     assert "s3cr3t" not in result.output
@@ -346,11 +352,14 @@ def test_a_relative_cache_is_the_file_s_directory_s_and_a_tilde_is_home(
         return Fetched(url=url, html="<title>t</title>", status=200, rung="http")
 
     monkeypatch.setattr("sluicer.fetch.cache.fetch_cached", cached)
-    _write(here / "sluicer.toml", 'cache = "kept"\n\n[extract]\ncache = "~/kept"\n')
+    named = _write(
+        here / "sluicer.toml", 'cache = "kept"\n\n[extract]\ncache = "~/kept"\n'
+    )
     below = here / "below"
     below.mkdir()
     monkeypatch.chdir(below)
     monkeypatch.setenv("HOME", str(here / "home"))
+    monkeypatch.setenv(config.CONFIG_ENV, str(named))
 
     _run("fetch", URL)
     _run("extract", URL)
@@ -359,10 +368,10 @@ def test_a_relative_cache_is_the_file_s_directory_s_and_a_tilde_is_home(
 
 
 def test_robots_turned_off_by_the_file_is_said_every_time(here, fetched):
-    _write(here / "sluicer.toml", "no-robots = true\n")
+    named = str(_write(here / "sluicer.toml", "no-robots = true\n"))
 
-    quiet = _run("fetch", URL, "--robots")
-    said = _run("fetch", URL)
+    quiet = _run("--config", named, "fetch", URL, "--robots")
+    said = _run("--config", named, "fetch", URL)
 
     assert "robots.txt" not in quiet.stderr
     assert "robots.txt is not obeyed" in said.stderr
@@ -467,3 +476,134 @@ def test_a_template_is_one_run_s_and_not_a_file_s(here, crawled):
     assert "template cannot be set in a file: it changes what one crawl" in (
         result.stderr
     )
+
+
+def test_a_top_level_value_one_command_refuses_is_left_to_the_others(
+    here, fetched, crawled
+):
+    """Found by review: format = "jsonl" at the top is crawl's and batch's
+    value, map takes "json" or "csv", and map's refusal made every command
+    exit 2 without saying it was map's. A key at the top applies to the
+    commands that take it, and those that take it but refuse that value
+    ignore it, as those that do not take it do."""
+    _write(here / "sluicer.toml", 'format = "jsonl"\n')
+
+    assert _run("fetch", URL).exit_code == 0
+    _run("crawl", URL)
+    assert fetched and crawled
+
+    defaults = config.defaults(
+        {"format": "jsonl"}, here / "sluicer.toml", cli.main.commands
+    )
+    assert defaults["crawl"]["output_format"] == "jsonl"
+    assert defaults["batch"]["output_format"] == "jsonl"
+    assert "output_format" not in defaults["map"]
+
+
+def test_a_top_level_value_every_command_refuses_is_refused_naming_them(here, fetched):
+    _write(here / "sluicer.toml", 'format = "xml"\n')
+
+    result = _run("fetch", URL)
+
+    assert result.exit_code == 2 and fetched == []
+    assert "format is refused by every command that takes it" in result.stderr
+    assert "batch" in result.stderr and "crawl" in result.stderr
+    assert "map" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        'proxy = "http://127.0.0.1:18431"\n',
+        'header = ["X-Planted: from-the-repo"]\n',
+        'cookie = ["session=planted"]\n',
+        'cache = "kept"\n',
+        "no-robots = true\n",
+        '[fetch]\nproxy = "http://127.0.0.1:18431"\n',
+        '[serve]\nhost = "0.0.0.0"\n',
+    ],
+)
+def test_a_file_found_by_searching_may_not_say_where_requests_go(
+    here, fetched, text, monkeypatch
+):
+    """Found by security review: a repository's sluicer.toml, found from the
+    directory it was cloned into, set a proxy, and a --cookie session went to
+    it in plain HTTP. What is sent, to whom, where the pages are kept, who can
+    reach the server and whether robots.txt is obeyed come only from a file
+    the user named."""
+    found = _write(here / "sluicer.toml", text)
+
+    result = _run("fetch", URL)
+
+    assert result.exit_code == 2 and fetched == []
+    assert "can be set only in a file you name" in result.stderr
+    assert "--config" in result.stderr and "planted" not in result.output
+    assert "18431" not in result.output
+
+    # Named, the same file is read; a cache is fetched through, recorded too.
+    monkeypatch.setattr(
+        "sluicer.fetch.cache.fetch_cached",
+        lambda url, cache, **kwargs: (
+            fetched.append({"url": url})
+            or Fetched(url=url, html="<title>t</title>", status=200, rung="http")
+        ),
+    )
+    named = _run("--config", str(found), "fetch", URL)
+    assert named.exit_code == 0, named.output
+    assert fetched
+
+
+def test_a_pyproject_found_by_searching_may_not_either(here, fetched):
+    _write(
+        here / "pyproject.toml",
+        '[project]\nname = "x"\n\n[tool.sluicer]\nheader = ["X-Planted: 1"]\n',
+    )
+
+    result = _run("fetch", URL)
+
+    assert result.exit_code == 2 and fetched == []
+    assert "tool.sluicer.header can be set only in a file you name" in (result.stderr)
+
+
+def test_a_file_the_variable_names_may(here, fetched, tmp_path_factory):
+    mine = _write(
+        tmp_path_factory.mktemp("home") / "sluicer.toml",
+        'proxy = "http://127.0.0.1:8080"\nheader = ["X-Team: data"]\n',
+    )
+
+    result = _run("fetch", URL, env={config.CONFIG_ENV: str(mine)})
+
+    assert result.exit_code == 0, result.output
+    assert fetched[0]["proxy"] == "http://127.0.0.1:8080"
+    assert fetched[0]["headers"] == {"X-Team": "data"}
+
+
+def _acl(path: Path, entry: str) -> None:
+    import subprocess
+
+    subprocess.run(["/bin/chmod", "+a", entry, str(path)], check=True)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS's access lists")
+def test_a_file_found_that_an_access_list_lets_others_write_is_refused(here, crawled):
+    """Found by security review: macOS's access lists are not in the mode
+    bits, and one granting everyone write passed the check."""
+    found = _write(here / "sluicer.toml", "delay = 4\n")
+    found.chmod(0o600)
+    _acl(found, "everyone allow write")
+
+    result = _run("crawl", URL)
+
+    assert result.exit_code == 2 and crawled == []
+    assert "others can write" in result.stderr
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS's access lists")
+def test_an_access_list_that_only_denies_is_no_reason_to_refuse(here, crawled):
+    found = _write(here / "sluicer.toml", "delay = 4\n")
+    found.chmod(0o600)
+    _acl(found, "everyone deny write")
+
+    _run("crawl", URL)
+
+    assert crawled[0]["min_delay"] == 4

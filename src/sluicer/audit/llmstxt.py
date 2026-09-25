@@ -24,7 +24,6 @@ from sluicer.audit.report import Finding, LlmsSection, LlmsTxt, SiteFile
 
 SPEC = "https://llmstxt.org/"
 
-_ATX = re.compile(r"^(#{1,6})(?:[ \t]+(.*?))?[ \t]*#*[ \t]*$")
 _SETEXT_H1 = re.compile(r"^=+[ \t]*$")
 _ITEM = re.compile(r"^[ \t]{0,3}(?:[-*+]|[0-9]+[.)])[ \t]+(.*)$")
 _LINK = re.compile(
@@ -33,6 +32,26 @@ _LINK = re.compile(
 )
 _FENCE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 _HTML = re.compile(r"^\s*<(?:!doctype\s+html|html[\s>]|head[\s>]|body[\s>])", re.I)
+
+
+def _atx(line: str) -> tuple[str, str | None] | None:
+    """An ATX heading's marks and its text, or None for a line that is none.
+
+    The text is what follows the marks and a space or tab, without the
+    closing ``#`` marks and the spaces and tabs around them; None where
+    nothing follows the marks, and a line of more than six marks and nothing
+    else is an H6 with none. Read by hand: as a pattern -- the text lazily,
+    then spaces, marks and spaces to the end -- a line that ended in anything
+    else was tried at every split of it, and "# a", four thousand spaces and
+    a "b" took a minute.
+    """
+    rest = line.lstrip("#")
+    marks = len(line) - len(rest)
+    if not marks:
+        return None
+    if marks > 6 or rest[:1] not in (" ", "\t"):
+        return ("#" * min(marks, 6), None) if not rest.strip(" \t") else None
+    return line[:marks], rest.lstrip(" \t").rstrip(" \t").rstrip("#").rstrip(" \t")
 
 
 def read_llms_txt(file: SiteFile) -> LlmsTxt:
@@ -137,9 +156,9 @@ class _Reading:
     def name_from(self, lines: list[str], position: int) -> int:
         """The H1 the file must open with; where reading goes on from."""
         if position < len(lines):
-            heading = _ATX.match(lines[position])
-            if heading and len(heading.group(1)) == 1 and heading.group(2):
-                self.name = heading.group(2).strip()
+            heading = _atx(lines[position])
+            if heading and len(heading[0]) == 1 and heading[1]:
+                self.name = heading[1].strip()
                 return position + 1
             following = lines[position + 1] if position + 1 < len(lines) else ""
             if lines[position].strip() and _SETEXT_H1.match(following):
@@ -183,12 +202,12 @@ class _Reading:
             if fence:
                 fenced = fence.group(1)[0]
                 continue
-            heading = _ATX.match(line)
-            if heading and heading.group(2):
-                level = len(heading.group(1))
+            heading = _atx(line)
+            if heading and heading[1]:
+                level = len(heading[0])
                 if level == 2:
                     self._close(section, links, items, strays)
-                    section = heading.group(2).strip()
+                    section = heading[1].strip()
                     links = items = strays = 0
                     continue
                 where = f"line {number + 1}"

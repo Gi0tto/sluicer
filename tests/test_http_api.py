@@ -471,6 +471,34 @@ def test_a_call_over_its_budget_is_answered_and_a_queued_one_never_starts(
     ]
 
 
+def test_a_hostile_selector_cannot_hold_a_worker_past_its_budget(client):
+    """A selector that would run for minutes once held its worker for as long
+    as it ran: four of them froze a server. Evaluated in a process of its
+    own, it is stopped when its call's budget ends, and the one worker it
+    held answers the next call."""
+    import time
+
+    from test_mcp_server import HOSTILE_PAGE, HOSTILE_SELECTOR
+
+    http = client(timeout=2, max_reads=1)
+    with http:
+        began = time.monotonic()
+        hostile = http.post(
+            "/v1/tools/select_values",
+            json={"html_or_url": HOSTILE_PAGE, "selector": HOSTILE_SELECTOR},
+        )
+        after = http.post(
+            "/v1/tools/select_values",
+            json={"html_or_url": "<p>x</p>", "selector": "//p"},
+        )
+        took = time.monotonic() - began
+
+    assert hostile.status_code in (400, 504)
+    assert after.status_code == 200
+    assert after.json()["count"] == 1
+    assert took < 8
+
+
 def _holding_every_fetch_worker(monkeypatch, calls, many=http_api.MAX_CALLS):
     """Start ``many`` fetches that hang until released, once each has started.
 

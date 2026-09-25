@@ -37,9 +37,29 @@ def declares_what_expands(text: bytes) -> bool:
     )
 
 
+# How libxml2 tells an encoding wider than a byte from a document's first
+# bytes, before any declaration is read (xmlDetectCharEncoding): a byte order
+# mark, or "<" or "<?" spelt in it. UTF-32's marks first, since its
+# little-endian one begins with UTF-16's.
+_WIDE = (
+    (b"\x00\x00\xfe\xff", "utf-32-be"),
+    (b"\xff\xfe\x00\x00", "utf-32-le"),
+    (b"\x00\x00\x00<", "utf-32-be"),
+    (b"<\x00\x00\x00", "utf-32-le"),
+    (b"\x00<\x00?", "utf-16-be"),
+    (b"<\x00?\x00", "utf-16-le"),
+    (b"\xfe\xff", "utf-16-be"),
+    (b"\xff\xfe", "utf-16-le"),
+)
+
+
 def as_text(data: bytes) -> bytes:
-    """``data`` as bytes a pattern can search: UTF-16 is decoded first, since
-    its every other byte is zero and ``<!DOCTYPE`` would not be found in it."""
-    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
-        return data.decode("utf-16", errors="replace").encode("utf-8")
+    """``data`` as bytes a pattern can search: a document in UTF-16 or UTF-32
+    is decoded first, as libxml2 would read it, since most of its bytes are
+    zero and ``<!DOCTYPE`` would not be found in it. Told only by a byte
+    order mark, UTF-16 without one and UTF-32 went unsearched, and libxml2
+    read them."""
+    for start, codec in _WIDE:
+        if data.startswith(start):
+            return data.decode(codec, errors="replace").encode("utf-8")
     return data

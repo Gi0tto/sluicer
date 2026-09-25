@@ -1005,6 +1005,46 @@ def test_a_header_whose_rows_differ_between_pages_is_read_by_its_labels():
     }
 
 
+def test_a_place_another_page_labels_otherwise_is_read_after_the_own_label():
+    """PEP 257 says "Status:" too, a row further down, and at the place of PEP
+    8's status it puts its Discussions-To. With every value plain text,
+    nothing there contradicted the place: the status was learnt by it, and
+    read "Doc-SIG list" on PEP 257 with the run passing. "Discussions-To:"
+    is no label PEP 8 says, which is all that was asked."""
+    plain = [
+        _pep(
+            number,
+            title,
+            *((label, re.sub(r"<[^>]+>", "", value)) for label, value in rows),
+        )
+        for (number, title, rows) in (
+            (8, "Style Guide for Python Code", _rows_of(PEPS[0])),
+            (20, "The Zen of Python", _rows_of(PEPS[1])),
+            (257, "Docstring Conventions", _rows_of(PEPS[2])),
+        )
+    ]
+
+    learnt = compile_extractor(plain, listing=False, want={"status": "Active"})
+
+    [status] = learnt.fields
+    assert status.anchor is not None and status.anchor.label == "Status:"
+    assert "'Doc-SIG list' after 'Discussions-To:'" in learnt.notes[0]
+    for page in plain:
+        run = run_extractor(learnt, *page)
+        assert run.ok, failed(run)
+        assert run.fields == {"status": "Active"}
+
+
+def _rows_of(page):
+    """A ``_pep`` page's header rows, each a label and its value's HTML."""
+    html, _url = page
+    return re.findall(
+        r'<dt class="field-\w+">([^<]+)<span class="colon">:</span></dt>'
+        r'<dd class="field-\w+">(.*?)</dd>',
+        html,
+    )
+
+
 def _swapped():
     """The second of ``SPECS`` with its SKU's row before its price's."""
     return _specs("ATE", "39.00", "BP-2", "2 kg", ("brand", "sku", "price", "weight"))
@@ -1714,6 +1754,49 @@ def test_a_row_that_alone_declares_itself_is_not_the_page_s_subject():
     run = run_extractor(learnt, *_quotes(2, declared=1))
     assert run.ok, failed(run)
     assert len(run.rows) == len(QUOTES)
+
+
+def _laid_out_in_tables(n):
+    """A product page laid out as old shops lay one out: the body a stack of
+    alike tables, one of them holding, deep inside a form, the product its
+    microdata declares."""
+    block = (
+        "<table class=box><tbody><tr><td><a href='/s/{k}'>Section {k}</a> "
+        "<span>News {k} of the day</span></td></tr></tbody></table>"
+    )
+    product = (
+        "<table class=box><tbody><tr><td><form action='/cart'>"
+        "<table itemscope itemtype='http://schema.org/Product'><tr>"
+        f"<td itemprop=name>Brake pad set {n}</td><td itemprop=offers itemscope "
+        f"itemtype='http://schema.org/Offer'><span itemprop=price>4{n}.90</span>"
+        "<meta itemprop=priceCurrency content=EUR></td></tr></table></form>"
+        "<a href='/s/9'>Section 9</a> <span>News 9 of the day</span>"
+        "</td></tr></tbody></table>"
+    )
+    return (
+        f"<html><head><title>Brake pad set {n}</title></head><body>"
+        + "".join(block.format(k=k) for k in range(5))
+        + product
+        + "</body></html>",
+        f"https://shop.example/p/{n}",
+    )
+
+
+def test_a_thing_deep_inside_a_layout_block_is_the_page_s_subject():
+    """Two pages of the products corpus lay the page out in tables, the
+    product declared five levels inside one of them: 0.8.0 took it for one
+    of the rows, learnt the tables as the page's listing, 1,452 columns of
+    site furniture, and replayed them with ok=True. A thing is a row's only
+    when it is declared on the row or just inside it."""
+    pages = [_laid_out_in_tables(1), _laid_out_in_tables(2)]
+    wrapped = [
+        (html.replace("<body>", "<body><div id=page>"), url) for html, url in pages
+    ]
+
+    for given in (pages, wrapped):
+        learnt = compile_extractor(given)
+        assert learnt.listing is None
+        assert learnt.types == ("Product",)
 
 
 def test_a_listing_asked_for_that_no_group_holds_is_refused_not_one_row():

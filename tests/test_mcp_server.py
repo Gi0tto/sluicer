@@ -976,6 +976,25 @@ def test_an_agent_selects_values_and_sees_where_each_is(monkeypatch):
     assert "'td['" in broken["error"]["message"]
 
 
+@pytest.mark.parametrize(
+    ("selector", "said"),
+    [("xpath://comment()", "a comment"), ("//h1\x00", "is not an XPath")],
+)
+def test_a_selector_the_page_cannot_answer_is_bad_input(monkeypatch, selector, said):
+    """A selector read when written can still select a comment on the page it
+    is asked of; and lxml refuses a NUL with its own ValueError. Both reached
+    the agent as the SDK's bare "Error executing tool"."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    got = registered["select_values"]("<html><body><!--c--><h1>x</h1>", selector)
+
+    assert got["ok"] is False and got["error"]["code"] == "bad_input"
+    assert said in got["error"]["message"]
+
+
 def test_values_past_the_bound_are_left_out_and_counted(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
@@ -988,6 +1007,50 @@ def test_values_past_the_bound_are_left_out_and_counted(monkeypatch):
     assert got["ok"] is True and got["count"] == 2_000
     assert got["values_left_out"] == 2_000 - len(got["values"]) > 0
     assert len(json.dumps(got).encode()) <= 75_000
+
+
+HOSTILE_PAGE = "<p>" * 3_000
+HOSTILE_SELECTOR = "//p[count(//p[count(//p) > 0]) > 0]"
+"""A 9 KB page and one line of XPath that cost the cube of the page's size:
+2.7e10 visits, minutes of lxml's C code that no thread can stop."""
+
+
+def test_a_selector_that_would_run_for_minutes_is_stopped_at_its_bound(monkeypatch):
+    """Every tool that evaluates a caller's selectors evaluates them in a
+    process of its own, stopped at ``isolated.SECONDS``: a hostile one is a
+    bad_input that says so, never a worker held for as long as it runs."""
+    import time
+
+    from sluicer import isolated
+
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    monkeypatch.setattr(isolated, "SECONDS", 1.0)
+    hostile = {"t": HOSTILE_SELECTOR}
+    written = registered["compile_extractor"]([], select=hostile)["extractor"]
+    calls = {
+        "select_values": lambda: registered["select_values"](
+            HOSTILE_PAGE, HOSTILE_SELECTOR
+        ),
+        "compile_extractor": lambda: registered["compile_extractor"](
+            [HOSTILE_PAGE], select=hostile
+        ),
+        "run_extractor": lambda: registered["run_extractor"](written, HOSTILE_PAGE),
+        "heal_extractor": lambda: registered["heal_extractor"](written, [HOSTILE_PAGE]),
+    }
+
+    for name, call in calls.items():
+        began = time.monotonic()
+        answer = call()
+        took = time.monotonic() - began
+        assert answer["ok"] is False, name
+        assert answer["error"]["code"] == "bad_input", name
+        assert "stopped after 1 s" in answer["error"]["message"], name
+        assert took < 10, (name, took)
+    after = registered["select_values"]("<p>x</p>", "//p")
+    assert after["ok"] is True and after["count"] == 1
 
 
 def test_an_agent_writes_an_extractor_by_selectors(monkeypatch):

@@ -26,7 +26,7 @@ addressed to this machine.
 |---|---|---|
 | `--host` | `127.0.0.1` | Where to listen. Anything but loopback needs a token. |
 | `--port` | `8000` | |
-| `--timeout` | `120` | Seconds a request may take, its body included, before it is answered 504. |
+| `--timeout` | `120` | Seconds a request may take, its body included, before it is answered 504. A caller's selectors are evaluated in a process of their own, killed at the same time, so a selector that would run for minutes frees its worker when its call is answered. |
 | `--allow-unauthenticated` | off | Listen beyond loopback with no token. |
 
 | Variable | |
