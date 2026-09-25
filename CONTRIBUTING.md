@@ -109,7 +109,8 @@ before a release.
 | `docs/assets/inspect.svg`, `dates-*.svg`, `swde-*.svg`, and the README's charts' alt texts and WCXB timings | `examples/brake-pads.html`, `docs/scoreboard-served.md`, `docs/scoreboard-swde.md`, `docs/scoreboard.md` | `uv run scripts/readme_assets.py` |
 | `docs/assets/demo.cast`, `demo.gif` | four Wayback Machine captures of a software directory, named in the script | `uv run scripts/demo.py`, with [agg](https://github.com/asciinema/agg) |
 | `docs/assets/social-preview.png` | the card's words, in the script | `uv run scripts/social_card.py` |
-| `src/sluicer/calendar_names.py` | the Unicode CLDR, at a pinned release | `uv run scripts/cldr_calendar.py` |
+| `src/sluicer/calendar_names.json` | the Unicode CLDR, at a pinned release | `uv run scripts/cldr_calendar.py` (CI runs it with `--check`) |
+| `packaging/homebrew/sluicer.rb`, `packaging/conda-forge/recipe/recipe.yaml` | `VERSION` and the pinned resources in `packaging/recipes.py`, and the sdist on PyPI | `python packaging/recipes.py` (`--sdist PATH` for a local build, `--check` to compare) |
 | `docs/scoreboard*.md`, `docs/drift.md` | the benchmarks' pinned pages | the scripts in `bench/`, see [`bench/README.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/README.md) |
 
 `docs/changelog.md`, `docs/roadmap.md`, `docs/contributing.md` and
@@ -121,6 +122,18 @@ the nav and each page's opening paragraph, with every page's markdown beside
 it. A page outside the nav fails the suite, since `llms.txt` would not list it.
 `context7.json` tells Context7 which of the docs to index; the suite holds its
 rules to the commands, options, extras and names that exist.
+
+### The Homebrew formula and the conda-forge recipe
+
+Both are for the base install, and neither is edited by hand: change
+`VERSION` in `packaging/recipes.py` and run it, and it takes the sdist's
+address and checksum from PyPI once the release is published; until then
+both files carry a placeholder checksum that says so. The formula is written
+for homebrew-core, which takes it once Sluicer meets its notability rules (75
+stars, or 30 forks or watchers, and a repository 30 days old); until then it
+can be served from a tap of our own. The recipe is conda-forge's v1 format,
+for staged-recipes, and installs on conda-forge's minimum Python, 3.11 today.
+Nothing submits either: a person does, after the release.
 
 ## The documentation site
 

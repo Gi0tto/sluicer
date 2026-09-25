@@ -1,0 +1,79 @@
+# The v1 format, which conda-forge asks of every new recipe: staged-recipes'
+# README (https://github.com/conda-forge/staged-recipes, 'Recipe format
+# policy') and the pure-Python example
+# (https://conda-forge.org/docs/maintainer/example_recipes/pure-python/),
+# read on 2026-09-25. python_min is conda-forge's global pinning's (3.11
+# then). Written by packaging/recipes.py: edit that, not this.
+schema_version: 1
+
+context:
+  version: "0.8.0"
+
+package:
+  name: sluicer
+  version: ${{ version }}
+
+source:
+  url: https://pypi.org/packages/source/s/sluicer/sluicer-${{ version }}.tar.gz
+  # PLACEHOLDER: sluicer 0.8.0 has no sdist yet. Run
+  # packaging/recipes.py again once it is on PyPI.
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000
+
+build:
+  noarch: python
+  number: 0
+  script: ${{ PYTHON }} -m pip install . -vv
+  python:
+    entry_points:
+      - sluicer = sluicer.cli:main
+      - sluicer-mcp = sluicer.mcp_server:main
+
+requirements:
+  host:
+    - python ${{ python_min }}.*
+    - hatchling >=1.27
+    - pip
+  run:
+    - python >=${{ python_min }}
+    - click >=8.2
+    - lxml >=5.3
+    - protego >=0.3
+
+tests:
+  - python:
+      imports:
+        - sluicer
+        - sluicer.fetch
+      python_version:
+        - ${{ python_min }}.*
+        - "*"
+      pip_check: true
+  - files:
+      recipe:
+        - page.html
+    script:
+      - sluicer --version
+      - sluicer extract page.html > found.json
+      - python -c "import json; found = json.load(open('found.json')); assert found['summary']['price']['value'] == '19.99', found"
+
+about:
+  homepage: https://github.com/Gi0tto/sluicer
+  summary: Turn a web page into structured data with no model in the loop.
+  description: |
+    Sluicer reads the data a web page already declares -- JSON-LD,
+    microdata, RDFa, OpenGraph, Dublin Core, Twitter cards, HTML's meta
+    names -- merged into one answer that names where every value came
+    from, with no model in the loop. This package is the base install:
+    it fetches over plain HTTP; the browser, markdown and MCP extras are
+    on PyPI.
+  license: MIT AND CC-BY-SA-3.0 AND Unicode-3.0
+  license_file:
+    - LICENSE
+    - NOTICE
+    - LICENSES/
+  documentation: https://gi0tto.github.io/sluicer/
+  repository: https://github.com/Gi0tto/sluicer
+
+extra:
+  recipe-maintainers:
+    - Gi0tto

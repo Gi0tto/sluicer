@@ -106,6 +106,59 @@ Dates are the day the work landed. Anything not listed here did not happen.
   as its one setting. The release writes it pinned to the tagged commit and
   attaches it as `docker-mcp-registry-server.yaml`; the registry's own
   validator (`cmd/validate` at 49b643c) passes it. No pull request is opened.
+- A configuration file for the command line: `sluicer.toml`, or a
+  `[tool.sluicer]` table in `pyproject.toml`, the nearest in the working
+  directory or above it; or the file `SLUICER_CONFIG` or `--config FILE`
+  names; `--no-config`, or `SLUICER_CONFIG` empty, reads none. Its keys are
+  the options' own names -- `proxy`, `header`, `cookie`, `cache`, `max-age`,
+  `no-robots`, `respect`, `delay`, `json`, `max-pages` and the rest -- at the
+  top for every command that takes one, and in a command's own table over
+  that. The command line wins, then `SLUICER_PROXY` and `SLUICER_MCP_TOOLS`,
+  then the file, then the built-in defaults; each flag a file may turn on has
+  its opposite for one run (`--no-json`, `--robots`). A file is refused
+  before anything runs, naming the file and the key, for an unknown key (with
+  the nearest known), a key its command does not take, a value of the wrong
+  type, or an option that belongs to one run (`--out`, `--stealth`,
+  `serve --allow-unauthenticated` among them); no message repeats a proxy,
+  header or cookie value. A file found by searching must be the user's and
+  writable by no one else. `no-robots = true` from a file is said on stderr
+  on every run. `docs/configuration.md` says all of it.
+- `tomli>=1.0.3` on Python 3.10 only, to read that file: 3.10 has no
+  `tomllib`. MIT, pure Python, no dependencies; 1.0.3 is the first that
+  raises its own error for an impossible date, measured, and the floors job
+  installs and asserts it.
+- Shell completion for bash (4.4 and later), zsh and fish, click's own:
+  `_SLUICER_COMPLETE=zsh_source sluicer` prints the script, and
+  `docs/getting-started.md` says where each shell wants it. The suite
+  generates the three scripts, has bash and zsh parse theirs where they are
+  installed, and completes a command and an option.
+- `sluicer.aextract` and `sluicer.fetch.afetch`: `extract` and `fetch` for a
+  caller on an event loop, the same parameters, answers and exceptions, run
+  on a worker thread of the loop's default executor so the loop keeps
+  running. Politeness is the gate's, as for threads: six `afetch` of one site
+  gathered at once read its robots.txt once and ask it one request at a
+  time, the gate's delay apart, and coroutines, threads and crawls of one
+  site wait for each other. Coroutines waiting for one site wait on the loop
+  and take a thread only in their turn: with two worker threads and five
+  fetches of one site queued, a sixth to another site starts at once. A
+  coroutine cancelled while it waits asks nothing. `asyncio` is imported only
+  when one is called. In `docs/getting-started.md` and the Python reference.
+- `packaging/homebrew/sluicer.rb` and `packaging/conda-forge/recipe/recipe.yaml`,
+  a Homebrew formula and a conda-forge recipe (the v1 format conda-forge asks
+  of new recipes) for the base install, prepared and not submitted.
+  `packaging/recipes.py` writes both from one `VERSION`, 0.8.0, and fills in
+  the sdist's checksum from PyPI once the release is there, or from
+  `--sdist PATH`; until then both carry a placeholder that says so.
+  `tests/test_recipes.py` holds them to the script and to pyproject's
+  dependencies, floors and licence. Checked on an sdist of this branch built
+  as 0.8.0: `brew install --build-from-source` and `brew test` pass, and
+  `brew style` and `brew audit --new --strict --online` pass on the same
+  formula pointed at 0.7.0 on PyPI (on the committed file they fail only on
+  the placeholder's address, which 0.8.0's publication replaces);
+  `rattler-build build` with its tests on Python 3.11 and 3.14, and
+  `conda-smithy recipe-lint --conda-forge`, pass. The formula installs
+  click's completions for bash, zsh and fish. Sluicer does not yet meet
+  homebrew-core's notability rules.
 
 ### Changed
 - Fetching needs no extra. The base install fetches over plain HTTP with the
@@ -154,6 +207,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The stealth rung is the only place scrapling is used, still opt-in and one
   page at a time, never in a crawl, and never remembered as a site's rung. It
   sends none of the caller's headers or cookies.
+- CLDR's month and weekday names are package data, `sluicer/calendar_names.json`
+  (48 KB, the one file under the Unicode License v3), no longer a Python
+  module of 2,731 lines; `sluicer.calendar_names` reads it at import and
+  gives the same `MONTHS` and `WEEKDAYS`, all 1,568 and 1,140 entries
+  compared. Importing it takes 1.0 ms with bytecode cached, as before
+  (0.95 ms), and 1.2 ms without, against 11 ms to compile the module, which
+  is what Pyodide pays (medians, Python 3.14, Apple M4).
+  `scripts/cldr_calendar.py --check`, run in CI, fails when the committed file
+  is not exactly what the pinned CLDR release gives.
 
 ### Fixed
 - Without scrapling, 0.7.x could not fetch even over plain HTTP: `fetch()`
