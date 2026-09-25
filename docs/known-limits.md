@@ -138,7 +138,11 @@ a JSON-LD block's words are named through its `@context` -- `ex:colour` under
 `{"ex": "http://example.com/"}` is `http://example.com/colour`, and a `name`
 the context maps to FOAF is FOAF's -- while a word the context says nothing
 about, or one a context elsewhere would define, is kept as written, since only
-schema.org's own context is known and nothing is fetched; a word is named
+schema.org's own context is known and nothing is fetched; a word a context
+defines as schema.org's namespace is schema.org's prefix however it is
+written, `{"schema": "http://schema.org"}` too, where JSON-LD 1.1 asks a
+prefix to end in `/` or say `@prefix` and PyLD keeps `schema:Product` as an
+address of its own; a word is named
 through at most 32 contexts since the last `null`, whether in a list or around
 nested graphs, and past them an object's words are kept as written, as under a
 context elsewhere, never named through the 32 alone. Two words of one

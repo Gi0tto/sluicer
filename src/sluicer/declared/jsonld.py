@@ -571,7 +571,7 @@ class Terms:
             iris[term] = iri
             if reading.is_prefix(term, iri):
                 assert iri is not None
-                prefixes[term] = _SCHEMA if _SCHEMA_NAMESPACE.fullmatch(iri) else iri
+                prefixes[term] = _as_prefix(iri)
         # Where an undefined word's address would begin. JSON-LD 1.1 reads
         # @vocab before the terms beside it, so it may be written through a
         # prefix or a term of the contexts around, never of its own.
@@ -582,6 +582,12 @@ class Terms:
             if vocab is not None and _SCHEMA_NAMESPACE.fullmatch(vocab):
                 vocab = _SCHEMA
         return Terms(vocab, iris, prefixes, self)
+
+
+def _as_prefix(iri: str) -> str:
+    """The address a prefix read to ``iri`` puts before a word: schema.org's
+    namespace one way, however the context wrote it."""
+    return _SCHEMA if _SCHEMA_NAMESPACE.fullmatch(iri) else iri
 
 
 class _Undefined:
@@ -620,7 +626,8 @@ class _Reading:
         self.targets: dict[str, str | None] = {}
         # JSON-LD 1.1's prefix flag: a simple definition's term is a prefix
         # when its address ends in a delimiter, an expanded one's when it
-        # says ``"@prefix": true``.
+        # says ``"@prefix": true``; and any term whose address is schema.org's
+        # namespace (see ``is_prefix``).
         self.simple: set[str] = set()
         self.flagged: set[str] = set()
         self.read: dict[str, str | None] = {}
@@ -659,11 +666,21 @@ class _Reading:
         return self.read
 
     def is_prefix(self, term: str, iri: str | None) -> bool:
-        """Whether ``term``, read to ``iri``, expands the words it prefixes."""
+        """Whether ``term``, read to ``iri``, expands the words it prefixes.
+
+        A term whose address is schema.org's namespace does, however it is
+        written: ``{"schema": "http://schema.org"}`` has no ``/`` to end in
+        and ``{"@id": "http://schema.org/"}`` no ``@prefix``, so JSON-LD 1.1
+        reads ``schema:Product`` as an address whose scheme is ``schema``,
+        and 1.0 as ``http://schema.orgProduct``. Neither is anything a reader
+        goes by, and a page that writes it means schema.org's Product.
+        """
         if iri is None:
             return False
-        return term in self.flagged or (
-            term in self.simple and iri.endswith(_GEN_DELIMS)
+        return (
+            term in self.flagged
+            or (term in self.simple and iri.endswith(_GEN_DELIMS))
+            or _SCHEMA_NAMESPACE.fullmatch(iri) is not None
         )
 
     def expand(self, written: str) -> str | _Wait | None:
@@ -682,7 +699,7 @@ class _Reading:
                 base = self.read[prefix]
                 if self.is_prefix(prefix, base):
                     assert base is not None
-                    return base + suffix
+                    return _as_prefix(base) + suffix
             elif (outer := self.outer._prefix(prefix)) is not None:
                 return outer + suffix
             return written if _ABSOLUTE.match(written) else None

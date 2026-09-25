@@ -388,6 +388,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A JSON-LD word a context defines as schema.org's namespace is schema.org's
+  prefix however the address is written: `{"schema": "http://schema.org"}`,
+  with no `/` to end in, and `{"schema": {"@id": "http://schema.org/"}}`,
+  with no `@prefix`, left `schema:Product` and `schema:name` as written, and
+  the page lost its type, title and price. JSON-LD 1.1
+  reads such a word as no prefix, so PyLD keeps `schema:Product` as an
+  address whose scheme is `schema` (in 1.0 it is `http://schema.orgProduct`):
+  neither is anything a reader goes by, and a page that writes it means
+  schema.org's. A word defined as any other address is a prefix only as
+  JSON-LD 1.1 says, as before. All 3,976 cached corpus pages answer as
+  before. Found by the second correctness review.
 - A JSON-LD `null` past the 32 contexts a word is named through still clears
   them all. The contexts of nested graphs were cut to the outermost 32, so in
   33 graphs around one whose context is `[null, "https://schema.org"]`, the
