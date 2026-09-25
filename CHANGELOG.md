@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## 0.7.1 - 2026-09-25
+## Unreleased
 
 ### Added
 - `bench/stats.py`: how sure a scoreboard's number is, and how a difference
@@ -63,7 +63,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - SWDE's scoreboard prints no seconds, as PREREG's "How a second is measured"
   says: its CPU times were measured once, not as that section fixes.
 
-## 0.7.1
+## 0.7.1 - 2026-09-25
 
 ### Added
 - `docs/stability.md`: what is stable before 1.0 (`extract()` and
