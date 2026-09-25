@@ -76,7 +76,7 @@ an audit found a documented rule broken. `diff` exits 1 when something changed.
 The checks are about structure: a run fails when a field is no longer where it
 was learnt, no longer reads the way it did, or no longer has its shape. A change
 that keeps all three, such as a different number in the price's place, passes:
-on SWDE, 17% of the extractors' wrong answers were flagged.
+on SWDE, 18% of the extractors' wrong answers were flagged.
 
 Reading what a page declares needs no example at all. The product page read
 here is
@@ -179,7 +179,7 @@ client that does not start servers over stdio
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/swde-dark.svg">
-    <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/swde-light.svg" alt="Extractors learnt from three pages of each of 80 real sites and read on their other 124,051 pages: Sluicer scores a mean F1 of 0.849 and is right on 0.972 of its answers, with 12,059 wrong answers; Scrapling's adaptive selectors score 0.671 and 0.864, with 56,058" width="760">
+    <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/swde-light.svg" alt="Extractors learnt from three pages of each of 80 real sites and read on their other 124,051 pages: Sluicer scores a mean F1 of 0.850 and is right on 0.974 of its answers, with 11,156 wrong answers; Scrapling's adaptive selectors score 0.671 and 0.864, with 56,058" width="760">
   </picture>
 </p>
 
@@ -189,7 +189,7 @@ measures, the row shows it.
 
 | scoreboard | what is measured | Sluicer | beside it |
 |---|---|---|---|
-| [SWDE](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-swde.md), 80 sites | extractors learnt from three pages, run on the other 124,051 | F1 0.849, 12,059 wrong answers | Scrapling 0.671, 56,058 wrong |
+| [SWDE](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-swde.md), 80 sites | extractors learnt from three pages, run on the other 124,051 | F1 0.850, 11,156 wrong answers | Scrapling 0.671, 56,058 wrong |
 | [Drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md), 44 before/after pairs on 25 sites | a change noticed: 21 changed, 23 did not | 0 failed silently, 0 false alarms | -- |
 | [Products](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-products.md), 140 pages | price, availability (F1) | 0.750, 0.907 | Zyte's paid API 0.918, 0.957 |
 | [WCXB](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard.md), 511 pages | title, author, date found; dates invented | 0.727, 0.532, 0.581; 8 invented | trafilatura 0.745, 0.750, 0.838; 216 invented |
