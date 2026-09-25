@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "sluicer",
   "display_name": "Sluicer",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "The data a web page declares, with where each value came from. No model, no API key.",
   "long_description": "Sluicer reads everything a web page declares about itself -- products, articles, recipes, events, prices, dates, in JSON-LD, microdata, RDFa, OpenGraph and four more vocabularies -- and merges it into one record per thing, every value naming the vocabulary and the place on the page it came from. It learns extractors that fail loudly when a site changes layout, and heals them; audits a page's markup against what Google documents; reads feeds, maps and crawls a site politely. It fetches at the lowest price that works, announces itself by name and obeys robots.txt. No model reads any page, so the same page always gives the same answer. Every tool only reads.\n\nThe bundle holds no Python: as the MCPB format's uv runtime says, the host installs Sluicer at this version from PyPI with uv when the extension first starts.",
   "author": {

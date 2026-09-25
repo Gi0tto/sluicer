@@ -10,7 +10,7 @@ jobs:
   structured-data:
     runs-on: ubuntu-latest
     steps:
-      - uses: Gi0tto/sluicer@v0.8.0
+      - uses: Gi0tto/sluicer@v0.9.0
         with:
           urls: |
             https://staging.example.com/
@@ -18,7 +18,7 @@ jobs:
 ```
 
 Pin it as you pin any action you did not write: by the commit a tag points
-to, `Gi0tto/sluicer@<commit> # v0.8.0`, since a tag can be moved.
+to, `Gi0tto/sluicer@<commit> # v0.9.0`, since a tag can be moved.
 
 ## Inputs
 
@@ -49,7 +49,7 @@ one.
 
 ```yaml
       - id: audit
-        uses: Gi0tto/sluicer@v0.8.0
+        uses: Gi0tto/sluicer@v0.9.0
         with:
           urls: https://staging.example.com/
           fail-on: never

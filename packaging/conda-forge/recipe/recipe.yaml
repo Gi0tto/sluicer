@@ -7,7 +7,7 @@
 schema_version: 1
 
 context:
-  version: "0.8.0"
+  version: "0.9.0"
 
 package:
   name: sluicer
@@ -15,7 +15,9 @@ package:
 
 source:
   url: https://pypi.org/packages/source/s/sluicer/sluicer-${{ version }}.tar.gz
-  sha256: c44a84dd15900a3eebcb79e4b32167e9178ee4afae2fdd53ff3309f87686ba54
+  # PLACEHOLDER: sluicer 0.9.0 has no sdist yet. Run
+  # packaging/recipes.py again once it is on PyPI.
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000
 
 build:
   noarch: python

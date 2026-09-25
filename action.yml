@@ -23,7 +23,7 @@ inputs:
     default: "true"
   version:
     description: The Sluicer release to install from PyPI.
-    default: "0.8.0"
+    default: "0.9.0"
   package:
     description: >-
       What to install instead, as uv's --with takes it, such as "." for

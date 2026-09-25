@@ -1,6 +1,6 @@
 {
   "name": "sluicer",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Read the structured data a web page already declares, every field naming its vocabulary and the place on the page it was declared, with no model in the loop. Fetches at the lowest price that works, announces itself, obeys robots.txt and, when asked, a site's text and data mining reservation. Learns extractors that fail loudly when a site changes layout, and heals them. Audits a page's markup against what Google documents, with every rule sourced. Reads feeds, maps and crawls a site politely, one request at a time with its Crawl-delay between. Ships an MCP server with twelve tools and a skill that says when to use them.",
   "author": { "name": "Nichita Briculschi", "url": "https://github.com/Gi0tto" },
   "license": "MIT AND CC-BY-SA-3.0 AND Unicode-3.0",

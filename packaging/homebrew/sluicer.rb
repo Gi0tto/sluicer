@@ -3,8 +3,10 @@ class Sluicer < Formula
 
   desc "Turn a web page into structured data with no model in the loop"
   homepage "https://github.com/Gi0tto/sluicer"
-  url "https://files.pythonhosted.org/packages/85/14/d6066423f0437a7fb78b712c76504810d0543c3bf0a19f4fea69503ee50a/sluicer-0.8.0.tar.gz"
-  sha256 "c44a84dd15900a3eebcb79e4b32167e9178ee4afae2fdd53ff3309f87686ba54"
+  url "https://files.pythonhosted.org/packages/source/s/sluicer/sluicer-0.9.0.tar.gz"
+  # PLACEHOLDER: sluicer 0.9.0 has no sdist yet. Run
+  # packaging/recipes.py again once it is on PyPI.
+  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
   license all_of: ["MIT", "CC-BY-SA-3.0", "Unicode-3.0"]
   head "https://github.com/Gi0tto/sluicer.git", branch: "main"
 

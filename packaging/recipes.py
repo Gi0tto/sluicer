@@ -1,7 +1,7 @@
 """Write Sluicer's Homebrew formula and its conda-forge recipe.
 
     python packaging/recipes.py                  # the sdist from PyPI, if it is there
-    python packaging/recipes.py --sdist dist/sluicer-0.8.0.tar.gz
+    python packaging/recipes.py --sdist dist/sluicer-0.9.0.tar.gz
     python packaging/recipes.py --offline        # a placeholder checksum, no network
     python packaging/recipes.py --check          # exit 1 if a written file is stale
 
@@ -35,7 +35,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 """The release both files install. Change it here, and nowhere else."""
 
 ROOT = Path(__file__).resolve().parent.parent

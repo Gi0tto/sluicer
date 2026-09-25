@@ -29,4 +29,4 @@ __all__ = [
     "read_visible",
     "to_markdown",
 ]
-__version__ = "0.8.0"
+__version__ = "0.9.0"
