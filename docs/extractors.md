@@ -149,6 +149,78 @@ On books.toscrape.com, whose product pages declare nothing, two product pages
 with `title`, `price` and a `upc` from the product table replay on a third
 with all three read, the title from its `<h1>`.
 
+## Writing the fields yourself
+
+When you already know where each field is, name it by selector instead of
+by example, and nothing is learnt of where it is:
+
+```bash
+# Try a selector first: each value, a tab, and the XPath of its element.
+sluicer select https://shop.example/c/brakes 'li.product span.price::text'
+
+sluicer compile page1.html page2.html -o brakes.json --rows li.product \
+    --select title='h3 a::attr(title)' --select price='span.price::text' \
+    --select link='h3 a::attr(href)'
+```
+
+- **A selector is CSS or XPath.** CSS takes Scrapy's `::text`, an element's
+  own text nodes, and `::attr(name)`, an attribute; without either the value
+  is the element's whole text. A selector beginning with `/`, `./`, `(` or
+  `@` is XPath, anything else CSS, and `xpath:` or `css:` before it says
+  which. Values are read as a learnt field's are: spaces collapsed, `href`
+  and `src` resolved against the page, a value of spaces alone no value.
+- **`--rows` makes a listing.** Each field is then read inside each row,
+  and an XPath there begins with `.`, as `.//a`: `//a` would read the whole
+  page in every row, and is refused. Without `--rows` the fields are the
+  page's own.
+- **Pages are optional.** Given pages, `compile` learns what they show of
+  each field -- the share of rows that carry it, its shape, whether it reads
+  as an amount or a date, whether it was ever found twice -- and what the
+  pages declare, as for any extractor; a selector that gives nothing on a
+  page given is an error that names both. Given none, every check is at its
+  strictest: each field required in every row, and held to one value.
+- **The checks are the same.** A field that finds nothing is `field` failed;
+  a listing's columns are held to `field`, `shape`, `reads` and `values` by
+  the learnt extractor's own code, and the rows to `rows`. A selector that
+  gives no rows fails `listing`. A field found twice where the pages showed
+  it once fails `field` too: when a sale puts the old price beside the new,
+  the first is the wrong one. A field the pages showed twice reads the
+  first, and `compile` says so.
+- **`heal` does not rewrite them.** A selector is what a person said, and
+  `heal` cannot say it for you: one the new pages still bear out is kept and
+  its profile learnt again; one they break is reported `broken`, a loss, and
+  kept as written, so `heal` exits 3 and the extractor keeps failing until
+  you write the new one. `sluicer select` on the new page, or `compile
+  --want` with one of the old values, finds where the value went.
+
+The file is format 3, and every key but a field's `name` and `selector`
+may be left out when you write one by hand; a key left out takes its
+strictest value, so leaving one out never turns a check off:
+
+```json
+{
+  "format": 3,
+  "select": {
+    "rows": "li.product",
+    "fields": [
+      {"name": "title", "selector": "h3 a::attr(title)"},
+      {"name": "price", "selector": "xpath:.//p[@class='price_color']"}
+    ]
+  }
+}
+```
+
+From Python, `compile_extractor(pages, select={...}, rows="li.product")`
+writes one, and `sluicer.parse(html, url)` gives a page to try selectors on:
+`page.css("span.price::text").getall()`, and each value's `.where`. An agent
+has `select_values` and `compile_extractor`'s `select` and `rows`.
+
+On the shop fixture in the test suite, an extractor written with `--rows
+li.product` and three selectors fails the redesign with `listing` -- no
+`li.product` left -- where a hand-written scraper returns no rows and exits
+0, and the page whose price slot holds a button fails `reads`, `shape` and
+`values`, as the learnt extractor does.
+
 ## What a run checks
 
 | check | fails when |
@@ -162,6 +234,10 @@ with all three read, the title from its `<h1>`.
 | `summary` | a summary question every learnt page answered goes unanswered |
 | `type` | a declared record type every learnt page carried is gone |
 | `extractor` | the extractor checks nothing at all, so a pass would mean nothing |
+
+For a field written as a selector, `field` also fails when the selector
+finds nothing, or finds two values where the pages it was written from
+showed one, and `listing` when the rows' selector finds none.
 
 A row that gains a class -- `on-sale` -- is still a row, a short page of the same
 template -- the last of a pagination -- passes, and the second or third tag of a
@@ -186,6 +262,9 @@ place:
 - Links are compared by path and parameters. A link that gained a tracking
   parameter, `?ref_=list_1`, is the same link; `?id=2` is another item than
   `?id=1`.
+
+A field written as a selector is never moved: see [Writing the fields
+yourself](#writing-the-fields-yourself).
 
 A field found in none of these ways is reported as `vanished`, even if a new
 field has the same shape, because a guess would put the wrong column under the

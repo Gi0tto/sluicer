@@ -106,8 +106,48 @@ Dates are the day the work landed. Anything not listed here did not happen.
   as its one setting. The release writes it pinned to the tagged commit and
   attaches it as `docker-mcp-registry-server.yaml`; the registry's own
   validator (`cmd/validate` at 49b643c) passes it. No pull request is opened.
+- Selectors a person writes, CSS or XPath. `sluicer.parse(html, url)` gives a
+  `Page` whose `css()`, `xpath()` and `select()` return a `Selection` of
+  values, `get()` and `getall()` as in parsel, each a `Selected` with its
+  `value` and `where`, the XPath of its element as every other place Sluicer
+  gives is spelt; an element's selection selects inside it, for a listing's
+  rows. CSS takes Scrapy's `::text` (an element's own text nodes) and
+  `::attr(name)`; `select()` tells the languages apart by how a selector
+  begins, or by `css:` and `xpath:`. Values are read as an extractor reads
+  them, spaces collapsed and `href` and `src` resolved. A selector that
+  cannot be read -- a bracket left open, a pseudo-element Sluicer does not
+  read, an XPath that counts instead of selecting, a function lxml does not
+  know -- raises `SelectorError`, a `ValueError` naming it, never an empty
+  selection. `sluicer select PAGE SELECTOR` prints each value, a tab and its
+  place, or `--json`; it exits 1 when the selector gives nothing and 2 when
+  it cannot be read, before anything is fetched.
+- Extractors written by selector: `sluicer compile [PAGES] --select
+  NAME=SELECTOR [--rows SELECTOR] -o FILE`, and `compile_extractor(pages,
+  select=..., rows=...)`. The fields are where the selectors say; from the
+  pages, when any are given, each field's share of rows, shape and reading,
+  the rows' empty share and what the pages declare are learnt, and a run is
+  held to them by the learnt extractor's own checks, the listing's by the
+  same code, so the same drift fails in the same words. A selector that
+  finds nothing, rows that are gone, a field found twice where it was found
+  once -- an old price beside the new -- fail the run, exit 3, and a
+  redesign never gives empty rows with exit 0. With no page given every
+  check is at its strictest. The file is format 3; formats 1 and 2 are read
+  as before, and a file with selectors marked 1 or 2 is refused, since an
+  older release would check none of them. `heal` does not rewrite a selector
+  a person wrote: one the new pages break is `broken`, a new kind among the
+  losses, kept as written, and heal exits 3.
+- The MCP tool `select_values(html_or_url, selector)`, the eleventh: each
+  value with its place, a `count`, and `values_left_out` past the 75,000-byte
+  bound. `compile_extractor` takes `select` and `rows`.
 
 ### Changed
+- `cssselect` (1.2 or later) joins the base install, for the CSS selectors:
+  one pure-Python wheel of 21 KB with no dependency, BSD-3-Clause, which
+  Pyodide ships, so the npm package loads it beside lxml and click. The
+  floors job checks it at 1.2, the first with `:is()`, `:where()`, `:has()`
+  and types.
+- `sluicer compile` with no page and no `--select` says it needs one of
+  them, where click reported a missing argument; both exit 2.
 - Fetching needs no extra. The base install fetches over plain HTTP with the
   standard library's `http.client`, `ssl` and `socket`, and brings `protego`
   for robots.txt: 21.7 MB installed against 21.6 MB for 0.7.1's base, which

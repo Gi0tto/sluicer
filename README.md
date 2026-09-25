@@ -138,6 +138,7 @@ HTTP still works, and a page that needed a browser says so.
 |---|---|---|
 | a page, as HTML or a URL | `sluicer extract page.html` | every record it declares, a summary that answers 25 questions, its conflicts, each value with where it came from |
 | many pages of one template | `sluicer compile ... --want price=41.90`, then `sluicer run` | the fields you gave an example of, from every page, checked |
+| the selectors you already know | `sluicer compile --select price='span.price::text' ...`, then `sluicer run` | the fields you named, held to the same checks: a selector a redesign broke fails the run |
 | a page that declares nothing | `sluicer extract page.html --induce` | the rows its markup repeats: a listing's cards, a table's lines |
 | a whole site | `sluicer map URL`, `sluicer crawl URL -o site.jsonl` | its addresses from its sitemaps, or every page it links to, read politely |
 | a list of URLs, a web archive | `sluicer batch urls.txt`, `sluicer warc crawl.warc.gz` | one JSON line per page |
