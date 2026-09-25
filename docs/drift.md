@@ -6,7 +6,7 @@ and replayed on a later one. An oracle that does not use the extractor's
 code judges the result. Losses come first.
 
 Regenerated on 2026-09-25 from commit
-`a8ca1b1` (sluicer 0.7.1, Scrapling 0.4.15) with
+`f042855` (sluicer 0.7.1, Scrapling 0.4.15, anansi 1.1.0 at commit 117fbe2) with
 `uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`. It
 prints no seconds: its run time is mostly reading the archive's
 captures ([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md),
@@ -31,6 +31,13 @@ Scrapling's misses:
 - **www-imdb-com-chart-top-long**: asked for 'The Shawshank Redemption', returned nothing, after relocating by similarity.
 - **metacpan-org-recent-short**: asked for 'Sim-OPT-0.193', returned 'Bencher-Scenario-GraphTopologicalSortModules-0.004'.
 - **sourceforge-net-directory-long**: asked for 'Apache OpenOffice', returned 'Home', after relocating by similarity.
+
+anansi's misses:
+
+- **www-imdb-com-chart-top-long**: asked for 'The Shawshank Redemption' by `tbody.lister-list > tr > td.titleColumn > a`, returned nothing, after healing.
+- **metacpan-org-recent-short**: asked for 'Sim-OPT-0.193' by `tr > td.name > strong > a.ellipsis`, returned 'Calendar-Dates-Academic-ID-UT-PPs-0.002'.
+- **sourceforge-net-directory-long**: asked for 'Apache OpenOffice' by `div.project_info > header > a > span`, returned '35 Reviews Downloads: 3,154,039 This Week Last Update: 2014-08-28 See Project', after healing.
+- **www-theverge-com-tech-short**: asked for 'The Real-World AI Issue' by `div.c-entry-box--compact.c-entry-box--compact--article > div.c-entry-box--compact__body > h2.c-entry-box--compact__title > a`, returned 'Google’s new two-factor authentication prompt now has dark mode on Android'.
 
 ## Results
 
@@ -64,6 +71,17 @@ The comparison is narrow. Scrapling follows one element it was shown;
 Sluicer checks and heals a whole listing. The two answer different
 questions and are not ranked.
 
+[anansi](https://github.com/mdowis/anansi) 1.1.0 at commit 117fbe2 (Apache-2.0), in
+an environment of its own, was asked about the same item on the same
+pairs: its selector for A's element holding the title, asked again on
+B. This ran on 11 pairs. It was right on 7 and wrong on 3, and found nothing on 1. It healed on 2 of these pairs -- the selector matched nothing on B --
+and does not tell its caller when it heals: it returns a value, as it
+returns one read by the selector it was given. Its answer is judged on
+the title alone, since it returns text and not an element, so its test
+is looser than Scrapling's. Its decay, 1% a day for a selector unused
+over a week, by the clock, cannot act here: A and B are replayed
+seconds apart, and the selector given is tried before any stored one.
+
 ## What this benchmark found in Sluicer, and fixed
 
 - heal called every title and link vanished on a page of the same template whose items had changed, which is any live listing a month later: Hacker News, Lobsters, arXiv, Pinboard. sluicer heal then exited 3 on a page that had not drifted.
@@ -94,52 +112,52 @@ questions and are not ranked.
 
 ## Every pair
 
-| pair | rows A / B | oracle | run | outcome | heal | Scrapling |
-|---|---|---|---|---|---|---|
-| books-toscrape-com-short | 20 / 20 | same | passed | survived | right (20 items) | right |
-| books-toscrape-com-long | 20 / 20 | same | passed | survived | right (20 items) | right |
-| quotes-toscrape-com-short | 10 / 10 | same | passed | survived | right (10 items) | right |
-| quotes-toscrape-com-long | 10 / 10 | same | passed | survived | right (10 items) | right |
-| news-ycombinator-com-short | 29 / 30 | same | passed | survived | nothing to match | no A item is still on B |
-| news-ycombinator-com-long | 29 / 30 | same | passed | survived | nothing to match | no A item is still on B |
-| news-ycombinator-com-newest-short | 30 / 30 | same | passed | survived | nothing to match | no A item is still on B |
-| news-ycombinator-com-newest-long | 30 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
-| lobste-rs-short | 25 / 25 | same | passed | survived | nothing to match | no A item is still on B |
-| lobste-rs-long | 25 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
-| github-com-trending-short | 25 / 25 | same | passed | survived | nothing to match | title not found on A |
-| github-com-trending-long | 25 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
-| stackoverflow-com-questions-short | 15-50 / 15 | same | passed | survived | nothing to match | no A item is still on B |
-| old-reddit-com-r-programming-short | 23 / 25 | same | passed | survived | nothing to match | no A item is still on B |
-| old-reddit-com-r-programming-long | 23 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match (1 items) | no A item is still on B |
-| sfbay-craigslist-org-search-sss-long | 120 / 0 | drift: the listing's container is gone | failed: listing, summary, type | failed loudly | nothing to match | no A item is still on B |
-| www-imdb-com-chart-top-short | 250 / 250 | same | passed | survived | right (248 items) | right |
-| www-imdb-com-chart-top-long | 250 / 0 | drift: the listing's container is gone | failed: listing, summary | failed loudly | partly right (23 items) | nothing found |
-| www-python-org-jobs-long | 117 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
-| arxiv-org-list-cs-CL-recent-short | 25 / 25 | same | passed | survived | nothing to match | no A item is still on B |
-| arxiv-org-list-cs-CL-recent-long | 25 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
-| slashdot-org-short | 11-14 / 10 | same | passed | survived | nothing to match | no A item is still on B |
-| slashdot-org-long | 11-14 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
-| www-npr-org-sections-news-short | 21-22 / 22 | same | passed | survived | nothing to match | no A item is still on B |
-| www-npr-org-sections-news-long | 21-22 / 21 | drift: div.item-image&gt;div.imagewrap&gt;a@href is in 0% of rows | failed: field | failed loudly | nothing to match | no A item is still on B |
-| weworkremotely-com-categories-remote-programming-long | 90 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match (1 items) | no A item is still on B |
-| metacpan-org-recent-short | 61 / 60 | same | passed | survived | nothing to match (1 items) | wrong |
-| metacpan-org-recent-long | 61 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
-| hackaday-com-blog-short | 7 / 7 | same | passed | survived | nothing to match | no A item is still on B |
-| hackaday-com-blog-long | 7 / 7 | same | passed | survived | nothing to match | no A item is still on B |
-| sourceforge-net-directory-short | 25 / 25 | same | passed | survived | right (23 items) | right |
-| sourceforge-net-directory-long | 25 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | partly right (4 items) | wrong |
-| pinboard-in-popular-short | 100 / 100 | same | passed | survived | nothing to match | no A item is still on B |
-| pinboard-in-popular-long | 100 / 0 | drift: no div.bookmark rows in the container | failed: rows | failed loudly | nothing to match | no A item is still on B |
-| www-theverge-com-tech-short | 12 / 13 | same | passed | survived | nothing to match (1 items) | right |
-| www-theverge-com-tech-long | 12 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
-| techcrunch-com-category-startups-long | 20 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | nothing to match | no A item is still on B |
-| www-bbc-com-news-technology-short | 19 / 20 | same | passed | survived | nothing to match | no A item is still on B |
-| www-bbc-com-news-technology-long | 19 / 0 | drift: the listing's container is gone | failed: listing, summary | failed loudly | nothing to match | no A item is still on B |
-| arstechnica-com-gadgets-short | 12 / 12 | same | passed | survived | nothing to match | no A item is still on B |
-| arstechnica-com-gadgets-long | 12 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | nothing to match | no A item is still on B |
-| www-producthunt-com-short | 16-17 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
-| www-producthunt-com-long | 16-17 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | nothing to match | no A item is still on B |
-| pypi-org-search--q-scraping-long | 20 / 0 | drift: the listing's container is gone | failed: listing, summary | failed loudly | no listing on B | no A item is still on B |
+| pair | rows A / B | oracle | run | outcome | heal | Scrapling | anansi |
+|---|---|---|---|---|---|---|---|
+| books-toscrape-com-short | 20 / 20 | same | passed | survived | right (20 items) | right | right |
+| books-toscrape-com-long | 20 / 20 | same | passed | survived | right (20 items) | right | right |
+| quotes-toscrape-com-short | 10 / 10 | same | passed | survived | right (10 items) | right | right |
+| quotes-toscrape-com-long | 10 / 10 | same | passed | survived | right (10 items) | right | right |
+| news-ycombinator-com-short | 29 / 30 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| news-ycombinator-com-long | 29 / 30 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| news-ycombinator-com-newest-short | 30 / 30 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| news-ycombinator-com-newest-long | 30 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| lobste-rs-short | 25 / 25 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| lobste-rs-long | 25 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| github-com-trending-short | 25 / 25 | same | passed | survived | nothing to match | title not found on A | right |
+| github-com-trending-long | 25 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| stackoverflow-com-questions-short | 15-50 / 15 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| old-reddit-com-r-programming-short | 23 / 25 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| old-reddit-com-r-programming-long | 23 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match (1 items) | no A item is still on B | no A item is still on B |
+| sfbay-craigslist-org-search-sss-long | 120 / 0 | drift: the listing's container is gone | failed: listing, summary, type | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| www-imdb-com-chart-top-short | 250 / 250 | same | passed | survived | right (248 items) | right | right |
+| www-imdb-com-chart-top-long | 250 / 0 | drift: the listing's container is gone | failed: listing, summary | failed loudly | partly right (23 items) | nothing found | nothing found, healed |
+| www-python-org-jobs-long | 117 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| arxiv-org-list-cs-CL-recent-short | 25 / 25 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| arxiv-org-list-cs-CL-recent-long | 25 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| slashdot-org-short | 11-14 / 10 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| slashdot-org-long | 11-14 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| www-npr-org-sections-news-short | 21-22 / 22 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| www-npr-org-sections-news-long | 21-22 / 21 | drift: div.item-image&gt;div.imagewrap&gt;a@href is in 0% of rows | failed: field | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| weworkremotely-com-categories-remote-programming-long | 90 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match (1 items) | no A item is still on B | no A item is still on B |
+| metacpan-org-recent-short | 61 / 60 | same | passed | survived | nothing to match (1 items) | wrong | wrong |
+| metacpan-org-recent-long | 61 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| hackaday-com-blog-short | 7 / 7 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| hackaday-com-blog-long | 7 / 7 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| sourceforge-net-directory-short | 25 / 25 | same | passed | survived | right (23 items) | right | right |
+| sourceforge-net-directory-long | 25 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | partly right (4 items) | wrong | wrong, healed |
+| pinboard-in-popular-short | 100 / 100 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| pinboard-in-popular-long | 100 / 0 | drift: no div.bookmark rows in the container | failed: rows | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| www-theverge-com-tech-short | 12 / 13 | same | passed | survived | nothing to match (1 items) | right | wrong |
+| www-theverge-com-tech-long | 12 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| techcrunch-com-category-startups-long | 20 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| www-bbc-com-news-technology-short | 19 / 20 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| www-bbc-com-news-technology-long | 19 / 0 | drift: the listing's container is gone | failed: listing, summary | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| arstechnica-com-gadgets-short | 12 / 12 | same | passed | survived | nothing to match | no A item is still on B | no A item is still on B |
+| arstechnica-com-gadgets-long | 12 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| www-producthunt-com-short | 16-17 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| www-producthunt-com-long | 16-17 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | nothing to match | no A item is still on B | no A item is still on B |
+| pypi-org-search--q-scraping-long | 20 / 0 | drift: the listing's container is gone | failed: listing, summary | failed loudly | no listing on B | no A item is still on B | no A item is still on B |
 
 ## Method
 
@@ -177,6 +195,12 @@ questions and are not ranked.
   Scrapling generates for it. `css(selector, adaptive=True)` is then
   called on B, using Scrapling's own storage. The result is right when
   the element returned has that title and, for a link, that address.
+- **anansi.** On the same item: the innermost element of A whose text
+  is its title, of several the one whose link is the item's, and the
+  selector anansi writes for it (`AdaptiveParser._tag_to_selector`).
+  A fresh store per pair is asked `extract(A, {"item": selector})`,
+  then the same on B, from `bench/requirements/anansi.txt`'s own
+  environment. Right when the text returned is the title.
 
 ## Limits
 
