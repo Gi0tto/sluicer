@@ -26,6 +26,7 @@ import contextlib
 import hmac
 import importlib
 import ipaddress
+import itertools
 import json
 import logging
 import os
@@ -94,7 +95,9 @@ MCP_PATH = "/mcp"
 """Where ``serve`` answers MCP over streamable HTTP."""
 
 MAX_CONNECTIONS = 64
-"""Connections uvicorn holds at once before it answers 503 itself."""
+"""uvicorn's ``limit_concurrency``: with as many connections open, a request
+is answered 503 by uvicorn itself, unless one waits for a request's head and
+is closed to make room for it (``_head_timed``)."""
 
 HEAD_SECONDS = 10.0
 """How long a connection may take to send a request's line and headers, the
@@ -941,19 +944,36 @@ def _head_timed() -> type[Any]:
     """uvicorn's h11 protocol, closing a connection that has not sent a whole
     request's line and headers within ``HEAD_SECONDS`` of opening, or of its
     last answer. Once a request's headers are in, its body and its answer
-    take what they take."""
+    take what they take.
+
+    A connection is also closed to make room: when one that waits for a head
+    sends something and there are already as many as uvicorn's
+    ``limit_concurrency``, the ones that have waited longest for a head are
+    closed until there is room, so a request is answered 503 only when every
+    other connection is inside one. uvicorn counts a connection that has sent
+    nothing toward the limit, so connections that sent nothing and were
+    opened again as soon as they were closed kept every later request at 503
+    (``MAX_CONNECTIONS``). Room is made when a request comes, not when a
+    connection opens: connections that send nothing never close each other,
+    so ones opened again as soon as they are closed cannot keep the server
+    closing and accepting them."""
     # By name, as every extra is: mypy reads this module in the base install.
     h11: Any = importlib.import_module("uvicorn.protocols.http.h11_impl")
+    # The order connections began to wait in, the longest-waiting first.
+    turns = itertools.count()
 
     class HeadTimed(h11.H11Protocol):  # type: ignore[misc]
         _awaited: Any = None
         _head_timer: Any = None
+        _since = 0
 
         def connection_made(self, transport: Any) -> None:
             super().connection_made(transport)
             self._wait_for_a_head()
 
         def data_received(self, data: bytes) -> None:
+            if self._head_timer is not None:
+                self._make_room()
             super().data_received(data)
             self._headed()
 
@@ -967,9 +987,32 @@ def _head_timed() -> type[Any]:
             self._stop_waiting()
             super().connection_lost(exc)
 
+        def _make_room(self) -> None:
+            """Close the other connections that waited longest for a head,
+            until uvicorn has a place to answer this one from, or none waits.
+
+            One closed is also forgotten at once: uvicorn counts what it
+            holds when a request's head arrives, and a closed transport is
+            only lost on the loop's next turn."""
+            if self.limit_concurrency is None:
+                return
+            waiting = sorted(
+                (
+                    held
+                    for held in self.connections
+                    if held is not self and getattr(held, "_head_timer", None)
+                ),
+                key=lambda held: held._since,
+            )
+            while waiting and len(self.connections) >= self.limit_concurrency:
+                oldest = waiting.pop(0)
+                oldest._too_late()
+                self.connections.discard(oldest)
+
         def _wait_for_a_head(self) -> None:
             self._stop_waiting()
             self._awaited = self.cycle
+            self._since = next(turns)
             self._head_timer = self.loop.call_later(HEAD_SECONDS, self._too_late)
 
         def _headed(self) -> None:
@@ -982,7 +1025,7 @@ def _head_timed() -> type[Any]:
                 self._head_timer = None
 
         def _too_late(self) -> None:
-            self._head_timer = None
+            self._stop_waiting()
             if not self.transport.is_closing():
                 self.transport.close()
 

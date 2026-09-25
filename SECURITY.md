@@ -205,11 +205,29 @@ user's own browser included. So it starts closed:
   C, which no thread can stop. Before this, four such calls held every
   worker for as long as they ran, and the server answered every later call
   504.
+- A connection that sends nothing holds no place a request needs. uvicorn
+  answers 503 beyond 64 connections (`MAX_CONNECTIONS`) and counts one that
+  has sent nothing among them: in 0.8's first form, 64 sockets that sent
+  nothing, each opened again the moment it was closed at ten seconds, had
+  `/health` answered 503 on 60 probes of 60 over a minute, with no token
+  needed. Now a connection that has not sent a request's headers within ten
+  seconds of opening, or of its last answer, is closed (`HEAD_SECONDS`), and
+  when a request arrives with every place taken, the connections that have
+  waited longest for a request are closed to make room for it: the same 64,
+  and 128 and 256, left 60 probes of 60 answered 200. The server answers 503
+  only when 63 connections are inside a request, and without the token a
+  request is refused before its body is read.
 
 What it does not do: it speaks plain HTTP, so beyond one machine the token
 crosses the network in the clear unless TLS is put in front of it; there is one
 token, not an identity per caller, no rate limit and no log beyond uvicorn's
-access log. A caller holding the token can make the machine fetch any public
+access log. Nor does it bound connections by who opens them: a request that
+arrives while connections are being opened faster than its headers, or 63
+requests that send a slow body where no token is asked for (loopback, or
+`--allow-unauthenticated`), still keep others waiting or at 503, and
+connections that send nothing still cost a file descriptor each until they
+are closed. Beyond loopback, a reverse proxy in front that limits
+connections per client is what bounds those. A caller holding the token can make the machine fetch any public
 URL, four calls at once, one request at a time and a second apart to any one
 site. Put it where you would put a `curl` that anyone holding the token may
 point.

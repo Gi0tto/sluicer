@@ -717,8 +717,8 @@ port of this machine included.
 
 **Most bounds are not options of the command.** The 16 MiB body, the four
 workers and the 64 connections are arguments of `build_app` or constants beside
-it; only the time budget is a flag of `sluicer serve`. Past 64 connections,
-uvicorn answers 503 in plain text, not in the answers' JSON.
+it; only the time budget is a flag of `sluicer serve`. With 63 connections
+inside a request, uvicorn answers 503 in plain text, not in the answers' JSON.
 
 **The listing speaks MCP's names.** `GET /v1/tools` is the SDK's own listing,
 so its keys are `inputSchema` and `outputSchema`, while the answers' keys are

@@ -737,10 +737,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says. `tests/live/guard_check.py` tries thirteen routes, these among them.
 - `sluicer serve` closes a connection that has not sent a request's line and
   headers within ten seconds of opening, or of its last answer
-  (`HEAD_SECONDS`). uvicorn times a connection out only between two
-  requests: 64 connections that sent nothing held every one it serves at
-  once, and every later request, `/health` included, was answered 503 for as
-  long as they stayed. `tests/live/mcp_http_check.py` holds 64 open.
+  (`HEAD_SECONDS`), and a request that arrives with all 64 places taken
+  closes the connections that have waited longest for a request until there
+  is room for it. uvicorn times a connection out only between two requests,
+  and counts one that has sent nothing toward its 64: 64 connections that
+  sent nothing held every one it serves at once, and every later request,
+  `/health` included, was answered 503 for as long as they stayed; closed at
+  ten seconds and each opened again at once, they kept 60 probes of 60 over
+  a minute at 503. Now 64, 128 or 256 such connections leave 60 of 60
+  answered 200, and it answers 503 only when 63 connections are inside a
+  request. Connections that send nothing never close each other.
+  `tests/live/mcp_http_check.py` holds 64 open, each opened again when
+  closed.
 - A CSV cell is judged as a spreadsheet may read it: behind the spaces,
   line breaks and no-break spaces it may trim, with a fullwidth `＝` or `＋`
   as the sign it looks like, and with a number made of ASCII digits. Only
