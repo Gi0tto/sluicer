@@ -314,11 +314,11 @@ def test_the_http_transport_sends_the_validators_by_default(tmp_path, monkeypatc
     )
     sent = {}
 
-    def http_responses(allow_private, resolve, max_bytes, error, send=None):
+    def http_responses(allow_private, resolve, max_bytes, send=None):
         sent.update(allow_private=allow_private, send=dict(send or {}))
         return lambda url: Response(url, 304, "", b"")
 
-    def http_rung(allow_private, resolve, max_bytes, error=None):
+    def http_rung(allow_private, resolve, max_bytes):
         return lambda url: Fetched(url=url, html="", status=404, rung="http")
 
     monkeypatch.setattr("sluicer.fetch.http_rung.http_responses", http_responses)
@@ -335,3 +335,42 @@ def test_the_http_transport_sends_the_validators_by_default(tmp_path, monkeypatc
             "If-Modified-Since": "Wed, 08 Feb 2023 21:02:32 GMT",
         },
     }
+
+
+def test_a_page_fetched_with_a_login_is_kept_for_that_login_alone(tmp_path):
+    """A page read behind a cookie is that cookie's page: given back to a
+    request without it, it would hand one account's page to anyone."""
+    clock, site = Clock(), Site()
+    cache = Cache(tmp_path, clock=clock, max_age=3600)
+
+    site.fetch(cache, cookies={"session": "abc"})
+    site.fetch(cache)
+    kept = site.fetch(cache, cookies={"session": "abc"})
+
+    assert site.pages == [URL, URL]
+    assert kept.cached is not None
+
+
+def test_a_revalidation_sends_the_callers_headers_beside_the_validators(tmp_path):
+    clock, site = Clock(), Site()
+    cache = Cache(tmp_path, clock=clock)
+
+    site.fetch(cache, headers={"Authorization": "Bearer t"})
+    clock.now += 60
+    site.fetch(cache, headers={"Authorization": "Bearer t"})
+
+    assert site.asked == [
+        (
+            URL,
+            {
+                "Authorization": "Bearer t",
+                "If-None-Match": '"v1"',
+                "If-Modified-Since": "Wed, 08 Feb 2023 21:02:32 GMT",
+            },
+        )
+    ]
+
+
+def test_the_cache_refuses_a_user_agent_like_the_fetch_does(tmp_path):
+    with pytest.raises(ValueError, match="User-Agent"):
+        Site().fetch(Cache(tmp_path), headers={"User-Agent": "Mozilla/5.0"})

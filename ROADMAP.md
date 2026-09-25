@@ -164,9 +164,11 @@ Machine's `id_` is.
 
 ## Considered and declined
 
-**Fetching as an arms race.** Browsers and anti-bot evasion are full-time work,
-and better done by projects that do only that. Sluicer delegates fetching and
-says so.
+**Fetching as an arms race.** Anti-bot evasion is full-time work, and better
+done by projects that do only that. Sluicer fetches over plain HTTP and drives
+a browser it does not disguise; the one rung that does not announce itself is
+scrapling's, behind the `stealth` extra, for one page a person asked for, and
+never grows past that.
 
 **Extraction with a model.** It would be easier and it would end determinism,
 which is the property everything else here rests on.

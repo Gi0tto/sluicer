@@ -1,56 +1,63 @@
-"""The plain HTTP rung, on curl_cffi, with the limits the ladder promises.
+"""The plain HTTP rung, on the standard library, with the limits the ladder
+promises.
 
-It asks for what scrapling's fetcher had no way to be asked for:
-
-* **A byte bound.** The body is read in chunks and the transfer stops once it
-  passes the bound, after decompression, so a small gzip that inflates to
-  gigabytes costs the bound and no more.
+* **A byte bound.** The body is read in chunks and decoded as it arrives, and
+  the transfer stops once it passes the bound, after decompression, so a
+  small gzip that inflates to gigabytes costs the bound and no more. A
+  ``Content-Length`` past it is refused before the body is read.
 * **A deadline.** One fetch, every redirect hop and every byte of the body
   included, ends by ``HTTP_TIMEOUT_SECONDS``: a server that drips its body a
   few bytes a second is cut off there, not when it is done.
-* **Redirects one hop at a time.** curl never follows one itself; every
+* **Redirects one hop at a time.** Nothing follows one on its own; every
   address a redirect names is judged before it is asked.
-* **The web and nothing else.** Every hop must be http or https, and curl is
-  told to speak nothing else, so a redirect to ``gopher://``, ``dict://`` or
-  ``file://`` is refused, not followed.
-* **A pinned connection.** With ``allow_private`` false, curl is told which
-  addresses the host has -- the ones just checked -- and never looks the name
-  up itself, so a name that answers differently the second time (DNS
-  rebinding) reaches nothing new.
+* **The web and nothing else.** Every hop must be http or https; there is no
+  code here that speaks anything else.
+* **A pinned connection.** With ``allow_private`` false, the connection goes
+  to the addresses the host was just checked to have, and the name is never
+  looked up again, so a name that answers differently the second time (DNS
+  rebinding) reaches nothing new. A connection kept from an earlier request
+  is used only while the address it reached is still among them.
 * **A caller's rule for redirects.** A crawl keeps to its site by refusing a
   hop that leaves it, before the other site is asked anything.
-* **No proxy unless asked.** libcurl reads ``HTTPS_PROXY`` and ``HTTP_PROXY``
-  itself; measured, a CONNECT reached a local proxy nobody had named to
-  Sluicer. A proxy is used only when given (``proxy``, or ``SLUICER_PROXY``).
+* **No proxy unless asked.** ``HTTPS_PROXY`` and ``HTTP_PROXY`` are never read.
+  A proxy is used only when given (``proxy``, or ``SLUICER_PROXY``).
+* **One connection per site, kept.** Requests go through the process's pool
+  (``sluicer.fetch.wire.CONNECTIONS``), so the pages of a site are asked on
+  the connection the first one opened, while the server keeps it open.
+* **The caller's headers stay with the site asked.** Headers a caller sends
+  -- a cookie, an authorization, a cache's validators -- go to the origin
+  asked for, and are left off a hop a redirect takes elsewhere.
 
 ``http_responses`` is the same transport answering bytes, for what is not a
 page: a sitemap, which may be gzip the server did not announce as an encoding.
 
-What it sends was measured on the wire: ``User-Agent`` is ours, and nothing
-dresses it up as a browser.
+What it sends was measured on the wire: ``Host``, our ``User-Agent``,
+``Accept``, ``Accept-Encoding`` (gzip, deflate, and zstd where this Python
+has it), and the caller's own headers. Nothing dresses it up as a browser.
 """
 
 from __future__ import annotations
 
+import base64
+import functools
+import http.client
 import os
+import ssl
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import quote, unquote, urljoin, urlsplit
 
 from sluicer.declared.headers import charset
 from sluicer.document import sniff_encoding
-from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch.address import (
-    WEB_SCHEMES,
     AddressRefused,
-    _numeric,
     _resolve,
     public_addresses,
     why_not_web,
 )
-from sluicer.fetch.identity import USER_AGENT
+from sluicer.fetch.identity import USER_AGENT, refused_header
 from sluicer.fetch.result import (
     MAX_RESPONSE_BYTES,
     EmptyBody,
@@ -59,6 +66,18 @@ from sluicer.fetch.result import (
     Redirects,
     ResponseTooLarge,
     Rung,
+)
+from sluicer.fetch.wire import (
+    ACCEPT,
+    ACCEPT_ENCODING,
+    CONNECTIONS,
+    Connections,
+    Decoder,
+    Overflow,
+    Proxy,
+    Target,
+    Timed,
+    within,
 )
 
 PROXY_ENV = "SLUICER_PROXY"
@@ -71,24 +90,30 @@ unset, for none.
 
 HTTP_TIMEOUT_SECONDS = 20
 """How long the plain HTTP rung may take for one address: the whole of it,
-connecting, every redirect hop and the body included.
+looking the name up, connecting, every redirect hop and the body included.
 
-curl_cffi turns a timeout on a streamed response into "less than a byte a
-second for that long", which a body sent eight bytes a second never trips:
-measured, one request was held for as long as the server kept dripping.
+Every wait on the connection is given what is left of it, not a timeout of
+its own: a body sent eight bytes a second never trips a per-read timeout,
+and was measured holding a request for as long as the server kept dripping.
 """
 
 MAX_REDIRECTS = 10
 """How many redirects one fetch follows before it calls the chain a loop."""
 
 _REDIRECTS = frozenset({301, 302, 303, 307, 308})
-_PROTOCOLS = ",".join(WEB_SCHEMES)
-_FILESIZE_EXCEEDED = 63
-_TIMED_OUT = 28
+_CHUNK = 65536
+# What a path or a query may carry as it is: everything else is escaped, a
+# space or a letter outside ASCII as a browser would send it.
+_SAFE = "!#$%&'()*+,/:;=?@[]~"
 
 
 class TooManyRedirects(Exception):
     """A chain of redirects longer than ``MAX_REDIRECTS``: a loop, most likely."""
+
+
+class ProtocolError(ConnectionError):
+    """The server's answer was not HTTP that could be read to its end: a body
+    cut short, a header line without end, more headers than any page has."""
 
 
 @dataclass(frozen=True)
@@ -110,90 +135,88 @@ def http_responses(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
-    error: type[MissingExtra] = MissingExtra,
     redirects: Redirects | None = None,
     send: Mapping[str, str] | None = None,
     timeout: float = HTTP_TIMEOUT_SECONDS,
     proxy: str | None = None,
+    connections: Connections | None = None,
 ) -> Callable[[str], Response]:
     """Build the HTTP transport: an address in, a ``Response`` out.
 
     Args:
         allow_private: when false, every hop is judged by ``public_addresses``
-            and the connection pinned to what it returned.
+            and the connection made to what it returned.
         resolve: the name lookup that judgement uses.
         max_bytes: the most a body may weigh before ``ResponseTooLarge``.
-        error: what a missing ``fetch`` extra raises, so callers can catch
-            the same class for every rung.
         redirects: the caller's rule for a redirect, asked before each hop is
             requested; a hop it refuses raises ``RedirectRefused``.
-        send: headers sent with every request beside our User-Agent, which
-            they cannot replace: a cache's validators, ``If-None-Match``.
+        send: headers sent beside ours to the origin asked for, and left off
+            any hop on another: a cookie, an authorization, a cache's
+            validators. Ours cannot be replaced: a ``User-Agent`` among them
+            is a ``ValueError``, as is a header the transport itself writes.
         timeout: the seconds one address may take, every hop and the body
             included; past them the transfer is cut and ``TimeoutError``
             raised.
-        proxy: the proxy to send every request through, as curl writes one
-            (``http://host:port``, ``socks5h://host:port``); ``SLUICER_PROXY``
-            when None, and no proxy at all when that is unset or empty. The
-            environment's ``HTTPS_PROXY`` and ``HTTP_PROXY`` are never used.
+        proxy: the proxy to send every request through (``http://host:port``,
+            ``socks5://host:port``, ``socks5h://host:port``, each with an
+            optional ``user:password@``); ``SLUICER_PROXY`` when None, and no
+            proxy at all when that is unset or empty. The environment's
+            ``HTTPS_PROXY`` and ``HTTP_PROXY`` are never used. Another kind
+            is a ``ValueError``.
+        connections: the pool of open connections; the process's by default.
     """
-    requests = import_extra(
-        "curl_cffi.requests", "fetch", doing="Fetching a URL", error=error
-    )
-    curl_option = import_extra(
-        "curl_cffi", "fetch", doing="Fetching a URL", error=error
-    ).CurlOpt
     through = chosen_proxy(proxy)
+    named = Proxy.parse(through) if through is not None else None
+    extra = dict(send or {})
+    for name in extra:
+        refusal = refused_header(name)
+        if refusal is not None:
+            raise ValueError(refusal)
+    pool = connections if connections is not None else CONNECTIONS
+
+    def checked(url: str) -> list[str]:
+        return public_addresses(url, resolve)
 
     def get(url: str) -> Response:
+        asked = _origin(url)
         current = url
         deadline = time.monotonic() + timeout
-        for _ in range(MAX_REDIRECTS + 1):
-            not_web = why_not_web(current)
-            if not_web is not None:
-                raise AddressRefused(current, not_web)
-            options: dict[Any, Any] = {
-                curl_option.MAXFILESIZE_LARGE: max_bytes,
-                # Ours is the check that refuses; curl's own list is there so
-                # that no path we did not think of reaches another protocol.
-                curl_option.PROTOCOLS_STR: _PROTOCOLS,
-                curl_option.REDIR_PROTOCOLS_STR: _PROTOCOLS,
-            }
-            if through is None:
-                # An empty proxy is curl's word for none, the environment's
-                # included.
-                options[curl_option.PROXY] = ""
-            if not allow_private:
-                pins = _pins(current, resolve)
-                if pins:
-                    options[curl_option.RESOLVE] = pins
-            left = deadline - time.monotonic()
-            if left <= 0:
-                raise TimeoutError(f"{url} took longer than {timeout:g} seconds")
-            # Set after curl_cffi's own, which for a stream is only a floor
-            # on speed: this one is the whole transfer, the body included.
-            options[curl_option.TIMEOUT_MS] = max(1, int(left * 1000))
-            status, headers, body = _get(
-                requests, current, options, max_bytes, send, left, url, timeout, through
-            )
-            location = headers.get("location")
-            if status in _REDIRECTS and location:
-                target = urljoin(current, location)
-                not_web = why_not_web(target)
+        try:
+            for _ in range(MAX_REDIRECTS + 1):
+                not_web = why_not_web(current)
                 if not_web is not None:
-                    raise AddressRefused(target, not_web)
-                refused = redirects(current, target) if redirects else None
-                if refused is not None:
-                    raise RedirectRefused(current, target, refused)
-                current = target
-                continue
-            return Response(
-                current,
-                status,
-                headers.get("content-type") or "",
-                body,
-                _all_headers(headers),
-            )
+                    raise AddressRefused(current, not_web)
+                if deadline - time.monotonic() <= 0:
+                    raise TimeoutError
+                addresses: tuple[str, ...] | None = None
+                if not allow_private:
+                    addresses = tuple(
+                        within(deadline, functools.partial(checked, current))
+                    )
+                own = extra if _origin(current) == asked else {}
+                status, headers, body = _exchange(
+                    pool, current, addresses, named, own, max_bytes, deadline
+                )
+                location = headers.get("location")
+                if status in _REDIRECTS and location:
+                    target = urljoin(current, location)
+                    not_web = why_not_web(target)
+                    if not_web is not None:
+                        raise AddressRefused(target, not_web)
+                    refused = redirects(current, target) if redirects else None
+                    if refused is not None:
+                        raise RedirectRefused(current, target, refused)
+                    current = target
+                    continue
+                return Response(
+                    current,
+                    status,
+                    headers.get("content-type") or "",
+                    body,
+                    _all_headers(headers),
+                )
+        except TimeoutError as late:
+            raise TimeoutError(f"{url} took longer than {timeout:g} seconds") from late
         raise TooManyRedirects(f"{url} redirected more than {MAX_REDIRECTS} times")
 
     return get
@@ -203,16 +226,16 @@ def http_rung(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
-    error: type[MissingExtra] = MissingExtra,
     redirects: Redirects | None = None,
     allow_empty: bool = False,
     timeout: float = HTTP_TIMEOUT_SECONDS,
     proxy: str | None = None,
+    send: Mapping[str, str] | None = None,
+    connections: Connections | None = None,
 ) -> Rung:
     """Build the HTTP rung: ``http_responses``, its body read as a page.
 
-    The first five arguments, ``timeout`` and ``proxy`` are
-    ``http_responses``'s.
+    Every argument but ``allow_empty`` is ``http_responses``'s.
     ``allow_empty`` returns an empty body rather than failing on it: a page
     with no HTML is a rung that failed, but an empty robots.txt or llms.txt is
     an answer, and ``sluicer.fetch.site`` reads those.
@@ -221,10 +244,11 @@ def http_rung(
         allow_private,
         resolve,
         max_bytes,
-        error,
         redirects,
+        send=send,
         timeout=timeout,
         proxy=proxy,
+        connections=connections,
     )
 
     def http(url: str) -> Fetched:
@@ -245,64 +269,146 @@ def http_rung(
     return http
 
 
-def _get(
-    requests: Any,
+class _Lent:
+    """A connection as ``http.client`` is handed it: to send on and read from,
+    never to close, since whether it is kept is decided here."""
+
+    def __init__(self, timed: Timed) -> None:
+        self.timed = timed
+
+    def sendall(self, data: bytes) -> None:
+        self.timed.sendall(data)
+
+    def makefile(self, *args: Any, **kwargs: Any) -> Any:
+        return self.timed.makefile(*args, **kwargs)
+
+    def close(self) -> None:
+        pass
+
+
+def _exchange(
+    pool: Connections,
     url: str,
-    options: dict[Any, Any],
+    addresses: tuple[str, ...] | None,
+    proxy: Proxy | None,
+    extra: Mapping[str, str],
     max_bytes: int,
-    send: Mapping[str, str] | None = None,
-    left: float = HTTP_TIMEOUT_SECONDS,
-    asked: str | None = None,
-    timeout: float = HTTP_TIMEOUT_SECONDS,
-    proxy: str | None = None,
+    deadline: float,
 ) -> tuple[int, Any, bytes]:
-    """One request, no redirect followed, the body read up to ``max_bytes``
-    within ``left`` seconds; ``asked`` and ``timeout`` are what a timeout's
-    message names."""
-    with requests.Session(curl_options=options, impersonate=None) as session:
+    """One request for ``url``, no redirect followed, its body read up to
+    ``max_bytes`` by ``deadline``: the status, the headers and the body."""
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    host = (parts.hostname or "").rstrip(".")
+    if not host:
+        raise AddressRefused(url, "the address names no host")
+    ascii_host = host if ":" in host else host.encode("idna").decode("ascii")
+    port = parts.port or (443 if scheme == "https" else 80)
+    through_socks = proxy is not None and proxy.scheme == "socks5"
+    target = Target(
+        scheme,
+        ascii_host,
+        port,
+        addresses if proxy is None or through_socks else None,
+        proxy,
+    )
+    headers = _request_headers(parts, target, extra)
+    path = quote(parts.path or "/", safe=_SAFE)
+    if parts.query:
+        path += "?" + quote(parts.query, safe=_SAFE)
+    line = f"{scheme}://{headers[0][1]}{path}" if target.absolute_form else path
+    for attempt in (1, 2):
+        link, kept = pool.take(target, deadline)
+        connection = http.client.HTTPConnection(ascii_host, port)
+        connection.auto_open = 0
+        connection.sock = _Lent(link)
         try:
-            response = session.get(
-                url,
-                headers={**(send or {}), "User-Agent": USER_AGENT},
-                timeout=left,
-                allow_redirects=False,
-                stream=True,
-                **({"proxy": proxy} if proxy else {}),
+            connection.putrequest(
+                "GET", line, skip_host=True, skip_accept_encoding=True
             )
-            try:
-                body = bytearray()
-                for chunk in response.iter_content():
-                    body += chunk
-                    if len(body) > max_bytes:
-                        raise ResponseTooLarge(url, max_bytes)
-                return response.status_code, response.headers, bytes(body)
-            finally:
-                response.close()
-        except ResponseTooLarge:
+            for name, value in headers:
+                connection.putheader(name, value)
+            connection.endheaders()
+            response = connection.getresponse()
+        except (ConnectionError, ssl.SSLEOFError):
+            link.close()
+            # A kept connection the server closed while it waited: the
+            # request never reached it, and is sent once more on a new one.
+            if kept and attempt == 1:
+                continue
             raise
-        except Exception as failure:
-            # curl's own refusal (CURLE_FILESIZE_EXCEEDED), which comes first
-            # when the length was announced or the transfer outran our count.
-            if _curl_code(failure) == _FILESIZE_EXCEEDED:
-                raise ResponseTooLarge(url, max_bytes) from failure
-            # CURLE_OPERATION_TIMEDOUT: the deadline, said as a timeout
-            # whatever class curl_cffi raised it as.
-            if _curl_code(failure) == _TIMED_OUT:
-                raise TimeoutError(
-                    f"{asked or url} took longer than {timeout:g} seconds"
-                ) from failure
+        except http.client.HTTPException as unreadable:
+            link.close()
+            raise ProtocolError(f"{url} answered with {unreadable!r}") from unreadable
+        except BaseException:
+            link.close()
             raise
+        try:
+            body = _body(response, url, max_bytes)
+        except http.client.HTTPException as unreadable:
+            link.close()
+            raise ProtocolError(
+                f"{url} sent a body that could not be read: {unreadable!r}"
+            ) from unreadable
+        except BaseException:
+            link.close()
+            raise
+        if response.will_close:
+            link.close()
+        else:
+            pool.give(target, link)
+        return response.status, response.msg, body
+    raise AssertionError("a request was neither answered nor refused")
 
 
-def _curl_code(failure: Exception) -> int | None:
-    """The libcurl error code a curl_cffi failure carries, or None."""
-    code = getattr(failure, "code", None)
-    if isinstance(code, int) and code:
-        return code
-    for known in (_FILESIZE_EXCEEDED, _TIMED_OUT):
-        if f"curl: ({known})" in str(failure):
-            return known
-    return None
+def _request_headers(
+    parts: Any, target: Target, extra: Mapping[str, str]
+) -> list[tuple[str, str]]:
+    """What a request for ``parts`` sends, in the order sent: ``Host`` first."""
+    host = f"[{target.host}]" if ":" in target.host else target.host
+    default = 443 if target.scheme == "https" else 80
+    authority = host if target.port == default else f"{host}:{target.port}"
+    headers = [
+        ("Host", authority),
+        ("User-Agent", USER_AGENT),
+        ("Accept", ACCEPT),
+        ("Accept-Encoding", ACCEPT_ENCODING),
+    ]
+    if target.absolute_form and target.proxy is not None:
+        authorization = target.proxy.authorization()
+        if authorization is not None:
+            headers.append(("Proxy-Authorization", authorization))
+    named = {name.lower() for name in extra}
+    if parts.username is not None and "authorization" not in named:
+        # The address's own user and password, as curl sent them.
+        pair = f"{unquote(parts.username)}:{unquote(parts.password or '')}"
+        headers.append(
+            ("Authorization", "Basic " + base64.b64encode(pair.encode()).decode())
+        )
+    headers.extend(extra.items())
+    return headers
+
+
+def _body(response: http.client.HTTPResponse, url: str, max_bytes: int) -> bytes:
+    """The body of ``response``, decoded, and never past ``max_bytes``."""
+    announced = response.length
+    if announced is not None and announced > max_bytes:
+        # What curl's own bound did: refused before the body is read.
+        raise ResponseTooLarge(url, max_bytes)
+    decoder = Decoder(url, response.getheader("content-encoding") or "")
+    body = bytearray()
+    try:
+        while True:
+            chunk = response.read1(_CHUNK)
+            if not chunk:
+                break
+            body += decoder.feed(chunk, max_bytes - len(body))
+        body += decoder.finish(max_bytes - len(body))
+    except Overflow:
+        raise ResponseTooLarge(url, max_bytes) from None
+    if len(body) > max_bytes:
+        raise ResponseTooLarge(url, max_bytes)
+    return bytes(body)
 
 
 def chosen_proxy(proxy: str | None = None) -> str | None:
@@ -312,19 +418,18 @@ def chosen_proxy(proxy: str | None = None) -> str | None:
     return named.strip() or None
 
 
-def _pins(url: str, resolve: Callable[[str], Iterable[str]]) -> list[str]:
-    """curl's ``RESOLVE`` entries: this host, at this port, only at these addresses.
-
-    Empty for a host written as an address, which curl never looks up.
-    """
-    addresses = public_addresses(url, resolve)
-    parts = urlsplit(url)
-    host = (parts.hostname or "").rstrip(".")
-    if _numeric(host.lower()) is not None:
-        return []
-    port = parts.port or (443 if parts.scheme.lower() == "https" else 80)
-    listed = ",".join(f"[{a}]" if ":" in a else a for a in addresses)
-    return [f"{host.encode('idna').decode('ascii')}:{port}:{listed}"]
+def _origin(url: str) -> tuple[str, str, int | None]:
+    """The scheme, host and port a URL is asked of: what headers are kept to."""
+    try:
+        parts = urlsplit(url)
+        scheme = parts.scheme.lower()
+        return (
+            scheme,
+            (parts.hostname or "").lower(),
+            parts.port or (443 if scheme == "https" else 80),
+        )
+    except ValueError:
+        return "", url, None
 
 
 def _all_headers(headers: Any) -> dict[str, str]:

@@ -460,7 +460,7 @@ def test_stealth_appends_the_stealth_rung_when_a_caller_asks(monkeypatch):
     """One of the branch's three promises, exercised at the seam that keeps it.
 
     ``stealth=True`` was implemented in ``fetch`` and tested nowhere: the rung
-    itself has tests in ``test_scrapling_rungs.py``, but nothing asserted that
+    itself has tests in ``test_stealth.py``, but nothing asserted that
     asking for it actually puts it on the end of the ladder. The rungs are
     injected, and ``stealth_rung`` is patched where ``fetch`` imports it from,
     so nothing here needs scrapling.
@@ -468,7 +468,7 @@ def test_stealth_appends_the_stealth_rung_when_a_caller_asks(monkeypatch):
     http = rung("http", REFUSED, status=403)
     stealth = rung("stealth", RICH)
     monkeypatch.setattr(
-        "sluicer.fetch.scrapling_rungs.stealth_rung",
+        "sluicer.fetch.stealth.stealth_rung",
         lambda *guarded: ("stealth", stealth),
     )
 
@@ -494,7 +494,7 @@ def test_without_the_flag_the_stealth_rung_is_never_even_built(monkeypatch):
     def must_not_be_built():
         raise AssertionError("stealth_rung() was built for a caller who never asked")
 
-    monkeypatch.setattr("sluicer.fetch.scrapling_rungs.stealth_rung", must_not_be_built)
+    monkeypatch.setattr("sluicer.fetch.stealth.stealth_rung", must_not_be_built)
     http = rung("http", REFUSED, status=403)
 
     result = fetch(
@@ -591,3 +591,234 @@ def test_payment_required_on_a_higher_rung_is_the_answer_too():
     assert [(c.from_rung, c.to_rung) for c in refused.value.climbs] == [
         ("http", "browser")
     ]
+
+
+# -- the rung a site needed, remembered ------------------------------------------
+
+SHELL = (
+    '<html><head><script src="/app.js"></script></head>'
+    '<body><div id="root"></div></body></html>'
+)
+
+
+def test_the_second_page_of_a_site_starts_at_the_rung_the_first_needed():
+    """Measured on 0.7.0: a JS site crawled at 3.22 s a page, every document
+    asked twice, once of plain HTTP to learn again what the last page taught."""
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    http = rung("http", SHELL)
+    browser = rung("browser", RICH)
+    ladder = [("http", http), ("browser", browser)]
+
+    first = fetch(
+        "https://shop.example/1", rungs=ladder, memory=memory, obey_robots=False
+    )
+    second = fetch(
+        "https://www.shop.example/2", rungs=ladder, memory=memory, obey_robots=False
+    )
+
+    assert first.rung == second.rung == "browser"
+    assert http.calls == ["https://shop.example/1"]
+    assert browser.calls == ["https://shop.example/1", "https://www.shop.example/2"]
+    assert [(c.from_rung, c.to_rung, c.seconds) for c in second.climbs] == [
+        ("http", "browser", 0.0)
+    ]
+    assert "an earlier page of shop.example needed it" in second.climbs[0].reason
+    assert first.climbs[0].reason in second.climbs[0].reason
+
+
+def test_another_site_starts_at_the_bottom():
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    http = rung("http", SHELL)
+    ladder = [("http", http), ("browser", rung("browser", RICH))]
+
+    fetch("https://shop.example/1", rungs=ladder, memory=memory, obey_robots=False)
+    fetch("https://other.example/1", rungs=ladder, memory=memory, obey_robots=False)
+
+    assert http.calls == ["https://shop.example/1", "https://other.example/1"]
+
+
+def test_a_rung_that_failed_teaches_nothing_about_the_site():
+    """A timeout is the moment's, not the site's: only a page that needed more
+    is remembered."""
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    tries = []
+
+    def flaky(url):
+        tries.append(url)
+        if len(tries) == 1:
+            raise ConnectionError("connection reset")
+        return Fetched(url=url, html=RICH, status=200, rung="http")
+
+    ladder = [("http", flaky), ("browser", rung("browser", RICH))]
+    fetch("https://shop.example/1", rungs=ladder, memory=memory, obey_robots=False)
+    second = fetch(
+        "https://shop.example/2", rungs=ladder, memory=memory, obey_robots=False
+    )
+
+    assert second.rung == "http" and second.climbs == []
+
+
+def test_a_remembered_rung_that_fails_is_forgotten_and_the_ladder_starts_again():
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    pages = {"https://shop.example/1": SHELL, "https://shop.example/2": RICH}
+
+    def http(url):
+        return Fetched(url=url, html=pages[url], status=200, rung="http")
+
+    loads = []
+
+    def browser(url):
+        loads.append(url)
+        if url.endswith("/2"):
+            raise RuntimeError("the browser crashed")
+        return Fetched(url=url, html=RICH, status=200, rung="browser")
+
+    ladder = [("http", http), ("browser", browser)]
+    fetch("https://shop.example/1", rungs=ladder, memory=memory, obey_robots=False)
+    second = fetch(
+        "https://shop.example/2", rungs=ladder, memory=memory, obey_robots=False
+    )
+    third = fetch(
+        "https://shop.example/2", rungs=ladder, memory=memory, obey_robots=False
+    )
+
+    assert second.rung == "http"
+    assert [(c.from_rung, c.to_rung) for c in second.climbs] == [
+        ("http", "browser"),
+        ("browser", "http"),
+    ]
+    assert "the browser crashed" in second.climbs[1].reason
+    assert third.rung == "http" and third.climbs == []
+
+
+def test_the_stealth_rung_is_never_remembered():
+    """Disguise is asked for page by page; no memory makes a page go stealth."""
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    ladder = [
+        ("http", rung("http", SHELL)),
+        ("browser", rung("browser", SHELL)),
+        ("stealth", rung("stealth", RICH)),
+    ]
+    fetch("https://shop.example/1", rungs=ladder, memory=memory, obey_robots=False)
+
+    assert memory.recall("https://shop.example/2") is None
+
+
+def test_a_remembered_rung_the_ladder_does_not_have_is_no_start():
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    memory.learn("https://shop.example/1", "browser", "it was a shell")
+    http = rung("http", RICH)
+
+    page = fetch(
+        "https://shop.example/2",
+        rungs=[("http", http)],
+        memory=memory,
+        obey_robots=False,
+    )
+
+    assert page.rung == "http" and page.climbs == []
+
+
+def test_what_a_site_needed_is_forgotten_after_a_day_and_past_a_bound():
+    from sluicer.fetch.ladder import RungMemory
+
+    now = [0.0]
+    memory = RungMemory(limit=2, clock=lambda: now[0])
+    for site in ("a", "b", "c"):
+        memory.learn(f"https://{site}.example/", "browser", "a shell")
+
+    assert memory.recall("https://a.example/") is None
+    assert memory.recall("https://c.example/") is not None
+    now[0] = 24 * 60 * 60 + 1
+    assert memory.recall("https://c.example/") is None
+
+
+def test_the_default_ladder_remembers_for_the_process(monkeypatch):
+    """Without injected rungs, the process's memory; with them, none unless
+    handed one, so a test's sites never teach another's."""
+    from sluicer.fetch.gate import GATE
+    from sluicer.fetch.ladder import STICKY
+
+    http = rung("http", SHELL)
+    browser = rung("browser", RICH)
+    monkeypatch.setattr(
+        "sluicer.fetch.rungs.default_rungs",
+        lambda *a, **k: [("http", http), ("browser", browser)],
+    )
+    monkeypatch.setattr(GATE, "min_delay", 0.0)
+
+    fetch("https://shop.example/1", robots_reader=lambda url: None)
+    fetch("https://shop.example/2", robots_reader=lambda url: None)
+
+    assert http.calls == ["https://shop.example/1"]
+    assert STICKY.recall("https://shop.example/3") is not None
+    injected = rung("http", SHELL)
+    fetch(
+        "https://shop.example/4",
+        rungs=[("http", injected), ("browser", rung("browser", RICH))],
+        obey_robots=False,
+    )
+    assert injected.calls == ["https://shop.example/4"]
+
+
+# -- the caller's headers and cookies -------------------------------------------
+
+
+def test_the_callers_headers_and_cookies_reach_the_default_rungs(monkeypatch):
+    from sluicer.fetch.gate import GATE
+
+    built = {}
+
+    def default_rungs(*args, **kwargs):
+        built.update(kwargs)
+        return [("http", rung("http", RICH))]
+
+    monkeypatch.setattr("sluicer.fetch.rungs.default_rungs", default_rungs)
+    monkeypatch.setattr(GATE, "min_delay", 0.0)
+
+    fetch(
+        "https://example.com/account",
+        headers={"Authorization": "Bearer t"},
+        cookies={"session": "abc"},
+        robots_reader=lambda url: None,
+    )
+
+    assert built["headers"] == {"Authorization": "Bearer t"}
+    assert built["cookies"] == {"session": "abc"}
+
+
+def test_a_user_agent_of_the_callers_is_refused_before_anything_is_asked():
+    http = rung("http", RICH)
+
+    with pytest.raises(ValueError, match="User-Agent is not replaced"):
+        fetch("https://example.com/p", headers={"User-Agent": "Mozilla/5.0"})
+    assert http.calls == []
+
+
+def test_headers_for_injected_rungs_are_refused_rather_than_dropped():
+    """Injected rungs are built by their caller, with whatever they send; a
+    header handed to fetch() beside them would reach no request."""
+    with pytest.raises(ValueError, match="injected rungs"):
+        fetch(
+            "https://example.com/p",
+            rungs=[("http", rung("http", RICH))],
+            headers={"Authorization": "Bearer t"},
+        )
+
+
+def test_the_stealth_rung_is_not_asked_to_carry_a_login():
+    """It does not say who is asking; a cookie or a token would."""
+    with pytest.raises(ValueError, match="stealth rung"):
+        fetch("https://example.com/p", stealth=True, cookies={"session": "abc"})

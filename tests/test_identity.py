@@ -129,25 +129,18 @@ def test_http_and_https_on_one_host_are_two_different_robots_files():
     assert calls == ["http://example.com/robots.txt", "https://example.com/robots.txt"]
 
 
-def test_a_missing_protego_says_the_fetch_extra_is_what_installs_it(absent):
-    """The label has to be the one the entry points catch, not the base class.
-
-    ``sluicer.extras`` states the rule this breaks: an absent extra is a
-    sentence, never a traceback. The call site used the default
-    ``MissingExtra``, and ``cli.py`` catches ``FetchExtraMissing`` by name, so
-    a bare ``MissingExtra`` sailed straight past that handler. protego ships
-    behind the fetch extra, so the fetch extra's own exception is what a
-    missing protego has to raise.
-    """
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+def test_a_missing_protego_is_a_broken_install_not_a_missing_extra(absent):
+    """Until 0.8 protego came with the fetch extra and a missing one named it;
+    the base install fetches now, and brings protego, so a missing protego is
+    an install that is broken, raised as the import error it is."""
+    from sluicer.extras import MissingExtra
 
     absent("protego")
 
-    with pytest.raises(FetchExtraMissing) as raised:
+    with pytest.raises(ModuleNotFoundError) as raised:
         robots_allows("https://example.com/private/p", read=lambda url: REFUSE_US)
 
-    assert raised.value.extra == "fetch"
-    assert 'uv pip install "sluicer[fetch]"' in str(raised.value)
+    assert not isinstance(raised.value, MissingExtra)
 
 
 def test_the_process_cache_forgets_the_least_recently_used_site_past_its_bound(
@@ -347,3 +340,52 @@ def test_a_robots_txt_is_parsed_once_however_many_addresses_ask(monkeypatch):
         robots_refusal(f"https://site.example/{page}", lambda _: text, cache)
     assert robots_refusal("https://site.example/private/1", lambda _: text, cache)
     assert len(parsed) == 1
+
+
+# -- what a caller may send ------------------------------------------------------
+
+
+def test_a_callers_headers_and_cookies_become_one_set_of_headers():
+    from sluicer.fetch.identity import outgoing
+
+    sent = outgoing(
+        {"Authorization": "Bearer t", "Cookie": "theme=dark"},
+        {"session": "abc", "lang": "en"},
+    )
+
+    assert sent == {
+        "Authorization": "Bearer t",
+        "Cookie": "theme=dark; session=abc; lang=en",
+    }
+    assert outgoing() == {}
+    assert outgoing(cookies={"a": "1"}) == {"Cookie": "a=1"}
+
+
+@pytest.mark.parametrize("name", ["User-Agent", "user-agent", " USER-AGENT "])
+def test_the_user_agent_is_never_the_callers(name):
+    """A site must be able to refuse Sluicer by name; a caller who could
+    rename it would take that from the site."""
+    from sluicer.fetch.identity import outgoing
+
+    with pytest.raises(ValueError, match="Sluicer always says it is Sluicer"):
+        outgoing({name: "Mozilla/5.0"})
+
+
+@pytest.mark.parametrize(
+    ("headers", "cookies", "said"),
+    [
+        ({"Host": "elsewhere.example"}, None, "written by the transport"),
+        ({"Accept-Encoding": "br"}, None, "written by the transport"),
+        ({"Bad Name": "x"}, None, "not a header name"),
+        ({"X-Two": "a\r\nX-Injected: b"}, None, "another line"),
+        (None, {"a;b": "1"}, "not a cookie name"),
+        (None, {"a": "1; Path=/"}, "would break the header"),
+    ],
+)
+def test_what_would_break_a_request_is_refused_before_anything_is_asked(
+    headers, cookies, said
+):
+    from sluicer.fetch.identity import outgoing
+
+    with pytest.raises(ValueError, match=said):
+        outgoing(headers, cookies)

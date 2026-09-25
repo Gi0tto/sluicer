@@ -29,7 +29,7 @@ import sys
 from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, ClassVar, NoReturn
 
 import click
 
@@ -61,7 +61,7 @@ from sluicer.extractor import (
 from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused, fetch as fetch_url
 from sluicer.fetch.http_rung import PROXY_ENV
 from sluicer.fetch.result import Fetched, ResponseTooLarge
-from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+from sluicer.fetch.rungs import FetchExtraMissing
 from sluicer.http_api import (
     DEFAULT_HOST,
     DEFAULT_PORT,
@@ -101,7 +101,7 @@ def _what_to_try(source: str, induce: bool, visible: bool) -> str:
 
 
 SECTIONS: dict[str, tuple[str, ...]] = {
-    "Read a page": ("extract", "inspect", "markdown", "diff", "audit"),
+    "Read a page": ("fetch", "extract", "inspect", "markdown", "diff", "audit"),
     "Whole sites": ("map", "crawl", "batch", "feed", "warc"),
     "Extractors": ("compile", "run", "heal"),
     "Servers": ("mcp", "serve"),
@@ -112,7 +112,7 @@ SECTIONS: dict[str, tuple[str, ...]] = {
 class _Sectioned(click.Group):
     """A group whose help lists its commands by what they are for.
 
-    Fifteen commands in click's one alphabetical list put ``audit`` first and
+    Sixteen commands in click's one alphabetical list put ``audit`` first and
     ``extract`` between ``diff`` and ``feed``. A command in no section is
     listed under "Other commands" rather than hidden.
     """
@@ -252,17 +252,90 @@ _proxy_option = click.option(
 )
 
 
+_header_option = click.option(
+    "--header",
+    "-H",
+    "headers",
+    multiple=True,
+    metavar="'NAME: VALUE'",
+    help="Send this header to the site asked, and to no other it redirects to; "
+    "again for more. Never User-Agent: Sluicer always says who it is.",
+)
+
+_cookie_option = click.option(
+    "--cookie",
+    "cookies",
+    multiple=True,
+    metavar="NAME=VALUE",
+    help="Send this cookie to the site asked, as --header does; again for more.",
+)
+
+
+class _Sending:
+    """The headers and cookies this command sends, as its options gave them.
+
+    Held here, as ``--proxy`` is held in ``SLUICER_PROXY``, so that every
+    fetch the command makes sends them without each reader of a page having
+    to be handed them. Set again by every command that takes the options.
+    """
+
+    headers: ClassVar[dict[str, str]] = {}
+    cookies: ClassVar[dict[str, str]] = {}
+
+
+def _sent() -> dict[str, Any]:
+    """``fetch``'s ``headers`` and ``cookies``, as this command's options say."""
+    return {"headers": dict(_Sending.headers), "cookies": dict(_Sending.cookies)}
+
+
+def _sending(headers: tuple[str, ...], cookies: tuple[str, ...]) -> None:
+    """Read ``--header`` and ``--cookie``, refusing, before anything is asked,
+    what could not be sent."""
+    from sluicer.fetch.identity import outgoing
+
+    named: dict[str, str] = {}
+    for given in headers:
+        name, colon, value = given.partition(":")
+        if not colon or not name.strip():
+            raise click.BadParameter(
+                f"{given!r} is not a header: write 'NAME: VALUE'", param_hint="--header"
+            )
+        named[name.strip()] = value.strip()
+    crumbs: dict[str, str] = {}
+    for given in cookies:
+        name, equals, value = given.partition("=")
+        if not equals or not name.strip():
+            raise click.BadParameter(
+                f"{given!r} is not a cookie: write NAME=VALUE", param_hint="--cookie"
+            )
+        crumbs[name.strip()] = value.strip()
+    try:
+        outgoing(named, crumbs)
+    except ValueError as refused:
+        raise click.BadParameter(str(refused)) from None
+    _Sending.headers, _Sending.cookies = named, crumbs
+
+
 def _with_proxy(command: click.decorators.FC) -> click.decorators.FC:
-    """``--proxy``, taken before the command runs: every fetch it makes, of a
-    page, a robots.txt, a sitemap or a site's files, reads ``SLUICER_PROXY``."""
+    """``--proxy``, ``--header`` and ``--cookie``, taken before the command
+    runs: every fetch it makes, of a page, a robots.txt, a sitemap or a site's
+    files, reads ``SLUICER_PROXY``, and every page it asks for sends the
+    headers and cookies."""
 
     @functools.wraps(command)
-    def through(*args: Any, proxy: str | None = None, **kwargs: Any) -> Any:
+    def through(
+        *args: Any,
+        proxy: str | None = None,
+        headers: tuple[str, ...] = (),
+        cookies: tuple[str, ...] = (),
+        **kwargs: Any,
+    ) -> Any:
         if proxy is not None:
             os.environ[PROXY_ENV] = proxy
+        _sending(headers, cookies)
         return command(*args, **kwargs)
 
-    return _proxy_option(through)  # type: ignore[return-value]
+    return _proxy_option(_header_option(_cookie_option(through)))  # type: ignore[return-value]
 
 
 def _with_fetch_options(command: click.decorators.FC) -> click.decorators.FC:
@@ -347,6 +420,11 @@ def _read_page(
         _fail(f"--at reads an address from the Wayback Machine; {source} is not one.")
     if at is not None and stealth:
         _fail("--at reads the archive over plain HTTP; --stealth has no rung there.")
+    if at is not None and (_Sending.headers or _Sending.cookies):
+        _fail(
+            "--at reads the archive, which is not the site: --header and --cookie "
+            "are for the site, and are never sent to web.archive.org."
+        )
     if is_url:
         # Only FetchExtraMissing, not ImportError: an import failure inside a
         # working scrapling install is a bug and keeps its traceback.
@@ -363,9 +441,12 @@ def _read_page(
                     Cache(cache_dir, max_age),
                     stealth=stealth,
                     obey_robots=not no_robots,
+                    **_sent(),
                 )
             else:
-                fetched = fetch_url(source, stealth=stealth, obey_robots=not no_robots)
+                fetched = fetch_url(
+                    source, stealth=stealth, obey_robots=not no_robots, **_sent()
+                )
         except FetchExtraMissing as missing:
             _fail(str(missing), missing)
         except RobotsRefused as refused:
@@ -415,6 +496,117 @@ def _read_page(
     # A path is not an address: handed to the readers as the page's URL it
     # would resolve every relative link against the file name.
     return data, base_url, None
+
+
+@main.command("fetch")
+@click.argument("url")
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(dir_okay=False),
+    help="Write the page to this file rather than to stdout.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Print one JSON object: the page, where it landed, its status, "
+    "rung, climbs and headers.",
+)
+@click.option(
+    "--stealth",
+    is_flag=True,
+    help="Allow the stealth rung, which does not announce itself.",
+)
+@click.option(
+    "--no-robots",
+    is_flag=True,
+    help="Fetch even where the site's robots.txt says no.",
+)
+@click.option(
+    "--cache",
+    "cache_dir",
+    metavar="DIR",
+    help="Keep fetched pages in DIR, and ask the site with their ETag or "
+    "Last-Modified whether a page changed before fetching it again.",
+)
+@click.option(
+    "--max-age",
+    type=click.FloatRange(min=0),
+    metavar="SECONDS",
+    help="With --cache, give a page kept for less than SECONDS back without "
+    "asking its site at all.",
+)
+@click.option(
+    "--at",
+    metavar="DATE",
+    help="Read the URL as the Wayback Machine captured it nearest to DATE.",
+)
+@_with_proxy
+def fetch_command(
+    url: str,
+    output: str | None,
+    as_json: bool,
+    stealth: bool,
+    no_robots: bool,
+    cache_dir: str | None,
+    max_age: float | None,
+    at: str | None,
+) -> None:
+    """Fetch a URL and print the page, as the ladder brought it back.
+
+    The HTML goes to stdout, or to --output, and what it cost -- each climb,
+    where the page landed, its status and rung -- to stderr; with --json, all
+    of it is one object on stdout. The input compile, extract and the rest
+    can then read from a file, the same bytes every time. Exits 0 with a
+    page, whatever its status, and 2 when none could be fetched.
+    """
+    if not url.lower().startswith(("http://", "https://")):
+        _fail(f"fetch takes an http(s) address; {url} is not one.")
+    html, _, fetched = _read_source(
+        url, stealth, no_robots, None, at, (), cache_dir, max_age
+    )
+    if fetched is None:  # pragma: no cover -- an address is always fetched
+        _fail(f"fetch takes an http(s) address; {url} is not one.")
+    page = html if isinstance(html, str) else html.decode("utf-8", "replace")
+    if as_json:
+        answer: dict[str, Any] = {
+            "url": fetched.url,
+            "status": fetched.status,
+            "rung": fetched.rung,
+            "seconds": round(fetched.seconds, 3),
+            "climbs": [asdict(climb) for climb in fetched.climbs],
+            "headers": fetched.headers,
+        }
+        if fetched.cached is not None:
+            answer["cached"] = asdict(fetched.cached)
+        if fetched.archived is not None:
+            answer["archived"] = asdict(fetched.archived)
+        answer["html"] = page
+        text = json.dumps(answer, indent=2, ensure_ascii=False)
+    else:
+        text = page
+        for climb in fetched.climbs:
+            click.echo(
+                f"{climb.from_rung} -> {climb.to_rung} after {climb.seconds:.2f} s: "
+                f"{climb.reason}",
+                err=True,
+            )
+        kept = f", {_kept_line(fetched.cached)}" if fetched.cached else ""
+        click.echo(
+            f"{fetched.url}: {fetched.status}, from the {fetched.rung} rung in "
+            f"{fetched.seconds:.2f} s{kept}",
+            err=True,
+        )
+    if output is None:
+        click.echo(text)
+        return
+    try:
+        Path(output).write_text(text, encoding="utf-8")
+    except OSError as failure:
+        _fail(f"Could not write {output}: {failure.strerror or failure}", failure)
+    if not as_json:
+        click.echo(f"written to {output}", err=True)
 
 
 @main.command()
@@ -1168,14 +1360,11 @@ def audit_command(
         source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
     )
     site = None
-    try:
-        if fetched is not None and not no_site and fetched.archived is None:
-            from sluicer.fetch.site import read_site
+    if fetched is not None and not no_site and fetched.archived is None:
+        from sluicer.fetch.site import read_site
 
-            site = read_site(fetched.url, obey_robots=not no_robots)
-        result = audit_page(html, url=url, site=site)
-    except FetchExtraMissing as missing:
-        _fail(str(missing), missing)
+        site = read_site(fetched.url, obey_robots=not no_robots)
+    result = audit_page(html, url=url, site=site)
     if fetched is not None and fetched.archived is not None and not no_site:
         result.not_checked.insert(
             0,
@@ -1442,7 +1631,7 @@ def map_command(url: str, limit: int, plain: bool) -> None:
     delay, and stderr says what became of each one.
     """
     try:
-        found = map_site(url, limit=limit)
+        found = map_site(url, limit=limit, **_sent())
     except (
         FetchExtraMissing,
         RobotsRefused,
@@ -1573,6 +1762,7 @@ def crawl_command(
             induce=induce,
             respect_tdm="tdm" in respect,
             min_delay=delay,
+            **_sent(),
         )
     except (FetchExtraMissing, ValueError) as failure:
         _fail(str(failure), failure)
@@ -1728,6 +1918,7 @@ def batch_command(
             induce=induce,
             respect_tdm="tdm" in respect,
             min_delay=delay,
+            **_sent(),
         )
     except (FetchExtraMissing, ValueError) as failure:
         _fail(str(failure), failure)

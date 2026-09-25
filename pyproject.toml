@@ -34,38 +34,45 @@ classifiers = [
     "Topic :: Text Processing :: Markup :: HTML",
     "Typing :: Typed",
 ]
-# Both floors are measured, and the `floors` CI job installs exactly these and
+# The floors are measured, and the `floors` CI job installs exactly these and
 # runs the suite on them.
 #   lxml 5.3 is the first release with a wheel for every supported Python:
 #   5.0-5.2 ship none for cp313, and 5.0 none for macOS arm64.
 #   click 8.2 is the first whose CliRunner captures stderr separately; on 8.1.8
 #   fourteen tests fail.
-dependencies = ["lxml>=5.3", "click>=8.2"]
+#   protego parses robots.txt, which every fetch asks first; the HTTP rung
+#   itself is the standard library, so fetching a page needs nothing else.
+dependencies = ["lxml>=5.3", "click>=8.2", "protego>=0.3"]
 
 [project.optional-dependencies]
-# scrapling's base install is only the parser; the fetchers (curl_cffi and the
-# browsers) are behind its own extra. Only installing it for real shows this:
-# the suite fakes the library.
-#
-# protego parses robots.txt and sluicer.fetch.identity imports it directly, so
-# it is declared here rather than trusted to stay a transitive of scrapling;
-# curl_cffi likewise, since the HTTP rung is built on it directly. scrapling
-# 0.4.6 is the first whose browsers take ``page_setup``, where the guard that
-# keeps them off private addresses is installed.
-fetch = ["scrapling[fetchers]>=0.4.6", "curl_cffi>=0.15", "protego>=0.3"]
+# The browser rung drives Playwright's Chromium directly; the browser itself
+# is installed once with `playwright install chromium`. 1.48 is the first
+# Playwright with route_web_socket, which the guard needs to judge a page's
+# websockets.
+browser = ["playwright>=1.48"]
+# The stealth rung, the one place scrapling is used, opt-in and one page at a
+# time. scrapling's base install is only its parser; its browsers are behind
+# its own extra. 0.4.6 is the first whose browsers take ``page_setup``, where
+# the guard that keeps them off private addresses is installed.
+stealth = ["scrapling[fetchers]>=0.4.6"]
+# Deprecated since 0.8, kept so that an install line written for 0.7 still
+# installs what it meant: every rung. Plain HTTP needs no extra now; ask for
+# `browser`, or `stealth`, by name.
+fetch = ["sluicer[browser]", "sluicer[stealth]"]
 markdown = ["trafilatura>=2.0"]
 # The only reader behind an extra: microformats2 has a reference parser, and an
 # environment holding mf2py alone holds twelve packages (measured 2026-09-22)
 # against a base install of three.
 microformats = ["mf2py>=2.0"]
-# The server brings the other two extras: extract_declared and page_markdown
-# fetch when handed a URL, and page_markdown needs trafilatura for any input.
+# The server brings the markdown extra, which page_markdown needs for any
+# input. It fetches over plain HTTP with no extra; add `browser` for pages
+# that need one (`sluicer[mcp,browser]`).
 # Pinned >=2: mcp 2.x renamed FastMCP to MCPServer and removed the old name.
 # 2.1 is the first that can build this server on Python 3.10: 2.0.0 and 2.0.1
 # refuse the Required[...] keys of its output schemas there (measured on
 # 2026-09-23; 3.11 and later build on 2.0.0). The suite fakes the SDK, so the
 # floors job had never built it for real.
-mcp = ["mcp>=2.1", "sluicer[fetch]", "sluicer[markdown]"]
+mcp = ["mcp>=2.1", "sluicer[markdown]"]
 # The HTTP door serves the MCP server's own tools, so it brings that extra.
 # starlette and uvicorn arrive with mcp today and are declared anyway: a
 # transitive dependency is not a declared one. Both floors are measured, and the

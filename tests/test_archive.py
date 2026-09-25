@@ -138,7 +138,7 @@ def test_a_redirect_is_followed_only_within_the_archive():
 def test_the_archive_is_read_over_the_http_rung_kept_within_it(monkeypatch):
     built = {}
 
-    def http_rung(allow_private, resolve, max_bytes, error, redirects):
+    def http_rung(allow_private, resolve, max_bytes, redirects):
         built.update(allow_private=allow_private, redirects=redirects)
         return archive()
 

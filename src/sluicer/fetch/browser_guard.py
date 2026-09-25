@@ -17,11 +17,14 @@ What it cannot do: the browser still resolves names in its own network stack,
 so a name that answers differently between the check and the connection (DNS
 rebinding) is reached. Only the HTTP rung pins its connections. Service workers
 fetch outside any route, so the page is not given them.
+
+The caller's own headers (``send``) go with the requests for the origin it
+asked (``asked``), each hop of a chain judged again, and with none elsewhere.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -39,24 +42,42 @@ _NO_SERVICE_WORKERS = (
 class Guard:
     """The route a browser page goes through, and what it saw.
 
-    ``setup`` is handed to the browser before navigation. Afterwards
-    ``installed`` says it ran -- scrapling logs and swallows an exception in
-    it, so the rung checks rather than trusts -- ``redirect`` is where the
+    ``setup`` is handed the page's context before navigation. Afterwards
+    ``installed`` says it ran -- scrapling, which the stealth rung hands it
+    to, logs and swallows an exception in it, so the rungs check rather than
+    trust -- ``redirect`` is where the
     document itself was sent, and ``refused`` lists every address turned away.
     """
 
-    def __init__(self, resolve: Callable[[str], Iterable[str]] = _resolve) -> None:
+    def __init__(
+        self,
+        resolve: Callable[[str], Iterable[str]] = _resolve,
+        send: Mapping[str, str] | None = None,
+        asked: str | None = None,
+    ) -> None:
         self.resolve = resolve
+        self.send = dict(send or {})
+        self.asked = asked
         self.installed = False
         self.redirect: str | None = None
         self.refused: list[tuple[str, str]] = []
         self._verdicts: dict[tuple[str, str], str | None] = {}
 
     def setup(self, page: Any) -> None:
+        """Route every request of ``page`` -- a page or a browser context,
+        which take the same calls -- through this guard."""
         page.add_init_script(_NO_SERVICE_WORKERS)
         page.route("**/*", self._route)
         page.route_web_socket("**/*", self._socket)
         self.installed = True
+
+    def _headers(self, route: Any, url: str) -> dict[str, str] | None:
+        """What a hop to ``url`` sends: the request's own headers, and the
+        caller's when it is the origin they were given for; None, the
+        request's own unchanged, when there are none to add."""
+        if not self.send or self.asked is None or not same_origin(url, self.asked):
+            return None
+        return {**route.request.headers, **self.send}
 
     def why_refused(self, url: str) -> str | None:
         """Why ``url`` may not be asked, or None; one lookup per host and scheme."""
@@ -84,7 +105,7 @@ class Guard:
             route.abort("blockedbyclient")
             return
         current = url
-        response = _fetch(route, url)
+        response = _fetch(route, url, self._headers(route, url))
         for _ in range(MAX_REDIRECTS + 1):
             if response is None:
                 route.abort("failed")
@@ -105,7 +126,7 @@ class Guard:
                 route.abort("blockedbyclient")
                 return
             current = target
-            response = _fetch(route, target)
+            response = _fetch(route, target, self._headers(route, target))
         self._refuse(url, f"more than {MAX_REDIRECTS} redirects")
         route.abort("blockedbyclient")
 
@@ -121,12 +142,31 @@ class Guard:
         socket.connect_to_server()
 
 
-def _fetch(route: Any, url: str) -> Any:
+def _fetch(route: Any, url: str, headers: dict[str, str] | None = None) -> Any:
     """One hop, no redirect followed, or None when nothing answered."""
     try:
-        return route.fetch(url=url, max_redirects=0)
+        if headers is None:
+            return route.fetch(url=url, max_redirects=0)
+        return route.fetch(url=url, max_redirects=0, headers=headers)
     except Exception:  # noqa: BLE001 -- any failure to answer is the same event
         return None
+
+
+def same_origin(url: str, asked: str) -> bool:
+    """Whether ``url`` is on the scheme, host and port of ``asked``."""
+    try:
+        one, two = urlsplit(url), urlsplit(asked)
+        return (
+            one.scheme.lower() == two.scheme.lower()
+            and (one.hostname or "") == (two.hostname or "")
+            and _port(one) == _port(two)
+        )
+    except ValueError:
+        return False
+
+
+def _port(parts: Any) -> int:
+    return int(parts.port or (443 if parts.scheme.lower() == "https" else 80))
 
 
 def _is_the_document(request: Any) -> bool:

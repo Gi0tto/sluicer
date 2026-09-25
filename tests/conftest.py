@@ -106,16 +106,21 @@ def _reset_the_default_cache():
 
     The crawler's record of when each site was last asked is process-wide for
     the same reason the robots answers are, and is cleared with them: a fake
-    clock's hours would otherwise have the next test wait them out.
+    clock's hours would otherwise have the next test wait them out. So is the
+    rung each site needed, which would otherwise start one test's site at
+    another test's browser.
     """
     from sluicer.crawl.schedule import _ENDED
     from sluicer.fetch.identity import _CACHE
+    from sluicer.fetch.ladder import STICKY
 
     _CACHE.clear()
     _ENDED.clear()
+    STICKY.clear()
     yield
     _CACHE.clear()
     _ENDED.clear()
+    STICKY.clear()
 
 
 @pytest.fixture

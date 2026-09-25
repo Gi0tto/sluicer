@@ -249,14 +249,19 @@ def fake_fetch(
         resolve=None,
         max_bytes=None,
         proxy=None,
+        headers=None,
+        cookies=None,
+        memory=None,
     ):
         fetch.calls.append({"url": url, "allow_private": allow_private})
         if raises is not None:
             raise raises
         return Fetched(
-            url=landed_on, html=html, status=200, rung="http", headers=headers or {}
+            url=landed_on, html=html, status=200, rung="http", headers=answered
         )
 
+    # Named apart: the real signature's own ``headers`` is what a caller sends.
+    answered = headers or {}
     fetch.calls = []
 
     monkeypatch.setattr("sluicer.fetch.fetch", fetch)
@@ -391,40 +396,62 @@ def absent(monkeypatch, *names):
     monkeypatch.setattr(sys, "meta_path", [Finder(), *sys.meta_path])
 
 
-def test_extract_declared_without_the_fetch_extra_returns_the_sentence(monkeypatch):
+def _web_of_one_page(monkeypatch, html):
+    """The real ladder, over the fake wire, a name that resolves publicly, and
+    no browser: what an MCP server installed with no fetching extra has."""
+    import socket
+
+    from fake_wire import fake_http
+
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (PUBLIC, 0))],
+    )
+    return fake_http(
+        monkeypatch,
+        [(404, b"", {}), (200, html.encode(), {"Content-Type": "text/html"})],
+    )
+
+
+PUBLIC = "93.184.215.14"
+
+
+def test_extract_declared_reads_a_url_with_no_fetching_extra(monkeypatch):
+    """Until 0.8 a URL needed scrapling even for plain HTTP, and the tool
+    answered missing_extra; the base install fetches now."""
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
     build_server()
-    absent(monkeypatch, "scrapling")
+    absent(monkeypatch, "scrapling", "playwright")
+    page = (
+        '<html><head><script type="application/ld+json">'
+        '{"@type":"Product","name":"Brake pad set"}</script></head>'
+        "<body>" + "Real content. " * 40 + "</body></html>"
+    )
+    seen = _web_of_one_page(monkeypatch, page)
 
     result = registered["extract_declared"]("https://example.com/p")
 
-    assert 'uv pip install "sluicer[fetch]"' in result["error"]["message"]
-    assert result["error"] | {"message": ""} == {
-        "code": "missing_extra",
-        "message": "",
-        "retryable": False,
-        "extra": "fetch",
-    }
+    assert result["ok"] is True, result
+    assert result["fetch"]["rung"] == "http"
+    assert [r.target for r in seen.requests] == ["/robots.txt", "/p"]
+    assert seen.targets[0].addresses == (PUBLIC,), "the server's fetches are pinned"
 
 
-def test_fetch_page_without_the_fetch_extra_returns_the_sentence(monkeypatch):
+def test_fetch_page_reads_a_url_with_no_fetching_extra(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
     build_server()
-    absent(monkeypatch, "scrapling")
+    absent(monkeypatch, "scrapling", "playwright")
+    _web_of_one_page(monkeypatch, "<html><body>" + "Words. " * 60 + "</body></html>")
 
     result = registered["fetch_page"]("https://example.com/p")
 
-    assert 'uv pip install "sluicer[fetch]"' in result["error"]["message"]
-    assert result["error"] | {"message": ""} == {
-        "code": "missing_extra",
-        "message": "",
-        "retryable": False,
-        "extra": "fetch",
-    }
+    assert result["ok"] is True, result
+    assert "Words." in result["html"]
 
 
 def test_page_markdown_without_the_markdown_extra_reports_it_as_an_error(monkeypatch):
@@ -507,13 +534,15 @@ def test_main_starts_the_server(monkeypatch):
 
 
 def test_a_missing_extra_is_never_mistakable_for_content(monkeypatch):
-    """A failure must not wear the shape of a success, for any of the three.
+    """A failure must not wear the shape of a success.
 
     page_markdown returns a str when it works, so returning the explanation as
     a str handed an agent a sentence it could not tell apart from the page's
     own words -- it would summarise it, quote it, or act on it. A person at a
-    terminal notices; an agent does not. So all three report a missing extra
-    in one shape, and that shape is not the shape of any tool's content.
+    terminal notices; an agent does not. So a missing extra is reported in one
+    shape, and that shape is not the shape of any tool's content. Until 0.8
+    extract_declared and fetch_page could lack theirs too; fetching needs no
+    extra now, and page_markdown is the one left.
     """
     from collections.abc import Mapping
 
@@ -521,12 +550,10 @@ def test_a_missing_extra_is_never_mistakable_for_content(monkeypatch):
     from sluicer.mcp_server import build_server
 
     build_server()
-    absent(monkeypatch, "scrapling", "trafilatura")
+    absent(monkeypatch, "trafilatura")
 
     results = {
-        "extract_declared": registered["extract_declared"]("https://example.com/p"),
         "page_markdown": registered["page_markdown"]("<html><body>hi</body></html>"),
-        "fetch_page": registered["fetch_page"]("https://example.com/p"),
     }
 
     assert not isinstance(results["page_markdown"], str), (
@@ -648,11 +675,10 @@ def test_a_refusal_and_a_missing_extra_can_be_told_apart(monkeypatch):
 
     build_server()
 
-    # The missing-extra case first: it needs the real ``fetch`` to run far
-    # enough to look for scrapling. Patching the fake in afterwards is what
-    # makes the second call a refusal instead.
-    absent(monkeypatch, "scrapling")
-    missing = registered["fetch_page"]("https://example.com/p")
+    # The missing-extra case: page_markdown is the one tool whose extra an
+    # install can lack, now that fetching needs none.
+    absent(monkeypatch, "trafilatura")
+    missing = registered["page_markdown"]("<html><body>hi</body></html>")
 
     fake_fetch(monkeypatch, raises=RobotsRefused("https://example.com/private/p"))
     refused = registered["fetch_page"]("https://example.com/private/p")

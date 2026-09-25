@@ -1,15 +1,22 @@
 """The fetch layer's limits: the byte bound, the pinned connection, the guard.
 
-Fakes throughout, so the suite opens no socket. What a real curl and a real
+Fakes throughout, so the suite opens no socket: the HTTP rung is the real
+``http.client`` talking to ``tests/fake_wire.py``'s sockets, and the browser
+rung drives ``tests/fake_browser.py``'s host. What a real server and a real
 Chromium do with the same instructions is checked by ``tests/live/``, which CI
-runs with the extra and a browser installed.
+runs with a browser installed.
 """
 
-import sys
+import gzip
+import time
 import types
+import zlib
 
 import pytest
 
+from fake_browser import FakeHost
+from fake_wire import fake_http
+from sluicer.fetch import wire
 from sluicer.fetch.address import AddressRefused, public_addresses
 from sluicer.fetch.browser_guard import Guard
 from sluicer.fetch.ladder import fetch
@@ -22,56 +29,6 @@ def public(host):
     return [PUBLIC]
 
 
-def fake_curl(monkeypatch, replies, chunk=None):
-    """A curl_cffi that answers ``replies`` in order: (status, body, headers)."""
-    seen = {"sessions": [], "urls": [], "asked": []}
-
-    class Response:
-        def __init__(self, reply):
-            self.status_code, self.body, self.headers = reply
-
-        def iter_content(self):
-            size = chunk or max(len(self.body), 1)
-            for start in range(0, len(self.body), size):
-                yield self.body[start : start + size]
-
-        def close(self):
-            pass
-
-    class Session:
-        def __init__(self, **options):
-            seen["sessions"].append(options)
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc):
-            return False
-
-        def get(self, url, **kwargs):
-            seen["urls"].append(url)
-            seen["asked"].append(kwargs)
-            reply = replies.pop(0)
-            if isinstance(reply, Exception):
-                raise reply
-            return Response(reply)
-
-    curl = types.ModuleType("curl_cffi")
-    curl.CurlOpt = types.SimpleNamespace(
-        MAXFILESIZE_LARGE="max",
-        RESOLVE="resolve",
-        PROTOCOLS_STR="protocols",
-        REDIR_PROTOCOLS_STR="redir_protocols",
-        TIMEOUT_MS="timeout_ms",
-        PROXY="proxy",
-    )
-    requests = types.ModuleType("curl_cffi.requests")
-    requests.Session = Session
-    monkeypatch.setitem(sys.modules, "curl_cffi", curl)
-    monkeypatch.setitem(sys.modules, "curl_cffi.requests", requests)
-    return seen
-
-
 PAGE = (200, b"<html><body>ok</body></html>", {})
 
 
@@ -79,104 +36,206 @@ PAGE = (200, b"<html><body>ok</body></html>", {})
 
 
 def test_the_http_rung_stops_reading_past_the_bound(monkeypatch):
-    fake_curl(monkeypatch, [(200, b"x" * 5000, {})], chunk=1000)
+    chunked = b"".join(b"3e8\r\n" + b"x" * 1000 + b"\r\n" for _ in range(5))
+    reply = (200, chunked + b"0\r\n\r\n", {"Transfer-Encoding": "chunked"})
+    fake_http(monkeypatch, [reply], chunk=1000)
     from sluicer.fetch.http_rung import http_rung
 
     with pytest.raises(ResponseTooLarge):
         http_rung(max_bytes=2500)("https://example.com/p")
 
 
-def test_curls_own_refusal_of_a_heavy_body_is_the_same_answer(monkeypatch):
-    """Announced lengths and inflated gzip are refused by curl first (code 63)."""
-    refusal = RuntimeError(
-        "Failed to perform, curl: (63) Would have exceeded max file size"
+def test_a_chunked_body_is_read_to_its_end(monkeypatch):
+    chunked = b"5\r\n<p>ok\r\n4\r\n</p>\r\n0\r\n\r\n"
+    fake_http(monkeypatch, [(200, chunked, {"Transfer-Encoding": "chunked"})])
+    from sluicer.fetch.http_rung import http_rung
+
+    assert http_rung()("https://example.com/p").html == "<p>ok</p>"
+
+
+def test_a_length_announced_past_the_bound_is_refused_unread(monkeypatch):
+    """What curl's own bound did: the length is read before the body is."""
+    seen = fake_http(monkeypatch, [(200, b"x" * 5000, {})])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(ResponseTooLarge):
+        http_rung(max_bytes=2500)("https://example.com/p")
+
+    assert seen.sockets[0].closed, "a connection left mid-body is not kept"
+    assert seen.pool._idle == []
+
+
+def test_a_small_gzip_that_inflates_past_the_bound_costs_the_bound(monkeypatch):
+    bomb = gzip.compress(b"c" * 10_000_000)
+    fake_http(monkeypatch, [(200, bomb, {"Content-Encoding": "gzip"})])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(ResponseTooLarge):
+        http_rung(max_bytes=100_000)("https://example.com/p")
+
+
+@pytest.mark.parametrize(
+    ("encoding", "encode"),
+    [
+        ("gzip", gzip.compress),
+        ("deflate", zlib.compress),
+        ("deflate", lambda body: zlib.compress(body)[2:-4]),  # raw, as some send it
+        ("gzip, gzip", lambda body: gzip.compress(gzip.compress(body))),
+        ("identity", lambda body: body),
+    ],
+)
+def test_a_compressed_body_is_decoded(monkeypatch, encoding, encode):
+    page = b"<html><body>" + b"words " * 1000 + b"</body></html>"
+    fake_http(monkeypatch, [(200, encode(page), {"Content-Encoding": encoding})])
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == page
+
+
+def test_two_gzip_members_are_read_as_gzip_reads_them(monkeypatch):
+    body = gzip.compress(b"<p>one</p>") + gzip.compress(b"<p>two</p>")
+    fake_http(monkeypatch, [(200, body, {"Content-Encoding": "gzip"})])
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == b"<p>one</p><p>two</p>"
+
+
+@pytest.mark.skipif(wire.ZSTD is None, reason="this Python has no zstd")
+def test_a_zstd_body_is_decoded_and_bounded(monkeypatch):
+    page = b"<html><body>" + b"words " * 1000 + b"</body></html>"
+    fake_http(
+        monkeypatch,
+        [
+            (200, wire.ZSTD.compress(page), {"Content-Encoding": "zstd"}),
+            (200, wire.ZSTD.compress(b"z" * 10_000_000), {"Content-Encoding": "zstd"}),
+        ],
     )
-    fake_curl(monkeypatch, [refusal])
+    from sluicer.fetch.http_rung import http_responses
+
+    get = http_responses(max_bytes=100_000)
+    assert get("https://example.com/p").body == page
+    with pytest.raises(ResponseTooLarge):
+        get("https://example.com/bomb")
+
+
+def test_an_encoding_it_cannot_decode_fails_the_rung(monkeypatch):
+    """Brotli is never asked for, having no decoder in the standard library; a
+    server that sends it anyway has sent bytes this rung cannot read, and a
+    browser can: a failed rung, so the ladder climbs."""
+    fake_http(monkeypatch, [(200, b"\x8b\x02\x80", {"Content-Encoding": "br"})])
     from sluicer.fetch.http_rung import http_rung
 
-    with pytest.raises(ResponseTooLarge):
-        http_rung(max_bytes=2500)("https://example.com/p")
+    with pytest.raises(wire.UnreadableEncoding, match="'br'"):
+        http_rung()("https://example.com/p")
+
+
+def test_the_request_says_who_it_is_and_what_it_takes(monkeypatch):
+    """Measured on the wire in tests/live/http_check.py as well."""
+    seen = fake_http(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.identity import USER_AGENT
+
+    http_rung()("https://example.com:8443/a%20b/caf\u00e9?q=a b")
+
+    request = seen.requests[0]
+    assert request.line == "GET /a%20b/caf%C3%A9?q=a%20b HTTP/1.1"
+    assert request.names == ["Host", "User-Agent", "Accept", "Accept-Encoding"]
+    assert request.headers["host"] == "example.com:8443"
+    assert request.headers["user-agent"] == USER_AGENT
+    assert request.headers["accept"].startswith("text/html")
+    encodings = request.headers["accept-encoding"].split(", ")
+    assert encodings[:2] == ["gzip", "deflate"]
+    assert ("zstd" in encodings) == (wire.ZSTD is not None)
+    assert "br" not in encodings
 
 
 def test_the_http_rung_keeps_the_responses_headers(monkeypatch):
-    class Repeated(dict):
-        """A curl_cffi header set, where a header can come twice."""
-
-        def multi_items(self):
-            return [
-                ("Content-Type", "text/html; charset=utf-8"),
-                ("Link", "</a>; rel=canonical"),
-                ("link", "</b>; rel=next"),
-            ]
-
-    fake_curl(
-        monkeypatch,
-        [(200, b"<html><body>ok</body></html>", Repeated(content_type="text/html"))],
-    )
+    headers = [
+        ("Content-Type", "text/html; charset=utf-8"),
+        ("Link", "</a>; rel=canonical"),
+        ("link", "</b>; rel=next"),
+    ]
+    fake_http(monkeypatch, [(200, b"<html><body>ok</body></html>", headers)])
     from sluicer.fetch.http_rung import http_rung
 
     fetched = http_rung()("https://example.com/p")
 
-    assert fetched.headers == {
-        "content-type": "text/html; charset=utf-8",
-        "link": "</a>; rel=canonical, </b>; rel=next",
-    }
+    assert fetched.headers["content-type"] == "text/html; charset=utf-8"
+    assert fetched.headers["link"] == "</a>; rel=canonical, </b>; rel=next"
 
 
-def test_curl_is_told_the_bound_too(monkeypatch):
-    seen = fake_curl(monkeypatch, [PAGE])
-    from sluicer.fetch.http_rung import http_rung
-
-    http_rung(max_bytes=2500)("https://example.com/p")
-
-    assert seen["sessions"][0]["curl_options"]["max"] == 2500
-
-
-def test_a_guarded_connection_is_pinned_to_the_addresses_that_were_checked(
+def test_a_guarded_connection_is_made_to_the_addresses_that_were_checked(
     monkeypatch,
 ):
-    seen = fake_curl(monkeypatch, [PAGE])
+    seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     http_rung(allow_private=False, resolve=public)("https://example.com:8443/p")
 
-    assert seen["sessions"][0]["curl_options"]["resolve"] == [
-        f"example.com:8443:{PUBLIC}"
-    ]
+    target = seen.targets[0]
+    assert (target.host, target.port, target.addresses) == (
+        "example.com",
+        8443,
+        (PUBLIC,),
+    )
 
 
-def test_an_ipv6_address_is_pinned_in_brackets(monkeypatch):
-    seen = fake_curl(monkeypatch, [PAGE])
+def test_the_dial_connects_only_to_the_addresses_it_is_given(monkeypatch):
+    """No name lookup when there are addresses: the second lookup is the one
+    DNS rebinding answers."""
+    asked = []
+
+    def connect(address, timeout):
+        asked.append(address)
+        raise ConnectionRefusedError("nothing listens")
+
+    monkeypatch.setattr(wire.socket, "create_connection", connect)
+    monkeypatch.setattr(
+        wire.socket,
+        "getaddrinfo",
+        lambda *a, **k: pytest.fail("the name was looked up again"),
+    )
+    target = wire.Target("http", "example.com", 80, ("203.0.113.9", "2001:db8::9"))
+
+    with pytest.raises(ConnectionRefusedError):
+        wire.dial(target, time.monotonic() + 5)
+
+    assert asked == [("203.0.113.9", 80), ("2001:db8::9", 80)]
+
+
+def test_an_ipv6_address_is_pinned_and_written_in_brackets(monkeypatch):
+    seen = fake_http(monkeypatch, [PAGE, PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     rung = http_rung(allow_private=False, resolve=lambda host: ["2606:2800:21f::1"])
     rung("https://example.com/p")
+    http_rung()("http://[2606:2800:21f::1]:8080/p")
 
-    assert seen["sessions"][0]["curl_options"]["resolve"] == [
-        "example.com:443:[2606:2800:21f::1]"
-    ]
+    assert seen.targets[0].addresses == ("2606:2800:21f::1",)
+    assert seen.requests[1].headers["host"] == "[2606:2800:21f::1]:8080"
 
 
 def test_an_unguarded_connection_is_not_pinned(monkeypatch):
-    seen = fake_curl(monkeypatch, [PAGE])
+    seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     http_rung()("https://example.com/p")
 
-    assert "resolve" not in seen["sessions"][0]["curl_options"]
+    assert seen.targets[0].addresses is None
 
 
 def test_a_redirect_into_a_private_address_is_refused_before_it_is_asked(
     monkeypatch,
 ):
-    seen = fake_curl(monkeypatch, [(302, b"", {"location": "http://10.0.0.1/admin"})])
+    seen = fake_http(monkeypatch, [(302, b"", {"location": "http://10.0.0.1/admin"})])
     from sluicer.fetch.http_rung import http_rung
 
     with pytest.raises(AddressRefused) as refused:
         http_rung(allow_private=False, resolve=public)("https://example.com/p")
 
     assert refused.value.url == "http://10.0.0.1/admin"
-    assert seen["urls"] == ["https://example.com/p"]
+    assert seen.urls == ["/p"]
+    assert len(seen.targets) == 1
 
 
 @pytest.mark.parametrize(
@@ -189,39 +248,29 @@ def test_a_redirect_into_a_private_address_is_refused_before_it_is_asked(
     ],
 )
 def test_a_redirect_off_the_web_is_refused_before_it_is_asked(monkeypatch, target):
-    """curl speaks gopher, dict and file too. Measured before this was refused:
-    a 302 to gopher:// sent ``SET pwned 1`` to whatever listened on that port,
-    and a 302 to file:///etc/hosts returned the file as the page, with the
-    defaults every command line fetch has."""
-    seen = fake_curl(monkeypatch, [(302, b"", {"location": target}), PAGE])
+    """Measured with curl before this was refused: a 302 to gopher:// sent
+    ``SET pwned 1`` to whatever listened on that port, and a 302 to
+    file:///etc/hosts returned the file as the page. The standard library
+    speaks neither, and the hop is refused before anything is dialled."""
+    seen = fake_http(monkeypatch, [(302, b"", {"location": target}), PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     with pytest.raises(AddressRefused, match="only http and https") as refused:
         http_rung()("https://example.com/p")
 
     assert refused.value.url == target
-    assert seen["urls"] == ["https://example.com/p"]
-
-
-def test_curl_is_told_to_speak_only_http_and_https(monkeypatch):
-    seen = fake_curl(monkeypatch, [PAGE])
-    from sluicer.fetch.http_rung import http_rung
-
-    http_rung()("https://example.com/p")
-
-    options = seen["sessions"][0]["curl_options"]
-    assert options["protocols"] == "http,https"
-    assert options["redir_protocols"] == "http,https"
+    assert seen.urls == ["/p"]
+    assert len(seen.targets) == 1
 
 
 def test_an_address_off_the_web_is_never_asked_by_the_rung(monkeypatch):
-    seen = fake_curl(monkeypatch, [PAGE])
+    seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     with pytest.raises(AddressRefused, match="not file"):
         http_rung()("file:///etc/hosts")
 
-    assert seen["urls"] == []
+    assert seen.targets == []
 
 
 def test_the_ladder_refuses_an_address_off_the_web_whatever_it_allows():
@@ -247,56 +296,66 @@ def test_a_page_that_landed_off_the_web_is_refused():
         )
 
 
-def test_curl_is_given_the_whole_deadline_not_a_floor_on_speed(monkeypatch):
-    """curl_cffi's timeout on a stream is "under a byte a second for that
-    long": a body dripped eight bytes a second held a request for as long as
-    it dripped. curl's own TIMEOUT_MS is the whole transfer, body included."""
-    seen = fake_curl(monkeypatch, [(302, b"", {"location": "/q"}), PAGE])
+def test_every_wait_is_given_what_is_left_of_one_deadline(monkeypatch):
+    """A timeout per read is a floor on speed, not a deadline: a body dripped
+    eight bytes a second held curl_cffi's stream for as long as it dripped."""
+    seen = fake_http(monkeypatch, [(302, b"", {"location": "/q"}), PAGE], chunk=4)
     from sluicer.fetch.http_rung import http_rung
 
     http_rung(timeout=7)("https://example.com/p")
 
-    first, second = (s["curl_options"]["timeout_ms"] for s in seen["sessions"])
-    assert 0 < second <= first <= 7000, "each hop gets what is left of one deadline"
+    assert seen.timeouts, "no wait was bounded"
+    assert all(0 < t <= 7 for t in seen.timeouts)
+    assert seen.timeouts == sorted(seen.timeouts, reverse=True), (
+        "each wait gets what is left, never a fresh allowance"
+    )
+
+
+def test_a_dripped_body_is_cut_at_the_deadline(monkeypatch):
+    fake_http(monkeypatch, [PAGE], chunk=4, drip=0.2)
+    from sluicer.fetch.http_rung import http_rung
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError, match=r"longer than 0\.5 seconds") as raised:
+        http_rung(timeout=0.5)("https://example.com/p")
+
+    assert time.monotonic() - started < 1.5
+    assert isinstance(raised.value, OSError), "callers catch OSError"
 
 
 def test_a_fetch_past_its_deadline_asks_nothing_more(monkeypatch):
-    seen = fake_curl(monkeypatch, [PAGE])
+    seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     with pytest.raises(TimeoutError, match="longer than 0 seconds"):
         http_rung(timeout=0)("https://example.com/p")
 
-    assert seen["urls"] == []
+    assert seen.targets == []
 
 
-def test_curls_timeout_is_a_timeout(monkeypatch):
-    """Whatever class curl_cffi raises it as, code 28 is the deadline."""
-    timed_out = RuntimeError(
-        "Failed to perform, curl: (28) Operation timed out after 1501 milliseconds"
-    )
-    fake_curl(monkeypatch, [timed_out])
-    from sluicer.fetch.http_rung import http_rung
+def test_a_name_lookup_that_never_answers_ends_at_the_deadline():
+    def hangs():
+        time.sleep(5)
 
-    with pytest.raises(TimeoutError, match="longer than 20 seconds") as raised:
-        http_rung()("https://example.com/p")
-
-    assert isinstance(raised.value, OSError), "callers catch OSError"
+    started = time.monotonic()
+    with pytest.raises(TimeoutError):
+        wire.within(time.monotonic() + 0.2, hangs)
+    assert time.monotonic() - started < 1
 
 
 def test_no_proxy_is_used_unless_one_is_asked_for(monkeypatch):
-    """libcurl reads HTTPS_PROXY itself: measured, a CONNECT reached a local
-    proxy nobody had named to Sluicer. An empty PROXY is curl's "none"."""
+    """libcurl read HTTPS_PROXY itself: measured, a CONNECT reached a local
+    proxy nobody had named to Sluicer. Nothing here reads it."""
     monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:3128")
     monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:3128")
+    monkeypatch.setenv("ALL_PROXY", "http://127.0.0.1:3128")
     monkeypatch.delenv("SLUICER_PROXY", raising=False)
-    seen = fake_curl(monkeypatch, [PAGE])
+    seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     http_rung()("https://example.com/p")
 
-    assert seen["sessions"][0]["curl_options"]["proxy"] == ""
-    assert "proxy" not in seen["asked"][0]
+    assert seen.targets[0].proxy is None
 
 
 @pytest.mark.parametrize("by", ["argument", "environment"])
@@ -307,28 +366,45 @@ def test_a_proxy_asked_for_is_the_one_used(monkeypatch, by):
         kwargs["proxy"] = "socks5h://proxy.example:1080"
     else:
         monkeypatch.setenv("SLUICER_PROXY", "socks5h://proxy.example:1080")
-    seen = fake_curl(monkeypatch, [PAGE])
+    seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     http_rung(**kwargs)("https://example.com/p")
 
-    assert seen["asked"][0]["proxy"] == "socks5h://proxy.example:1080"
-    assert "proxy" not in seen["sessions"][0]["curl_options"]
+    assert seen.targets[0].proxy == wire.Proxy("socks5h", "proxy.example", 1080)
 
 
 def test_an_empty_proxy_is_none(monkeypatch):
     monkeypatch.setenv("SLUICER_PROXY", "socks5h://proxy.example:1080")
-    seen = fake_curl(monkeypatch, [PAGE])
+    seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     http_rung(proxy="")("https://example.com/p")
 
-    assert seen["sessions"][0]["curl_options"]["proxy"] == ""
+    assert seen.targets[0].proxy is None
+
+
+def test_a_proxy_of_a_kind_it_does_not_speak_is_refused_when_built():
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(ValueError, match="not a proxy Sluicer speaks to"):
+        http_rung(proxy="ftp://proxy.example:21")
+
+
+def test_plain_http_through_an_http_proxy_names_the_whole_address(monkeypatch):
+    seen = fake_http(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung(proxy="http://me:secret@proxy.example:3128")("http://example.com/p?q=1")
+
+    request = seen.requests[0]
+    assert request.line == "GET http://example.com/p?q=1 HTTP/1.1"
+    assert request.headers["proxy-authorization"] == "Basic bWU6c2VjcmV0"
 
 
 def test_a_redirect_loop_ends(monkeypatch):
     loop = [(302, b"", {"location": "/p"}) for _ in range(20)]
-    fake_curl(monkeypatch, loop)
+    fake_http(monkeypatch, loop)
     from sluicer.fetch.http_rung import TooManyRedirects, http_rung
 
     with pytest.raises(TooManyRedirects):
@@ -337,7 +413,7 @@ def test_a_redirect_loop_ends(monkeypatch):
 
 def test_the_charset_the_response_was_sent_with_decodes_it(monkeypatch):
     body = "<html><body>Café</body></html>".encode("windows-1252")
-    fake_curl(
+    fake_http(
         monkeypatch, [(200, body, {"content-type": "text/html; charset=windows-1252"})]
     )
     from sluicer.fetch.http_rung import http_rung
@@ -346,18 +422,295 @@ def test_the_charset_the_response_was_sent_with_decodes_it(monkeypatch):
 
 
 def test_a_name_that_resolves_to_nothing_is_not_left_for_curl_to_look_up():
-    """Left to curl, the second lookup is the one DNS rebinding answers."""
+    """Left to the client, the second lookup is the one DNS rebinding answers."""
     with pytest.raises(OSError):
         public_addresses("https://example.com/p", resolve=lambda host: [])
 
 
-def test_a_host_written_as_an_address_needs_no_pin(monkeypatch):
-    seen = fake_curl(monkeypatch, [PAGE])
+def test_a_host_written_as_an_address_is_its_own_pin(monkeypatch):
+    seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     http_rung(allow_private=False)(f"https://{PUBLIC}/p")
 
-    assert "resolve" not in seen["sessions"][0]["curl_options"]
+    assert seen.targets[0].addresses == (PUBLIC,)
+
+
+def test_an_answer_that_is_not_http_is_a_connection_error(monkeypatch):
+    fake_http(monkeypatch, [b"SSH-2.0-OpenSSH_9.9\r\n\r\n"])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(ConnectionError):
+        http_rung()("https://example.com/p")
+
+
+# -- one connection per site ----------------------------------------------------
+
+
+def test_twenty_pages_of_a_site_are_asked_on_one_connection(monkeypatch):
+    """A new session for every request was twenty handshakes for twenty
+    pages: measured, twenty client ports where one would do."""
+    seen = fake_http(monkeypatch, [PAGE] * 21)
+    from sluicer.fetch.http_rung import http_rung
+
+    rung = http_rung()
+    for page in range(20):
+        rung(f"https://example.com/p/{page}")
+    http_rung()("https://example.com/again")
+
+    assert seen.connections == 1
+    assert {request.connection for request in seen.requests} == {0}
+
+
+def test_two_sites_are_two_connections_and_so_are_two_schemes(monkeypatch):
+    seen = fake_http(monkeypatch, [PAGE] * 4)
+    from sluicer.fetch.http_rung import http_rung
+
+    rung = http_rung()
+    for url in ("https://a.example/", "https://b.example/", "http://a.example/"):
+        rung(url)
+    rung("https://a.example/2")
+
+    assert [t.host for t in seen.targets] == ["a.example", "b.example", "a.example"]
+    assert [r.connection for r in seen.requests] == [0, 1, 2, 0]
+
+
+def test_a_connection_the_server_said_it_would_close_is_not_kept(monkeypatch):
+    closing = (200, b"<p>ok</p>", {"Connection": "close"})
+    seen = fake_http(monkeypatch, [closing, PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    rung = http_rung()
+    rung("https://example.com/1")
+    rung("https://example.com/2")
+
+    assert seen.connections == 2
+    assert seen.sockets[0].closed
+
+
+def test_a_kept_connection_the_server_closed_is_found_out_before_it_is_used(
+    monkeypatch,
+):
+    seen = fake_http(monkeypatch, [PAGE, PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    rung = http_rung()
+    rung("https://example.com/1")
+    seen.sockets[0].hung_up = True
+    rung("https://example.com/2")
+
+    assert seen.connections == 2
+    assert [r.connection for r in seen.requests] == [0, 1]
+
+
+def test_a_request_that_meets_a_close_on_a_kept_connection_is_sent_again(
+    monkeypatch,
+):
+    seen = fake_http(monkeypatch, [PAGE, ConnectionResetError("reset"), PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    rung = http_rung()
+    rung("https://example.com/1")
+    assert rung("https://example.com/2").html == "<html><body>ok</body></html>"
+
+    assert seen.connections == 2
+    assert [r.target for r in seen.requests] == ["/1", "/2", "/2"]
+
+
+def test_a_new_connection_that_fails_is_not_tried_again(monkeypatch):
+    seen = fake_http(monkeypatch, [ConnectionResetError("reset"), PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(ConnectionResetError):
+        http_rung()("https://example.com/1")
+
+    assert seen.connections == 1
+
+
+def test_a_kept_connection_is_not_used_once_its_address_is_no_longer_checked(
+    monkeypatch,
+):
+    """The pin holds for a kept connection too: the name now resolves
+    elsewhere, so the connection to where it used to is not the site's."""
+    seen = fake_http(monkeypatch, [PAGE, PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung(allow_private=False, resolve=public)("https://example.com/1")
+    moved = http_rung(allow_private=False, resolve=lambda host: ["93.184.215.15"])
+    moved("https://example.com/2")
+
+    assert seen.connections == 2
+    assert seen.targets[1].addresses == ("93.184.215.15",)
+
+
+def test_a_connection_left_idle_too_long_is_closed_not_used():
+    clock = [0.0]
+    dialled = []
+
+    class Sock:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    def dial(target, deadline):
+        dialled.append(Sock())
+        return wire.Timed(dialled[-1], deadline, None)
+
+    pool = wire.Connections(dial=dial, idle_seconds=60, clock=lambda: clock[0])
+    target = wire.Target("https", "example.com", 443)
+    first, _ = pool.take(target, time.monotonic() + 5)
+    pool.give(target, first)
+    clock[0] = 61
+    second, kept = pool.take(target, time.monotonic() + 5)
+
+    assert not kept and second is not first
+    assert dialled[0].closed
+
+
+def test_the_pool_keeps_no_more_than_its_bound():
+    def dial(target, deadline):
+        return wire.Timed(types.SimpleNamespace(close=lambda: None), deadline, None)
+
+    pool = wire.Connections(dial=dial, max_idle=2)
+    for host in ("a", "b", "c"):
+        target = wire.Target("https", f"{host}.example", 443)
+        pool.give(target, pool.take(target, time.monotonic() + 5)[0])
+
+    assert [key[1] for key, _, _ in pool._idle] == ["b.example", "c.example"]
+
+
+# -- the caller's headers --------------------------------------------------------
+
+
+def test_the_callers_headers_go_to_the_origin_asked_and_nowhere_else(monkeypatch):
+    seen = fake_http(
+        monkeypatch,
+        [
+            (302, b"", {"location": "/login/done"}),
+            (302, b"", {"location": "https://cdn.example/p"}),
+            PAGE,
+        ],
+    )
+    from sluicer.fetch.http_rung import http_rung
+
+    send = {"Authorization": "Bearer t", "Cookie": "session=1"}
+    http_rung(send=send)("https://example.com/p")
+
+    first, second, elsewhere = (r.headers for r in seen.requests)
+    assert first["authorization"] == second["authorization"] == "Bearer t"
+    assert first["cookie"] == second["cookie"] == "session=1"
+    assert "authorization" not in elsewhere and "cookie" not in elsewhere
+
+
+@pytest.mark.parametrize(
+    "name", ["User-Agent", "user-agent", "Host", "Accept-Encoding", "Connection"]
+)
+def test_the_caller_cannot_replace_what_the_transport_writes(name):
+    from sluicer.fetch.http_rung import http_rung
+
+    with pytest.raises(ValueError, match=r"User-Agent|written by the transport"):
+        http_rung(send={name: "x"})
+
+
+def test_an_address_with_a_user_and_password_sends_them_as_basic(monkeypatch):
+    seen = fake_http(monkeypatch, [PAGE])
+    from sluicer.fetch.http_rung import http_rung
+
+    http_rung()("https://me:p%40ss@example.com/p")
+
+    assert seen.requests[0].headers["authorization"] == "Basic bWU6cEBzcw=="
+
+
+# -- proxies, on the wire --------------------------------------------------------
+
+
+class Scripted:
+    """A socket to a proxy: what the proxy answers is scripted."""
+
+    def __init__(self, answer: bytes) -> None:
+        self.answer = answer
+        self.sent = b""
+
+    def settimeout(self, value):
+        pass
+
+    def sendall(self, data):
+        self.sent += data
+
+    def recv(self, size):
+        data, self.answer = self.answer[:size], self.answer[size:]
+        return data
+
+    def close(self):
+        pass
+
+
+def test_an_http_proxy_is_asked_for_a_tunnel_and_nothing_past_its_answer_is_read():
+    sock = Scripted(b"HTTP/1.1 200 Connection established\r\n\r\nTLS BYTES")
+    target = wire.Target(
+        "https", "example.com", 443, proxy=wire.Proxy.parse("http://u:p@proxy:3128")
+    )
+
+    wire._tunnel(sock, target, target.proxy, time.monotonic() + 5)
+
+    assert sock.sent == (
+        b"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n"
+        b"Proxy-Authorization: Basic dTpw\r\n\r\n"
+    )
+    assert sock.answer == b"TLS BYTES"
+
+
+def test_an_http_proxy_that_refuses_the_tunnel_says_so():
+    sock = Scripted(b"HTTP/1.1 403 Forbidden\r\n\r\n")
+    target = wire.Target(
+        "https", "example.com", 443, proxy=wire.Proxy.parse("http://p")
+    )
+
+    with pytest.raises(wire.ProxyRefused, match="403"):
+        wire._tunnel(sock, target, target.proxy, time.monotonic() + 5)
+
+
+def test_socks5h_hands_the_name_to_the_proxy():
+    sock = Scripted(b"\x05\x00" + b"\x05\x00\x00\x01" + b"\x00" * 6)
+    target = wire.Target(
+        "https", "example.com", 443, proxy=wire.Proxy.parse("socks5h://p:1080")
+    )
+
+    wire._socks5(sock, target, target.proxy, time.monotonic() + 5)
+
+    assert sock.sent == (b"\x05\x01\x00" + b"\x05\x01\x00\x03\x0bexample.com\x01\xbb")
+
+
+def test_socks5_sends_a_checked_address_and_logs_in_when_given_a_user():
+    sock = Scripted(b"\x05\x02" + b"\x01\x00" + b"\x05\x00\x00\x01" + b"\x00" * 6)
+    target = wire.Target(
+        "http",
+        "example.com",
+        80,
+        addresses=("203.0.113.9",),
+        proxy=wire.Proxy.parse("socks5://me:pw@p:1080"),
+    )
+
+    wire._socks5(sock, target, target.proxy, time.monotonic() + 5)
+
+    assert sock.sent == (
+        b"\x05\x02\x00\x02"
+        + b"\x01\x02me\x02pw"
+        + b"\x05\x01\x00\x01"
+        + bytes([203, 0, 113, 9])
+        + b"\x00\x50"
+    )
+
+
+def test_a_socks_proxy_that_cannot_connect_says_why():
+    sock = Scripted(b"\x05\x00" + b"\x05\x05\x00\x01" + b"\x00" * 6)
+    target = wire.Target(
+        "https", "x.example", 443, proxy=wire.Proxy.parse("socks5h://p")
+    )
+
+    with pytest.raises(wire.ProxyRefused, match="connection refused"):
+        wire._socks5(sock, target, target.proxy, time.monotonic() + 5)
 
 
 # -- the browser guard --------------------------------------------------------
@@ -522,78 +875,94 @@ def test_a_route_that_nothing_answers_is_aborted_not_left_hanging():
 # -- the browser rung, guarded --------------------------------------------------
 
 
-def fake_browser(monkeypatch, pages, install=True):
-    """A scrapling whose browser loads ``pages`` (url -> html or a redirect)."""
-    loads = []
+def _browser(pages, **options):
+    from sluicer.fetch.browser import browser_rung
 
-    def load(url, **options):
-        loads.append(url)
-        guard = options["page_setup"].__self__ if "page_setup" in options else None
-        if guard is not None and install:
-            guard.installed = True
-        answer = pages[url]
-        if answer.startswith("->"):
-            guard.redirect = answer[2:]
-            raise RuntimeError("Page.goto: net::ERR_BLOCKED_BY_CLIENT")
-        return types.SimpleNamespace(html_content=answer, status=200, url=url)
-
-    module = types.ModuleType("scrapling.fetchers")
-    module.Fetcher = types.SimpleNamespace()
-    module.DynamicFetcher = types.SimpleNamespace(fetch=load)
-    module.StealthyFetcher = types.SimpleNamespace(fetch=load)
-    monkeypatch.setitem(sys.modules, "scrapling", types.ModuleType("scrapling"))
-    monkeypatch.setitem(sys.modules, "scrapling.fetchers", module)
-    fake_curl(monkeypatch, [])
-    return loads
+    host = FakeHost(pages)
+    return browser_rung(host=host, **options), host
 
 
-def test_the_guarded_browser_asks_for_the_documents_redirect_as_a_new_fetch(
-    monkeypatch,
-):
-    loads = fake_browser(
-        monkeypatch,
+def test_the_guarded_browser_asks_for_the_documents_redirect_as_a_new_fetch():
+    browser, host = _browser(
         {
             "https://example.com/old": "->https://example.com/new",
             "https://example.com/new": "<p>new</p>",
         },
+        allow_private=False,
+        resolve=public,
     )
-    from sluicer.fetch.scrapling_rungs import default_rungs
-
-    browser = dict(default_rungs(allow_private=False, resolve=public))["browser"]
     result = browser("https://example.com/old")
 
     assert result.url == "https://example.com/new"
-    assert loads == ["https://example.com/old", "https://example.com/new"]
+    assert host.loads == ["https://example.com/old", "https://example.com/new"]
+    assert all(context.closed for context in host.contexts)
 
 
-def test_the_guarded_browser_refuses_a_document_redirected_somewhere_private(
-    monkeypatch,
-):
-    loads = fake_browser(monkeypatch, {"https://example.com/old": "->http://10.0.0.1/"})
-    from sluicer.fetch.scrapling_rungs import default_rungs
-
-    browser = dict(default_rungs(allow_private=False, resolve=public))["browser"]
+def test_the_guarded_browser_refuses_a_document_redirected_somewhere_private():
+    browser, host = _browser(
+        {"https://example.com/old": "->http://10.0.0.1/"},
+        allow_private=False,
+        resolve=public,
+    )
     with pytest.raises(AddressRefused):
         browser("https://example.com/old")
 
-    assert loads == ["https://example.com/old"]
+    assert host.loads == ["https://example.com/old"]
 
 
-def test_a_guard_that_never_ran_fails_the_rung_instead_of_trusting_it(monkeypatch):
-    """scrapling logs and swallows an exception raised in ``page_setup``."""
-    fake_browser(monkeypatch, {"https://example.com/p": "<p>hi</p>"}, install=False)
-    from sluicer.fetch.scrapling_rungs import default_rungs
+def test_the_guard_is_installed_on_every_pages_context_before_it_loads():
+    """A context per page, the guard on each: a route installed once on a
+    shared page could be dropped by whoever used the page next."""
+    browser, host = _browser(
+        {"https://example.com/a": "<p>a</p>", "https://example.com/b": "<p>b</p>"},
+        allow_private=False,
+        resolve=public,
+    )
+    browser("https://example.com/a")
+    browser("https://example.com/b")
 
-    browser = dict(default_rungs(allow_private=False, resolve=public))["browser"]
-    with pytest.raises(RuntimeError, match="could not guard"):
-        browser("https://example.com/p")
+    assert len(host.contexts) == 2
+    for context in host.contexts:
+        assert [pattern for pattern, _ in context.routes] == ["**/*"]
+        assert isinstance(context.routes[0][1].__self__, Guard)
+        assert [pattern for pattern, _ in context.sockets] == ["**/*"]
 
 
-def test_the_browsers_page_is_held_to_the_same_bound(monkeypatch):
-    fake_browser(monkeypatch, {"https://example.com/p": "<p>" + "x" * 5000 + "</p>"})
-    from sluicer.fetch.scrapling_rungs import default_rungs
+def test_a_guard_that_could_not_install_fails_the_rung():
+    from sluicer.fetch.browser import browser_rung
 
-    browser = dict(default_rungs(max_bytes=1000))["browser"]
+    host = FakeHost({"https://example.com/p": "<p>hi</p>"})
+
+    def broken(pattern, handler):
+        raise RuntimeError("route is not supported by this browser")
+
+    original = host.run
+
+    def run(job, wait=0.0):
+        def with_broken_routes(browser):
+            made = browser.new_context
+
+            def new_context(**options):
+                context = made(**options)
+                context.route = broken
+                return context
+
+            browser.new_context = new_context
+            return job(browser)
+
+        return original(with_broken_routes)
+
+    host.run = run
+    rung = browser_rung(allow_private=False, resolve=public, host=host)
+    with pytest.raises(RuntimeError, match="not supported"):
+        rung("https://example.com/p")
+    assert host.loads == []
+
+
+def test_the_browsers_page_is_held_to_the_same_bound():
+    browser, _ = _browser(
+        {"https://example.com/p": "<p>" + "x" * 5000 + "</p>"}, max_bytes=1000
+    )
     with pytest.raises(ResponseTooLarge):
         browser("https://example.com/p")
 
@@ -703,22 +1072,21 @@ def test_an_address_the_guard_cannot_parse_is_refused():
     assert Guard(resolve_by_name).why_refused("http://[::1") is not None
 
 
-def test_the_guarded_browser_ends_a_document_redirect_loop(monkeypatch):
-    fake_browser(monkeypatch, {"https://example.com/a": "->https://example.com/a"})
-    from sluicer.fetch.scrapling_rungs import default_rungs
-
-    browser = dict(default_rungs(allow_private=False, resolve=public))["browser"]
+def test_the_guarded_browser_ends_a_document_redirect_loop():
+    browser, _ = _browser(
+        {"https://example.com/a": "->https://example.com/a"},
+        allow_private=False,
+        resolve=public,
+    )
     with pytest.raises(RuntimeError, match="redirected more than"):
         browser("https://example.com/a")
 
 
-def test_a_browser_failure_that_is_not_a_redirect_is_the_rungs_failure(monkeypatch):
-    fake_browser(monkeypatch, {})  # every load raises KeyError
-    from sluicer.fetch.scrapling_rungs import default_rungs
-
-    browser = dict(default_rungs(allow_private=False, resolve=public))["browser"]
+def test_a_browser_failure_that_is_not_a_redirect_is_the_rungs_failure():
+    browser, host = _browser({}, allow_private=False, resolve=public)
     with pytest.raises(KeyError):
         browser("https://example.com/p")
+    assert all(context.closed for context in host.contexts)
 
 
 @pytest.mark.parametrize(
@@ -735,7 +1103,7 @@ def test_an_empty_robots_txt_is_judged_by_its_status(monkeypatch, status, fetche
     from sluicer.fetch.http_rung import http_rung
     from sluicer.fetch.ladder import FetchFailed
 
-    fake_curl(monkeypatch, [(status, b"", {}), PAGE])
+    fake_http(monkeypatch, [(status, b"", {}), PAGE])
     ladder = [("http", http_rung())]
 
     if fetched:
@@ -749,7 +1117,7 @@ def test_an_empty_page_is_still_a_rung_that_failed(monkeypatch):
     from sluicer.fetch.http_rung import http_rung
     from sluicer.fetch.result import EmptyBody
 
-    fake_curl(monkeypatch, [(200, b"", {})])
+    fake_http(monkeypatch, [(200, b"", {})])
 
     with pytest.raises(EmptyBody, match="returned no HTML") as raised:
         http_rung()("https://example.com/p")
@@ -772,7 +1140,7 @@ def _same_host(current, target):
 def test_a_redirect_the_callers_rule_refuses_is_never_asked(monkeypatch):
     from sluicer.fetch.result import RedirectRefused
 
-    seen = fake_curl(
+    seen = fake_http(
         monkeypatch, [(301, b"", {"location": "https://elsewhere.example/p"}), PAGE]
     )
     from sluicer.fetch.http_rung import http_rung
@@ -783,25 +1151,23 @@ def test_a_redirect_the_callers_rule_refuses_is_never_asked(monkeypatch):
     assert refused.value.url == "https://example.com/p"
     assert refused.value.target == "https://elsewhere.example/p"
     assert refused.value.reason == "it leaves the site"
-    assert seen["urls"] == ["https://example.com/p"]
+    assert seen.urls == ["/p"]
 
 
 def test_a_redirect_the_callers_rule_allows_is_followed(monkeypatch):
-    seen = fake_curl(monkeypatch, [(302, b"", {"location": "/q"}), PAGE])
+    seen = fake_http(monkeypatch, [(302, b"", {"location": "/q"}), PAGE])
     from sluicer.fetch.http_rung import http_rung
 
     result = http_rung(redirects=_same_host)("https://example.com/p")
 
     assert result.url == "https://example.com/q"
-    assert seen["urls"] == ["https://example.com/p", "https://example.com/q"]
+    assert seen.urls == ["/p", "/q"]
 
 
 def test_the_transport_hands_back_the_bytes_as_they_came(monkeypatch):
     """A sitemap may be gzip nobody announced; decoding it as a page destroys it."""
-    import gzip
-
     body = gzip.compress(b"<urlset/>")
-    fake_curl(monkeypatch, [(200, body, {"content-type": "application/x-gzip"})])
+    fake_http(monkeypatch, [(200, body, {"content-type": "application/x-gzip"})])
     from sluicer.fetch.http_rung import http_responses
 
     response = http_responses()("https://example.com/sitemap.xml.gz")
@@ -812,19 +1178,19 @@ def test_the_transport_hands_back_the_bytes_as_they_came(monkeypatch):
     assert response.url == "https://example.com/sitemap.xml.gz"
 
 
-def test_the_guarded_browser_asks_the_callers_rule_about_its_document(monkeypatch):
+def test_the_guarded_browser_asks_the_callers_rule_about_its_document():
     from sluicer.fetch.result import RedirectRefused
 
-    loads = fake_browser(
-        monkeypatch, {"https://example.com/old": "->https://elsewhere.example/new"}
+    browser, host = _browser(
+        {"https://example.com/old": "->https://elsewhere.example/new"},
+        allow_private=False,
+        resolve=public,
+        redirects=_same_host,
     )
-    from sluicer.fetch.scrapling_rungs import default_rungs
-
-    rungs = default_rungs(allow_private=False, resolve=public, redirects=_same_host)
     with pytest.raises(RedirectRefused):
-        dict(rungs)["browser"]("https://example.com/old")
+        browser("https://example.com/old")
 
-    assert loads == ["https://example.com/old"]
+    assert host.loads == ["https://example.com/old"]
 
 
 def test_a_redirect_the_callers_rule_refused_is_not_a_reason_to_climb():

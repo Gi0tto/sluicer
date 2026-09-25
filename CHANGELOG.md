@@ -2,6 +2,77 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Added
+- `sluicer fetch URL` prints the page as the ladder brought it back, to stdout
+  or `-o FILE`, and each climb, where it landed, its status and rung to
+  stderr; `--json` puts all of it, headers included, in one object.
+- `headers=` and `cookies=` on `fetch`, `fetch_cached`, `crawl`,
+  `extract_many` and `map_site`, and `--header 'NAME: VALUE'` (`-H`) and
+  `--cookie NAME=VALUE` on every command that fetches: sent to the origin
+  asked and never to another a redirect leads to. The User-Agent is never the
+  caller's, and a header the transport writes is refused. A page the cache
+  kept for a login is given back only to that login.
+- `tests/live/browser_check.py` (headers and cookies to the site asked and no
+  other, the proxy asked for, one browser) and `tests/live/extras_check.py`
+  (each fetching extra installed and called for real) run in CI; the base
+  install's job runs the live HTTP check with nothing else installed.
+
+### Changed
+- Fetching needs no extra. The base install fetches over plain HTTP with the
+  standard library's `http.client`, `ssl` and `socket`, and brings `protego`
+  for robots.txt: 21.7 MB installed against 21.6 MB for 0.7.1's base, which
+  could not fetch at all (Python 3.13, macOS arm64). curl_cffi, which would
+  have added 8.0 MB installed and a 13.5 MB wheel on Linux x86-64, and no
+  wheel for Pyodide, is no longer used. Every guarantee of the curl rung is
+  kept and tested on real HTTP bytes: 16 MiB after decompression, an
+  announced length past it refused unread, one deadline for every wait on the
+  connection, redirects one hop at a time with their scheme judged, the
+  connection made only to the checked addresses, no proxy unless asked
+  (`http://`, `socks5://`, `socks5h://`). It speaks HTTP/1.1 only, and its
+  TLS handshake is Python's.
+- One connection per site. The HTTP rung keeps the connection a page came on
+  and asks the site's next page on it; a kept connection is used only while
+  its address is still among the checked ones. Twenty pages of one local
+  site: 20 connections before, 1 now; over HTTPS 33.3 ms before (0.7.1's curl
+  rung), 29.4 ms with the pool off, 4.9 ms with it on; through the whole
+  ladder, 55.6, 49.5 and 24.7 ms (medians of five runs, the gate's delay at
+  0).
+- Requests say `Accept`, and `Accept-Encoding: gzip, deflate`, with `zstd`
+  on Python 3.14 or with `backports.zstd`. Brotli is not asked for, having no
+  bounded decoder in the standard library; a body sent in it anyway fails the
+  rung, and the ladder climbs.
+- The browser rung drives Playwright directly, not through scrapling: one
+  browser for the process, on a thread of its own, and a new context per page,
+  told our User-Agent, no service workers and no proxy unless asked, the
+  guard installed on each context. None of scrapling's defaults its own
+  comments call anti-detection (no `--enable-automation`, a dark scheme, a
+  doubled pixel ratio). `SLUICER_CDP_URL` drives a Chromium running
+  elsewhere; `SLUICER_BROWSER=none` turns the rung off. Without Playwright the
+  climb fails, is recorded with the install line, and the HTTP page comes
+  back.
+- A site's next page starts at the rung its last one needed. Once a page came
+  back only from the browser, because plain HTTP's was a refusal, a challenge
+  or a shell, the site's next pages start there, for the process and a day,
+  and say so in their first climb. A five-page JS site crawled with the
+  one-second delay: 10 document requests before, 6 now; 13.5 to 14.6 s with
+  the new browser and no memory, 9.0 to 10.1 s with it (0.7.1, a scrapling
+  browser per page: 18.1 to 107.3 s).
+- Extras: `browser` (playwright) and `stealth` (scrapling) are new; `fetch`
+  is deprecated and installs both, what it installed before; `mcp` no longer
+  brings a browser: 95.7 MB installed against 379.5 MB, `sluicer[mcp,browser]`
+  233.3 MB. Install the browser once with `playwright install chromium`.
+- The stealth rung is the only place scrapling is used, still opt-in and one
+  page at a time, never in a crawl, and never remembered as a site's rung. It
+  sends none of the caller's headers or cookies.
+
+### Fixed
+- Without scrapling, 0.7.x could not fetch even over plain HTTP: `fetch()`
+  imported scrapling's browsers before it built the HTTP rung, and raised
+  `FetchExtraMissing`.
+- The HTTP rung's name lookups are inside its twenty seconds.
+
 ## 0.7.1 - 2026-09-25
 
 ### Added

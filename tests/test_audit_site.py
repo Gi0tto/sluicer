@@ -7,11 +7,11 @@ protego is asked the same questions by the with-extras CI job.
 
 import pytest
 
+from fake_wire import fake_http
 from sluicer.audit import Site, SiteFile, audit, crawlers, llmstxt
 from sluicer.fetch.address import AddressRefused
 from sluicer.fetch.result import Fetched, ResponseTooLarge
 from sluicer.fetch.site import read_site
-from test_fetch_guards import fake_curl
 
 URL = "https://example.com/blog/post"
 
@@ -111,12 +111,18 @@ def test_user_agent_lines_are_read_as_robots_txt_writes_them():
     assert crawlers.user_agents(text) == ["a", "b"]
 
 
-def test_verdicts_need_protego(absent):
-    absent("protego")
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+def test_verdicts_need_protego_which_the_base_install_brings(absent):
+    """protego is a dependency of the base install since 0.8, so without it the
+    install is broken, and the import error says so as it is: no extra to
+    name, since none would bring it back."""
+    from sluicer.extras import MissingExtra
 
-    with pytest.raises(FetchExtraMissing, match=r"sluicer\[fetch\]"):
+    absent("protego")
+
+    with pytest.raises(ModuleNotFoundError) as raised:
         audit("<html></html>", url=URL, site=site())
+
+    assert not isinstance(raised.value, MissingExtra)
 
 
 # -- what robots.txt says about use: aipref and Cloudflare's content signals ------
@@ -466,7 +472,7 @@ def test_a_private_address_is_refused_not_reported():
 def test_the_default_rung_answers_an_empty_file_rather_than_failing(monkeypatch):
     """An empty robots.txt is an answer, allow-all; the ladder's rung refuses
     an empty page, and the site reader asks it not to."""
-    fake_curl(monkeypatch, [(200, b"", {}), (200, b"# Example\n", {}), (404, b"", {})])
+    fake_http(monkeypatch, [(200, b"", {}), (200, b"# Example\n", {}), (404, b"", {})])
 
     read_back = read_site(URL)
 

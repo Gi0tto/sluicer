@@ -16,6 +16,7 @@ Options:
   --help     Show this message and exit.
 
 Read a page:
+  fetch     Fetch a URL and print the page, as the ladder brought it back.
   extract   Read the structured data a URL, a file or stdin declares.
   inspect   Show, for a person, what a page declares and where each answer came from.
   markdown  Print the main content of a URL, a file or stdin as markdown.
@@ -59,22 +60,30 @@ Usage: sluicer audit [OPTIONS] SOURCE
   0. 2, as everywhere, when the page could not be read.
 
 Options:
-  --json             Print the audit as JSON.
-  --no-site          Do not read the site's robots.txt and llms.txt for a URL.
-  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
-                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
-  --stealth          Allow the stealth rung, which does not announce itself.
-  --no-robots        Fetch even where the site's robots.txt says no.
-  --url URL          The address a file or stdin came from, to resolve its links.
-  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
-                     tdmrep.json, headers and meta tags.
-  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
-                     Last-Modified whether a page changed before fetching it again.
-  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
-                     asking its site at all.  [x>=0]
-  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
-                     (2025, 2025-06, 2025-06-01), not from its site.
-  --help             Show this message and exit.
+  --json                      Print the audit as JSON.
+  --no-site                   Do not read the site's robots.txt and llms.txt for a URL.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --stealth                   Allow the stealth rung, which does not announce itself.
+  --no-robots                 Fetch even where the site's robots.txt says no.
+  --url URL                   The address a file or stdin came from, to resolve its
+                              links.
+  --respect [tdm]             Refuse a page whose rights are reserved: tdm reads
+                              TDMRep's tdmrep.json, headers and meta tags.
+  --cache DIR                 Keep fetched pages in DIR, and ask the site with their
+                              ETag or Last-Modified whether a page changed before
+                              fetching it again.
+  --max-age SECONDS           With --cache, give a page kept for less than SECONDS back
+                              without asking its site at all.  [x>=0]
+  --at DATE                   Read a URL as the Wayback Machine captured it nearest to
+                              DATE (2025, 2025-06, 2025-06-01), not from its site.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer batch`
@@ -90,19 +99,27 @@ Usage: sluicer batch [OPTIONS] URLS_FILE
   order the file lists them.
 
 Options:
-  -o, --out FILE       Write one JSON line per page here, not to stdout; the file is the
-                       state --resume continues from.
-  --resume             Continue what --out already holds, fetching none of it again.
-  --delay FLOAT RANGE  The least seconds between two requests to one site; its
-                       robots.txt Crawl-delay wins when longer.  [default: 1.0; x>=0]
-  --induce             Also read the rows a page repeats when it declares nothing about
-                       them.
-  --respect [tdm]      Give a page whose rights are reserved as an error, not its data:
-                       tdm reads TDMRep's tdmrep.json, headers and meta tags.
-  --proxy URL          Fetch through this proxy (http://host:port, socks5h://host:port);
-                       the environment's HTTPS_PROXY is never used. Same as
-                       SLUICER_PROXY.
-  --help               Show this message and exit.
+  -o, --out FILE              Write one JSON line per page here, not to stdout; the file
+                              is the state --resume continues from.
+  --resume                    Continue what --out already holds, fetching none of it
+                              again.
+  --delay FLOAT RANGE         The least seconds between two requests to one site; its
+                              robots.txt Crawl-delay wins when longer.  [default: 1.0;
+                              x>=0]
+  --induce                    Also read the rows a page repeats when it declares nothing
+                              about them.
+  --respect [tdm]             Give a page whose rights are reserved as an error, not its
+                              data: tdm reads TDMRep's tdmrep.json, headers and meta
+                              tags.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer compile`
@@ -119,18 +136,23 @@ Usage: sluicer compile [OPTIONS] SOURCES...
   sits. A value that is nowhere is an error that names it.
 
 Options:
-  -o, --output TEXT         Where to write the extractor.  [required]
-  --listing / --no-listing  Learn the rows the pages repeat (default: only if they
-                            declare no thing).
-  --want NAME=VALUE         A value one row holds, and the column's name: --want
-                            price=41.90. Chooses the listing and keeps only the columns
-                            named.
-  --stealth                 Allow the stealth rung.
-  --no-robots               Fetch even where robots.txt says no.
-  --proxy URL               Fetch through this proxy (http://host:port,
-                            socks5h://host:port); the environment's HTTPS_PROXY is never
-                            used. Same as SLUICER_PROXY.
-  --help                    Show this message and exit.
+  -o, --output TEXT           Where to write the extractor.  [required]
+  --listing / --no-listing    Learn the rows the pages repeat (default: only if they
+                              declare no thing).
+  --want NAME=VALUE           A value one row holds, and the column's name: --want
+                              price=41.90. Chooses the listing and keeps only the
+                              columns named.
+  --stealth                   Allow the stealth rung.
+  --no-robots                 Fetch even where robots.txt says no.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer crawl`
@@ -145,31 +167,36 @@ Usage: sluicer crawl [OPTIONS] URL
   the same order.
 
 Options:
-  --max-pages INTEGER RANGE  The most addresses taken, whatever becomes of them.
-                             [default: 100; x>=1]
-  --max-depth INTEGER RANGE  The most links from URL; 0 reads URL alone.  [default: 3;
-                             x>=0]
-  --include REGEX            Follow only links whose address this is found in;
-                             repeatable.
-  --exclude REGEX            Do not follow links whose address this is found in;
-                             repeatable.
-  --any-site                 Follow links that leave URL's site too.
-  -o, --out FILE             Write one JSON line per page here, not to stdout; the file
-                             is the state --resume continues from.
-  --resume                   Continue what --out already holds, fetching none of it
-                             again.
-  --delay FLOAT RANGE        The least seconds between two requests to one site; its
-                             robots.txt Crawl-delay wins when longer.  [default: 1.0;
-                             x>=0]
-  --induce                   Also read the rows a page repeats when it declares nothing
-                             about them.
-  --respect [tdm]            Give a page whose rights are reserved as an error, not its
-                             data: tdm reads TDMRep's tdmrep.json, headers and meta
-                             tags.
-  --proxy URL                Fetch through this proxy (http://host:port,
-                             socks5h://host:port); the environment's HTTPS_PROXY is
-                             never used. Same as SLUICER_PROXY.
-  --help                     Show this message and exit.
+  --max-pages INTEGER RANGE   The most addresses taken, whatever becomes of them.
+                              [default: 100; x>=1]
+  --max-depth INTEGER RANGE   The most links from URL; 0 reads URL alone.  [default: 3;
+                              x>=0]
+  --include REGEX             Follow only links whose address this is found in;
+                              repeatable.
+  --exclude REGEX             Do not follow links whose address this is found in;
+                              repeatable.
+  --any-site                  Follow links that leave URL's site too.
+  -o, --out FILE              Write one JSON line per page here, not to stdout; the file
+                              is the state --resume continues from.
+  --resume                    Continue what --out already holds, fetching none of it
+                              again.
+  --delay FLOAT RANGE         The least seconds between two requests to one site; its
+                              robots.txt Crawl-delay wins when longer.  [default: 1.0;
+                              x>=0]
+  --induce                    Also read the rows a page repeats when it declares nothing
+                              about them.
+  --respect [tdm]             Give a page whose rights are reserved as an error, not its
+                              data: tdm reads TDMRep's tdmrep.json, headers and meta
+                              tags.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer diff`
@@ -187,21 +214,29 @@ Usage: sluicer diff [OPTIONS] BEFORE AFTER
   $41.90) is changed.
 
 Options:
-  --json             Print the differences as JSON.
-  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
-                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
-  --stealth          Allow the stealth rung, which does not announce itself.
-  --no-robots        Fetch even where the site's robots.txt says no.
-  --url URL          The address a file or stdin came from, to resolve its links.
-  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
-                     tdmrep.json, headers and meta tags.
-  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
-                     Last-Modified whether a page changed before fetching it again.
-  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
-                     asking its site at all.  [x>=0]
-  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
-                     (2025, 2025-06, 2025-06-01), not from its site.
-  --help             Show this message and exit.
+  --json                      Print the differences as JSON.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --stealth                   Allow the stealth rung, which does not announce itself.
+  --no-robots                 Fetch even where the site's robots.txt says no.
+  --url URL                   The address a file or stdin came from, to resolve its
+                              links.
+  --respect [tdm]             Refuse a page whose rights are reserved: tdm reads
+                              TDMRep's tdmrep.json, headers and meta tags.
+  --cache DIR                 Keep fetched pages in DIR, and ask the site with their
+                              ETag or Last-Modified whether a page changed before
+                              fetching it again.
+  --max-age SECONDS           With --cache, give a page kept for less than SECONDS back
+                              without asking its site at all.  [x>=0]
+  --at DATE                   Read a URL as the Wayback Machine captured it nearest to
+                              DATE (2025, 2025-06, 2025-06-01), not from its site.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer extract`
@@ -212,25 +247,33 @@ Usage: sluicer extract [OPTIONS] SOURCE
   Read the structured data a URL, a file or stdin declares.
 
 Options:
-  --induce           Also read the rows a page repeats when it declares nothing about
-                     them.
-  --microformats     Also read microformats2 (needs sluicer[microformats]).
-  --visible          Also guess the title, byline and dates the page shows, not in the
-                     summary.
-  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
-                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
-  --stealth          Allow the stealth rung, which does not announce itself.
-  --no-robots        Fetch even where the site's robots.txt says no.
-  --url URL          The address a file or stdin came from, to resolve its links.
-  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
-                     tdmrep.json, headers and meta tags.
-  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
-                     Last-Modified whether a page changed before fetching it again.
-  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
-                     asking its site at all.  [x>=0]
-  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
-                     (2025, 2025-06, 2025-06-01), not from its site.
-  --help             Show this message and exit.
+  --induce                    Also read the rows a page repeats when it declares nothing
+                              about them.
+  --microformats              Also read microformats2 (needs sluicer[microformats]).
+  --visible                   Also guess the title, byline and dates the page shows, not
+                              in the summary.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --stealth                   Allow the stealth rung, which does not announce itself.
+  --no-robots                 Fetch even where the site's robots.txt says no.
+  --url URL                   The address a file or stdin came from, to resolve its
+                              links.
+  --respect [tdm]             Refuse a page whose rights are reserved: tdm reads
+                              TDMRep's tdmrep.json, headers and meta tags.
+  --cache DIR                 Keep fetched pages in DIR, and ask the site with their
+                              ETag or Last-Modified whether a page changed before
+                              fetching it again.
+  --max-age SECONDS           With --cache, give a page kept for less than SECONDS back
+                              without asking its site at all.  [x>=0]
+  --at DATE                   Read a URL as the Wayback Machine captured it nearest to
+                              DATE (2025, 2025-06, 2025-06-01), not from its site.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer feed`
@@ -245,20 +288,65 @@ Usage: sluicer feed [OPTIONS] SOURCE
   normalised. Exits 1 for a feed with no item, 2 for what is not a feed.
 
 Options:
-  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
-                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
-  --stealth          Allow the stealth rung, which does not announce itself.
-  --no-robots        Fetch even where the site's robots.txt says no.
-  --url URL          The address a file or stdin came from, to resolve its links.
-  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
-                     tdmrep.json, headers and meta tags.
-  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
-                     Last-Modified whether a page changed before fetching it again.
-  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
-                     asking its site at all.  [x>=0]
-  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
-                     (2025, 2025-06, 2025-06-01), not from its site.
-  --help             Show this message and exit.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --stealth                   Allow the stealth rung, which does not announce itself.
+  --no-robots                 Fetch even where the site's robots.txt says no.
+  --url URL                   The address a file or stdin came from, to resolve its
+                              links.
+  --respect [tdm]             Refuse a page whose rights are reserved: tdm reads
+                              TDMRep's tdmrep.json, headers and meta tags.
+  --cache DIR                 Keep fetched pages in DIR, and ask the site with their
+                              ETag or Last-Modified whether a page changed before
+                              fetching it again.
+  --max-age SECONDS           With --cache, give a page kept for less than SECONDS back
+                              without asking its site at all.  [x>=0]
+  --at DATE                   Read a URL as the Wayback Machine captured it nearest to
+                              DATE (2025, 2025-06, 2025-06-01), not from its site.
+  --help                      Show this message and exit.
+```
+
+## `sluicer fetch`
+
+```text
+Usage: sluicer fetch [OPTIONS] URL
+
+  Fetch a URL and print the page, as the ladder brought it back.
+
+  The HTML goes to stdout, or to --output, and what it cost -- each climb, where the
+  page landed, its status and rung -- to stderr; with --json, all of it is one object on
+  stdout. The input compile, extract and the rest can then read from a file, the same
+  bytes every time. Exits 0 with a page, whatever its status, and 2 when none could be
+  fetched.
+
+Options:
+  -o, --output FILE           Write the page to this file rather than to stdout.
+  --json                      Print one JSON object: the page, where it landed, its
+                              status, rung, climbs and headers.
+  --stealth                   Allow the stealth rung, which does not announce itself.
+  --no-robots                 Fetch even where the site's robots.txt says no.
+  --cache DIR                 Keep fetched pages in DIR, and ask the site with their
+                              ETag or Last-Modified whether a page changed before
+                              fetching it again.
+  --max-age SECONDS           With --cache, give a page kept for less than SECONDS back
+                              without asking its site at all.  [x>=0]
+  --at DATE                   Read the URL as the Wayback Machine captured it nearest to
+                              DATE.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer heal`
@@ -274,14 +362,20 @@ Usage: sluicer heal [OPTIONS] EXTRACTOR_FILE SOURCES...
   have kept failing.
 
 Options:
-  -o, --output TEXT  Where to write the healed extractor.
-  --force            Write the healed extractor even when healing lost something; a lost
-                     listing is kept as it was.
-  --stealth          Allow the stealth rung.
-  --no-robots        Fetch even where robots.txt says no.
-  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
-                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
-  --help             Show this message and exit.
+  -o, --output TEXT           Where to write the healed extractor.
+  --force                     Write the healed extractor even when healing lost
+                              something; a lost listing is kept as it was.
+  --stealth                   Allow the stealth rung.
+  --no-robots                 Fetch even where robots.txt says no.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer inspect`
@@ -296,25 +390,33 @@ Usage: sluicer inspect [OPTIONS] SOURCE
   field, and every summary answer with its source and key. Exit codes are ``extract``'s.
 
 Options:
-  --induce           Also read the rows a page repeats when it declares nothing about
-                     them.
-  --microformats     Also read microformats2 (needs sluicer[microformats]).
-  --visible          Also guess the title, byline and dates the page shows, not in the
-                     summary.
-  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
-                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
-  --stealth          Allow the stealth rung, which does not announce itself.
-  --no-robots        Fetch even where the site's robots.txt says no.
-  --url URL          The address a file or stdin came from, to resolve its links.
-  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
-                     tdmrep.json, headers and meta tags.
-  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
-                     Last-Modified whether a page changed before fetching it again.
-  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
-                     asking its site at all.  [x>=0]
-  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
-                     (2025, 2025-06, 2025-06-01), not from its site.
-  --help             Show this message and exit.
+  --induce                    Also read the rows a page repeats when it declares nothing
+                              about them.
+  --microformats              Also read microformats2 (needs sluicer[microformats]).
+  --visible                   Also guess the title, byline and dates the page shows, not
+                              in the summary.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --stealth                   Allow the stealth rung, which does not announce itself.
+  --no-robots                 Fetch even where the site's robots.txt says no.
+  --url URL                   The address a file or stdin came from, to resolve its
+                              links.
+  --respect [tdm]             Refuse a page whose rights are reserved: tdm reads
+                              TDMRep's tdmrep.json, headers and meta tags.
+  --cache DIR                 Keep fetched pages in DIR, and ask the site with their
+                              ETag or Last-Modified whether a page changed before
+                              fetching it again.
+  --max-age SECONDS           With --cache, give a page kept for less than SECONDS back
+                              without asking its site at all.  [x>=0]
+  --at DATE                   Read a URL as the Wayback Machine captured it nearest to
+                              DATE (2025, 2025-06, 2025-06-01), not from its site.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer map`
@@ -328,12 +430,17 @@ Usage: sluicer map [OPTIONS] URL
   stderr says what became of each one.
 
 Options:
-  --limit INTEGER RANGE  The most addresses listed.  [default: 50000; x>=1]
-  --plain                One address a line, for `sluicer batch -`.
-  --proxy URL            Fetch through this proxy (http://host:port,
-                         socks5h://host:port); the environment's HTTPS_PROXY is never
-                         used. Same as SLUICER_PROXY.
-  --help                 Show this message and exit.
+  --limit INTEGER RANGE       The most addresses listed.  [default: 50000; x>=1]
+  --plain                     One address a line, for `sluicer batch -`.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer markdown`
@@ -344,21 +451,30 @@ Usage: sluicer markdown [OPTIONS] SOURCE
   Print the main content of a URL, a file or stdin as markdown.
 
 Options:
-  --front-matter     Open with a YAML block of what the page declares, and where from.
-  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
-                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
-  --stealth          Allow the stealth rung, which does not announce itself.
-  --no-robots        Fetch even where the site's robots.txt says no.
-  --url URL          The address a file or stdin came from, to resolve its links.
-  --respect [tdm]    Refuse a page whose rights are reserved: tdm reads TDMRep's
-                     tdmrep.json, headers and meta tags.
-  --cache DIR        Keep fetched pages in DIR, and ask the site with their ETag or
-                     Last-Modified whether a page changed before fetching it again.
-  --max-age SECONDS  With --cache, give a page kept for less than SECONDS back without
-                     asking its site at all.  [x>=0]
-  --at DATE          Read a URL as the Wayback Machine captured it nearest to DATE
-                     (2025, 2025-06, 2025-06-01), not from its site.
-  --help             Show this message and exit.
+  --front-matter              Open with a YAML block of what the page declares, and
+                              where from.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --stealth                   Allow the stealth rung, which does not announce itself.
+  --no-robots                 Fetch even where the site's robots.txt says no.
+  --url URL                   The address a file or stdin came from, to resolve its
+                              links.
+  --respect [tdm]             Refuse a page whose rights are reserved: tdm reads
+                              TDMRep's tdmrep.json, headers and meta tags.
+  --cache DIR                 Keep fetched pages in DIR, and ask the site with their
+                              ETag or Last-Modified whether a page changed before
+                              fetching it again.
+  --max-age SECONDS           With --cache, give a page kept for less than SECONDS back
+                              without asking its site at all.  [x>=0]
+  --at DATE                   Read a URL as the Wayback Machine captured it nearest to
+                              DATE (2025, 2025-06, 2025-06-01), not from its site.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer mcp`
@@ -387,11 +503,17 @@ Usage: sluicer run [OPTIONS] EXTRACTOR_FILE SOURCES...
   Replay an extractor on pages, and exit 3 if any page broke its contract.
 
 Options:
-  --stealth    Allow the stealth rung.
-  --no-robots  Fetch even where robots.txt says no.
-  --proxy URL  Fetch through this proxy (http://host:port, socks5h://host:port); the
-               environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
-  --help       Show this message and exit.
+  --stealth                   Allow the stealth rung.
+  --no-robots                 Fetch even where robots.txt says no.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --help                      Show this message and exit.
 ```
 
 ## `sluicer serve`

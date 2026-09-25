@@ -194,7 +194,7 @@ jobs:
         run: uvx twine check dist/*
 
   import-without-extras:
-    name: Importing works without any extra
+    name: The base install imports, and fetches over plain HTTP
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -212,10 +212,15 @@ jobs:
           # floors job documents.
           .venv/bin/python -c "
           import importlib.util, sluicer
-          for extra in ('scrapling', 'trafilatura', 'mcp'):
+          for extra in ('scrapling', 'playwright', 'patchright', 'curl_cffi', 'trafilatura', 'mcp'):
               assert importlib.util.find_spec(extra) is None, extra + ' leaked into the base install'
           print('base install imports cleanly, version', sluicer.__version__)
           "
+      # Since 0.8 the base install fetches: the HTTP rung is the standard
+      # library, and nothing but protego is installed for it. Asked of a real
+      # server with nothing else installed, not believed from the suite.
+      - name: The HTTP rung, with nothing but the base install
+        run: .venv/bin/python tests/live/http_check.py
 
   with-extras:
     name: The extras install and the code can actually use them
@@ -225,10 +230,22 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-      - name: Install every extra
+      # Each extra by its own name, and the browsers each drives: the
+      # browser extra's Chromium through Playwright, and the stealth extra's
+      # through patchright, which keeps its own.
+      - name: Install every extra, and the browsers
         run: |
           uv venv
-          uv pip install '.[fetch,markdown,mcp,api]'
+          uv pip install '.[browser,stealth,markdown,mcp,api]'
+          .venv/bin/python -m playwright install --with-deps chromium
+          .venv/bin/python -m patchright install chromium
+      # Deprecated, not removed: an install line written for 0.7 must still
+      # bring both browser extras. Read from what the resolver would install.
+      - name: The fetch extra still installs what it meant
+        run: |
+          uv pip install --dry-run '.[fetch]' 2>&1 | tee fetch-extra.txt
+          grep -qi 'playwright' fetch-extra.txt || { echo "sluicer[fetch] no longer brings playwright"; exit 1; }
+          grep -qi 'scrapling' fetch-extra.txt || { echo "sluicer[fetch] no longer brings scrapling"; exit 1; }
       - name: Use each one against the package that was really installed
         run: |
           .venv/bin/python -c "
@@ -241,7 +258,7 @@ jobs:
           assert 'Caf\xe9' in out, 'the markdown path lost the accent: ' + out[:80]
           print('markdown: accent survived')
 
-          # protego parses robots.txt and arrives with scrapling[fetchers]. The unit
+          # protego parses robots.txt and arrives with the base install. The unit
           # tests fake it, and a fake agrees with whatever you wrote it to agree with,
           # so the real semantics are only ever checked here.
           from sluicer.fetch.identity import USER_AGENT, robots_allows
@@ -272,10 +289,10 @@ jobs:
           assert verdicts['ClaudeBot'].allowed is True and verdicts['ClaudeBot'].group == '*', verdicts['ClaudeBot']
           print('audit: the real parser decides each AI agent as the audit names it')
 
-          from sluicer.fetch.scrapling_rungs import default_rungs
+          from sluicer.fetch.rungs import default_rungs
           names = [name for name, _ in default_rungs()]
-          assert names[:2] == ['http', 'browser'], names
-          print('fetch: three rungs built against the real scrapling')
+          assert names == ['http', 'browser'], names
+          print('fetch: two rungs built, plain HTTP and the browser')
 
           import asyncio
           from sluicer.mcp_server import build_server
@@ -322,30 +339,43 @@ jobs:
               assert 'refused_address' in str(refused), tool + ': ' + str(refused)[:300]
           print('mcp: ten tools listed, and six of them answered through the SDK dispatch')
           "
+      # Building a rung is not using it. Each fetching extra loads pages from
+      # a local site here, and the site says what it saw: the browser
+      # renders a shell and a second page of the site starts at it, one
+      # browser serves the process, the stealth rung renders without a
+      # borrowed referer, and sluicer fetch prints the rendered page.
+      - name: Call each fetching extra for real
+        run: .venv/bin/python tests/live/extras_check.py
 
   live:
-    name: The fetch limits and the crawler hold against a real curl and a real browser
+    name: The fetch limits and the crawler hold against real sockets and a real browser
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-      - name: Install the fetch and api extras and a browser
+      - name: Install the browser and api extras and a browser
         run: |
           uv venv
-          uv pip install '.[fetch,api]'
+          uv pip install '.[browser,api]'
           .venv/bin/python -m playwright install --with-deps chromium
-      # The suite fakes curl_cffi and Chromium, and a fake obeys whatever it is
-      # told. Two local servers stand in for the web and for a private address,
-      # and these ask the real libraries: where does curl stop reading, does a
-      # pinned name go where it was pinned, and can a page make the browser
+      # The suite fakes the socket and Chromium, and a fake obeys whatever it
+      # is told. Two local servers stand in for the web and for a private
+      # address, and these ask the real libraries: where does the rung stop
+      # reading, does a pinned name go where it was pinned, how many
+      # connections do twenty pages cost, and can a page make the browser
       # reach the private one by any route. Without the guard, measured, it
       # reaches it by six.
       - name: The HTTP rung
         run: .venv/bin/python tests/live/http_check.py
       - name: The browser guard
         run: .venv/bin/python tests/live/guard_check.py
+      # A caller's headers and cookies reach the site asked and no other,
+      # guarded and not; a proxy asked for is the one used; one browser
+      # serves every page of the process.
+      - name: What the browser sends, and to whom
+        run: .venv/bin/python tests/live/browser_check.py
       # The suite reaches the HTTP door through starlette's TestClient, with
       # no socket. This starts sluicer serve three times -- as a user runs it,
       # allowed a local stand-in for the web, and without trafilatura -- and
@@ -372,7 +402,7 @@ jobs:
       - name: Install sluicer with every extra, and nothing else
         run: |
           uv venv
-          uv pip install '.[fetch,markdown,mcp,microformats,api]'
+          uv pip install '.[browser,stealth,markdown,mcp,microformats,api]'
       # The README names the non-permissive licences the extras bring in. A new
       # dependency under one nobody has read fails here, not in a user's audit.
       - name: List them, and fail on one nobody has read
@@ -428,9 +458,23 @@ jobs:
           "
       - name: Run the suite against them
         run: .venv/bin/python -m pytest -q
+      # protego at its floor, with nothing else installed, through the base's
+      # own HTTP rung: what a fetch with the lowest install does.
+      - name: And the HTTP rung and the robots parser at the base's floors
+        run: |
+          .venv/bin/python -c "
+          import importlib.metadata as md
+          assert md.version('protego').startswith('0.3'), md.version('protego')
+          from sluicer.fetch.identity import robots_allows, robots_delay
+          rules = 'User-agent: Sluicer\\nDisallow: /private/\\nCrawl-delay: 2\\n'
+          assert robots_allows('https://example.com/private/p', read=lambda u: rules, cache={}) is False
+          assert robots_delay('https://example.com/p', read=lambda u: rules, cache={}) == 2.0
+          print('protego', md.version('protego'), '-- the declared floor, read for real')
+          "
+          .venv/bin/python tests/live/http_check.py
       - name: And again with every extra at its own lowest version
         run: |
-          uv pip install --resolution lowest-direct '.[fetch,markdown,mcp,microformats,api]'
+          uv pip install --resolution lowest-direct '.[browser,stealth,markdown,mcp,microformats,api]'
           uv pip list
           # The HTTP door's tests build the real MCP server, so this is where
           # the SDK's floor is used and not only installed: on 3.10, mcp 2.0.x
@@ -446,8 +490,6 @@ jobs:
               print(name, got, '-- the declared floor')
           "
           .venv/bin/python -m pytest -q
-      - name: And the HTTP rung against a real curl at its floor
-        run: .venv/bin/python tests/live/http_check.py
 
   latest-extras:
     name: The extras still work at their newest versions
@@ -461,10 +503,10 @@ jobs:
       - name: Install the extras unpinned and use them
         run: |
           uv venv
-          uv pip install '.[fetch,markdown,mcp,api]' --upgrade
+          uv pip install '.[browser,stealth,markdown,mcp,api]' --upgrade
           .venv/bin/python -c "
           import asyncio, importlib.metadata as md
-          for name in ('scrapling', 'trafilatura', 'mcp', 'starlette', 'uvicorn'):
+          for name in ('playwright', 'scrapling', 'trafilatura', 'mcp', 'starlette', 'uvicorn'):
               print(name, md.version(name))
           from sluicer.mcp_server import build_server
           server = build_server()
@@ -531,15 +573,27 @@ jobs:
           persist-credentials: false
       - name: Build the image with Chromium
         run: docker build --build-arg WITH_BROWSER=1 -t sluicer:browser .
-      - name: The unprivileged user can launch the browser
+      # Not Playwright alone: the image's own ladder, as a user runs it, on a
+      # page only a browser fills, served inside the container.
+      - name: The unprivileged user's ladder climbs to the browser
         run: |
           docker run --rm sluicer:browser python -c "
-          from playwright.sync_api import sync_playwright
-          with sync_playwright() as p:
-              browser = p.chromium.launch()
-              page = browser.new_page()
-              page.set_content('<p>ok</p>')
-              assert page.inner_text('p') == 'ok'
-              browser.close()
-          print('chromium launches as', __import__('os').getuid())
+          import http.server, json, os, subprocess, sys, threading
+          page = b'<html><body><div id=r></div><script>document.getElementById(\\'r\\').textContent = \\'rendered \\'.repeat(40)</script></body></html>'
+          class Site(http.server.BaseHTTPRequestHandler):
+              def log_message(self, *args): pass
+              def do_GET(self):
+                  body = page if self.path == '/app' else b''
+                  self.send_response(200 if body else 404)
+                  self.send_header('Content-Length', str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+          server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Site)
+          threading.Thread(target=server.serve_forever, daemon=True).start()
+          url = 'http://127.0.0.1:%d/app' % server.server_address[1]
+          done = subprocess.run(['sluicer', 'fetch', url, '--json'], capture_output=True, text=True)
+          assert done.returncode == 0, done.stderr
+          answer = json.loads(done.stdout)
+          assert answer['rung'] == 'browser' and 'rendered' in answer['html'], answer['rung']
+          print('the browser rung renders as', os.getuid())
           "

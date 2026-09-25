@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-from sluicer.fetch import robots_reader_from
+from sluicer.fetch import STICKY, RungMemory, robots_reader_from
 from sluicer.fetch.address import _resolve
 from sluicer.fetch.http_rung import Response
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, Redirects, Rung
@@ -18,12 +18,14 @@ class Web:
     ``rungs`` fetch its pages, through the ladder. ``read`` reads a robots.txt,
     as the ladder would. ``get`` fetches what is not a page -- a sitemap -- as
     the bytes that came back. ``default_web`` builds the real ones; a test hands
-    in fakes.
+    in fakes. ``memory`` is the rung each site needed, which its next page
+    starts at: the process's for the real web, none for a fake unless given.
     """
 
     rungs: Sequence[tuple[str, Rung]]
     read: Callable[[str], str | None]
     get: Callable[[str], Response]
+    memory: RungMemory | None = None
 
 
 def default_web(
@@ -31,6 +33,8 @@ def default_web(
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
     redirects: Redirects | None = None,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> Web:
     """The real web: the default ladder, with ``redirects`` asked of every hop a
     page's redirect makes, and plain HTTP for robots.txt and sitemaps.
@@ -39,13 +43,11 @@ def default_web(
     across hosts, and a crawl kept to its site still owes the site's robots.txt
     a reading wherever the site keeps it.
 
-    Raises:
-        FetchExtraMissing: the ``fetch`` extra is not installed.
     """
     from sluicer.fetch.http_rung import http_responses, http_rung
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing, default_rungs
+    from sluicer.fetch.rungs import default_rungs
 
     rungs = default_rungs(allow_private, resolve, max_bytes, redirects)
-    plain = http_rung(allow_private, resolve, max_bytes, error=FetchExtraMissing)
-    get = http_responses(allow_private, resolve, max_bytes, error=FetchExtraMissing)
-    return Web(rungs=rungs, read=robots_reader_from(plain), get=get)
+    plain = http_rung(allow_private, resolve, max_bytes)
+    get = http_responses(allow_private, resolve, max_bytes)
+    return Web(rungs=rungs, read=robots_reader_from(plain), get=get, memory=STICKY)

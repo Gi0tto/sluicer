@@ -212,18 +212,28 @@ rarely do.
 
 ## In announcing ourselves
 
-**The user agent on the wire is verified by hand, not by the suite.** Both the
-HTTP and the browser rung were confirmed on 2026-09-22 against a live request,
-and the server saw `Sluicer/<version> (+https://github.com/Gi0tto/sluicer)` from
-each. The suite cannot re-check it, because it must never open a socket, and a
-faked library accepts whatever keyword you hand it. That gap is real and it has
-already cost once: the browser rung was passing the name in `extra_headers`,
-which the browser context silently overrides, so the tests passed while every
-site saw Chrome. It now passes `useragent`, which reaches the wire. The same
-check on 2026-09-22 found scrapling's defaults adding `Referer:
-https://www.google.com/` and a Chrome TLS fingerprint under our name; both are
-now turned off, and a local server confirmed neither reaches it. If you change
+**The user agent on the wire is verified by the live checks, not by the
+suite.** The suite must never open a socket, so it reads what the HTTP rung
+wrote to a fake one and what the browser rung told a fake context; what a
+server actually receives is asked in CI by `tests/live/http_check.py`,
+`browser_check.py` and `extras_check.py`, against local servers, and each
+server saw `Sluicer/<version> (+https://github.com/Gi0tto/sluicer)` and no
+referer. That gap has cost once: in 0.7.0 the browser rung, then scrapling's,
+passed the name where the browser context silently overrode it, so the tests
+passed while every site saw Chrome, and scrapling's defaults added `Referer:
+https://www.google.com/`. Since 0.8 the browser rung is Playwright driven
+directly, and is told our name and nothing else: no flag, colour scheme or
+pixel ratio chosen to look like a person's browser. What Chromium itself
+sends, it still sends: its `sec-ch-ua` names `HeadlessChrome`. If you change
 how a rung is built, ask a real server what it saw.
+
+**The HTTP rung's TLS is Python's.** It is `ssl` over the system's
+certificates, so its handshake looks like any Python client's, which some
+bot defences refuse more readily than curl's; a refusal is a measurement, and
+the ladder climbs on it. A Python whose certificates were never installed --
+the python.org installer on macOS, before its `Install Certificates` step --
+verifies nothing and fails every https fetch; point `SSL_CERT_FILE` at a
+bundle.
 
 **A robots.txt group is ours when it names our product token.** `User-agent:
 Sluicer`, in any case, is the group Sluicer obeys, and `*` when there is none.
@@ -255,7 +265,10 @@ happen to a caller who never asked for it. Not announcing is all it does: until
 0.7.1 it inherited scrapling's `google_search` and sent `Referer:
 https://www.google.com/`, claiming a visit from a search that never happened,
 and three tries of thirty seconds. Measured on a local server, it now sends no
-referer, and tries once, as the browser rung does.
+referer, and tries once, as the browser rung does. Since 0.8 it is the only
+place scrapling is used, behind the `stealth` extra; it sends none of a
+caller's headers or cookies, which would say who is asking, and no site is
+ever remembered as needing it.
 
 **Normalisation refuses what is ambiguous.** A date is read from ISO 8601 and
 its common variants, RFC 2822, JavaScript's `Date.toString()`, and a month's
@@ -351,6 +364,43 @@ as its address, never fetched or read.
 
 ## In fetching
 
+**Plain HTTP is HTTP/1.1.** The base install's client is the standard
+library's, which speaks no HTTP/2 or HTTP/3: a site is asked one request at a
+time on one kept connection, which is what the gate allows anyway. A
+connection is kept up to a minute idle, 32 of them for the process; one the
+server closed is found out before it is used, and a request that meets a
+close anyway is sent once more, on a new connection.
+
+**Brotli is never asked for.** A body is decoded as it arrives and held to the
+16 MiB bound as it grows, and the standard library has no brotli decoder to
+hold to it: requests offer gzip and deflate, and zstd on Python 3.14 or with
+`backports.zstd` installed. A server that sends brotli anyway has sent what the
+rung cannot read: the rung fails, and the ladder climbs to the browser, which
+can.
+
+**A site's rung is remembered for a day.** Once a page of a site came back only
+from the browser, the process starts that site's next pages at the browser for
+24 hours, 4,096 sites at most, and says so in each page's first climb. A site
+whose pages differ -- a listing that needs a script, articles that do not --
+has its articles fetched by a browser too, which costs time and nothing else;
+a site that moved back to rendering on the server is asked of plain HTTP again
+the next day, or after the remembered rung fails once.
+
+**One browser, one page at a time.** The process keeps one Chromium and loads
+pages in it one after another, each in a context of its own, so pages that
+need a browser, asked for by several callers at once -- a crawl of four sites,
+parallel MCP calls -- wait in line, each for at most three minutes
+(`WAIT_SECONDS`), then fail. A browser elsewhere (`SLUICER_CDP_URL`) is driven
+the same way.
+
+**A caller's headers and cookies go to the origin asked.** Scheme, host and
+port, for the HTTP rung and for the headers a browser sends; a hop elsewhere
+is sent none. A cookie in the browser follows the browser's own rules, under
+which a cookie belongs to a host, not to a port. A crawl or a batch sends them
+to every page's own origin, as `curl -H` sends them to every address it is
+given, so a batch of several sites gives each site the same cookie. The
+archive (`--at`) and the stealth rung are sent none.
+
 **The cache serves single pages.** `--cache` is read by `extract`, `inspect`,
 `markdown`, `audit` and `diff`, not by `crawl` or `batch`, whose state file is
 their memory, nor by the MCP server. A page that came from the browser rung is
@@ -396,7 +446,9 @@ challenge page and a skeletal body are.
 **The browser decodes its own pages.** The HTTP rung decodes the bytes itself,
 with the sniffing `load()` uses and the response's own charset where the HTML
 standard puts it, between a byte order mark and the page's declaration. The
-browser rungs hand over the DOM the browser built, decoded by the browser.
+browser rungs hand over the DOM the browser built, decoded by the browser,
+once the page has loaded and its network gone quiet for half a second, or
+thirty seconds have passed: a page that never goes quiet is read as it stood.
 
 **The same page is parsed twice on a successful URL fetch**, once by the ladder
 to decide whether to climb and once by the caller, and three times in a crawl,
@@ -609,8 +661,10 @@ network clients and the hosted and local model clients by name -- `openai`,
 `anthropic`, `google.genai`, `litellm`, `ollama`, `transformers`, the
 `langchain` and `llama_index` families and more -- in `import` statements and in
 module names handed to `import_extra`, `import_module` and `__import__` as
-strings. It does not catch `http.client`, `ftplib`, or a name built at runtime.
-`socket` is allowed in one file, `fetch/address.py`, for name resolution.
+strings. It does not catch `ftplib`, or a name built at runtime. `socket` is
+allowed in `fetch/address.py`, for name resolution, and in `fetch/wire.py`, and
+`http.client` in `fetch/http_rung.py`: those two are the HTTP rung, the one
+client in the package.
 
 **Determinism is tested within one process.** Two calls, one fixture, same
 answer. Stability across processes and across two pages built from the same

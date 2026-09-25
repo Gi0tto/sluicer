@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -52,7 +52,7 @@ from sluicer.fetch import (
     fetch,
 )
 from sluicer.fetch.address import _resolve, why_not_public
-from sluicer.fetch.identity import RobotsUnreachable, robots_refusal
+from sluicer.fetch.identity import RobotsUnreachable, outgoing, robots_refusal
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
 
 MAX_PAGES = 100
@@ -206,6 +206,8 @@ def crawl(
     web: Web | None = None,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> Crawl:
     """Crawl from ``start``, following links breadth first, one page at a time
     per site, and hand back each page as its turn comes.
@@ -236,15 +238,18 @@ def crawl(
         max_bytes: the most one page may weigh.
         web: how sites are reached; the real web by default.
         clock, sleep: the time, injected so a test can pace a crawl.
+        headers, cookies: ``fetch``'s, sent with every request of the crawl
+            -- pages, robots.txt, sitemaps -- to the origin it asks, and with
+            no hop a redirect takes elsewhere. Never a ``User-Agent``.
 
     Returns:
         A ``Crawl`` to iterate for its ``Page``s.
 
     Raises:
         ValueError: ``start`` is not an http(s) address, or a pattern is not a
-            regular expression.
+            regular expression; or ``headers`` and ``cookies`` are refused as
+            ``fetch`` refuses them, or given with a ``web`` of the caller's.
         StateMismatch: ``state`` holds another crawl.
-        FetchExtraMissing: the ``fetch`` extra is not installed.
     """
     first = normalise(start)
     if first is None:
@@ -258,12 +263,21 @@ def crawl(
             return None
         return f"it is off {frontier.site}"
 
+    _sendable(web, headers, cookies)
     replayed: list[dict[str, Any]] = []
     if state is not None:
         replayed = _replay(Path(state), frontier)
         _cut_unfinished(Path(state))
     polite, web = _reach(
-        web, min_delay, clock, sleep, allow_private, resolve, max_bytes
+        web,
+        min_delay,
+        clock,
+        sleep,
+        allow_private,
+        resolve,
+        max_bytes,
+        headers,
+        cookies,
     )
     visitor = _Visitor(
         web,
@@ -311,6 +325,8 @@ def extract_many(
     web: Web | None = None,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> Crawl:
     """Read every address in ``urls``, politely, and hand back each page in the
     order the addresses were given.
@@ -323,8 +339,11 @@ def extract_many(
     list's addresses redirect. An address given twice is read once; one that
     is not an http(s) address comes back as a ``bad_input`` page. With
     ``state``, an address the file already holds is skipped, and every new
-    page is appended. The other arguments are ``crawl``'s.
+    page is appended. The other arguments are ``crawl``'s; ``headers`` and
+    ``cookies`` go to every address's own origin, as a list of addresses
+    handed to ``curl -H`` has them sent to each.
     """
+    _sendable(web, headers, cookies)
     queue = Queue()
     queued: set[str] = set()
     targets: list[str] = []
@@ -351,7 +370,15 @@ def extract_many(
             add(normalise(page.error.target) or page.error.target, page.url)
 
     polite, web = _reach(
-        web, min_delay, clock, sleep, allow_private, resolve, max_bytes
+        web,
+        min_delay,
+        clock,
+        sleep,
+        allow_private,
+        resolve,
+        max_bytes,
+        headers,
+        cookies,
     )
     visitor = _Visitor(
         web,
@@ -385,6 +412,8 @@ def _reach(
     allow_private: bool,
     resolve: Callable[[str], Iterable[str]],
     max_bytes: int,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> tuple[Politeness, Web]:
     """The pacing and the web it paces, each built with the other.
 
@@ -397,9 +426,30 @@ def _reach(
     reached.append(
         web
         if web is not None
-        else default_web(allow_private, resolve, max_bytes, polite.hop)
+        else default_web(
+            allow_private,
+            resolve,
+            max_bytes,
+            polite.hop,
+            headers=headers,
+            cookies=cookies,
+        )
     )
     return polite, reached[0]
+
+
+def _sendable(
+    web: Web | None,
+    headers: Mapping[str, str] | None,
+    cookies: Mapping[str, str] | None,
+) -> None:
+    """Refuse, before anything is asked, headers the crawl could not send."""
+    outgoing(headers, cookies)
+    if web is not None and (headers or cookies):
+        raise ValueError(
+            "headers and cookies go into the web a crawl builds; one handed "
+            "a web of its own sends what that web was built to send"
+        )
 
 
 class _Frontier:
@@ -556,6 +606,7 @@ class _Visitor:
                 allow_private=self.allow_private,
                 resolve=self.resolve,
                 max_bytes=self.max_bytes,
+                memory=self.web.memory,
             )
         except RobotsRefused as refused:
             return failed("refused_by_robots", str(refused))

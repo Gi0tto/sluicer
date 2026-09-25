@@ -110,7 +110,7 @@ def default_ladder(monkeypatch):
     few hundredths of a second apart."""
     site = Site()
     monkeypatch.setattr(
-        "sluicer.fetch.scrapling_rungs.default_rungs",
+        "sluicer.fetch.rungs.default_rungs",
         lambda *args, **kwargs: [("http", site.rung)],
     )
     monkeypatch.setattr(GATE, "min_delay", DELAY)

@@ -23,16 +23,27 @@ Sluicer executes nothing from the pages it reads. It does not evaluate
 JavaScript in the base install, does not follow instructions found in a page,
 and has no plugin mechanism a page could reach.
 
-Sluicer holds no credentials. There is no API key to leak because no feature
-takes one, which is a deliberate design constraint rather than an oversight.
+Sluicer holds no credentials of its own. There is no API key to leak because no
+feature needs one, which is a deliberate design constraint rather than an
+oversight. A header or cookie you hand a fetch (`headers=`, `cookies=`,
+`--header`, `--cookie`) is sent to the origin you asked for -- scheme, host and
+port -- and left off every hop a redirect takes elsewhere; in the browser, a
+cookie is set for the host asked and follows the browser's cookie rules, under
+which a cookie belongs to a host, not a port. It is never written to disk: the
+page cache keys a page fetched with one by a digest of what was sent. The MCP
+server and the HTTP API take none.
 
-When the optional `fetch` extra is installed, page content is fetched and, on
-the higher rungs, rendered in a browser. Only over http and https: an address
-or a redirect to any other scheme -- `file://`, `gopher://`, `dict://` -- is
-refused before it is asked, whoever the caller is, and curl is told to speak
-nothing else. That browser executes page JavaScript
-in its own process. Treat fetching an untrusted URL with the same care you would
-treat opening it in your own browser.
+Since 0.8 the base install fetches over plain HTTP, with Python's own
+`http.client`, `ssl` and `socket`: no native HTTP library, and certificates
+verified against the system's store. Only http and https: an address or a
+redirect to any other scheme -- `file://`, `gopher://`, `dict://` -- is refused
+before it is asked, whoever the caller is, and the client speaks nothing else.
+With the `browser` extra, a page plain HTTP brings back as an empty shell is
+rendered in Playwright's Chromium, which executes page JavaScript in its own
+process, in a new context per page. Treat fetching an untrusted URL with the
+same care you would treat opening it in your own browser. The `stealth` extra
+(scrapling's patched Chromium) runs only for one page a person asked for with
+`--stealth`, never for the MCP server, the HTTP API or a crawl.
 
 ## The MCP server fetches what it is told to fetch
 
@@ -51,28 +62,35 @@ inside an IPv6 one -- resolves it, and refuses `localhost`, `.local` and
 loopback, private ranges, link-local, `169.254.169.254` among them. Every
 redirect is judged the same way before it is followed. The HTTP rung then
 connects only to the addresses it checked, so a name that resolves differently
-the second time (DNS rebinding) reaches nothing new. The browser rung sends
+the second time (DNS rebinding) reaches nothing new; a connection it keeps open
+for the site's next request is used again only while the address it reached is
+still among the ones checked. The browser rung sends
 every request the page makes -- images, frames, `fetch()`, websockets, and each
 hop of a redirect -- through the same judgement, and gives pages no service
 workers. What it does not stop, and cannot from inside a library: the browser
 resolves names itself, so DNS rebinding is still possible through the browser
 rung. `tests/live/guard_check.py` shows a real Chromium reaching a private
-server by six routes without the guard and by none with it. Set
+server by six routes without the guard and by none with it. A browser driven
+over the DevTools protocol (`SLUICER_CDP_URL`) runs elsewhere: the guard still
+judges every request by this machine's resolver, and "private" then means
+private as seen from here, not from the browser's network. Set
 `SLUICER_ALLOW_PRIVATE=1` to turn the filter off.
 
-No proxy is used unless one is asked for. libcurl reads `HTTPS_PROXY` and
-`HTTP_PROXY` itself, and until 0.7.1 a fetch went through whatever proxy the
-environment named, the browser through the system's; now only a proxy given
-as `fetch(proxy=...)`, `--proxy` or `SLUICER_PROXY` is used, and without one
-the browser is launched with `--no-proxy-server`. Through a proxy, the filter
-above holds less, and exactly this much:
+No proxy is used unless one is asked for. Until 0.7.1 a fetch went through
+whatever proxy the environment named (libcurl read `HTTPS_PROXY` itself), the
+browser through the system's; now only a proxy given as `fetch(proxy=...)`,
+`--proxy` or `SLUICER_PROXY` is used -- `http://`, `socks5://` or `socks5h://`
+-- and without one the browser is launched with `--no-proxy-server`. Through a
+proxy, the filter above holds less, and exactly this much:
 
 - It still judges every address before it is requested, the one asked for and
   each hop of a redirect, by resolving the name on this machine: a name that
   resolves here to a private address is refused, and so is a name that does
   not resolve here at all, since it cannot be judged.
-- It no longer pins the connection. The proxy looks the name up again in its
-  own network and connects where that answer says, so a name that answers
+- It no longer pins the connection, except through `socks5://`, where the
+  address checked here is the one the proxy is told. Otherwise the proxy
+  looks the name up again in its own network and connects where that answer
+  says, so a name that answers
   differently the second time (DNS rebinding) reaches whatever the proxy can
   reach, and "private" means private as seen from this machine, not from the
   proxy's. A proxy inside another network can reach that network's private
@@ -149,12 +167,14 @@ that cannot be cut is refused as `too_large`. Before 0.7.1 only
 `<title>` made a two-megabyte answer.
 
 It can be slow. A plain HTTP request ends twenty seconds after it started,
-connecting, every redirect hop and every byte of the body included
-(`HTTP_TIMEOUT_SECONDS`). Before 0.7.1 that bound did not reach the body: a
+looking the name up, connecting, every redirect hop and every byte of the body
+included (`HTTP_TIMEOUT_SECONDS`): every wait on the connection is given what is
+left of that, however slowly the server sends. Before 0.7.1 that bound did not reach the body: a
 server sending eight bytes a second held a request as long as it kept sending,
 and four such requests held every worker of `sluicer serve`, so it answered
 nothing else. A browser page is bounded by the browser's own timeout, thirty
 seconds for each thing it waits on (`BROWSER_TIMEOUT_MS`). A fetch makes a few
 such requests -- the site's robots.txt, then each rung it climbs -- and each
-keeps its own bound; nothing bounds the name lookups, which are the system
-resolver's.
+keeps its own bound. The HTTP rung's own name lookups are inside its twenty
+seconds since 0.8; the one the ladder makes to judge the address before any
+request (`allow_private=False`) is the system resolver's, and not bounded.

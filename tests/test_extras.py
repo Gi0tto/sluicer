@@ -108,7 +108,7 @@ def test_the_package_shown_in_the_message_can_be_spelled_for_a_human(monkeypatch
 def test_the_three_named_extras_are_all_one_kind(monkeypatch):
     """The names stay -- the CLI catches them -- but the rule is one rule."""
     from sluicer.extras import MissingExtra
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+    from sluicer.fetch.rungs import FetchExtraMissing
     from sluicer.markdown import MarkdownExtraMissing
     from sluicer.mcp_server import McpExtraMissing
 

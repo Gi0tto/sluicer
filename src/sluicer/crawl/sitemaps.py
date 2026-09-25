@@ -18,7 +18,7 @@ from __future__ import annotations
 import io
 import time
 import zlib
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -270,6 +270,8 @@ def map_site(
     web: Web | None = None,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> SiteMap:
     """The addresses of ``url``'s site, from its sitemaps or, failing those, the
     links on the page at ``url``.
@@ -304,7 +306,6 @@ def map_site(
         AddressRefused: ``allow_private`` is false and ``url`` is private.
         RobotsRefused, ResponseTooLarge: the sitemaps gave nothing, and this is
             what happened to the page.
-        FetchExtraMissing: the ``fetch`` extra is not installed.
     """
     start = normalise(url)
     if start is None:
@@ -313,7 +314,16 @@ def map_site(
         refused = why_not_public(start, resolve)
         if refused is not None:
             raise AddressRefused(start, refused)
-    web = web if web is not None else default_web(allow_private, resolve, max_bytes)
+    from sluicer.crawl.pages import _sendable
+
+    _sendable(web, headers, cookies)
+    web = (
+        web
+        if web is not None
+        else default_web(
+            allow_private, resolve, max_bytes, headers=headers, cookies=cookies
+        )
+    )
     polite = Politeness(web.read, min_delay, clock, sleep)
     deadline = None if time_budget is None else clock() + time_budget
     site = site_of(start)

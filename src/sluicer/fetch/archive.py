@@ -97,11 +97,8 @@ def fetch_archived(
     real = rung is None
     if rung is None:
         from sluicer.fetch.http_rung import http_rung
-        from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
-        rung = http_rung(
-            allow_private, resolve, max_bytes, FetchExtraMissing, _within_archive
-        )
+        rung = http_rung(allow_private, resolve, max_bytes, _within_archive)
     # The archive is a site like any other, asked in its turn.
     with GATE.turn(address) if real else ungated() as ready:
         fetched = fetch(

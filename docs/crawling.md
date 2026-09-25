@@ -83,8 +83,20 @@ A page that failed is an answer like any other: it comes back with its
   without reading `Retry-After`; Crawlee reads it on a 429 only, and only when
   the crawler is set to pace the site (a `ThrottlingRequestManager`, or
   `sameDomainDelaySecs` in its JavaScript version).
+- **Asked once, not twice.** A page that plain HTTP brought back as an empty
+  shell is asked again of the browser, which is two requests for one page. So
+  a site that needed the browser once starts its next pages there, for the
+  rest of the process and at most a day, and each such page's first climb
+  says so: a JS site's crawl asks each page once. A rung that merely failed
+  teaches nothing, and a remembered rung that fails is forgotten.
+- **One connection per site.** Plain HTTP keeps the connection a page came on,
+  while the server keeps it open, and asks the site's next page on it: one
+  handshake for a site's pages rather than one each. Measured on a local
+  server, twenty pages cost one connection instead of twenty.
 - **Under our own name.** Every request says `Sluicer/<version>`. The stealth
-  rung is never part of a crawl.
+  rung is never part of a crawl. `--header` and `--cookie` (`headers=`,
+  `cookies=`) add to what a crawl sends -- a site's own login, for a site you
+  may read behind it -- and never replace the name.
 
 Measured by the site being crawled, not by the crawler: `tests/live/crawl_check.py`
 serves a local site whose `robots.txt` asks for a `Crawl-delay` of 0.5 s and

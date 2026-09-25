@@ -252,6 +252,9 @@ fetch(
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = 16777216,
     proxy: str | None = None,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
+    memory: RungMemory | None = None,
 ) -> Fetched
 ```
 
@@ -260,14 +263,17 @@ Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 **Arguments**
 
 - `url`: an http(s) address.
-- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default. Injected so tests stay off the network. The default rungs are the real web, so a fetch with them holds the site in ``sluicer.fetch.gate`` for its whole length -- robots.txt, the page, any climb -- a second after anyone's last request to it. Injected rungs are the caller's to pace, as a crawl paces its own.
+- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default, the browser when the ``browser`` extra is installed (without it, a climb to it fails and is recorded, and the HTTP page comes back). Injected so tests stay off the network. The default rungs are the real web, so a fetch with them holds the site in ``sluicer.fetch.gate`` for its whole length -- robots.txt, the page, any climb -- a second after anyone's last request to it. Injected rungs are the caller's to pace, as a crawl paces its own.
 - `obey_robots`: ask the site's robots.txt first (the default), and again for the host a redirect ended on.
-- `stealth`: append the stealth rung, which does not announce itself. Never automatic.
+- `stealth`: append the stealth rung, which does not announce itself. Never automatic; it needs the ``stealth`` extra.
 - `robots_reader`: how robots.txt is read; built from the cheapest rung by default.
 - `allow_private`: when false, refuse addresses off the public internet: the one asked for before any request, and every one a redirect or the page itself names before it is requested. The MCP server sets it.
 - `resolve`: the name lookup ``allow_private`` decides with.
 - `max_bytes`: the most a page may weigh; heavier is ``ResponseTooLarge``, and never a reason to climb.
 - `proxy`: the proxy the default rungs and the stealth rung go through; ``SLUICER_PROXY`` when None, and none when that is unset. The environment's ``HTTPS_PROXY`` is never used. Through a proxy the private-network check still judges every address here, but the connection is the proxy's: see SECURITY.md.
+- `headers`: sent with every request for the origin asked -- scheme, host and port -- and left off any hop a redirect takes elsewhere: an ``Authorization``, a header an API wants. Never ``User-Agent``: Sluicer always says who it is, so a site can refuse it.
+- `cookies`: sent as one ``Cookie`` header the same way, and set in the browser's context for the host asked, where a browser's own cookie rules apply (a cookie belongs to a host, not a port).
+- `memory`: what each site needed before, and learns what this page needs: a site whose page came back only from the browser starts its next page there. The process's (``STICKY``) with the default rungs; none with injected ones unless handed one.
 
 **Returns**
 
@@ -281,8 +287,9 @@ The ``Fetched`` page, with every climb, the final URL, and how long each rung to
 - `AddressRefused`: the address, or one a redirect led to, is not http or https; or ``allow_private`` is false and it is private.
 - `ResponseTooLarge`: the page is heavier than ``max_bytes``.
 - `RedirectRefused`: an injected rung was given a rule for redirects, and a hop broke it.
+- `ValueError`: ``headers`` hold a ``User-Agent``, or a header the transport writes, or a header or cookie that would break the request; or they were given with injected ``rungs``, which send what their caller built them to, or with ``stealth``, which sends nothing that says who is asking.
 - `FetchFailed`: every rung failed, the URL is invalid, or its robots.txt could not be read.
-- `FetchExtraMissing`: the ``fetch`` extra is not installed.
+- `FetchExtraMissing`: ``stealth`` was asked for and the ``stealth`` extra is not installed.
 
 ### `sluicer.fetch.Fetched`
 
@@ -428,6 +435,8 @@ map_site(
     web: Web | None = None,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> SiteMap
 ```
 
@@ -464,7 +473,6 @@ A ``SiteMap``, with every sitemap tried and what became of it.
 - `FetchFailed`: ``url`` is not an http(s) address, its robots.txt could not be read, or its sitemaps gave nothing and the page failed too.
 - `AddressRefused`: ``allow_private`` is false and ``url`` is private.
 - RobotsRefused, ResponseTooLarge: the sitemaps gave nothing, and this is what happened to the page.
-- `FetchExtraMissing`: the ``fetch`` extra is not installed.
 
 ### `sluicer.crawl.crawl`
 
@@ -489,6 +497,8 @@ crawl(
     web: Web | None = None,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> Crawl
 ```
 
@@ -515,6 +525,7 @@ per site, and hand back each page as its turn comes.
 - `max_bytes`: the most one page may weigh.
 - `web`: how sites are reached; the real web by default.
 - clock, sleep: the time, injected so a test can pace a crawl.
+- headers, cookies: ``fetch``'s, sent with every request of the crawl -- pages, robots.txt, sitemaps -- to the origin it asks, and with no hop a redirect takes elsewhere. Never a ``User-Agent``.
 
 **Returns**
 
@@ -522,9 +533,8 @@ A ``Crawl`` to iterate for its ``Page``s.
 
 **Raises**
 
-- `ValueError`: ``start`` is not an http(s) address, or a pattern is not a regular expression.
+- `ValueError`: ``start`` is not an http(s) address, or a pattern is not a regular expression; or ``headers`` and ``cookies`` are refused as ``fetch`` refuses them, or given with a ``web`` of the caller's.
 - `StateMismatch`: ``state`` holds another crawl.
-- `FetchExtraMissing`: the ``fetch`` extra is not installed.
 
 ### `sluicer.crawl.extract_many`
 
@@ -544,6 +554,8 @@ extract_many(
     web: Web | None = None,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> Crawl
 ```
 
@@ -558,7 +570,9 @@ end of the list, so every site is asked one request at a time however the
 list's addresses redirect. An address given twice is read once; one that
 is not an http(s) address comes back as a ``bad_input`` page. With
 ``state``, an address the file already holds is skipped, and every new
-page is appended. The other arguments are ``crawl``'s.
+page is appended. The other arguments are ``crawl``'s; ``headers`` and
+``cookies`` go to every address's own origin, as a list of addresses
+handed to ``curl -H`` has them sent to each.
 
 ## Feeds
 
@@ -652,4 +666,3 @@ An ``Audit``. Nothing is fetched here: ``site`` is read by the caller.
 **Raises**
 
 - `ValueError`: ``site`` without ``url``: which page the agents may have is a question about an address.
-- `FetchExtraMissing`: ``site`` holds a robots.txt and protego, from the ``fetch`` extra, is not installed.

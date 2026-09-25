@@ -1,9 +1,10 @@
-"""The HTTP rung against a real curl and a local server.
+"""The HTTP rung against real sockets and a local server.
 
-Run by CI with the fetch extra installed; not part of the unit suite, which
-opens no sockets and fakes curl_cffi. A fake confirms only the shape you already
-believe in: this asks curl what it actually sends, where it actually stops
-reading, and whether a pinned name really goes where it was pinned.
+Run by CI; not part of the unit suite, which opens no sockets and talks to a
+fake one. A fake confirms only the shape you already believe in: this asks
+the rung what it actually sends, where it actually stops reading, whether a
+pinned name really goes where it was pinned, and how many connections twenty
+pages of one site cost the server.
 
     python tests/live/http_check.py
 """
@@ -23,6 +24,7 @@ import time
 LIMIT = 1024 * 1024
 BIG = 3 * LIMIT
 seen: dict[str, dict[str, str]] = {}
+connections: list[object] = []
 # Where a redirect off the web points: a bare socket that records what reaches
 # it, as a Redis or a memcached on this machine would.
 listener = socket.create_server(("127.0.0.1", 0))
@@ -34,6 +36,10 @@ class Server(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *args: object) -> None:
         pass
+
+    def setup(self) -> None:
+        connections.append(self.client_address)
+        super().setup()
 
     def _send(self, status: int, body: bytes = b"", **headers: str) -> None:
         self.send_response(status)
@@ -123,6 +129,7 @@ def main() -> int:
     from sluicer.fetch.http_rung import http_rung
     from sluicer.fetch.identity import USER_AGENT
     from sluicer.fetch.result import ResponseTooLarge
+    from sluicer.fetch.wire import ACCEPT_ENCODING
 
     server = _Quiet(("127.0.0.1", 0), Server)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -136,6 +143,18 @@ def main() -> int:
     sent = {name.lower(): value for name, value in seen["/page"].items()}
     if sent.get("user-agent") != USER_AGENT or "referer" in sent:
         failures.append(f"it did not say who it is, or borrowed a referer: {sent}")
+    if not sent.get("accept", "").startswith("text/html"):
+        failures.append(f"it did not say it takes a page: {sent}")
+    if sent.get("accept-encoding") != ACCEPT_ENCODING:
+        failures.append(f"it did not offer the encodings it decodes: {sent}")
+
+    before = len(connections)
+    for _ in range(20):
+        rung(base + "/page")
+    if len(connections) - before > 1:
+        failures.append(
+            f"twenty pages of one site took {len(connections) - before} connections"
+        )
 
     if rung(base + "/hop").url != base + "/page":
         failures.append("a redirect was not followed to where it led")
@@ -236,8 +255,9 @@ def main() -> int:
         print("FAIL:", failure)
     if not failures:
         print(
-            "http: charset, identity, redirects, the web only, the deadline, heavy "
-            "bodies, the pin and no proxy unasked all hold"
+            "http: charset, identity, one connection for twenty pages, redirects, "
+            "the web only, the deadline, heavy bodies, the pin and no proxy "
+            "unasked all hold"
         )
     return 1 if failures else 0
 
