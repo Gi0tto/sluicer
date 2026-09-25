@@ -1,36 +1,23 @@
 """Command line front door.
 
-Exit codes follow grep: 0 when something was found -- a record, or at least one
-summary answer, a ``<title>`` alone included, or with ``--visible`` a guess --
-1 when the page was read and gives nothing at all, 2 when it could not be
-read. A script can tell "this page gives nothing" from "the fetch failed"
-without parsing English. ``run`` and ``heal`` add 3: a page broke the
-extractor's contract, or healing lost a field, and that is never a success.
-``audit`` uses 3 in the same sense: the page was read and breaks a rule it is
-held to, here one its documentation states.
-
-``map``, ``crawl`` and ``batch`` read many pages and keep the same three: 0 when
-an address was found or a page gave something, 1 when pages were read and none
-gave anything, 2 when nothing could be read at all. A page that failed is a
-line of the output with its reason, never a reason to stop; a crawl stopped by
-Ctrl-C exits 130 with what it wrote intact, and ``--resume`` continues it.
+What the commands share lives beside this module: ``exits`` the exit codes
+they keep, ``options`` the options of the commands that fetch, ``source``
+reading a URL, a file or stdin, and ``output`` the lines a person reads.
 """
 
 from __future__ import annotations
 
 import codecs
 import contextlib
-import functools
 import io
 import json
 import logging
-import os
 import re
 import sys
 from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, ClassVar, NoReturn
+from typing import Any
 
 import click
 
@@ -44,6 +31,16 @@ from sluicer.audit import (
     answered_with,
     audit as audit_page,
 )
+from sluicer.cli.exits import (
+    CONTRACT_BROKEN,
+    COULD_NOT_READ,
+    INTERRUPTED,
+    NOTHING_FOUND,
+    _fail,
+)
+from sluicer.cli.options import _sent, _with_fetch_options, _with_proxy
+from sluicer.cli.output import _brief, _kept_line, _moment
+from sluicer.cli.source import _read_pages, _read_source
 from sluicer.config import ConfiguredGroup
 from sluicer.crawl import Crawl, crawl as crawl_site, extract_many
 from sluicer.crawl.pages import MAX_DEPTH, MAX_PAGES
@@ -68,8 +65,7 @@ from sluicer.extractor import (
     heal as heal_extractor,
     run_extractor,
 )
-from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused, fetch as fetch_url
-from sluicer.fetch.http_rung import PROXY_ENV
+from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused
 from sluicer.fetch.result import Fetched, ResponseTooLarge
 from sluicer.fetch.rungs import FetchExtraMissing
 from sluicer.http_api import (
@@ -83,11 +79,6 @@ from sluicer.http_api import (
 )
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
 from sluicer.selectors import SelectorError, parse as parse_page
-
-NOTHING_FOUND = 1
-COULD_NOT_READ = 2
-CONTRACT_BROKEN = 3
-INTERRUPTED = 130
 
 
 def _what_to_try(source: str, induce: bool, visible: bool) -> str:
@@ -209,312 +200,6 @@ def _quiet_scrapling() -> None:
     logging.getLogger("scrapling").addFilter(
         lambda record: record.levelno >= logging.CRITICAL
     )
-
-
-def _fail(message: str, cause: BaseException | None = None) -> NoReturn:
-    click.echo(message, err=True)
-    raise SystemExit(COULD_NOT_READ) from cause
-
-
-_fetch_options = [
-    click.option(
-        "--stealth",
-        is_flag=True,
-        help="Allow the stealth rung, which does not announce itself.",
-    ),
-    click.option(
-        "--no-robots",
-        is_flag=True,
-        help="Fetch even where the site's robots.txt says no.",
-    ),
-    click.option(
-        "--url",
-        "base_url",
-        metavar="URL",
-        help="The address a file or stdin came from, to resolve its links.",
-    ),
-    click.option(
-        "--respect",
-        type=click.Choice(["tdm"]),
-        multiple=True,
-        help="Refuse a page whose rights are reserved: tdm reads TDMRep's "
-        "tdmrep.json, headers and meta tags.",
-    ),
-    click.option(
-        "--cache",
-        "cache_dir",
-        metavar="DIR",
-        help="Keep fetched pages in DIR, and ask the site with their ETag or "
-        "Last-Modified whether a page changed before fetching it again.",
-    ),
-    click.option(
-        "--max-age",
-        type=click.FloatRange(min=0),
-        metavar="SECONDS",
-        help="With --cache, give a page kept for less than SECONDS back without "
-        "asking its site at all.",
-    ),
-    click.option(
-        "--at",
-        metavar="DATE",
-        help="Read a URL as the Wayback Machine captured it nearest to DATE "
-        "(2025, 2025-06, 2025-06-01), not from its site.",
-    ),
-]
-
-
-_proxy_option = click.option(
-    "--proxy",
-    metavar="URL",
-    help="Fetch through this proxy (http://host:port, socks5h://host:port); "
-    "the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.",
-)
-
-
-_header_option = click.option(
-    "--header",
-    "-H",
-    "headers",
-    multiple=True,
-    metavar="'NAME: VALUE'",
-    help="Send this header to the site asked, and to no other it redirects to; "
-    "again for more. Never User-Agent: Sluicer always says who it is.",
-)
-
-_cookie_option = click.option(
-    "--cookie",
-    "cookies",
-    multiple=True,
-    metavar="NAME=VALUE",
-    help="Send this cookie to the site asked, as --header does; again for more.",
-)
-
-
-class _Sending:
-    """The headers and cookies this command sends, as its options gave them.
-
-    Held here, as ``--proxy`` is held in ``SLUICER_PROXY``, so that every
-    fetch the command makes sends them without each reader of a page having
-    to be handed them. Set again by every command that takes the options.
-    """
-
-    headers: ClassVar[dict[str, str]] = {}
-    cookies: ClassVar[dict[str, str]] = {}
-
-
-def _sent() -> dict[str, Any]:
-    """``fetch``'s ``headers`` and ``cookies``, as this command's options say."""
-    return {"headers": dict(_Sending.headers), "cookies": dict(_Sending.cookies)}
-
-
-def _sending(headers: tuple[str, ...], cookies: tuple[str, ...]) -> None:
-    """Read ``--header`` and ``--cookie``, refusing, before anything is asked,
-    what could not be sent."""
-    from sluicer.fetch.identity import outgoing
-
-    named: dict[str, str] = {}
-    for given in headers:
-        name, colon, value = given.partition(":")
-        if not colon or not name.strip():
-            raise click.BadParameter(
-                f"{given!r} is not a header: write 'NAME: VALUE'", param_hint="--header"
-            )
-        named[name.strip()] = value.strip()
-    crumbs: dict[str, str] = {}
-    for given in cookies:
-        name, equals, value = given.partition("=")
-        if not equals or not name.strip():
-            raise click.BadParameter(
-                f"{given!r} is not a cookie: write NAME=VALUE", param_hint="--cookie"
-            )
-        crumbs[name.strip()] = value.strip()
-    try:
-        outgoing(named, crumbs)
-    except ValueError as refused:
-        raise click.BadParameter(str(refused)) from None
-    _Sending.headers, _Sending.cookies = named, crumbs
-
-
-def _with_proxy(command: click.decorators.FC) -> click.decorators.FC:
-    """``--proxy``, ``--header`` and ``--cookie``, taken before the command
-    runs: every fetch it makes, of a page, a robots.txt, a sitemap or a site's
-    files, reads ``SLUICER_PROXY``, and every page it asks for sends the
-    headers and cookies."""
-
-    @functools.wraps(command)
-    def through(
-        *args: Any,
-        proxy: str | None = None,
-        headers: tuple[str, ...] = (),
-        cookies: tuple[str, ...] = (),
-        **kwargs: Any,
-    ) -> Any:
-        if proxy is not None:
-            os.environ[PROXY_ENV] = proxy
-        _sending(headers, cookies)
-        return command(*args, **kwargs)
-
-    return _proxy_option(_header_option(_cookie_option(through)))  # type: ignore[return-value]
-
-
-def _with_fetch_options(command: click.decorators.FC) -> click.decorators.FC:
-    for option in reversed(_fetch_options):
-        command = option(command)
-    return _with_proxy(command)
-
-
-def _read_source(
-    source: str,
-    stealth: bool = False,
-    no_robots: bool = False,
-    base_url: str | None = None,
-    at: str | None = None,
-    respect: tuple[str, ...] = (),
-    cache_dir: str | None = None,
-    max_age: float | None = None,
-) -> tuple[str | bytes, str | None, Fetched | None]:
-    """``_read_page``, then refused when ``respect`` names a reservation the
-    page makes: its text and data mining rights, for ``tdm``."""
-    if max_age is not None and cache_dir is None:
-        _fail("--max-age says how long a kept page is good for; it needs --cache.")
-    if cache_dir is not None and at is not None:
-        _fail("--cache keeps live pages; a capture read with --at never changes.")
-    html, url, fetched = _read_page(
-        source, stealth, no_robots, base_url, at, cache_dir, max_age
-    )
-    if "tdm" in respect:
-        _refuse_reserved(html, url, fetched, obey_robots=not no_robots)
-    return html, url, fetched
-
-
-def _refuse_reserved(
-    html: str | bytes, url: str | None, fetched: Fetched | None, obey_robots: bool
-) -> None:
-    """Exit with ``COULD_NOT_READ`` when TDMRep reserves the page's TDM rights.
-
-    The site's tdmrep.json is read for a page fetched live; an archived
-    capture and a file are judged by their own headers and meta tags.
-    """
-    from sluicer.declared.headers import lowered, read_header_rights
-    from sluicer.declared.rights import read_rights
-    from sluicer.declared.tdmrep import read_tdmrep, reservation
-    from sluicer.document import load
-
-    headers = lowered(fetched.headers) if fetched is not None else {}
-    rights = read_rights(
-        load(html, url=url), read_header_rights(headers) if headers else None
-    )
-    rules = []
-    if fetched is not None and fetched.archived is None and url:
-        from sluicer.fetch.site import read_tdmrep_file
-
-        rules = read_tdmrep(read_tdmrep_file(url, obey_robots=obey_robots).text)
-    found = reservation(rules, url, rights)
-    if found is not None and found.reserved:
-        policy = f", policy {found.policy}" if found.policy else ""
-        _fail(
-            f"{url or 'The page'} reserves its text and data mining rights "
-            f"(TDMRep, by its {found.source}{policy}), and --respect tdm was given."
-        )
-
-
-def _read_page(
-    source: str,
-    stealth: bool = False,
-    no_robots: bool = False,
-    base_url: str | None = None,
-    at: str | None = None,
-    cache_dir: str | None = None,
-    max_age: float | None = None,
-) -> tuple[str | bytes, str | None, Fetched | None]:
-    """Return the HTML of ``source``, the URL to attribute it to, and the fetch record.
-
-    ``source`` is a URL, a path, or ``-`` for standard input. Every way of
-    failing to read it -- a missing extra, a refusal, a failed fetch, a missing,
-    empty or non-file path -- exits here with a message and ``COULD_NOT_READ``,
-    one place for both commands. The fetch record is None for a file or stdin.
-    """
-    is_url = source.lower().startswith(("http://", "https://"))
-    if at is not None and not is_url:
-        _fail(f"--at reads an address from the Wayback Machine; {source} is not one.")
-    if at is not None and stealth:
-        _fail("--at reads the archive over plain HTTP; --stealth has no rung there.")
-    if at is not None and (_Sending.headers or _Sending.cookies):
-        _fail(
-            "--at reads the archive, which is not the site: --header and --cookie "
-            "are for the site, and are never sent to web.archive.org."
-        )
-    if is_url:
-        # Only FetchExtraMissing, not ImportError: an import failure inside a
-        # working scrapling install is a bug and keeps its traceback.
-        try:
-            if at is not None:
-                from sluicer.fetch.archive import fetch_archived
-
-                fetched = fetch_archived(source, at, obey_robots=not no_robots)
-            elif cache_dir is not None:
-                from sluicer.fetch.cache import Cache, fetch_cached
-
-                fetched = fetch_cached(
-                    source,
-                    Cache(cache_dir, max_age),
-                    stealth=stealth,
-                    obey_robots=not no_robots,
-                    **_sent(),
-                )
-            else:
-                fetched = fetch_url(
-                    source, stealth=stealth, obey_robots=not no_robots, **_sent()
-                )
-        except FetchExtraMissing as missing:
-            _fail(str(missing), missing)
-        except RobotsRefused as refused:
-            # The site told us no: an answer, not a malfunction.
-            _fail(str(refused), refused)
-        except FetchFailed as failed:
-            # Every rung failed, whatever library it was built on: a browser's
-            # timeout, for one, is not an OSError.
-            _fail(str(failed), failed)
-        except ResponseTooLarge as heavy:
-            _fail(str(heavy), heavy)
-        except (OSError, ValueError) as failure:
-            # An operational failure is a message and a bug is a traceback.
-            # OSError covers down, unresolvable and timed out; ValueError is a
-            # rung that came back with no HTML. Anything else keeps its
-            # traceback, deliberately.
-            _fail(
-                f"Could not fetch {source}: {type(failure).__name__}: {failure}",
-                failure,
-            )
-        return fetched.html, fetched.url, fetched
-
-    if source == "-":
-        data = sys.stdin.buffer.read()
-        if not data.strip():
-            _fail("Standard input contains no HTML.")
-        return data, base_url, None
-
-    path = Path(source)
-
-    # By hand, not click.Path(exists=True): the same argument also takes a URL.
-    if not path.is_file():
-        _fail(
-            f"{source} is not a file." if path.exists() else f"{source} does not exist."
-        )
-
-    # Bytes, not text: decoding here would pick the process default before
-    # the page's own charset declaration is read, and destroy every byte that
-    # was not UTF-8. extract() and to_markdown() both decode bytes properly.
-    data = path.read_bytes()
-
-    # An empty file is a user mistake and gets a message about the file;
-    # load() would quietly read it as a page that declares nothing.
-    if not data.strip():
-        _fail("This file contains no HTML.")
-
-    # A path is not an address: handed to the readers as the page's URL it
-    # would resolve every relative link against the file name.
-    return data, base_url, None
 
 
 @click.command("fetch")
@@ -816,21 +501,6 @@ def inspect(
         raise SystemExit(NOTHING_FOUND)
 
 
-def _kept_line(hit: Any) -> str:
-    """How a page came from the cache, said for a person."""
-    if hit.revalidated:
-        return "kept, and the site said it has not changed (304)"
-    return f"kept {hit.age:.0f} s ago, within --max-age: the site was not asked"
-
-
-def _moment(stamp: str) -> str:
-    """An archive's ``YYYYMMDDhhmmss``, as far as it goes, written as ISO."""
-    parts = [stamp[:4], stamp[4:6], stamp[6:8]]
-    day = "-".join(part for part in parts if part)
-    time_ = ":".join(p for p in (stamp[8:10], stamp[10:12], stamp[12:14]) if p)
-    return f"{day} {time_}" if time_ else day
-
-
 def _inspection(
     shown: str,
     result: Extraction,
@@ -1014,13 +684,6 @@ def _columns(rows: list[tuple[str, str, str]], indent: str) -> list[str]:
     return [f"{indent}{row[0]:{name}}  {row[1]:{value}}  [{row[2]}]" for row in rows]
 
 
-def _brief(value: object, limit: int = 72) -> str:
-    """A value on one line: text as it is, a nested value as compact JSON."""
-    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
-    text = " ".join(text.split())
-    return text if len(text) <= limit else text[: limit - 3] + "..."
-
-
 @click.command("diff")
 @click.argument("before")
 @click.argument("after")
@@ -1112,12 +775,6 @@ def markdown(
         click.echo("This page has no main content.", err=True)
         raise SystemExit(NOTHING_FOUND)
     click.echo(content)
-
-
-def _read_pages(
-    sources: tuple[str, ...], stealth: bool, no_robots: bool
-) -> list[tuple[str | bytes, str | None]]:
-    return [_read_source(source, stealth, no_robots, None)[:2] for source in sources]
 
 
 def _load_extractor(path: str) -> Extractor:

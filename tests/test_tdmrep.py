@@ -202,7 +202,7 @@ def test_respect_tdm_reads_the_sites_file_for_a_fetched_page(monkeypatch):
             ),
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fetch_url)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fetch_url)
     monkeypatch.setattr("sluicer.fetch.site.read_tdmrep_file", the_file)
     refused = CliRunner().invoke(main, ["extract", f"{ROOT}/p", "--respect", "tdm"])
     assert refused.exit_code == 2

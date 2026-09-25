@@ -47,7 +47,7 @@ def fetched(monkeypatch):
         asked.append({**kwargs, "url": url, "proxy": os.environ.get(PROXY_ENV)})
         return Fetched(url=url, html="<title>t</title>", status=200, rung="http")
 
-    monkeypatch.setattr(cli, "fetch_url", recorder)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", recorder)
     return asked
 
 
