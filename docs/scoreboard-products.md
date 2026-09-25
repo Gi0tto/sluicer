@@ -9,7 +9,7 @@ predictions are added beside theirs and that evaluator runs unchanged, so
 every rule below is Zyte's: a price matches as a decimal, several values
 can be right, and a page with no availability counts as in stock.
 
-Regenerated on 2026-09-25 from commit `c51a9a3` by `uv run bench/products.py`, against the benchmark at `cba97d7a8d42`. Sluicer read the 140 pages in 1.1 s.
+Regenerated on 2026-09-25 from commit `f919bd0` by `uv run bench/products.py`, against the benchmark at `cba97d7a8d42`. Sluicer read the 140 pages in 1.0 s.
 
 !!! warning "Sluicer's rules were made on these pages"
     Rules were written, measured on these pages and kept because the
@@ -50,7 +50,33 @@ Regenerated on 2026-09-25 from commit `c51a9a3` by `uv run bench/products.py`, a
 | OutOfStock | Zyte Automatic Extraction (paid API, 2021) | 0.625 ± 0.154 | 0.714 | 0.556 | 9 |
 
 The ± is the evaluator's bootstrap standard deviation over 1,000
-resamples of the pages.
+resamples of the pages (seed 42), kept as Zyte's evaluator prints it.
+Beside it, Sluicer against each system, by the same evaluator's
+matching and F1, the pages resampled together:
+
+| attribute | Sluicer against | F1 difference (95% interval) | verdict |
+|---|---|---|---|
+| price | extruct + price-parser | +0.065 (+0.012 to +0.122) | better |
+| price | Diffbot (paid API, 2021) | -0.074 (-0.172 to +0.021) | inconclusive |
+| price | Zyte Automatic Extraction (paid API, 2021) | -0.168 (-0.229 to -0.111) | worse |
+| sku | extruct + price-parser | +0.004 (-0.019 to +0.030) | inconclusive |
+| sku | Diffbot (paid API, 2021) | -0.224 (-0.340 to -0.107) | worse |
+| sku | Zyte Automatic Extraction (paid API, 2021) | -0.300 (-0.403 to -0.196) | worse |
+| availability | extruct + price-parser | +0.281 (+0.208 to +0.360) | better |
+| availability | Diffbot (paid API, 2021) | -0.036 (-0.079 to +0.008) | inconclusive |
+| availability | Zyte Automatic Extraction (paid API, 2021) | -0.050 (-0.093 to -0.014) | worse |
+| InStock | extruct + price-parser | -0.004 (-0.018 to +0.009) | inconclusive |
+| InStock | Diffbot (paid API, 2021) | -0.020 (-0.044 to +0.004) | inconclusive |
+| InStock | Zyte Automatic Extraction (paid API, 2021) | -0.027 (-0.052 to -0.007) | worse |
+| OutOfStock | extruct + price-parser | -0.018 (-0.089 to +0.045) | inconclusive |
+| OutOfStock | Diffbot (paid API, 2021) | -0.113 (-0.429 to +0.223) | inconclusive |
+| OutOfStock | Zyte Automatic Extraction (paid API, 2021) | -0.309 (-0.578 to -0.062) | worse |
+
+The interval is the 95% percentile interval of 10,000 resamples of the
+pages (`bench/stats.py`, seed 20260924): **better** when it is above
+zero, **worse** when below, **inconclusive** when it holds zero. These
+are 15 comparisons, made with no correction for making many, so
+read them as a table, not one at a time.
 
 ## Reading the errors
 
