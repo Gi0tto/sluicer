@@ -55,6 +55,8 @@ from sluicer.fetch.identity import (
 )
 from sluicer.fetch.result import (
     MAX_RESPONSE_BYTES,
+    BodyCutShort,
+    BodyUnfinished,
     Climb,
     EmptyBody,
     Fetched,
@@ -103,7 +105,8 @@ class FetchFailed(Exception):
     ``transient`` says whether asking again later may bring something else.
     The ladder sets it false when every rung was answered with what it would
     be answered again -- a redirect loop, an encoding this install cannot
-    read, an empty page -- or the address is not one; true when a rung's
+    read, an empty page, a body that came whole with its compressed stream
+    stopped mid-way -- or the address is not one; true when a rung's
     failure was one of ``transient``'s -- a connection or a name lookup that
     failed, time that ran out, a body cut short -- or the robots.txt could not
     be read. True unless it is known not to be.
@@ -129,12 +132,13 @@ _PASSING_BROWSER_ERRORS = re.compile(
 def transient(error: BaseException) -> bool:
     """Whether ``error`` is one asking again later may not meet.
 
-    A connection refused, reset or closed, a body cut short (``ProtocolError``
-    is a ``ConnectionError``), time that ran out, a name the resolver could
-    not look up for now, a robots.txt that could not be read; the browser's
-    own timeouts and connection failures by the names Playwright and Chromium
-    give them. Anything else is taken for the site's answer, which asking
-    again would be given again: a crawl retries only these.
+    A connection refused, reset or closed, a body cut short (``BodyCutShort``
+    is a ``ConnectionError``; ``BodyUnfinished``, whose framing came whole,
+    is not), time that ran out, a name the resolver could not look up for
+    now, a robots.txt that could not be read; the browser's own timeouts and
+    connection failures by the names Playwright and Chromium give them.
+    Anything else is taken for the site's answer, which asking again would
+    be given again: a crawl retries only these.
     """
     if isinstance(error, RobotsUnreachable) or passing(error):
         return True
@@ -530,7 +534,10 @@ def _climb(
             passing = passing or transient(e)
             # A refusal or a page too heavy is the page's answer, not the
             # rung's: the next rung would be told the same, at a higher cost.
-            final = isinstance(e, (AddressRefused, RedirectRefused, ResponseTooLarge))
+            refused = isinstance(e, (AddressRefused, RedirectRefused, ResponseTooLarge))
+            # A body cut short too: a browser is sent the same cut, and shows
+            # what came of it as the page.
+            final = refused or isinstance(e, (BodyCutShort, BodyUnfinished))
             if index == start > 0 and not final and memory is not None:
                 # What the site needed failed this time: forgotten, and the
                 # ladder starts again from its cheapest rung.
@@ -552,7 +559,7 @@ def _climb(
                 index += 1
                 continue
             if best is None:
-                if final:
+                if refused:
                     raise
                 raise FetchFailed(url, climbs, failure, transient=passing) from e
             best.climbs = [*climbs, Climb(name, best.rung, failure, seconds=seconds)]

@@ -67,6 +67,17 @@ class _Mixed(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         said = {k.lower() for k in self.headers}
+        if self.path == "/cut":
+            # Announces the whole page and closes after half of it.
+            CUT.append(self.headers.get("User-Agent", ""))
+            whole = ("<html><body>" + "<p>the article</p>" * 300).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(whole)))
+            self.end_headers()
+            self.wfile.write(whole[: len(whole) // 2])
+            self.close_connection = True
+            return
         if self.path.startswith("/app"):
             status, body = (
                 200,
@@ -88,6 +99,7 @@ class _Mixed(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
+CUT: list[str] = []
 MIXED = _serve(_Mixed)
 PAGE = (
     "<html><body><p>" + "Words the page says. " * 20 + "</p>"
@@ -189,7 +201,7 @@ def main() -> int:
     # refused and plain HTTP reads whole: the page comes from plain HTTP, and
     # the memory is forgotten.
     from sluicer.fetch.http_rung import http_rung
-    from sluicer.fetch.ladder import RungMemory, fetch
+    from sluicer.fetch.ladder import FetchFailed, RungMemory, fetch
 
     memory = RungMemory()
     ladder = [("http", http_rung()), ("browser", browser_rung())]
@@ -204,6 +216,17 @@ def main() -> int:
         )
     if memory.recall(f"{mixed}/news/2") is not None:
         failures.append("a browser refused was still remembered for the site")
+
+    # A body cut short is not asked of the browser, which would show what
+    # came of it as the page.
+    try:
+        cut = fetch(f"{mixed}/cut", rungs=ladder, obey_robots=False)
+        failures.append(f"a body cut short came back from {cut.rung}")
+    except FetchFailed as failed:
+        if not failed.transient:
+            failures.append("a body cut short was not worth asking again")
+    if len(CUT) != 1:
+        failures.append(f"a body cut short was asked {len(CUT)} times: {CUT}")
 
     # A proxy asked for is the one used: a socket that notes what reaches it.
     proxy = socket.create_server(("127.0.0.1", 0))
@@ -253,7 +276,8 @@ def main() -> int:
     if not failures:
         print(
             "browser: headers and cookies to the site asked and no other, guarded "
-            "and not; a remembered browser refused is forgotten; the proxy asked "
+            "and not; a remembered browser refused is forgotten; a body cut "
+            "short is not climbed past; the proxy asked "
             f"for; one browser, in its sandbox, {each:.2f} s a page"
         )
     return 1 if failures else 0

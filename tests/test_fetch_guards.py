@@ -92,36 +92,113 @@ def _cut(body: bytes) -> bytes:
     return body[: len(body) // 2]
 
 
-@pytest.mark.parametrize(
-    ("encoding", "encode"),
-    [
-        ("gzip", lambda body: _cut(gzip.compress(body))),
-        ("deflate", lambda body: _cut(zlib.compress(body))),
-        ("deflate", lambda body: _cut(zlib.compress(body)[2:-4])),
-        # The stream is whole and the gzip trailer that checks it is missing.
-        ("gzip", lambda body: gzip.compress(body)[:-8]),
-    ],
-)
-def test_a_compressed_body_cut_short_is_not_a_page(monkeypatch, encoding, encode):
-    """The framing was whole -- the length said, every byte came -- and the
-    compressed stream inside it ended before its end: half a page, which
-    inflated to the words it held and was returned as the page."""
-    page = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
-    fake_http(monkeypatch, [(200, encode(page), {"Content-Encoding": encoding})])
-    from sluicer.fetch.http_rung import ProtocolError, http_responses
+_WORDS = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
 
-    with pytest.raises(ProtocolError, match="cut short"):
+
+def _flushed(body: bytes, wbits: int) -> bytes:
+    """``body`` compressed and sync-flushed, with no final block after it."""
+    squeeze = zlib.compressobj(wbits=wbits)
+    return squeeze.compress(body) + squeeze.flush(zlib.Z_SYNC_FLUSH)
+
+
+def _chunked(body: bytes) -> bytes:
+    pieces = [body[i : i + 700] for i in range(0, len(body), 700)]
+    return b"".join(b"%x\r\n%s\r\n" % (len(p), p) for p in pieces) + b"0\r\n\r\n"
+
+
+_CUT = [
+    ("gzip", lambda body: _cut(gzip.compress(body))),
+    ("deflate", lambda body: _cut(zlib.compress(body))),
+    ("deflate", lambda body: _cut(zlib.compress(body)[2:-4])),
+    ("gzip", lambda body: _cut(_flushed(body, 31))),
+]
+
+
+@pytest.mark.parametrize(("encoding", "encode"), _CUT)
+@pytest.mark.parametrize("framing", ["length", "chunked"])
+def test_a_whole_body_whose_stream_is_cut_is_not_a_page(
+    monkeypatch, encoding, encode, framing
+):
+    """The framing was whole -- the length said, every byte came -- and the
+    compressed stream inside it stops mid-way: half a page, which inflated
+    to the words it held and was returned as the page. The server sent what
+    it meant to, so asking again is told the same."""
+    body = encode(_WORDS)
+    headers = {"Content-Encoding": encoding}
+    if framing == "chunked":
+        body, headers["Transfer-Encoding"] = _chunked(body), "chunked"
+    fake_http(monkeypatch, [(200, body, headers)])
+    from sluicer.fetch.http_rung import BodyUnfinished, http_responses
+    from sluicer.fetch.ladder import transient
+
+    with pytest.raises(BodyUnfinished, match="ends before its end") as unfinished:
         http_responses()("https://example.com/p")
+    assert not transient(unfinished.value)
+
+
+_UNENDED = [
+    ("gzip", lambda body: gzip.compress(body)[:-8]),
+    ("gzip", lambda body: gzip.compress(body)[:-3]),
+    ("gzip", lambda body: _flushed(body, 31)),
+    ("deflate", lambda body: zlib.compress(body)[:-4]),
+    ("deflate", lambda body: _flushed(body, 15)),
+    ("deflate", lambda body: _flushed(body, -15)),
+]
+
+
+@pytest.mark.parametrize(("encoding", "encode"), _UNENDED)
+@pytest.mark.parametrize("framing", ["length", "chunked"])
+def test_a_whole_body_whose_stream_lacks_only_its_formal_end_is_the_page(
+    monkeypatch, encoding, encode, framing
+):
+    """Every word came and the framing says the body is whole; only the
+    stream's own end is missing -- gzip's trailer, zlib's checksum, the final
+    block after a flush. curl and Chromium return the page, and so does the
+    rung: the stream ends where a whole one could, checked by its checksum
+    where it has one."""
+    body = encode(_WORDS)
+    headers = {"Content-Encoding": encoding}
+    if framing == "chunked":
+        body, headers["Transfer-Encoding"] = _chunked(body), "chunked"
+    fake_http(monkeypatch, [(200, body, headers)], chunk=333)
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == _WORDS
+
+
+@pytest.mark.parametrize(("encoding", "encode"), [*_CUT, *_UNENDED])
+def test_a_stream_without_its_end_on_a_connection_that_closed_is_cut_short(
+    monkeypatch, encoding, encode
+):
+    """Delimited by the close, a body has no framing to say it is whole: a
+    stream without its end may be one the connection lost, and it is worth
+    asking again."""
+    head = f"HTTP/1.1 200 OK\r\nContent-Encoding: {encoding}\r\n"
+    raw = (head + "Connection: close\r\n\r\n").encode() + encode(_WORDS)
+    fake_http(monkeypatch, [raw])
+    from sluicer.fetch.http_rung import BodyCutShort, http_responses
+    from sluicer.fetch.ladder import transient
+
+    with pytest.raises(BodyCutShort, match="cut short") as cut:
+        http_responses()("https://example.com/p")
+    assert transient(cut.value)
+
+
+def test_a_whole_stream_on_a_connection_that_closed_is_the_page(monkeypatch):
+    head = b"HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nConnection: close\r\n\r\n"
+    fake_http(monkeypatch, [head + gzip.compress(_WORDS)])
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == _WORDS
 
 
 @pytest.mark.skipif(wire.ZSTD is None, reason="this Python has no zstd")
 def test_a_zstd_body_cut_short_is_not_a_page(monkeypatch):
-    page = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
-    cut = _cut(wire.ZSTD.compress(page))
+    cut = _cut(wire.ZSTD.compress(_WORDS))
     fake_http(monkeypatch, [(200, cut, {"Content-Encoding": "zstd"})])
-    from sluicer.fetch.http_rung import ProtocolError, http_responses
+    from sluicer.fetch.http_rung import BodyUnfinished, http_responses
 
-    with pytest.raises(ProtocolError, match="cut short"):
+    with pytest.raises(BodyUnfinished, match="ends before its end"):
         http_responses()("https://example.com/p")
 
 
@@ -1332,6 +1409,38 @@ def test_a_page_too_heavy_is_never_a_reason_to_climb():
         )
 
     assert browser.calls == []
+
+
+_HALF = b"HTTP/1.1 200 OK\r\nContent-Length: 2000\r\n\r\n<html>half"
+_HALF_CHUNKED = (
+    b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n7d0\r\n<html>half"
+)
+_HALF_GZIP = render((200, _cut(gzip.compress(_WORDS)), {"Content-Encoding": "gzip"}))
+
+
+@pytest.mark.parametrize(
+    ("reply", "again"),
+    [(_HALF, True), (_HALF_CHUNKED, True), (_HALF_GZIP, False)],
+    ids=["length", "chunked", "gzip"],
+)
+def test_a_body_cut_short_is_never_a_reason_to_climb(monkeypatch, reply, again):
+    """With the browser installed, a page the HTTP rung refused as cut short
+    was asked of the browser, which was sent the same cut and returned half
+    the page with 200: the refusal undone one rung up."""
+    fake_http(monkeypatch, [reply])
+    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.ladder import FetchFailed
+
+    browser = _rung("browser")
+    with pytest.raises(FetchFailed, match=r"cut short|ends before its end") as failed:
+        fetch(
+            "https://example.com/p",
+            rungs=[("http", http_rung()), ("browser", browser)],
+            robots_reader=lambda url: None,
+        )
+
+    assert browser.calls == []
+    assert failed.value.transient is again
 
 
 def test_the_ladder_holds_an_injected_rung_to_the_bound():

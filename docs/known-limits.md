@@ -418,6 +418,21 @@ check before the connection is used again, or, when those bytes arrive later
 still, read by the next request as the start of its answer, which fails as
 unreadable and is worth asking again.
 
+**A compressed stream without its end is the page only when its framing
+says it is whole.** A body sent with a `Content-Length`, all of it, or in
+chunks to the last one, whose gzip or deflate stream lacks only its formal
+end -- gzip's trailer, zlib's checksum, the final block after a flush -- is
+read as curl and Chromium read it: the page. Only its end is missing: the
+decoder, handed the end a whole stream would have had, ends there, and
+gzip's and zlib's checksums of what it gave agree. Raw deflate has no
+checksum, and a stream cut exactly at the edge of one of its blocks passes
+for one that was flushed there. A stream that stops mid-way, framing whole,
+is refused (`BodyUnfinished`) and not asked again at once. The same stream
+delimited only by the connection's close is refused as cut short
+(`BodyCutShort`) and worth asking again: nothing says the connection did not
+lose its end, where 0.7.1 returned what came. zstd is never read without its
+end.
+
 **Brotli is never asked for.** A body is decoded as it arrives and held to the
 16 MiB bound as it grows, and the standard library has no brotli decoder to
 hold to it: requests offer gzip and deflate, and zstd on Python 3.14 or with

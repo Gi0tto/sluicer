@@ -639,10 +639,20 @@ Dates are the day the work landed. Anything not listed here did not happen.
   all had what came returned with its status, 200, and kept by `--cache` as
   the page: the standard library's `read1()` answers an empty read at the end
   of the connection, which was taken for the end of the body. It is a
-  `ProtocolError`, and that connection is not kept.
-- A body whose gzip, deflate or zstd stream ends before its end -- the
-  framing whole, the compressed stream cut -- is a `ProtocolError`, not the
-  page it began. 0.7.1 returned the words it held as the page too.
+  `BodyCutShort`, a `ProtocolError` worth asking again, as is a chunked body
+  without its last chunk; that connection is not kept, and the ladder does
+  not climb past it: the browser, sent the same cut, returned half the page
+  with 200. `tests/live/browser_check.py` counts the requests.
+- A body whose framing came whole and whose gzip, deflate or zstd stream
+  stops mid-way is `BodyUnfinished`, not the page it began, and not worth
+  asking again at once: the server sent what it meant to. 0.7.1 returned the
+  words it held as the page too. A whole body whose stream lacks only its
+  formal end -- gzip's trailer or part of it, zlib's checksum, the final
+  block after a flush -- is the page, as 0.7.1 and curl read it and Chromium
+  does: it is taken when it ends where a whole stream could, checked by
+  gzip's and zlib's checksums against what it gave. Delimited only by the
+  close, the same stream is `BodyCutShort`, since nothing says the
+  connection did not lose its end; 0.7.1 returned it.
 - A raw deflate body whose first read brought one byte is decoded: whether
   deflate is zlib's or raw was decided on that byte, which is no zlib header
   yet, and the next read failed zlib's check.

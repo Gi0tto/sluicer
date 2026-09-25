@@ -116,6 +116,20 @@ class Server(http.server.BaseHTTPRequestHandler):
             else:
                 with contextlib.suppress(OSError):
                     self.wfile.write(b"hello")
+        elif self.path in ("/no-trailer", "/no-trailer-closed"):
+            # Every word, and the gzip trailer that checks them missing.
+            whole = gzip.compress(b"<html><body>" + b"<p>words</p>" * 400)[:-8]
+            if self.path == "/no-trailer":
+                self._send(
+                    200, whole, Content_Type="text/html", Content_Encoding="gzip"
+                )
+            else:
+                self.send_response(200)
+                self.send_header("Content-Encoding", "gzip")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(whole)
+                self.close_connection = True
         elif self.path == "/announced":
             self._send(200, b"a" * BIG, Content_Type="text/html")
         elif self.path == "/bomb":
@@ -159,9 +173,9 @@ def _record() -> None:
 def main() -> int:
     from sluicer.fetch import address
     from sluicer.fetch.address import AddressRefused
-    from sluicer.fetch.http_rung import ProtocolError, http_responses, http_rung
+    from sluicer.fetch.http_rung import http_responses, http_rung
     from sluicer.fetch.identity import USER_AGENT
-    from sluicer.fetch.result import ResponseTooLarge
+    from sluicer.fetch.result import BodyCutShort, BodyUnfinished, ResponseTooLarge
     from sluicer.fetch.wire import ACCEPT_ENCODING
 
     server = _Quiet(("127.0.0.1", 0), Server)
@@ -226,14 +240,23 @@ def main() -> int:
     if reached:
         failures.append(f"a redirect off the web reached a socket with {reached}")
 
-    for path in ("/cut", "/cut-gzip"):
+    for path, refusal in (
+        ("/cut", BodyCutShort),
+        ("/cut-gzip", BodyUnfinished),
+        ("/no-trailer-closed", BodyCutShort),
+    ):
         try:
             cut = rung(base + path)
             failures.append(f"{path}: a body cut short came back: {cut.html[:40]!r}")
-        except ProtocolError:
+        except refusal:
             pass
         except Exception as other:  # noqa: BLE001 -- any other answer is a failure
             failures.append(f"{path}: a body cut short raised {other!r}")
+    try:
+        if rung(base + "/no-trailer").html.count("<p>words</p>") != 400:
+            failures.append("a whole gzip body without its trailer came back short")
+    except Exception as other:  # noqa: BLE001 -- any failure is one
+        failures.append(f"a whole gzip body without its trailer raised {other!r}")
 
     for path in ("/announced", "/chunked", "/bomb"):
         try:

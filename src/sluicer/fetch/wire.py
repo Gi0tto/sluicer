@@ -566,10 +566,14 @@ class Decoder:
             data = stage.feed(data, room)
         return data
 
-    def finish(self, room: int) -> bytes:
+    def finish(self, room: int, framed: bool = False) -> bytes:
+        """What is left once the body has ended; ``Truncated`` when a stream
+        stops before its end. ``framed``: the body's framing -- a length or
+        chunks, not the close -- said it was all there, so a stream that
+        lacks only its formal end is taken as whole."""
         data = b""
         for stage in self.stages:
-            data = stage.feed(data, room) + stage.finish(room)
+            data = stage.feed(data, room) + stage.finish(room, framed)
         return data
 
 
@@ -578,8 +582,9 @@ class Overflow(Exception):
 
 
 class Truncated(ValueError):
-    """A body's compressed stream ended before its end: the framing said the
-    body was whole, and what it held was the start of one."""
+    """A body's compressed stream ended before its end: what it held was the
+    start of one. Whether the connection cut it or the server sent it so is
+    its caller's to say, by the body's framing."""
 
     def __init__(self, encoding: str) -> None:
         super().__init__(f"its {encoding} stream ended before its end")
@@ -594,6 +599,11 @@ def _stage(url: str, name: str) -> _Inflate | _Zstd:
     if name == "zstd" and ZSTD is not None:
         return _Zstd(ZSTD)
     raise UnreadableEncoding(url, name)
+
+
+# An empty final deflate block with the fixed codes, as zlib writes one:
+# BFINAL set, BTYPE 01, then the end-of-block code.
+_FINAL_BLOCK = b"\x03\x00"
 
 
 class _Inflate:
@@ -613,6 +623,10 @@ class _Inflate:
         # The first byte of deflate, held until a second says which it is.
         self.held = b""
         self.inflate = zlib.decompressobj(wbits)
+        # The current member's output so far, as its trailer counts it: its
+        # checksum and its length.
+        self.check = 0 if wbits > 16 else 1
+        self.size = 0
 
     def feed(self, data: bytes, room: int) -> bytes:
         if self.raw_fallback and not self.started:
@@ -627,29 +641,73 @@ class _Inflate:
             if members and self.inflate.eof:
                 # Another gzip member follows: read it too, as gzip does.
                 self.inflate = zlib.decompressobj(self.wbits)
+                self.check, self.size = 0, 0
             try:
                 piece = self.inflate.decompress(data, room - len(out) + 1)
             except zlib.error:
                 if self.started or not self.raw_fallback:
                     raise
                 self.inflate = zlib.decompressobj(-zlib.MAX_WBITS)
+                self.wbits = -zlib.MAX_WBITS
                 piece = self.inflate.decompress(data, room - len(out) + 1)
             self.started = True
+            if members:
+                self.check = zlib.crc32(piece, self.check)
+            else:
+                self.check = zlib.adler32(piece, self.check)
+            self.size += len(piece)
             out += piece
             if len(out) > room:
                 raise Overflow
             data = self.inflate.unused_data if members and self.inflate.eof else b""
         return out
 
-    def finish(self, room: int) -> bytes:
+    def finish(self, room: int, framed: bool = False) -> bytes:
         out = self.inflate.flush()
         if len(out) > room:
             raise Overflow
-        if self.held or (self.started and not self.inflate.eof):
-            # No bytes at all is an empty body; some bytes and no end is the
-            # start of one.
+        # No bytes at all is an empty body; some bytes and no end is the start
+        # of one, unless the framing says they were all and the stream stops
+        # where a whole one could.
+        unended = self.held or (self.started and not self.inflate.eof)
+        if unended and not (framed and not out and self._ends_cleanly()):
             raise Truncated("gzip" if self.wbits > 16 else "deflate")
         return out
+
+    def _ends_cleanly(self) -> bool:
+        """Whether the stream lacks only its formal end: gzip's trailer, or
+        part of it, zlib's checksum, or the final block after a flush.
+
+        Asked of copies of the decompressor, by handing each the end it
+        would have had -- an empty final block, then the trailer computed
+        from what it gave -- and seeing it end there, giving nothing more.
+        A stream stopped mid-block is not at a block's edge, so the empty
+        block reads as more of it, and gzip's and zlib's checksums refuse
+        what a copy made of it. Raw deflate has no checksum to refuse with,
+        and is at its word.
+        """
+        if self.held:
+            return False
+        if self.wbits > 16:
+            trailer = self.check.to_bytes(4, "little") + (
+                self.size & 0xFFFFFFFF
+            ).to_bytes(4, "little")
+        elif self.wbits > 0:
+            trailer = self.check.to_bytes(4, "big")
+        else:
+            trailer = b""
+        # The trailer, or what of it has not come, when the deflate stream
+        # itself ended; the final block and the whole trailer when it did not.
+        ends = [trailer[kept:] for kept in range(len(trailer))]
+        ends.append(_FINAL_BLOCK + trailer)
+        for end in ends:
+            probe = self.inflate.copy()
+            try:
+                if probe.decompress(end) == b"" and probe.eof:
+                    return True
+            except zlib.error:
+                continue
+        return False
 
 
 class _Zstd:  # pragma: no cover - zstd is Python 3.14's, or backports.zstd
@@ -672,7 +730,8 @@ class _Zstd:  # pragma: no cover - zstd is Python 3.14's, or backports.zstd
             data = self.inflate.unused_data if self.inflate.eof else b""
         return out
 
-    def finish(self, room: int) -> bytes:
+    def finish(self, room: int, framed: bool = False) -> bytes:
+        # A zstd frame has no end to stand in for: its blocks say which is last.
         if self.started and not self.inflate.eof:
             raise Truncated("zstd")
         return b""

@@ -28,6 +28,39 @@ class ResponseTooLarge(Exception):
         self.limit = limit
 
 
+class ProtocolError(ConnectionError):
+    """The server's answer was not HTTP that could be read to its end: a body
+    cut short, a header line without end, more headers than any page has."""
+
+
+class BodyCutShort(ProtocolError):
+    """The connection ended before the body did: fewer bytes than the length
+    announced, a chunked body without its last chunk, or a compressed stream
+    without its end in a body only the close delimited.
+
+    Worth asking again, and never a reason to climb: a browser is sent the
+    same cut, and shows what came of it as the page.
+    """
+
+
+class BodyUnfinished(ValueError):
+    """The body came whole, as its framing counts it, and the compressed
+    stream in it stops before its end: the server sent the start of a page
+    and said it was all.
+
+    Asked again, it says the same, so it is not worth asking again at once;
+    and never a reason to climb, since a browser is sent the same bytes.
+    """
+
+    def __init__(self, url: str, encoding: str) -> None:
+        super().__init__(
+            f"{url} sent a body whose {encoding} stream ends before its end, "
+            "though every byte its framing announced came"
+        )
+        self.url = url
+        self.encoding = encoding
+
+
 class EmptyBody(ValueError):
     """A rung was answered with nothing at all.
 
