@@ -52,6 +52,40 @@ def _serve(handler: type[http.server.BaseHTTPRequestHandler]) -> int:
 
 
 OTHER = _serve(_handler("other", ""))
+
+
+class _Mixed(http.server.BaseHTTPRequestHandler):
+    """A site whose /app page a script draws and whose /news pages are plain
+    HTML, and which refuses a browser -- one that says it is Chromium --
+    with 403."""
+
+    def log_message(self, *args: object) -> None:
+        pass
+
+    def do_GET(self) -> None:
+        said = {k.lower() for k in self.headers}
+        if self.path.startswith("/app"):
+            status, body = (
+                200,
+                (
+                    "<html><body><div id=root></div><script>document.getElementById"
+                    "('root').innerHTML='<p>'+'drawn words '.repeat(40)+'</p>'"
+                    "</script></body></html>"
+                ),
+            )
+        elif "sec-ch-ua" in said:
+            status, body = 403, "<html><body>no browsers</body></html>"
+        else:
+            status, body = 200, "<html><body>" + "<p>the article</p>" * 30
+        data = body.encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+MIXED = _serve(_Mixed)
 PAGE = (
     "<html><body><p>" + "Words the page says. " * 20 + "</p>"
     "<script>fetch('/api').catch(() => 0);"
@@ -128,6 +162,26 @@ def main() -> int:
         if "x-team" in request or "cookie" in request:
             failures.append(f"a login fixed for another origin was sent {request}")
 
+    # A site remembered for the browser, whose next page the browser is
+    # refused and plain HTTP reads whole: the page comes from plain HTTP, and
+    # the memory is forgotten.
+    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.ladder import RungMemory, fetch
+
+    memory = RungMemory()
+    ladder = [("http", http_rung()), ("browser", browser_rung())]
+    mixed = f"http://127.0.0.1:{MIXED}"
+    app = fetch(f"{mixed}/app", rungs=ladder, memory=memory, obey_robots=False)
+    news = fetch(f"{mixed}/news/1", rungs=ladder, memory=memory, obey_robots=False)
+    if app.rung != "browser":
+        failures.append(f"the drawn page was not the browser's: {app.rung}")
+    if (news.rung, news.status) != ("http", 200):
+        failures.append(
+            f"the remembered browser's 403 was the page: {news.rung} {news.status}"
+        )
+    if memory.recall(f"{mixed}/news/2") is not None:
+        failures.append("a browser refused was still remembered for the site")
+
     # A proxy asked for is the one used: a socket that notes what reaches it.
     proxy = socket.create_server(("127.0.0.1", 0))
     told: list[bytes] = []
@@ -160,7 +214,8 @@ def main() -> int:
     if not failures:
         print(
             "browser: headers and cookies to the site asked and no other, guarded "
-            f"and not; the proxy asked for; one browser, {each:.2f} s a page"
+            "and not; a remembered browser refused is forgotten; the proxy asked "
+            f"for; one browser, {each:.2f} s a page"
         )
     return 1 if failures else 0
 

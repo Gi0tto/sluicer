@@ -514,6 +514,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   port differs: a redirect from `https://example.com/` to
   `https://example.com:8443/` was taken for the same origin, and that
   server's robots.txt was never asked.
+- A rung remembered for a site whose page is one to climb past -- a
+  refusal, a challenge, an empty shell -- is forgotten, and the ladder starts
+  again from plain HTTP, the remembered rung's page kept rather than asked
+  for twice. The memory was dropped only when the remembered rung raised:
+  measured with a real browser, once a site's script-drawn page had taught
+  it the browser, its articles, which plain HTTP read whole and the browser
+  was refused, came back as the browser's 403, every one of them, and a
+  crawl's parts did the same.
 
 ## 0.7.1 - 2026-09-25
 

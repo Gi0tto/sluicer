@@ -12,8 +12,10 @@ What a site needed is remembered for the process (``RungMemory``): once a
 page of a site came back only from a costlier rung, because the cheaper one's
 page was a refusal, a challenge or a shell, the site's next pages start at
 that rung, and say so in their first climb. A rung that failed teaches
-nothing; a remembered rung that fails is forgotten, and the ladder starts
-again from the bottom. The stealth rung is never remembered.
+nothing; a remembered rung that fails, or whose page is itself one to climb
+past -- a refusal, a challenge, a shell -- is forgotten, and the ladder starts
+again from the bottom, its page kept so that it is not asked for twice. The
+stealth rung is never remembered.
 
 The site's robots.txt is asked before any rung runs. A refusal raises
 ``RobotsRefused`` rather than returning an empty ``Fetched``: "the site said
@@ -467,13 +469,20 @@ def _climb(
     best_refused: str | None = None
     # Why the cheapest rung's page was not enough, for ``memory`` to learn.
     needed: str | None = None
+    # The remembered rung's page, once the ladder started again below it:
+    # its place on the ladder and the page, which is not asked for twice.
+    asked: tuple[int, Fetched] | None = None
     last = len(rungs) - 1
     index = start
     while index <= last:
         name, rung = rungs[index]
         started = time.monotonic()
         try:
-            result = rung(url)
+            if asked is not None and asked[0] == index:
+                result = asked[1]
+            else:
+                result = rung(url)
+                result.seconds = time.monotonic() - started
             if len(result.html) > max_bytes:
                 raise ResponseTooLarge(result.url, max_bytes)
         except Exception as e:
@@ -511,7 +520,6 @@ def _climb(
                 raise SiteRefused(url, best.climbs, best_refused) from e
             return _checked(best, url, allow_private, resolve, obey_robots, read)
 
-        result.seconds = time.monotonic() - started
         result.climbs = list(climbs)
         if result.status == _PAYMENT_REQUIRED:
             raise PaymentRequired(url, result.climbs)
@@ -534,6 +542,22 @@ def _climb(
                     memory.learn(url, name, known.reason)
             return checked
         challenge = challenge_marker(result.html, found_records=found) is not None
+        if index == start > 0 and memory is not None:
+            # What the site needed brought back a page to climb past: the
+            # site may read whole over plain HTTP now, and refuse a browser.
+            # Forgotten, and the ladder starts again from its cheapest rung.
+            memory.forget(url)
+            climbs.append(
+                Climb(
+                    name,
+                    names[0],
+                    f"{reason}; starting again from {names[0]}",
+                    seconds=result.seconds,
+                )
+            )
+            asked = (index, result)
+            start = index = 0
+            continue
         if index == last:
             checked = _checked(result, url, allow_private, resolve, obey_robots, read)
             if challenge:

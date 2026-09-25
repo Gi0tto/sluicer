@@ -407,7 +407,9 @@ from the browser, the process starts that site's next pages at the browser for
 whose pages differ -- a listing that needs a script, articles that do not --
 has its articles fetched by a browser too, which costs time and nothing else;
 a site that moved back to rendering on the server is asked of plain HTTP again
-the next day, or after the remembered rung fails once.
+the next day, or as soon as the remembered rung fails, or brings back a page
+to climb past -- a refusal, a challenge, a shell: its page is kept, the
+ladder starts again from plain HTTP, and the browser is not asked twice.
 
 **One browser, one page at a time.** The process keeps one Chromium and loads
 pages in it one after another, each in a context of its own, so pages that
