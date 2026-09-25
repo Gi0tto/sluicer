@@ -55,10 +55,10 @@ from sluicer.extractor import (
     shape,
 )
 from sluicer.selectors import (
-    _ADDRESSES,
     Page,
     Selected,
     SelectorError,
+    _an_address,
     _element_of,
     selector,
 )
@@ -158,18 +158,14 @@ def _rows_selector(text: str) -> None:
         )
 
 
-def _an_address(text: str) -> bool:
-    """Whether a selector reads an ``href`` or ``src``: an address, which has
-    no shape or reading worth holding it to, as a learnt one has none."""
-    chosen = selector(text)
-    if chosen.kind == "css":
-        return chosen.attribute in _ADDRESSES
-    return re.search(r"@(?:href|src)\W*$", chosen.text) is not None
-
-
 def _values(found: Sequence[Selected]) -> list[str]:
     """What a field reads of what its selector gave: the values not empty."""
     return [one.value for one in found if one.value]
+
+
+def _given(found: Sequence[Selected]) -> list[Selected]:
+    """``_values``, each with where it was read from."""
+    return [one for one in found if one.value]
 
 
 def _learn(
@@ -191,9 +187,12 @@ def _learn(
     fields = []
     for name, text in select.items():
         values: list[str] = []
+        # An address -- an href or a src, read from the attribute -- has no
+        # shape or reading worth holding it to, as a learnt one has none.
+        address = True
         first = False
         for page, called_as in zip(pages, called, strict=True):
-            found = _values(page.select(text))
+            found = _given(page.select(text))
             if not found:
                 raise NothingToLearn(f"{name}={text!r} gives nothing on {called_as}")
             if len(found) > 1 and not first:
@@ -202,8 +201,8 @@ def _learn(
                     f"{name}={text!r} gives {len(found)} values on {called_as}; the "
                     "first is read, and a run does not hold it to one"
                 )
-            values.append(found[0])
-        address = _an_address(text)
+            values.append(found[0].value)
+            address = address and _an_address(found[0])
         shapes = {shape(value) for value in values}
         # A reading from two pages at least, as a label is learnt: one page
         # cannot tell a price from a title that happens to be a number.
@@ -238,6 +237,7 @@ def _learn_rows(
     notes: list[str] = []
     held: list[dict[str, str]] = []
     doubled: Counter[str] = Counter()
+    addresses: Counter[str] = Counter()
     empty = 0.0
     for page, called_as in zip(pages, called, strict=True):
         members = page.select(rows)
@@ -249,8 +249,9 @@ def _learn_rows(
             )
         if not elements:
             raise NothingToLearn(f"the rows {rows!r} are nowhere on {called_as}")
-        read, twice, _broken = _read_rows(elements, select, raising=True)
+        read, twice, links, _broken = _read_rows(elements, select, raising=True)
         doubled.update(twice)
+        addresses.update(links)
         kept = [row for row in read if row]
         empty = max(empty, round(1 - len(kept) / len(elements), 4))
         held.extend(kept)
@@ -267,7 +268,7 @@ def _learn_rows(
                 f"{name}={text!r} gives more than one value in {doubled[name]} "
                 "rows; the first is read, and a run does not hold it to one"
             )
-        address = _an_address(text)
+        address = addresses[name] == len(present)
         shapes = {shape(value) for value in present}
         shaped = len(shapes) == 1 and len(present) >= _SHAPE_EVIDENCE
         fields.append(
@@ -286,14 +287,16 @@ def _learn_rows(
 
 def _read_rows(
     elements: list[Selected], select: Mapping[str, str], raising: bool = False
-) -> tuple[list[dict[str, str]], Counter[str], dict[str, str]]:
+) -> tuple[list[dict[str, str]], Counter[str], Counter[str], dict[str, str]]:
     """Each row's fields: the first value each selector gives inside it.
 
-    Also how many rows gave a field more than one value, and, unless
-    ``raising``, the fields whose selector could not be read on this page --
-    one that selected a comment -- with why."""
+    Also how many rows gave a field more than one value, how many gave it an
+    address (``_an_address``), and, unless ``raising``, the fields whose
+    selector could not be read on this page -- one that selected a comment --
+    with why."""
     rows: list[dict[str, str]] = []
     doubled: Counter[str] = Counter()
+    addresses: Counter[str] = Counter()
     broken: dict[str, str] = {}
     for element in elements:
         row: dict[str, str] = {}
@@ -301,7 +304,7 @@ def _read_rows(
             if name in broken:
                 continue
             try:
-                found = _values(element.select(text))
+                found = _given(element.select(text))
             except SelectorError as why:
                 if raising:
                     raise
@@ -310,9 +313,10 @@ def _read_rows(
             if len(found) > 1:
                 doubled[name] += 1
             if found:
-                row[name] = found[0]
+                row[name] = found[0].value
+                addresses[name] += _an_address(found[0])
         rows.append(row)
-    return rows, doubled, broken
+    return rows, doubled, addresses, broken
 
 
 # -- replaying ----------------------------------------------------------------
@@ -363,7 +367,7 @@ def _replayed(
         said.append((None, Check("listing", where, got, False)))
         return [], {}, said
     said.append((None, Check("listing", where, f"{len(elements)} found", True)))
-    read, doubled, broken = _read_rows(
+    read, doubled, _addresses, broken = _read_rows(
         elements, {f.name: f.selector for f in written.fields}
     )
     rows = [row for row in read if row]

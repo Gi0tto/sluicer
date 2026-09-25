@@ -392,6 +392,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   process. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
+- A hand-written field is taken for an address, with no shape or reading to
+  hold it to, only when its values are read from an `href` or a `src`. 0.8.0
+  decided from the selector's text, and `.//a[@href]` -- the links that have
+  an href, read as their text -- ended like an address: a title that turned
+  into a number passed with exit 0. `(.//a/@href)[1]` is now an address, as
+  it always read one.
 - CSS's `::text` and `::attr()` are read as parsel, Scrapy's selectors,
   reads them, as the selector language says. After a space, `div.price
   ::text` is every text node inside the element -- `Price:`, `12` and `EUR`

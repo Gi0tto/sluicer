@@ -242,15 +242,21 @@ class Selected:
     fields. A text or an attribute has nothing inside it.
     """
 
-    __slots__ = ("_node", "_page", "value", "where")
+    __slots__ = ("_attribute", "_node", "_page", "value", "where")
 
     def __init__(
-        self, value: str, where: str, node: HtmlElement | None, page: Page
+        self,
+        value: str,
+        where: str,
+        node: HtmlElement | None,
+        page: Page,
+        attribute: str | None = None,
     ) -> None:
         self.value = value
         self.where = where
         self._node = node
         self._page = page
+        self._attribute = attribute
 
     def __repr__(self) -> str:
         return f"Selected(value={self.value!r}, where={self.where!r})"
@@ -400,7 +406,7 @@ class Page:
                 assert chosen.attribute is not None
                 value = self._attribute(chosen.attribute, node.get(chosen.attribute))
                 if value:
-                    yield self._selected(value, node, None)
+                    yield self._selected(value, node, None, chosen.attribute)
             else:
                 said = " ".join(node.text_content().split())
                 yield self._selected(said, node, node)
@@ -412,7 +418,7 @@ class Page:
             if node.is_attribute:
                 value = self._attribute(str(node.attrname), str(node))
                 if value:
-                    yield self._selected(value, owner, None)
+                    yield self._selected(value, owner, None, str(node.attrname))
                 return
             # A text after an element, its tail, is the parent's text.
             if node.is_tail:
@@ -441,9 +447,14 @@ class Page:
         return " ".join(value.split())
 
     def _selected(
-        self, value: str, element: HtmlElement, node: HtmlElement | None
+        self,
+        value: str,
+        element: HtmlElement,
+        node: HtmlElement | None,
+        attribute: str | None = None,
     ) -> Selected:
-        return Selected(value, xpath_of(element, self._positions), node, self)
+        where = xpath_of(element, self._positions)
+        return Selected(value, where, node, self, attribute)
 
 
 def _what(result: Any) -> str:
@@ -471,6 +482,13 @@ def parse(
     Never raises: any input, however broken, is a page, if an empty one.
     """
     return Page(load(html, url=url, charset=charset(lowered(headers))))
+
+
+def _an_address(one: Selected) -> bool:
+    """Whether ``one`` is an ``href`` or ``src``, read from the attribute: an
+    address, resolved against the page. A link's text is not one, however
+    the selector that gave it names the link -- ``.//a[@href]``."""
+    return one._attribute in _ADDRESSES
 
 
 def _element_of(one: Selected) -> HtmlElement | None:

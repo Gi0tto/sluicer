@@ -80,6 +80,43 @@ def test_a_listing_written_by_selectors_learns_its_columns_from_the_pages():
     assert extractor.listing is None and extractor.fields == ()
 
 
+@pytest.mark.parametrize(
+    ("title", "address"),
+    [
+        (".//a[@href]", False),
+        ("xpath:.//a[@src or @href]", False),
+        (".//a/@href", True),
+        ("(.//a/@href)[1]", True),
+        ("a::attr(href)", True),
+        ("a::attr(class)", False),
+    ],
+)
+def test_a_field_is_an_address_when_its_values_are_links(title, address):
+    """An address has no shape or reading to hold it to; a link's text does.
+    ``.//a[@href]`` names the links that have an href, and reads their text:
+    it was taken for an address, so a title that turned into a number
+    passed."""
+    extractor = compile_extractor(
+        [page("shop_v1.html"), page("shop_v1_page2.html")],
+        select={"title": title, "price": "span.price::text"},
+        rows="li.product",
+    )
+
+    [field, _price] = extractor.written.fields
+    assert (field.shape is None) is address
+    if not address and "class" not in title:
+        numbers = listing(
+            [
+                f'<a class="title" href="/b/{n}">{n}.00</a>'
+                f'<span class="price">£{n}.50</span>'
+                for n in range(1, 7)
+            ]
+        )
+        run = run_extractor(extractor, numbers, "https://shop.example/")
+        assert not run.ok
+        assert "shape" in failed(run)
+
+
 def test_a_written_extractor_is_a_file_of_format_3_and_reads_back_the_same():
     extractor = books()
 
