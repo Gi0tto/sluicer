@@ -320,7 +320,9 @@ def _check_owner(path: Path) -> None:
     fix = "make it yours alone (chmod go-w)"
     if status.st_uid != os.getuid():
         why = "belongs to another user"
-    elif status.st_mode & 0o022:
+    elif status.st_mode & 0o002 or (
+        status.st_mode & 0o020 and not _owners_own_group(path, status)
+    ):
         why = "others can write it"
     elif _listed_writers(path, status.st_uid):
         # chmod go-w changes the mode bits, and the list is not in them.
@@ -335,6 +337,45 @@ def _check_owner(path: Path) -> None:
         f"{path} {why}, and a configuration file sets what is sent on your "
         f"behalf: {fix}, name it with --config, or run with --no-config."
     )
+
+
+def _owners_own_group(path: Path, status: os.stat_result) -> bool:
+    """Whether ``path``'s group has no member but its owner, so that the group
+    may write it and no one else can.
+
+    Ubuntu and Fedora give each user a group of their own and a umask of 002,
+    so every file a user makes there is group-writable: 664. Debian's OpenSSH
+    accepts such an ``authorized_keys`` by this same rule -- every user whose
+    primary group it is, and every member it lists, is the owner, and there is
+    one -- and so is it accepted here. On Linux a file with an access list
+    shows the list's mask in the group bits, not the group, so such a file is
+    not accepted this way.
+    """
+    try:
+        import grp
+        import pwd
+    except ImportError:  # pragma: no cover - Windows, which has no getuid
+        return False
+    getxattr = getattr(os, "getxattr", None)
+    if getxattr is not None:
+        try:
+            getxattr(path, "system.posix_acl_access")
+        except OSError:
+            pass  # no list, or a file system that keeps none
+        else:
+            return False
+    try:
+        group = grp.getgrgid(status.st_gid)
+        owner = pwd.getpwuid(status.st_uid).pw_name
+    except KeyError:
+        return False
+    primary = [user.pw_uid for user in pwd.getpwall() if user.pw_gid == group.gr_gid]
+    members = list(group.gr_mem)
+    if any(uid != status.st_uid for uid in primary) or any(
+        name != owner for name in members
+    ):
+        return False
+    return bool(primary or members)
 
 
 # macOS's access lists, <sys/acl.h>: what an entry may allow that changes a

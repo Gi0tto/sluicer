@@ -391,6 +391,78 @@ def test_a_file_found_that_others_may_write_is_refused(here, crawled):
     assert "others can write" in result.stderr and "--no-config" in result.stderr
 
 
+def _private_group(monkeypatch, path: Path, members=(), others_primary=False):
+    """Make ``path``'s group, to ``grp`` and ``pwd``, its owner's private one:
+    what Ubuntu and Fedora give each user, whose umask 002 makes a new file
+    664. ``members`` are the group's other members, and ``others_primary``
+    gives someone else it as their primary group."""
+    import grp
+    import pwd
+
+    status = path.stat()
+    owner = pwd.struct_passwd(
+        ("me", "x", status.st_uid, status.st_gid, "", "/home/me", "/bin/sh")
+    )
+    group = grp.struct_group(("me", "x", status.st_gid, ["me", *members]))
+    everyone = [owner]
+    if others_primary:
+        everyone.append(
+            pwd.struct_passwd(
+                ("them", "x", status.st_uid + 1, status.st_gid, "", "/", "/bin/sh")
+            )
+        )
+    monkeypatch.setattr(grp, "getgrgid", lambda gid: group)
+    monkeypatch.setattr(pwd, "getpwuid", lambda uid: owner)
+    monkeypatch.setattr(pwd, "getpwall", lambda: everyone)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
+def test_a_file_its_owner_s_private_group_may_write_is_read(here, crawled, monkeypatch):
+    """Found by the second review: under umask 002, the default where each
+    user has a group of their own, every sluicer.toml is 664, and each was
+    refused as writable by others. A group whose only member is the file's
+    owner is the owner, as Debian's OpenSSH reads it for authorized_keys."""
+    found = _write(here / "sluicer.toml", "delay = 4\n")
+    found.chmod(0o664)
+    _private_group(monkeypatch, found)
+
+    result = _run("crawl", URL)
+
+    assert "others can write" not in result.stderr
+    assert crawled[0]["min_delay"] == 4
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
+@pytest.mark.parametrize(
+    "shared", [{"members": ["them"]}, {"others_primary": True}, {"acl": True}]
+)
+def test_a_file_a_group_of_others_may_write_is_refused(
+    here, crawled, monkeypatch, shared
+):
+    found = _write(here / "sluicer.toml", "delay = 4\n")
+    found.chmod(0o664)
+    if shared.pop("acl", False):
+        # On Linux an access list's mask is what the group bits show.
+        monkeypatch.setattr(os, "getxattr", lambda *a, **k: b"\x02", raising=False)
+    _private_group(monkeypatch, found, **shared)
+
+    result = _run("crawl", URL)
+
+    assert result.exit_code == 2 and crawled == []
+    assert "others can write" in result.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
+def test_a_file_everyone_may_write_is_refused_whatever_its_group(
+    here, crawled, monkeypatch
+):
+    found = _write(here / "sluicer.toml", "delay = 4\n")
+    found.chmod(0o666)
+    _private_group(monkeypatch, found)
+
+    assert _run("crawl", URL).exit_code == 2 and crawled == []
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
 def test_a_file_named_is_read_whatever_its_permissions(here, crawled):
     named = _write(here / "shared.toml", "delay = 4\n")

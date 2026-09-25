@@ -388,6 +388,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A found configuration file its owner's own group may write is read. Ubuntu
+  and Fedora give each user a group of their own and a umask of 002, so
+  every `sluicer.toml` made there is 664, and each was refused as writable by
+  others. A group counts as the owner's when every user whose primary group
+  it is, and every member it lists, is the owner, as Debian's OpenSSH reads
+  an `authorized_keys`; a group anyone else is in, a file writable by all, or
+  a Linux file with an access list, whose group bits are the list's mask, is
+  refused as before. Found by the second correctness review.
 - A found configuration file whose macOS access list lets only its owner
   write it is read: `chmod +a "user:$(whoami) allow write"` counted as
   others writing it. One whose list lets anyone else write it is refused as

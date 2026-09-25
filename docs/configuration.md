@@ -66,7 +66,11 @@ shared directory above yours or through a macOS access list, is refused too.
 `chmod go-w` takes the mode's write bits away; an access list is not in them,
 so `ls -le` shows its entries, `chmod -a# N` removes entry N and `chmod -N`
 the whole list. An entry that lets only you, the file's owner, write it is no
-reason to refuse it. A file you name is read as you named it.
+reason to refuse it, and neither is a group whose only member is you: Ubuntu
+and Fedora give each user a group of their own and a umask of 002, so a file
+you make there is `-rw-rw-r--`, and it is read, as Debian's OpenSSH reads such
+an `authorized_keys`. A group anyone else is in, or has as their own, is
+others. A file you name is read as you named it.
 
 ## What wins
 
