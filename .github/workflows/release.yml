@@ -110,9 +110,12 @@ jobs:
             curl -fsS http://127.0.0.1:8000/health && break
             sleep 1
           done
-          count=$(curl -fsS -H 'Authorization: Bearer release' http://127.0.0.1:8000/v1/tools \
-            | python3 -c 'import json, sys; print(len(json.load(sys.stdin)["tools"]))')
-          test "$count" = 10 || { echo "the HTTP API lists $count tools"; exit 1; }
+          # The same names the stdio check expects, from the MCPB manifest.
+          curl -fsS -H 'Authorization: Bearer release' http://127.0.0.1:8000/v1/tools \
+            | python3 -c 'import json, sys; sys.path.insert(0, "packaging")
+          from mcp_smoke import expected_tools
+          served = sorted(tool["name"] for tool in json.load(sys.stdin)["tools"])
+          sys.exit(None if served == expected_tools() else f"the HTTP API lists {served}")'
           docker rm -f api
       - name: Push it to the GitHub Container Registry
         # Off until the repository variable PUBLISH_TO_GHCR is true, as the
