@@ -187,6 +187,15 @@ learnt from: a title and a brand keep their shapes, and neither reads as an
 amount or a date. A swap is caught when one side read as an amount or a date
 (the `reads` check), or became the same in every row (the `values` check).
 
+**A numbered listing can be swapped for a box that says nothing of it.** A
+listing at `section.box[2]` is held to the heading its box began with on the
+pages learnt, "Books", when no other box did. A page whose second box begins
+otherwise while another box begins "Books" has moved it, and fails; but a
+page where no box says "Books" is held only to the count of boxes, since a
+heading the template writes from the page -- another category's name -- says
+nothing about where the box went. The books' box replaced by a sponsored one,
+as many boxes as before, passes unless the rows' own checks fail.
+
 **A page field's row can move unnoticed under a renamed label.** A field read
 by its place is held to the label the learnt pages put right before it, but a
 page that no longer says that label at all is read at the place: a label

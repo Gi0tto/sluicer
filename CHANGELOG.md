@@ -76,6 +76,19 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- A numbered listing is the box its heading says. Learnt at
+  `section.box[2]`, the books among three boxes, a page with the first box
+  gone and another added at the end still had three, and the run read the
+  second, the recent books, 6 rows of another listing, and passed; a box put
+  in the books' place passed too. And a box added after the books, the
+  second still theirs, failed with four boxes where there were three. An
+  extractor now learns the text each numbered step's element begins with,
+  its rows aside, when every page learnt agrees on it and no other element
+  of its kind begins so (`marks`): a step whose element begins so is the
+  listing, however many boxes the page has, and one whose element does not,
+  while another does, fails the `listing` check. Where the heading is not
+  learnt, or the page says it on no box, the count decides, as before. A
+  file without `marks` is read as before. Found by review.
 - A page field whose row moved fails however the page says its label. The
   check asked for the label said once, exactly as learnt: rows swapped, and
   a second "SKU" anywhere on the page, or the label written "SKU:", read the

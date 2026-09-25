@@ -919,14 +919,14 @@ def _sections(*boxes):
 def test_a_box_of_the_same_kind_inserted_before_a_numbered_listing_fails():
     """The listing was the second box, section.box[2]; a sponsored box put
     before it made the pick of the week the second, and the run read its one
-    row and passed. The page now has three boxes where it had two."""
+    row and passed. The second box now begins "Pick", and the third "All"."""
     learnt = compile_extractor([_sections(("Pick", 1), ("All", 12))], listing=True)
     assert learnt.listing.container == "html>body>main>section.box[2]>ul.items"
     run = run_extractor(learnt, *_sections(("Sponsored", 4), ("Pick", 1), ("All", 12)))
     assert not run.ok
     assert failed(run) == ["listing"]
     [check] = [c for c in run.checks if not c.ok]
-    assert check.got == "3 places that match section.box, where there were 2"
+    assert check.got == "section.box[2] begins 'Pick', and 'All' is now section.box[3]"
     assert run_extractor(learnt, *_sections(("Pick", 1), ("All", 9))).ok
     wanted = compile_extractor(
         [_sections(("Pick", 1), ("All", 12))], want={"n": "All 3"}
@@ -947,6 +947,82 @@ def test_pages_that_number_a_step_differently_do_not_hold_it_to_a_count():
     run = run_extractor(learnt, *_sections(("Pick", 1), ("All", 8), ("Seen", 1)))
     assert run.ok, failed(run)
     assert Extractor.from_json(learnt.to_json()) == learnt
+
+
+BOXES = [
+    _sections(("Top", 4), ("Books", 12), ("Recent", 6)),
+    _sections(("Top", 4), ("Books", 10), ("Recent", 6)),
+]
+
+
+def test_a_numbered_listing_is_the_box_its_heading_says():
+    """Learnt at section.box[2], the books among three boxes. With the first
+    box gone and another added after, there were three boxes still, and the
+    run read the recent ones, 6 rows of another listing, and passed; a
+    sponsored box in the books' place passed too. The second box began with
+    "Books" on every page learnt, and no other did: a page whose second box
+    begins otherwise, while one of the others says "Books", has moved it."""
+    learnt = compile_extractor(BOXES, listing=True)
+    assert learnt.listing.container == "html>body>main>section.box[2]>ul.items"
+    assert learnt.listing.marks == (None, None, "Books", None)
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    for boxes, got in (
+        (
+            (("Books", 11), ("Recent", 6), ("More", 9)),
+            "section.box[2] begins 'Recent', and 'Books' is now section.box[1]",
+        ),
+        (
+            (("Top", 4), ("Sponsored", 11), ("Books", 11)),
+            "section.box[2] begins 'Sponsored', and 'Books' is now section.box[3]",
+        ),
+        (
+            (("Ad", 5), ("Top", 4), ("Books", 11), ("Recent", 6)),
+            "section.box[2] begins 'Top', and 'Books' is now section.box[3]",
+        ),
+    ):
+        run = run_extractor(learnt, *_sections(*boxes))
+        assert not run.ok
+        assert failed(run) == ["listing"]
+        [check] = [c for c in run.checks if not c.ok]
+        assert check.got == got
+
+
+def test_a_box_added_after_a_numbered_listing_that_still_heads_it_passes():
+    """Four boxes where the pages learnt had three, the second still "Books":
+    the count alone failed it, though the listing was where it was."""
+    learnt = compile_extractor(BOXES, listing=True)
+    run = run_extractor(
+        learnt, *_sections(("Top", 4), ("Books", 11), ("Recent", 6), ("Extra", 3))
+    )
+    assert run.ok, failed(run)
+    assert len(run.rows) == 11
+    assert run.rows[0]["a.name"] == "Books 1"
+
+
+def test_a_heading_said_nowhere_on_the_page_leaves_the_count_to_decide():
+    """A heading the template writes from the page -- another category's
+    books -- says nothing about where the box went: the count still does."""
+    learnt = compile_extractor(BOXES, listing=True)
+    assert run_extractor(
+        learnt, *_sections(("Top", 4), ("Music", 11), ("Recent", 6))
+    ).ok
+    run = run_extractor(
+        learnt, *_sections(("Top", 4), ("Music", 11), ("Recent", 6), ("Extra", 3))
+    )
+    assert failed(run) == ["listing"]
+    [check] = [c for c in run.checks if not c.ok]
+    assert check.got == "4 places that match section.box, where there were 3"
+
+
+def test_a_heading_every_box_shares_is_no_mark():
+    """Boxes that all begin "Deals" cannot be told apart by it."""
+    learnt = compile_extractor(
+        [_sections(("Deals", 4), ("Deals", 12)), _sections(("Deals", 4), ("Deals", 9))],
+        listing=True,
+    )
+    assert learnt.listing.marks == ()
+    run = run_extractor(learnt, *_sections(("Deals", 5), ("Deals", 4), ("Deals", 12)))
+    assert failed(run) == ["listing"]
 
 
 def _item(price, related=(), cls="price", extra=""):
@@ -1140,6 +1216,10 @@ def _file(**change):
         ({"listing__siblings": [1, "1", 1]}, "siblings"),
         ({"listing__siblings": [1, 0, 1]}, "siblings"),
         ({"listing__siblings": [1, 1]}, "siblings"),
+        ({"listing__marks": [None, "Books"]}, "marks"),
+        ({"listing__marks": [None, None, None]}, "marks"),
+        ({"listing__marks": [None, "", None]}, "marks"),
+        ({"listing__marks": [None, 2, None]}, "marks"),
         ({"listing__container": "html>body>div[x]>ol.row"}, "not a path"),
         ({"listing__container": "html>body>div[0]>ol.row"}, "not a path"),
         ({"listing__member": "li>a"}, "not a row's kind"),
