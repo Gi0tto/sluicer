@@ -161,8 +161,233 @@ def test_a_gtin_with_a_right_check_digit_is_normalised(written, meant):
     assert gtin(written) == meant
 
 
-@pytest.mark.parametrize("written", ["4001234567890", "12345", "BP-2210", ""])
+@pytest.mark.parametrize(
+    "written",
+    [
+        "4001234567890",
+        "12345",
+        "BP-2210",
+        "",
+        "40012345676",  # eleven digits, though its check digit is right
+    ],
+)
 def test_a_gtin_with_a_wrong_check_digit_or_length_is_not(written):
     from sluicer.normalise import gtin
 
     assert gtin(written) is None
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "400123456789\u00b2",  # a superscript two: str.isdigit's, not int's
+        "40012345678\u00b9\u00b2",
+        "400123456789\u2460",  # a circled one
+        "4001234567\u00bd91",
+        "40012345678x1",
+        "---",
+    ],
+)
+def test_a_gtin_holding_what_is_not_a_decimal_digit_is_none(written):
+    from sluicer.normalise import gtin
+
+    assert gtin(written) is None
+
+
+def test_a_gtin_in_other_decimal_digits_is_written_in_ascii_ones():
+    """Fullwidth and Arabic-Indic digits have one value each, as ISO dates' do."""
+    from sluicer.normalise import gtin
+
+    for zero in (0xFF10, 0x0660):  # fullwidth, Arabic-Indic
+        written = "".join(chr(zero + int(d)) for d in "4001234567891")
+        assert gtin(written) == "4001234567891"
+
+
+def test_extract_never_raises_on_a_gtin_with_a_superscript_digit():
+    page = (
+        '<script type="application/ld+json">{"@type": "Product", "name": "Pad",'
+        ' "gtin13": "400123456789\u00b2"}</script>'
+    )
+
+    result = extract(page)
+
+    assert result.summary["gtin"].value == "400123456789\u00b2"
+    assert "gtin" not in result.normalised
+
+
+def test_an_amount_in_other_decimal_digits_is_written_in_ascii_ones():
+    assert amount("\u0661\u0662") == "12"
+    assert amount("\uff11\uff12,\uff15\uff10") == "12.50"
+    assert amount("12\u00b2") is None
+
+
+def test_a_date_s_offset_in_other_decimal_digits_is_written_in_ascii_ones():
+    assert iso_date("2025-01-01T10:00+\u0660\u0662:\u0660\u0660") == (
+        "2025-01-01T10:00:00+02:00"
+    )
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("12 345", "12345"),
+        ("123 456 789", "123456789"),
+        ("1 234 567,89", "1234567.89"),
+        ("1'234.50", "1234.50"),
+        ("123,456,789", "123456789"),  # a first group of three, the most it holds
+        ("1.234.567,891", "1234567.891"),
+    ],
+)
+def test_digits_grouped_in_thousands_are_one_amount(written, meant):
+    assert amount(written) == meant
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "12 50",  # two numbers, or twelve and a half: not 1250
+        "1 2345",
+        "1234 567",
+        "1 234 56",
+        "1'23",
+        "12 345 6,00",
+        "1234,567,890",  # a first group of four
+        ",123,456",  # and of none
+        "12,345,67",
+        "1,2345,678",  # a later group of four
+        "1.2345,00",
+        "12.34,56",
+        "1234.567,89",
+    ],
+)
+def test_digits_that_are_not_grouped_in_thousands_are_no_amount(written):
+    assert amount(written) is None
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "Tue, 03 Jun 25 10:00:00 GMT",  # 1925, 2025, or the 25th of some year
+        "Tuesday, 03-Jun-25 10:00:00 GMT",  # RFC 850's, as HTTP once wrote it
+        "Tue, 03 Jun 125 10:00:00 GMT",
+        "Tue, 03 Jun 25 10:00:00 -2025",  # an offset is not the year
+    ],
+)
+def test_an_rfc_2822_date_needs_its_year_in_four_digits(written):
+    """``email.utils`` makes 25 into 2025 and 99 into 1999: a guess, by a rule."""
+    assert iso_date(written) is None
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("Tuesday, 03-Jun-2025 10:00:00 GMT", "2025-06-03T10:00:00+00:00"),
+        ("Tue, 03 Jun 10:00:00 2025", "2025-06-03T10:00:00"),
+        ("Tue, 3 Jun 2025 10:00 +0200", "2025-06-03T10:00:00+02:00"),
+    ],
+)
+def test_an_rfc_2822_date_with_its_year_in_four_digits_is_read(written, meant):
+    assert iso_date(written) == meant
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("Jun 16, 2025, 10:00 PM", "2025-06-16T22:00:00"),
+        ("Tue, 03 Jun 2025 10:00 PM", "2025-06-03T22:00:00"),
+        ("Dec 1, 2024 11:30 PM EST", "2024-12-01T23:30:00-05:00"),
+        ("Jun 16, 2025, 10:00 AM", "2025-06-16T10:00:00"),
+        ("Jun 16, 2025, 12:05 AM", "2025-06-16T00:05:00"),
+        ("Jun 16, 2025, 12:05 PM", "2025-06-16T12:05:00"),
+        ("Jun 16, 2025, 10:00 p.m.", "2025-06-16T22:00:00"),
+        ("Jun 16, 2025, 9:15:30 pm", "2025-06-16T21:15:30"),
+    ],
+)
+def test_a_twelve_hour_clock_is_read_with_its_half_of_the_day(written, meant):
+    """``email.utils`` took "PM" for a time zone it did not know, and dropped it."""
+    assert iso_date(written) == meant
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "Jun 16, 2025, 13:05 PM",
+        "Jun 16, 2025, 0:05 AM",
+        "Jun 16, 2025, 10:00 AM 11:00 PM",
+    ],
+)
+def test_a_twelve_hour_clock_that_cannot_be_one_is_not_read(written):
+    assert iso_date(written) is None
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("2022-05-04T03:00:00 UTC", "2022-05-04T03:00:00+00:00"),
+        ("2022-05-04 03:00 UTC", "2022-05-04T03:00:00+00:00"),
+        ("2022-05-04T03:00:00UTC", "2022-05-04T03:00:00+00:00"),
+        ("2026-03-09 16:00:22 +0100 UTC", "2026-03-09T16:00:22+01:00"),
+    ],
+)
+def test_a_trailing_utc_is_the_offset_it_names(written, meant):
+    """It was read and dropped, against "a date keeps the offset the page gave it"."""
+    assert iso_date(written) == meant
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("2025-01-01T10:00:00+23:59", "2025-01-01T10:00:00+23:59"),
+        ("2025-01-01T10:00:00-2359", "2025-01-01T10:00:00-23:59"),
+        ("2025-01-01T10:00:00+00:00", "2025-01-01T10:00:00+00:00"),
+        ("2025-01-01T10:00:00+24:00", None),
+        ("2025-01-01T10:00:00+23:60", None),
+        ("2025-01-01T10:00:00-24:00", None),
+    ],
+)
+def test_an_offset_is_at_most_23_59_either_way(written, meant):
+    assert iso_date(written) == meant
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        ("1.5e3", "1500"),
+        ("1.5E+3", "1500"),
+        ("2e2", "200"),
+        ("1.50e1", "15.0"),
+        ("1.234567e3", "1234.567"),  # not ambiguous: an exponent groups nothing
+        ("4.19e-1", "0.419"),
+    ],
+)
+def test_a_number_written_with_an_exponent_is_an_amount(written, meant):
+    """JSON writes 1500 as 1.5e3 as readily as 1500, and the page kept it so."""
+    assert amount(written) == meant
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "1e999999999",
+        "1e-999999999",
+        "1e100",  # past the longest amount, though Decimal writes it
+        "1e-70",
+        "-1.5e3",
+        "1.5e",
+    ],
+)
+def test_an_exponent_no_price_has_is_not_read(written):
+    assert amount(written) is None
+
+
+def test_a_json_price_written_with_an_exponent_is_the_summary_s_price():
+    page = (
+        '<script type="application/ld+json">{"@type": "Product", "name": "Pad",'
+        ' "offers": {"@type": "Offer", "price": 1.5e3, "priceCurrency": "EUR"}}'
+        "</script>"
+    )
+
+    result = extract(page)
+
+    assert result.summary["price"].value == "1.5e3"
+    assert result.normalised["price"] == "1500"

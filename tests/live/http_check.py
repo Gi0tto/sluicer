@@ -13,13 +13,20 @@ from __future__ import annotations
 import contextlib
 import gzip
 import http.server
+import os
+import socket
 import socketserver
 import sys
 import threading
+import time
 
 LIMIT = 1024 * 1024
 BIG = 3 * LIMIT
 seen: dict[str, dict[str, str]] = {}
+# Where a redirect off the web points: a bare socket that records what reaches
+# it, as a Redis or a memcached on this machine would.
+listener = socket.create_server(("127.0.0.1", 0))
+reached: list[bytes] = []
 
 
 class Server(http.server.BaseHTTPRequestHandler):
@@ -51,6 +58,25 @@ class Server(http.server.BaseHTTPRequestHandler):
             self._send(302, Location="/page")
         elif self.path == "/to-private":
             self._send(302, Location="http://10.0.0.1/admin")
+        elif self.path == "/drip":
+            # Eight bytes a second, for longer than the deadline the check sets.
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(8 * 6))
+            self.end_headers()
+            with contextlib.suppress(OSError):
+                for _ in range(6):
+                    self.wfile.write(b"<p>drip>")
+                    self.wfile.flush()
+                    time.sleep(1)
+        elif self.path.startswith("/to-"):
+            port = listener.getsockname()[1]
+            targets = {
+                "/to-gopher": f"gopher://127.0.0.1:{port}/_SET%20pwned%201%0D%0A",
+                "/to-dict": f"dict://127.0.0.1:{port}/info",
+                "/to-file": "file:///etc/hosts",
+            }
+            self._send(302, Location=targets[self.path])
         elif self.path == "/announced":
             self._send(200, b"a" * BIG, Content_Type="text/html")
         elif self.path == "/bomb":
@@ -82,6 +108,15 @@ class _Quiet(socketserver.ThreadingTCPServer):
         pass  # a client that stops reading at the bound resets the connection
 
 
+def _record() -> None:
+    while True:
+        connection, _ = listener.accept()
+        connection.settimeout(2)
+        with contextlib.suppress(OSError):
+            reached.append(connection.recv(1000))
+        connection.close()
+
+
 def main() -> int:
     from sluicer.fetch import address
     from sluicer.fetch.address import AddressRefused
@@ -104,6 +139,26 @@ def main() -> int:
 
     if rung(base + "/hop").url != base + "/page":
         failures.append("a redirect was not followed to where it led")
+
+    started = time.monotonic()
+    try:
+        http_rung(timeout=1.5)(base + "/drip")
+        failures.append("a body dripped past the deadline was waited for to its end")
+    except TimeoutError:
+        took = time.monotonic() - started
+        if took > 2.5:
+            failures.append(f"a dripped body was cut after {took:.2f} s, not 1.5")
+
+    threading.Thread(target=_record, daemon=True).start()
+    for path in ("/to-gopher", "/to-dict", "/to-file"):
+        try:
+            off = rung(base + path)
+            failures.append(f"{path}: followed to {off.url}: {off.html[:40]!r}")
+        except AddressRefused:
+            pass
+    time.sleep(0.2)
+    if reached:
+        failures.append(f"a redirect off the web reached a socket with {reached}")
 
     for path in ("/announced", "/chunked", "/bomb"):
         try:
@@ -140,10 +195,50 @@ def main() -> int:
     finally:
         address._public = public  # type: ignore[assignment]
 
+    # A proxy the environment names is not used; one asked for is. The name
+    # resolves nowhere, so only a proxy could have been told about it.
+    proxy = socket.create_server(("127.0.0.1", 0))
+    told: list[bytes] = []
+
+    def _proxied() -> None:
+        while True:
+            connection, _ = proxy.accept()
+            connection.settimeout(2)
+            with contextlib.suppress(OSError):
+                told.append(connection.recv(200).split(b"\r\n")[0])
+            connection.close()
+
+    threading.Thread(target=_proxied, daemon=True).start()
+    through = f"http://127.0.0.1:{proxy.getsockname()[1]}"
+    named = {name: through for name in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")}
+    before = {name: os.environ.get(name) for name in [*named, "SLUICER_PROXY"]}
+    os.environ.update(named)
+    os.environ.pop("SLUICER_PROXY", None)
+    try:
+        with contextlib.suppress(Exception):
+            http_rung()("https://nowhere.invalid/")
+        time.sleep(0.2)
+        if told:
+            failures.append(f"the environment's proxy was used unasked: {told}")
+        with contextlib.suppress(Exception):
+            http_rung(proxy=through)("https://nowhere.invalid/")
+        time.sleep(0.2)
+        if told != [b"CONNECT nowhere.invalid:443 HTTP/1.1"]:
+            failures.append(f"the proxy asked for was not used: {told}")
+    finally:
+        for name, value in before.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
     for failure in failures:
         print("FAIL:", failure)
     if not failures:
-        print("http: charset, identity, redirects, heavy bodies and the pin all hold")
+        print(
+            "http: charset, identity, redirects, the web only, the deadline, heavy "
+            "bodies, the pin and no proxy unasked all hold"
+        )
     return 1 if failures else 0
 
 

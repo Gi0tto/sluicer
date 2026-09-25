@@ -82,7 +82,12 @@ def fake_scrapling(
 
     curl = types.ModuleType("curl_cffi")
     curl.CurlOpt = types.SimpleNamespace(
-        MAXFILESIZE_LARGE="maxfilesize", RESOLVE="resolve"
+        MAXFILESIZE_LARGE="maxfilesize",
+        RESOLVE="resolve",
+        PROTOCOLS_STR="protocols",
+        REDIR_PROTOCOLS_STR="redir_protocols",
+        TIMEOUT_MS="timeout_ms",
+        PROXY="proxy",
     )
     requests = types.ModuleType("curl_cffi.requests")
     requests.Session = Session
@@ -121,7 +126,26 @@ def test_the_stealth_rung_comes_after_the_default_ladder_in_cost(monkeypatch):
 
     rung("https://example.com/p")
 
-    assert seen["stealth"][1] == {"network_idle": True}
+    assert seen["stealth"][1] == {
+        "network_idle": True,
+        "google_search": False,
+        "timeout": 30_000,
+        "retries": 1,
+        "extra_flags": ["--no-proxy-server"],
+    }
+
+
+def test_the_stealth_rung_never_claims_to_come_from_a_search(monkeypatch):
+    """scrapling's google_search defaults to true, a Referer of
+    https://www.google.com/ on every page: measured on the wire, the stealth
+    rung sent it. Not announcing ourselves is one thing; saying we came from
+    somewhere we did not is another."""
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import stealth_rung
+
+    stealth_rung()[1]("https://example.com/p")
+
+    assert seen["stealth"][1]["google_search"] is False
 
 
 def test_a_rung_returns_a_fetched_carrying_the_status(monkeypatch):
@@ -383,3 +407,32 @@ def test_a_browser_answer_keeps_its_headers_names_lowercased():
     assert fetched.headers == {"x-robots-tag": "noindex", "link": "</c>; rel=canonical"}
     del response.headers
     assert _as_fetched(response, "browser", "https://example.com/p").headers == {}
+
+
+def test_the_browser_uses_no_proxy_unless_one_is_asked_for(monkeypatch):
+    """Without one, Chromium is told --no-proxy-server, so neither the system's
+    proxy nor the environment's is used behind our back."""
+    monkeypatch.delenv("SLUICER_PROXY", raising=False)
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import default_rungs, stealth_rung
+
+    dict(default_rungs())["browser"]("https://example.com/p")
+    stealth_rung()[1]("https://example.com/p")
+
+    for rung in ("browser", "stealth"):
+        options = seen[rung][1]
+        assert options["extra_flags"] == ["--no-proxy-server"], rung
+        assert "proxy" not in options, rung
+
+
+def test_the_browser_goes_through_the_proxy_asked_for(monkeypatch):
+    seen = fake_scrapling(monkeypatch)
+    from sluicer.fetch.scrapling_rungs import default_rungs
+
+    rungs = dict(default_rungs(proxy="http://proxy.example:3128"))
+    rungs["browser"]("https://example.com/p")
+    rungs["http"]("https://example.com/p")
+
+    assert seen["browser"][1]["proxy"] == "http://proxy.example:3128"
+    assert "extra_flags" not in seen["browser"][1]
+    assert seen["http"][1]["proxy"] == "http://proxy.example:3128"

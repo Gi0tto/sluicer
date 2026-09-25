@@ -727,3 +727,479 @@ def test_a_file_from_0_3_that_learnt_no_reading_still_loads():
         del f["reads"]
 
     assert Extractor.from_json(json.dumps(body)).listing is not None
+
+
+# -- 0.7.1: the review of the learnt extractors -----------------------------------
+
+
+def _product(price, title="Brake pad set"):
+    return (
+        f"<html><body><main><h1 class='name'>{title}</h1>"
+        f"<p class='cost'><span class='price'>{price}</span></p></main></body></html>",
+        "https://shop.example/p/1",
+    )
+
+
+def test_an_example_is_the_same_amount_however_many_zeros_it_is_written_with():
+    """``8`` and ``8.00`` are one amount; compared as the strings amount()
+    gives back, they were two, and an example written without its cents was
+    found nowhere -- on the page, in a listing, or after a label."""
+    [price] = compile_extractor([_product("£8.00")], want={"price": "8"}).fields
+    assert price.path.endswith("span.price")
+    listed = shop_page(books(6)).replace("£10.99", "£8.00")
+    learnt = compile_extractor([(listed, "https://s/1")], want={"price": "8"})
+    assert [f.path for f in learnt.listing.fields] == ["span.price"]
+    labelled = [
+        (f"<html><body><ul><li><b>Price:</b> {price}</li></ul></body></html>", None)
+        for price in ("$12.00", "$8.50")
+    ]
+    learnt = compile_extractor(labelled, listing=False, want={"price": "12"})
+    [price] = learnt.fields
+    assert price.anchor is not None and price.anchor.label == "Price:"
+
+
+def _specs(brand, price, sku, weight, order=("brand", "price", "sku", "weight")):
+    """A product page that declares nothing, its facts one to a row of a table."""
+    facts = {"brand": brand, "price": price, "sku": sku, "weight": weight}
+    labels = {"brand": "Brand", "price": "Price", "sku": "SKU", "weight": "Weight"}
+    rows = "".join(f"<tr><th>{labels[k]}</th><td>{facts[k]}</td></tr>" for k in order)
+    return (
+        "<html><head><title>Shop</title></head><body><main>"
+        f"<h1>Pads {sku}</h1><table class='specs'>{rows}</table></main></body></html>",
+        f"https://shop.example/p/{sku}",
+    )
+
+
+SPECS = [
+    _specs("Bosch", "41.90", "BP-1", "1 kg"),
+    _specs("ATE", "39.00", "BP-2", "2 kg"),
+]
+
+
+def test_two_examples_in_one_column_are_no_listing():
+    """A product's table holds its price and its SKU in two rows, both in the
+    row's ``td``: learnt as a listing, both columns were that ``td``, and a
+    new page's rows read price "Textar", sku "Textar" and passed."""
+    learnt = compile_extractor(SPECS, want={"price": "41.90", "sku": "BP-1"})
+    assert learnt.listing is None
+    assert [f.name for f in learnt.fields] == ["price", "sku"]
+    run = run_extractor(learnt, *_specs("Textar", "12.50", "BP-3", "3 kg"))
+    assert run.ok, failed(run)
+    assert run.rows == []
+    assert run.fields == {"price": "12.50", "sku": "BP-3"}
+
+
+def test_an_example_gives_up_a_column_another_example_needs():
+    """A title said twice in a row, as the cover's alt text and as the link,
+    and an alt text that says something else once: the alt is the only place
+    that holds it, so the title is the link."""
+    rows = "".join(
+        f"<li class='book'><img class='cover' alt='{'Cover' if n == 6 else t}'>"
+        f"<a class='title'>{t}</a><span class='price'>£{n}.00</span></li>"
+        for n, t in enumerate(TITLES[:6], 1)
+    )
+    html = f"<html><body><ol class='books'>{rows}</ol></body></html>"
+    learnt = compile_extractor(
+        [(html, None)], want={"title": TITLES[0], "alt": "Cover"}
+    )
+    assert [(f.name, f.path) for f in learnt.listing.fields] == [
+        ("title", "a.title"),
+        ("alt", "img.cover"),
+    ]
+    assert learnt.notes == (
+        "title='A Light in the Attic' was in 2 places in a row; a.title, the "
+        "first no other example needs, was taken",
+    )
+
+
+def test_a_row_that_moved_under_another_label_fails():
+    """The pages given agreed on the SKU's row, the third, so it was learnt by
+    its place; a page that puts the weight third read sku "3 kg" and passed.
+    Every page given said "SKU" right before it, once: a page that says it
+    once before something else has moved the row."""
+    learnt = compile_extractor(SPECS, want={"price": "41.90", "sku": "BP-1"})
+    assert [f.label for f in learnt.fields] == ["Price", "SKU"]
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    order = ("brand", "price", "weight", "sku")
+    run = run_extractor(learnt, *_specs("Textar", "12.50", "BP-3", "3 kg", order))
+    assert not run.ok
+    assert failed(run) == ["field"]
+    [check] = [c for c in run.checks if not c.ok]
+    assert check.expected == "sku right after 'SKU', as on the pages learnt"
+    assert check.got == "'SKU' is now before 'BP-3', and the place holds '3 kg'"
+
+
+def test_a_label_the_page_does_not_say_once_is_no_verdict():
+    """Renamed, or said twice, the label says nothing about the place: the
+    place is read, as it was learnt."""
+    learnt = compile_extractor(SPECS, listing=False, want={"sku": "BP-1"})
+    html, url = _specs("Textar", "12.50", "BP-3", "3 kg")
+    for page in (
+        html.replace("SKU", "Art. no."),
+        html.replace("<h1>", "<p>SKU</p><h1>"),
+    ):
+        run = run_extractor(learnt, page, url)
+        assert run.ok, failed(run)
+        assert run.fields == {"sku": "BP-3"}
+
+
+def test_one_page_cannot_tell_its_labels_and_learns_none():
+    learnt = compile_extractor(SPECS[:1], listing=False, want={"sku": "BP-1"})
+    assert [f.label for f in learnt.fields] == [None]
+
+
+def test_heal_reads_a_row_that_moved_after_its_label():
+    learnt = compile_extractor(SPECS, listing=False, want={"sku": "BP-1"})
+    order = ("brand", "price", "weight", "sku")
+    moved = [
+        _specs("Textar", "12.50", "BP-3", "3 kg", order),
+        _specs("Brembo", "20.00", "BP-4", "4 kg", order),
+    ]
+    healed, changes = heal(learnt, moved)
+    assert [(c.kind, c.before, c.after) for c in changes] == [
+        ("moved", "sku", "after 'SKU'")
+    ]
+    run = run_extractor(healed, *_specs("Ferodo", "9.00", "BP-5", "5 kg", order))
+    assert run.ok, failed(run)
+    assert run.fields == {"sku": "BP-5"}
+
+
+def _sections(*boxes):
+    """A page of boxes of one kind, each a heading and a list of products."""
+    html = "".join(
+        f"<section class='box'><h2>{title}</h2><ul class='items'>"
+        + "".join(
+            f"<li class='item'><a class='name' href='/{title[0]}/{n}'>{title} {n}</a>"
+            f"<span class='price'>£{n}.99</span></li>"
+            for n in range(1, rows + 1)
+        )
+        + "</ul></section>"
+        for title, rows in boxes
+    )
+    return f"<html><body><main>{html}</main></body></html>", "https://shop.example/c"
+
+
+def test_a_box_of_the_same_kind_inserted_before_a_numbered_listing_fails():
+    """The listing was the second box, section.box[2]; a sponsored box put
+    before it made the pick of the week the second, and the run read its one
+    row and passed. The page now has three boxes where it had two."""
+    learnt = compile_extractor([_sections(("Pick", 1), ("All", 12))], listing=True)
+    assert learnt.listing.container == "html>body>main>section.box[2]>ul.items"
+    run = run_extractor(learnt, *_sections(("Sponsored", 4), ("Pick", 1), ("All", 12)))
+    assert not run.ok
+    assert failed(run) == ["listing"]
+    [check] = [c for c in run.checks if not c.ok]
+    assert check.got == "3 places that match section.box, where there were 2"
+    assert run_extractor(learnt, *_sections(("Pick", 1), ("All", 9))).ok
+    wanted = compile_extractor(
+        [_sections(("Pick", 1), ("All", 12))], want={"n": "All 3"}
+    )
+    run = run_extractor(wanted, *_sections(("Sponsored", 4), ("Pick", 1), ("All", 12)))
+    assert failed(run) == ["listing"]
+
+
+def test_pages_that_number_a_step_differently_do_not_hold_it_to_a_count():
+    learnt = compile_extractor(
+        [
+            _sections(("Pick", 1), ("All", 12)),
+            _sections(("Pick", 1), ("All", 10), ("Recently viewed", 2)),
+        ],
+        want={"n": "All 3"},
+    )
+    assert learnt.listing.siblings[-2:] == (None, 1)
+    run = run_extractor(learnt, *_sections(("Pick", 1), ("All", 8), ("Seen", 1)))
+    assert run.ok, failed(run)
+    assert Extractor.from_json(learnt.to_json()) == learnt
+
+
+def _item(price, related=(), cls="price", extra=""):
+    """A product page that declares nothing, and a strip of related products."""
+    strip = "".join(
+        f"<li class='rel'><a class='t' href='/p/{n}'>Disc {n}</a>"
+        f"<span class='cost'>{cost}</span></li>"
+        for n, cost in enumerate(related, 1)
+    )
+    return (
+        "<html><body><main><div class='item'><h1 class='name'>Brake pad set</h1>"
+        f"<p><span class='{cls}'>{price}</span>{extra}</p></div>"
+        f"<h2>Related products</h2><ul class='related'>{strip}</ul>"
+        "</main></body></html>",
+        "https://shop.example/p/1",
+    )
+
+
+def test_heal_never_moves_a_page_field_into_another_product_s_place():
+    """After a redesign the product costs £44.50, and a related product costs
+    what it used to: heal moved the price to the related product's, and the
+    healed extractor read another product's price and passed."""
+    learnt = compile_extractor(
+        [_item("£41.90", ("£12.00", "£13.00", "£14.00"))], want={"price": "41.90"}
+    )
+    new = _item("£44.50", ("£41.90", "£13.00", "£14.00"), cls="amount")
+    healed, changes = heal(learnt, [new])
+    assert [(c.kind, c.before) for c in changes] == [("vanished", "price")]
+    assert healed.fields == ()
+    _moved, changes = heal(learnt, [_item("£41.90", ("£41.90",), cls="amount")])
+    assert [(c.kind, c.after) for c in changes] == [
+        ("moved", "html>body>main>div.item>p>span.amount")
+    ]
+
+
+def test_heal_leaves_a_page_field_two_own_places_claim_to_a_person():
+    learnt = compile_extractor([_item("£41.90")], want={"price": "41.90"})
+    both = "<span class='rrp'>{}</span>"
+    new = [
+        _item("£41.90", cls="amount", extra=both.format("£41.90")),
+        (_item("£20.00", cls="amount", extra=both.format("£25.00"))[0], "https://s/2"),
+    ]
+    healed, changes = heal(learnt, new)
+    assert [(c.kind, c.before) for c in changes] == [("ambiguous", "price")]
+    assert healed.fields == ()
+
+
+def _catalogue(titles, sidebar):
+    """A catalogue page, and a long bestsellers sidebar before it that also
+    lists some of its books."""
+    side = "".join(
+        f"<li class='top'><a class='t' href='/b/{t}'>{t}</a></li>" for t in sidebar
+    )
+    rows = "".join(
+        f"<li class='book'><a class='title' href='/b/{t}'>{t}</a>"
+        f"<span class='price'>£{n}.00</span></li>"
+        for n, t in enumerate(titles, 1)
+    )
+    return (
+        "<html><head><meta property='og:title' content='Shop'></head><body>"
+        f"<aside><h2>Bestsellers</h2><ul class='best'>{side}</ul></aside>"
+        f"<main><ol class='books'>{rows}</ol></main></body></html>",
+        "https://shop.example/c",
+    )
+
+
+BESTSELLERS = TITLES[:5] + [f"Other {n}" for n in range(15)]
+
+
+def test_heal_keeps_a_chosen_listing_where_it_still_is():
+    """Healing a page that had not changed moved the listing to a sidebar
+    that lists the same books, and wrote it: it was a move, not a loss."""
+    page_ = _catalogue(TITLES, BESTSELLERS)
+    learnt = compile_extractor([page_], want={"title": "Olio"})
+    assert learnt.listing.member == "li.book"
+    healed, changes = heal(learnt, [page_])
+    assert [(c.kind, c.before, c.after) for c in changes] == [
+        ("kept", "title", "a.title")
+    ]
+    assert healed.listing.container == learnt.listing.container
+
+
+def test_heal_keeps_a_chosen_listing_whose_items_all_changed():
+    """The same template a day later, every book new: the listing was lost."""
+    learnt = compile_extractor(
+        [_catalogue(TITLES, BESTSELLERS)], want={"title": "Olio"}
+    )
+    tomorrow = _catalogue(["Alpha", "Beta", "Gamma", "Delta", "Epsilon"], ["Zeta"])
+    assert run_extractor(learnt, *tomorrow).ok
+    healed, changes = heal(learnt, [tomorrow])
+    assert [c.kind for c in changes] == ["kept"]
+    assert run_extractor(healed, *tomorrow).ok
+
+
+def test_a_listing_heal_lost_is_kept_so_a_forced_extractor_still_fails():
+    """Forced, heal wrote an extractor without the listing, which then passed
+    every page it was run on, those without a single row among them."""
+    learnt = compile_extractor(
+        [_catalogue(TITLES, BESTSELLERS)], want={"title": "Olio"}
+    )
+    gone = _catalogue([], ["Zeta"])
+    healed, changes = heal(learnt, [gone])
+    assert [c.kind for c in changes] == ["listing-lost"]
+    assert healed.listing == learnt.listing
+    assert not run_extractor(healed, *gone).ok
+    plain = learn(shop_page(books(10)))
+    healed, changes = heal(plain, [(shop_page([]), "https://s/x")])
+    assert "listing-lost" in [c.kind for c in changes]
+    assert healed.listing == plain.listing
+
+
+def test_heal_never_moves_a_chosen_listing_on_one_coincidence():
+    """Redesigned, with every book new, the catalogue held none of its old
+    prices, and one related product cost what a book used to: heal moved the
+    listing of prices there, a move and no loss, so it was written."""
+
+    def page_(books_, related, wrap="ol"):
+        rows = "".join(
+            f"<li class='book'><a class='title' href='/b/{n}'>{t}</a>"
+            f"<span class='price'>{p}</span></li>"
+            for n, (t, p) in enumerate(books_, 1)
+        )
+        strip = "".join(
+            f"<li class='rel'><a class='t' href='/r/{n}'>{t}</a>"
+            f"<span class='cost'>{p}</span></li>"
+            for n, (t, p) in enumerate(related, 1)
+        )
+        return (
+            f"<html><head><title>Shop</title></head><body><main><{wrap} class='b'>"
+            f"{rows}</{wrap}><h2>Related</h2><ul class='related'>{strip}</ul>"
+            "</main></body></html>",
+            "https://shop.example/c",
+        )
+
+    others = [("Y", "£98.00"), ("Z", "£97.00")]
+    learnt = compile_extractor(
+        [
+            page_(
+                [(f"Book {n}", f"£{n}.50") for n in range(1, 8)],
+                [("X", "£99.00"), *others],
+            )
+        ],
+        want={"price": "1.50"},
+    )
+    new = page_(
+        [(f"New {n}", f"£{n + 20}.00") for n in range(1, 8)],
+        [("X", "£1.50"), *others],
+        wrap="div",
+    )
+    healed, changes = heal(learnt, [new])
+    assert [c.kind for c in changes] == ["listing-lost"]
+    assert healed.listing == learnt.listing
+    redesigned = page_(
+        [(f"Book {n}", f"£{n}.50") for n in range(1, 8)],
+        [("X", "£1.50"), *others],
+        "div",
+    )
+    healed, changes = heal(learnt, [redesigned])
+    assert healed.listing.container == "html>body>main>div.b"
+
+
+def _file(**change):
+    """An extractor's file, with one part of it changed by hand."""
+    body = json.loads(learn(shop_page(books(10))).to_json())
+    for where, value in change.items():
+        *parents, key = where.split("__")
+        node = body
+        for part in parents:
+            node = node[int(part)] if part.isdigit() else node[part]
+        node[key] = value
+    return json.dumps(body)
+
+
+@pytest.mark.parametrize(
+    ("change", "said"),
+    [
+        ({"listing__fields__0__missing": "nan"}, "missing is a share from 0 to 1"),
+        ({"listing__fields__0__missing": float("nan")}, "missing is a share"),
+        ({"listing__fields__0__missing": True}, "missing is a share"),
+        ({"listing__fields__0__missing": "0"}, "missing is a share"),
+        ({"listing__fields__0__missing": 1.5}, "missing is a share"),
+        ({"listing__fields__0__missing": -0.1}, "missing is a share"),
+        ({"listing__empty": 5}, "empty is a share from 0 to 1"),
+        ({"listing__empty": "0.0"}, "empty is a share"),
+        ({"listing__rows": ["5", "6"]}, "rows are the fewest and the most"),
+        ({"listing__rows": [6, 5]}, "rows are the fewest and the most"),
+        ({"listing__rows": [1.5, 6]}, "rows are the fewest and the most"),
+        ({"listing__fields__0__shape": "XYZ"}, "a shape is made of L, N, P and S"),
+        ({"listing__fields__1__name": "a.title"}, "two fields named 'a.title'"),
+        ({"listing__chosen": "yes"}, "chosen is true or false"),
+        ({"listing__siblings": [1, "1", 1]}, "siblings"),
+        ({"listing__siblings": [1, 0, 1]}, "siblings"),
+        ({"listing__siblings": [1, 1]}, "siblings"),
+        ({"listing__container": "html>body>div[x]>ol.row"}, "not a path"),
+        ({"listing__container": "html>body>div[0]>ol.row"}, "not a path"),
+        ({"listing__member": "li>a"}, "not a row's kind"),
+        ({"learnt_from": "page 1"}, "learnt_from is a list"),
+        ({"types": "Product"}, "types is a list"),
+        ({"summary": {"price": "money"}}, "a shape is made of L, N, P and S"),
+        ({"listing__fields__0__samples": "abc"}, "samples is a list"),
+    ],
+)
+def test_a_file_edited_into_one_that_checks_less_is_refused(change, said):
+    """``"missing": "nan"`` read as a float that no comparison is true of: the
+    field's presence was never checked again, and the run passed a page with
+    none of it. Every value is checked as it is read, not only its key."""
+    with pytest.raises(ValueError, match=said):
+        Extractor.from_json(_file(**change))
+
+
+def test_every_file_this_version_writes_is_read_back_the_same():
+    for extractor in (
+        learn(shop_page(books(10)), shop_page(books(8))),
+        compile_extractor(SPECS, want={"price": "41.90", "sku": "BP-1"}),
+        compile_extractor([_sections(("Pick", 1), ("All", 12))], want={"n": "All 3"}),
+    ):
+        assert Extractor.from_json(extractor.to_json()) == extractor
+
+
+def test_run_refuses_a_file_whose_check_was_edited_away(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(_file(listing__fields__0__missing="nan"), encoding="utf-8")
+    page_ = tmp_path / "p.html"
+    page_.write_text(shop_page(books(10)), encoding="utf-8")
+    result = _cli("run", str(bad), str(page_))
+    assert result.exit_code == 2
+    assert "not an extractor" in result.stderr
+    assert "missing is a share from 0 to 1" in result.stderr
+
+
+def test_a_column_of_no_letter_digit_or_sign_learns_no_shape():
+    """A combining accent alone has none of the classes a shape is made of:
+    learnt as the empty shape, the file to_json wrote was one from_json
+    refused."""
+    marked = books(6, stock=lambda i: '<span class="mark">́</span>')
+    learnt = learn(shop_page(marked))
+    fields = {f.name: f for f in learnt.listing.fields}
+    assert fields["span.mark"].shape is None
+    assert Extractor.from_json(learnt.to_json()) == learnt
+
+
+# -- the cost -------------------------------------------------------------------
+
+
+def test_compile_run_and_heal_parse_each_page_once(monkeypatch):
+    """Each read the page twice or more: once to walk it, and once more for
+    what it declares, and heal once for every part it healed."""
+    from sluicer import document
+
+    parsed = []
+    real = document.lxml.html.document_fromstring
+
+    def counting(*args, **kwargs):
+        parsed.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(document.lxml.html, "document_fromstring", counting)
+    pages = [
+        (shop_page(books(10)), "https://s/1"),
+        (shop_page(books(8)), "https://s/2"),
+    ]
+    learnt = compile_extractor(pages)
+    assert len(parsed) == 2
+    run_extractor(learnt, *pages[0])
+    assert len(parsed) == 3
+    heal(learnt, pages)
+    assert len(parsed) == 5
+    wanted = compile_extractor(pages, want={"title": TITLES[3]})
+    heal(wanted, pages)
+    assert len(parsed) == 9
+
+
+def test_labels_are_looked_up_not_searched_for_on_every_candidate(monkeypatch):
+    """A page of labelled rows that all say "Yes" has a candidate label for
+    every row, and each candidate read every page again: 4,000 rows took two
+    seconds, twice as many four times as long."""
+    from sluicer import extractor
+
+    scans = []
+    real = extractor._value_after
+
+    def counting(nodes, anchor, index=None):
+        if index is None:
+            scans.append(1)
+        return real(nodes, anchor, index)
+
+    monkeypatch.setattr(extractor, "_value_after", counting)
+    rows = "".join(f"<li><b>Label {n}:</b> Yes</li>" for n in range(2000))
+    html = f"<html><body><ul>{rows}</ul></body></html>"
+    pages = [(html, "https://a.example/1"), (html, "https://a.example/2")]
+    learnt = compile_extractor(pages, listing=False, want={"flag": "Yes"})
+    assert learnt.fields[0].anchor is not None
+    assert len(scans) <= len(pages)

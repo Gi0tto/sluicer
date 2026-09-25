@@ -63,6 +63,10 @@ PAGE = (
     + "</article></body></html>"
 )
 HUGE = 17 * 1024 * 1024
+CHALLENGE = (
+    "<html><head><title>Just a moment...</title></head>"
+    "<body>Checking your browser</body></html>"
+)
 released = threading.Event()
 
 
@@ -89,6 +93,10 @@ class Web(http.server.BaseHTTPRequestHandler):
             self._send(200, PAGE.encode())
         elif self.path == "/huge":
             self._send(200, b"<p>" + b"x" * HUGE)
+        elif self.path == "/paywall":
+            self._send(402, PAGE.encode())
+        elif self.path == "/waiting":
+            self._send(200, CHALLENGE.encode())
         elif self.path == "/slow":
             released.wait(60)
             self._send(200, PAGE.encode())
@@ -252,7 +260,10 @@ def main() -> int:
     servers = []
     try:
         servers.append(start(ports["A"], {http_api.TOKEN_ENV: TOKEN}))
-        servers.append(start(ports["B"], {"SLUICER_ALLOW_PRIVATE": "1"}, "--timeout 3"))
+        # Long enough for a map or a crawl that waits the site's second after
+        # the call before it, one site being asked one request at a time by
+        # every call; short enough for the slow page to run out of it.
+        servers.append(start(ports["B"], {"SLUICER_ALLOW_PRIVATE": "1"}, "--timeout 8"))
         servers.append(start(ports["C"], {}, prelude=WITHOUT_TRAFILATURA))
         a, b, c = ports["A"], ports["B"], ports["C"]
 
@@ -459,6 +470,20 @@ def main() -> int:
             call(b, "fetch_page", {"url": f"{site}/private/secret"}),
             403,
             "refused_by_robots",
+            tool="fetch_page",
+        )
+        check.expect(
+            "a site that asks to be paid",
+            call(b, "fetch_page", {"url": f"{site}/paywall"}),
+            402,
+            "payment_required",
+            tool="fetch_page",
+        )
+        check.expect(
+            "a challenge page on every rung",
+            call(b, "fetch_page", {"url": f"{site}/waiting"}),
+            403,
+            "refused_by_site",
             tool="fetch_page",
         )
         check.expect(

@@ -44,9 +44,11 @@ from sluicer.fetch import (
     AddressRefused,
     Climb,
     FetchFailed,
+    PaymentRequired,
     RedirectRefused,
     ResponseTooLarge,
     RobotsRefused,
+    SiteRefused,
     fetch,
 )
 from sluicer.fetch.address import _resolve, why_not_public
@@ -74,8 +76,9 @@ class PageError:
     """Why a page has no extraction.
 
     ``code`` is one of the MCP server's -- ``refused_by_robots``,
-    ``refused_address``, ``fetch_failed`` (``retryable``), ``too_large``,
-    ``bad_input`` -- or one of a crawl's own: ``redirected_off_site``, with the
+    ``refused_by_site``, ``payment_required``, ``refused_address``,
+    ``fetch_failed`` (``retryable``), ``too_large``, ``bad_input`` -- or one
+    of a crawl's own: ``redirected_off_site``, with the
     ``target`` it pointed to, ``crawl_delay_too_long``, and ``rate_limited``
     (``retryable``), a site's Retry-After asking for longer than a crawl waits.
     """
@@ -258,6 +261,7 @@ def crawl(
     replayed: list[dict[str, Any]] = []
     if state is not None:
         replayed = _replay(Path(state), frontier)
+        _cut_unfinished(Path(state))
     polite, web = _reach(
         web, min_delay, clock, sleep, allow_private, resolve, max_bytes
     )
@@ -330,6 +334,7 @@ def extract_many(
             error = line.get("error")
             if isinstance(error, dict) and isinstance(error.get("target"), str):
                 targets.append(error["target"])
+        _cut_unfinished(Path(state))
 
     def add(address: str, found_on: str | None = None) -> None:
         if address and address not in queued:
@@ -499,11 +504,8 @@ class _Visitor:
                 robots_refusal(address, self.polite.reader, now=self.polite.clock)
                 is None
             ):
-                self.polite.wait(address, self.polite.delay_for(address))
-                try:
+                with self.polite.turn(address, self.polite.delay_for(address)):
                     response = self.web.get(address)
-                finally:
-                    self.polite.ended(address)
                 if 200 <= response.status < 300:
                     rules = read_tdmrep(response.body.decode("utf-8", "replace"))
         # Deliberately blind: a file that could not be read, however, is a
@@ -563,6 +565,10 @@ class _Visitor:
             return failed("redirected_off_site", str(refused), target=refused.target)
         except ResponseTooLarge as heavy:
             return failed("too_large", str(heavy))
+        except SiteRefused as refused:
+            return failed("refused_by_site", str(refused))
+        except PaymentRequired as unpaid:
+            return failed("payment_required", str(unpaid))
         except FetchFailed as failure:
             return failed("fetch_failed", str(failure), retryable=True)
         finally:
@@ -666,22 +672,24 @@ def _page_of(line: dict[str, Any], task: Task) -> Page:
 
 
 def _lines(path: Path) -> list[dict[str, Any]]:
-    """The pages a state file holds, its unfinished last line cut off.
+    """The pages a state file holds, its unfinished last line left out.
 
     A line is written whole and then flushed, so only the last can be partial:
-    a crawl stopped mid-write. Anything else that is not a page's JSON means
-    the file is not a crawl's output.
+    a crawl stopped mid-write, which is the start of a page's line. Anything
+    else that is not a page's JSON means the file is not a crawl's output. The
+    file is only read here; ``_cut_unfinished`` drops the partial line once
+    the caller has accepted the file, so a file that is refused is left as it
+    was -- measured before, pointed at someone's notes, ``--resume`` cut their
+    last line off and then refused them.
     """
     try:
         data = path.read_bytes()
     except FileNotFoundError:
         return []
     complete = data.rfind(b"\n") + 1
-    if complete < len(data):
-        with path.open("r+b") as handle:
-            handle.truncate(complete)
+    written = data[:complete].splitlines()
     lines = []
-    for number, raw in enumerate(data[:complete].splitlines(), 1):
+    for number, raw in enumerate(written, 1):
         if not raw.strip():
             continue
         try:
@@ -691,7 +699,29 @@ def _lines(path: Path) -> list[dict[str, Any]]:
         if not isinstance(line, dict) or not isinstance(line.get("url"), str):
             raise StateMismatch(str(path), f"line {number} is not a page's JSON")
         lines.append(line)
+    unfinished = data[complete:]
+    if unfinished and not (
+        unfinished.startswith(_PAGE_LINE) or _PAGE_LINE.startswith(unfinished)
+    ):
+        raise StateMismatch(str(path), f"line {len(written) + 1} is not a page's JSON")
     return lines
+
+
+_PAGE_LINE = b'{"url": '
+"""How every line ``_write`` writes begins, so how a line cut short begins."""
+
+
+def _cut_unfinished(path: Path) -> None:
+    """Drop the line a stopped crawl left half written, once the file is
+    accepted as this crawl's: the next page is appended after whole lines."""
+    try:
+        with path.open("r+b") as handle:
+            data = handle.read()
+            complete = data.rfind(b"\n") + 1
+            if complete < len(data):
+                handle.truncate(complete)
+    except FileNotFoundError:
+        return
 
 
 @contextmanager
