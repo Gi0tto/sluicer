@@ -2,9 +2,9 @@
 
 Run by ``bench/evaldata.py`` in an environment holding Sluicer, editable, and
 the trafilatura the other scoreboards pin. Each page's output is scored as
-trafilatura's own evaluation scores it (``tests/eval_common.py``, count_item):
-a "with" snippet found is a true positive, a "without" snippet found a false
-positive, spaces normalised on both sides.
+trafilatura's own evaluation scores it (``snippets.py``): a "with" snippet
+found is a true positive, a "without" snippet found a false positive, spaces
+normalised on both sides.
 """
 
 from __future__ import annotations
@@ -20,9 +20,8 @@ import trafilatura
 
 import sluicer.markdown
 
-
-def _norm(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip()
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from snippets import counted
 
 
 def _plain(markdown: str) -> str:
@@ -56,15 +55,7 @@ def main(pages_path: str, out_path: str) -> None:
     for page in pages:
         html = gzip.decompress((root / page["path"]).read_bytes())
         for name, produce in outputs.items():
-            text = _norm(produce(html, page["url"]) or "")
-            found = sum(1 for snippet in page["with"] if _norm(snippet) in text)
-            leaked = sum(1 for snippet in page["without"] if _norm(snippet) in text)
-            row = [
-                found,
-                leaked,
-                len(page["with"]) - found,
-                len(page["without"]) - leaked,
-            ]
+            row = counted(page, produce(html, page["url"]))
             per_page.setdefault(page["id"], {})[name] = row
             for key, value in zip(("tp", "fp", "fn", "tn"), row, strict=True):
                 totals[name][key] += value

@@ -144,11 +144,14 @@ same tools, with `score.py`, on the 990 pages
 itself on, 851 of them annotated with their title, author and date; and it
 scores `sluicer.markdown`'s main text against trafilatura's own text, as
 trafilatura's evaluation scores it, by the snippets each output must and must
-not hold.
+not hold, beside html-to-markdown (xberg-io, MIT), a converter of whole pages
+that chooses no main text, run in its own environment pinned by
+`requirements/html-to-markdown.txt` (`tools/evaldata_html_to_markdown.py`).
 
 ```bash
 uv run bench/evaldata.py                  # trafilatura at its pinned commit, then the scoreboard
 uv run bench/evaldata.py --tools sluicer  # rerun one tool, reuse the others
+uv run bench/evaldata.py --tools html-to-markdown   # the converter alone
 ```
 
 `evaldata.py` downloads trafilatura at one pinned commit into
