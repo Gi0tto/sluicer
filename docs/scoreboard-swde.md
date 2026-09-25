@@ -16,7 +16,7 @@ Sluicer, [Scrapling](https://github.com/D4Vinci/Scrapling)'s adaptive
 selectors, which promise to find an element again when a page changes,
 are asked the same thing, as [the drift benchmark](drift.md) asks them.
 
-Regenerated on 2026-09-25 from commit `a8ca1b1` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
+Regenerated on 2026-09-25 from commit `a6e42e6` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
 archive checked against its SHA-256. No seconds are printed: five
 timed rounds of every tool would take nearly seven hours
 ([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md),
@@ -39,14 +39,14 @@ percentile interval of 10,000 resamples of the sites, not of the pages.
 
 | system | mean F1 | precision | recall |
 |---|---|---|---|
-| **sluicer 0.7.1** | 0.849 (0.81–0.89) | 0.972 (0.95–0.99) | 0.849 (0.80–0.89) |
+| **sluicer 0.8.0** | 0.850 (0.81–0.89) | 0.974 (0.95–0.99) | 0.849 (0.80–0.89) |
 | Scrapling 0.4.15, adaptive | 0.671 (0.60–0.74) | 0.864 (0.81–0.91) | 0.710 (0.64–0.78) |
 
 | Sluicer against Scrapling | difference (95% interval) | verdict |
 |---|---|---|
-| mean F1 | +0.178 (+0.124 to +0.236) | better |
-| precision | +0.109 (+0.068 to +0.155) | better |
-| recall | +0.139 (+0.085 to +0.198) | better |
+| mean F1 | +0.179 (+0.124 to +0.237) | better |
+| precision | +0.111 (+0.070 to +0.157) | better |
+| recall | +0.139 (+0.084 to +0.198) | better |
 
 The difference is Sluicer's minus Scrapling's; its interval is the 95%
 percentile interval of 10,000 resamples of the sites, drawn together for
@@ -57,7 +57,7 @@ read them as a table, not one at a time.
 
 | system | wrong answers | of them flagged by the run | not learnt (site-attributes) |
 |---|---|---|---|
-| **sluicer 0.7.1** | 12,059 | 1,999 (17%) | 20 of 320 |
+| **sluicer 0.8.0** | 11,156 | 1,999 (18%) | 20 of 320 |
 | Scrapling 0.4.15, adaptive | 56,058 | no checks | 63 of 320 |
 
 A wrong answer is a value that is not the page's, or a value where the
@@ -82,7 +82,7 @@ sites are not a clean test.
 
 | half | site-attributes | sluicer F1 | Scrapling F1 | difference (95% interval) | verdict |
 |---|---|---|---|---|---|
-| development | 160 | 0.854 (0.80–0.91) | 0.675 (0.59–0.76) | +0.179 (+0.107 to +0.251) | better |
+| development | 160 | 0.855 (0.80–0.91) | 0.675 (0.59–0.76) | +0.180 (+0.107 to +0.253) | better |
 | held-out | 160 | 0.845 (0.79–0.90) | 0.667 (0.57–0.77) | +0.178 (+0.097 to +0.261) | better |
 
 ## By vertical
@@ -92,7 +92,7 @@ sites are not a clean test.
 | auto | 40 | 0.869 | 0.688 |
 | book | 50 | 0.797 | 0.524 |
 | camera | 30 | 0.856 | 0.817 |
-| job | 40 | 0.806 | 0.724 |
+| job | 40 | 0.811 | 0.724 |
 | movie | 40 | 0.860 | 0.842 |
 | nbaplayer | 40 | 0.886 | 0.399 |
 | restaurant | 40 | 0.903 | 0.692 |
@@ -114,9 +114,9 @@ sites are not a clean test.
 | camera | manufacturer | 0.896 | 0.893 |
 | camera | model | 0.810 | 0.789 |
 | camera | price | 0.862 | 0.770 |
-| job | company | 0.830 | 0.798 |
+| job | company | 0.844 | 0.798 |
 | job | date_posted | 0.684 | 0.415 |
-| job | location | 0.842 | 0.782 |
+| job | location | 0.845 | 0.782 |
 | job | title | 0.869 | 0.899 |
 | movie | director | 0.835 | 0.877 |
 | movie | genre | 0.933 | 0.891 |
