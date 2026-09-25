@@ -187,8 +187,10 @@ sluicer compile page1.html page2.html -o brakes.json --rows li.product \
 ```
 
 - **A selector is CSS or XPath.** CSS takes Scrapy's `::text`, an element's
-  own text nodes, and `::attr(name)`, an attribute; without either the value
-  is the element's whole text. A selector beginning with `/`, `./`, `(` or
+  own text nodes, and `::attr(name)`, an attribute, read as parsel reads them:
+  after a space, `div ::text` is every text node inside the element and
+  `div ::attr(class)` the attribute of the element and of everything inside
+  it. Without either the value is the element's whole text. A selector beginning with `/`, `./`, `(` or
   `@` is XPath, anything else CSS, and `xpath:` or `css:` before it says
   which. Values are read as a learnt field's are: spaces collapsed, `href`
   and `src` resolved against the page, a value of spaces alone no value.

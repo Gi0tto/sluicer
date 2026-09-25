@@ -392,6 +392,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   process. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
+- CSS's `::text` and `::attr()` are read as parsel, Scrapy's selectors,
+  reads them, as the selector language says. After a space, `div.price
+  ::text` is every text node inside the element -- `Price:`, `12` and `EUR`
+  -- and `h1 ::text` the heading's text; 0.8.0 read the text of the elements
+  inside it, `12` alone, and nothing for `h1 ::text`. `ol ::attr(class)`
+  reads the `ol`'s own class too. Text nodes come in the page's order, so
+  `div.x::text` on a `div.x` inside another reads `A`, `B`, `C` where it
+  read `A`, `C`, `B`.
 - `sluicer compile` refuses a field named twice, `--select x=h1 --select
   x=h2` or `--want x=a --want x=b`, exit 2, as an extractor file with two
   fields of one name is refused. The last one was kept and the first dropped

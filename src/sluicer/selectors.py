@@ -69,9 +69,10 @@ class Selector:
     """A selector as written and as it is evaluated.
 
     ``kind`` is ``css`` or ``xpath``. For CSS, ``xpath`` is what the
-    selector's elements are found by, and ``reads`` says what of each is
-    read: ``element`` its whole text, ``text`` its own text nodes (``::text``),
-    ``attribute`` the one named by ``attribute`` (``::attr(name)``). An
+    selector is evaluated as, and ``reads`` says what of each element is
+    read: ``element`` its whole text, ``text`` its own text nodes (``::text``,
+    which ``xpath`` then selects), ``attribute`` the one named by
+    ``attribute`` (``::attr(name)``). An
     XPath reads what it selects, an element, a text or an attribute, and its
     ``reads`` is ``selected``.
     """
@@ -133,7 +134,9 @@ def _translated(text: str) -> Selector:
     reads, attribute = reading.pop()
     translator = cssselect.HTMLTranslator()
     try:
-        paths = [translator.selector_to_xpath(one) for one in group]
+        paths = [
+            _pseudo_read(translator.selector_to_xpath(one), reads) for one in group
+        ]
         # Compiled once here, so that what lxml refuses in the translation --
         # a NUL in an attribute's value -- is said when the selector is read.
         etree.XPath(" | ".join(paths))
@@ -142,6 +145,25 @@ def _translated(text: str) -> Selector:
             f"{text!r} is not a CSS selector Sluicer reads: {why}"
         ) from None
     return Selector(text, "css", " | ".join(paths), reads, attribute)
+
+
+def _pseudo_read(path: str, reads: str) -> str:
+    """The XPath of one CSS selector, with what its pseudo-element reads, as
+    parsel -- Scrapy's selectors -- reads it.
+
+    ``::text`` selects the text nodes, so they come in the page's order,
+    nested elements' too. After a space, ``div ::text`` (``div *::text``) is
+    every text node inside the element, not the text of the elements inside
+    it, and ``div ::attr(class)`` the attribute of the element and of
+    everything inside it: cssselect ends such a path with ``::*/*``, which
+    parsel reads as ``descendant-or-self`` of the element, and so does this.
+    """
+    inside = path.endswith("::*/*")
+    if reads == "text":
+        return path[: -len("*/*")] + "text()" if inside else path + "/text()"
+    if reads == "attribute" and inside:
+        return path[: -len("/*")]
+    return path
 
 
 def _pseudo(text: str, pseudo: Any) -> tuple[str, str | None]:
@@ -320,12 +342,14 @@ class Page:
     def css(self, text: str) -> Selection:
         """What the CSS selector ``text`` gives on the page.
 
-        ``::text`` reads an element's own text nodes, each one a value, as
-        Scrapy does, and ``::attr(name)`` its attribute; without either, the
-        element's whole text is its value. A text node or an attribute of
-        spaces alone, or an element without the attribute, gives no value; an
-        element with no text gives an empty one, so every row of a listing is
-        counted.
+        ``::text`` reads an element's own text nodes, each one a value, and
+        ``::attr(name)`` its attribute, as Scrapy's parsel does: after a
+        space, ``div ::text`` is every text node inside the element, and
+        ``div ::attr(name)`` the attribute of the element and of everything
+        inside it. Without either, the element's whole text is its value. A
+        text node or an attribute of spaces alone, or an element without the
+        attribute, gives no value; an element with no text gives an empty
+        one, so every row of a listing is counted.
 
         Raises:
             SelectorError: ``text`` is not a CSS selector Sluicer reads.
@@ -372,12 +396,7 @@ class Page:
 
     def _read(self, chosen: Selector, node: Any) -> Iterable[Selected]:
         if isinstance(node, HtmlElement):
-            if chosen.reads == "text":
-                for text in node.xpath("text()"):
-                    said = " ".join(text.split())
-                    if said:
-                        yield self._selected(said, node, None)
-            elif chosen.reads == "attribute":
+            if chosen.reads == "attribute":
                 assert chosen.attribute is not None
                 value = self._attribute(chosen.attribute, node.get(chosen.attribute))
                 if value:
