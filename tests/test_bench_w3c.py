@@ -100,3 +100,26 @@ def test_a_script_that_is_not_json_is_not_part_of_what_the_page_holds():
         '<script type="application/LD+JSON; charset=utf-8">{"b": 2}</script>'
     )
     assert [script["json"] for script in score.scripts(page)] == [None, {"b": 2}]
+
+
+def test_the_results_table_has_a_cell_for_every_column():
+    pytest.importorskip("dateutil")
+    import sys
+
+    sys.path.insert(0, str(BENCH))
+    import w3c_jsonld
+
+    readers = ("pyld", *w3c_jsonld.READERS)
+    scored = {
+        "readers": {who: {"version": "1"} for who in readers},
+        "tests": [
+            {
+                "kind": kind,
+                "negative": False,
+                "outcomes": {who: {"passed": True} for who in readers},
+            }
+            for kind in w3c_jsonld.KINDS
+        ],
+    }
+    lines = w3c_jsonld._table(scored)
+    assert len({line.count("|") for line in lines}) == 1, lines[:2]

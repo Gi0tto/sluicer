@@ -139,7 +139,7 @@ def _table(scored: dict[str, Any]) -> list[str]:
     tests = scored["tests"]
     counts = Counter(row["kind"] for row in tests)
     lines = [
-        "| reads the page | all "
+        "| reads the page | all | "
         + " | ".join(f"{kind} ({counts[kind]})" for kind in KINDS)
         + " | negative tests |",
         "|---|---|" + "---|" * len(KINDS) + "---|",
