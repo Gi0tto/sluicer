@@ -66,6 +66,21 @@ measured apart, by `timing.py` (below).
 Changing a pin, the corpus commit or a matching rule changes the scoreboard,
 and belongs in the same commit as the regenerated `docs/scoreboard.md`.
 
+## `--visible`, beside what the pages declare
+
+Every scoreboard above and below that scores a title, an author and a date
+also scores `--visible`, in two columns: *declared*, Sluicer's summary as
+scored everywhere else, and *declared then `--visible`*, the summary's answer
+where it has one and `--visible`'s guess where it has none. What the guesses
+changed is counted apart -- silent misses made hits, silent misses made
+wrong, correct silences made inventions -- and the second column is paired
+against the first and against every other tool. Sluicer's harness reads the
+guesses after the timed call, with `extract(..., visible=True)`, and stops if
+that call's summary differs from the first's. `--visible`'s rules were made on
+WCXB's development split only (`visible_dev.py` scores them there), so every
+scoreboard is held out from them; [`PREREG.md`](PREREG.md) fixed how they are
+scored before they were first run on these pages.
+
 ## The same labels, on pages as served
 
 [`docs/scoreboard-served.md`](../docs/scoreboard-served.md) scores the same
