@@ -114,6 +114,16 @@ def stop(process: subprocess.Popen[str]) -> None:
         process.kill()
 
 
+def _status(port: int, path: str) -> int:
+    """The status a GET of ``path`` is answered with, whatever its body."""
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=60)
+    try:
+        connection.request("GET", path, headers={"Host": f"127.0.0.1:{port}"})
+        return connection.getresponse().status
+    finally:
+        connection.close()
+
+
 def request(
     port: int,
     method: str,
@@ -275,6 +285,31 @@ def main() -> int:
                     f"{what}: {got} {str(answer)[:300]}, not {status} {code}"
                 )
         print(f"mcp over http: {len(refusals)} refusals of the door, each its status")
+
+        # As many connections as the server holds, none sending a byte: they
+        # are closed once HEAD_SECONDS pass, and the server answers again.
+        from sluicer.http_api import HEAD_SECONDS, MAX_CONNECTIONS
+
+        idle = [
+            socket.create_connection(("127.0.0.1", a)) for _ in range(MAX_CONNECTIONS)
+        ]
+        try:
+            time.sleep(0.5)
+            held = _status(a, "/health")
+            time.sleep(HEAD_SECONDS + 1.5)
+            freed = _status(a, "/health")
+        finally:
+            for sock in idle:
+                sock.close()
+        if freed != 200:
+            failures.append(
+                f"{MAX_CONNECTIONS} idle connections held the server: /health "
+                f"answered {held}, then {freed} after {HEAD_SECONDS:g} s"
+            )
+        print(
+            f"mcp over http: {MAX_CONNECTIONS} idle connections answered {held}, "
+            f"closed within {HEAD_SECONDS:g} s"
+        )
     finally:
         for process in servers:
             stop(process)

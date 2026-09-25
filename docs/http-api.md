@@ -289,6 +289,16 @@ machinery in between.
   and `extract_declared` on HTML handed in waited behind them for about 65
   seconds of HTTP, browser and robots.txt deadlines.
 
+- **A connection that sends nothing is closed.** One that has not sent a
+  whole request's line and headers ten seconds after it opened, or after its
+  last answer (`HEAD_SECONDS`), is closed. uvicorn times a connection out only
+  between two requests: measured, 64 connections that sent nothing held
+  every one it serves at once, and every later request, `/health` included,
+  was answered 503 for as long as they stayed. A client that sends its
+  headers a byte at a time for longer is cut off too; one that sends them
+  and then a slow body is not, and beyond loopback a reverse proxy in front
+  is still what bounds that.
+
 The body bound and the workers are arguments of
 `sluicer.http_api.build_app` (`max_body`, `max_calls`, `max_reads`), and the 64 connections
 are `MAX_CONNECTIONS`, which `serve` hands uvicorn. None is an option of the

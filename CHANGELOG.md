@@ -585,6 +585,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   through the HTTP rung. A browser driven elsewhere (`SLUICER_CDP_URL`)
   cannot reach that proxy and is judged by the routes alone, as SECURITY.md
   says. `tests/live/guard_check.py` tries thirteen routes, these among them.
+- `sluicer serve` closes a connection that has not sent a request's line and
+  headers within ten seconds of opening, or of its last answer
+  (`HEAD_SECONDS`). uvicorn times a connection out only between two
+  requests: 64 connections that sent nothing held every one it serves at
+  once, and every later request, `/health` included, was answered 503 for as
+  long as they stayed. `tests/live/mcp_http_check.py` holds 64 open.
 
 ## 0.7.1 - 2026-09-25
 

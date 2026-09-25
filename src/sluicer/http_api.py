@@ -95,6 +95,13 @@ MCP_PATH = "/mcp"
 MAX_CONNECTIONS = 64
 """Connections uvicorn holds at once before it answers 503 itself."""
 
+HEAD_SECONDS = 10.0
+"""How long a connection may take to send a request's line and headers, the
+first or the next: past it, the connection is closed. uvicorn times a
+connection out only between two requests; measured, 64 that sent nothing
+held every one of ``MAX_CONNECTIONS``, and every later request, ``/health``
+included, was answered 503 for as long as they stayed."""
+
 TOOL_STATUS: dict[str, int] = {
     "bad_input": 400,
     "refused_by_robots": 403,
@@ -914,7 +921,60 @@ def serve(
         app,
         host=host,
         port=port,
+        http=_head_timed(),
         limit_concurrency=MAX_CONNECTIONS,
         server_header=False,
         log_level="info",
     )
+
+
+def _head_timed() -> type[Any]:
+    """uvicorn's h11 protocol, closing a connection that has not sent a whole
+    request's line and headers within ``HEAD_SECONDS`` of opening, or of its
+    last answer. Once a request's headers are in, its body and its answer
+    take what they take."""
+    # By name, as every extra is: mypy reads this module in the base install.
+    h11: Any = importlib.import_module("uvicorn.protocols.http.h11_impl")
+
+    class HeadTimed(h11.H11Protocol):  # type: ignore[misc]
+        _awaited: Any = None
+        _head_timer: Any = None
+
+        def connection_made(self, transport: Any) -> None:
+            super().connection_made(transport)
+            self._wait_for_a_head()
+
+        def data_received(self, data: bytes) -> None:
+            super().data_received(data)
+            self._headed()
+
+        def on_response_complete(self) -> None:
+            self._wait_for_a_head()
+            super().on_response_complete()
+            # A request sent before the answer ended is read in the call.
+            self._headed()
+
+        def connection_lost(self, exc: Exception | None) -> None:
+            self._stop_waiting()
+            super().connection_lost(exc)
+
+        def _wait_for_a_head(self) -> None:
+            self._stop_waiting()
+            self._awaited = self.cycle
+            self._head_timer = self.loop.call_later(HEAD_SECONDS, self._too_late)
+
+        def _headed(self) -> None:
+            if self.cycle is not self._awaited:
+                self._stop_waiting()
+
+        def _stop_waiting(self) -> None:
+            if self._head_timer is not None:
+                self._head_timer.cancel()
+                self._head_timer = None
+
+        def _too_late(self) -> None:
+            self._head_timer = None
+            if not self.transport.is_closing():
+                self.transport.close()
+
+    return HeadTimed
