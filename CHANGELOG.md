@@ -392,6 +392,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   process. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
+- A page field learnt by its place is read after its label instead when
+  another page given puts another labelled value there and says the
+  example's own label elsewhere: PEP 257 puts its Discussions-To where PEP 8
+  puts its status, and says "Status:" a row further down. With every value
+  plain text nothing contradicted the place, and PEP 257's status read
+  "Doc-SIG list" with the run passing; only a label the example's own page
+  says counted.
 - A column of a hand-written listing that fewer than half the learnt rows
   carried -- a sale badge on three rows in ten -- fails a page none of whose
   rows carries it when that is under a 1% chance (`written.BY_CHANCE`): from

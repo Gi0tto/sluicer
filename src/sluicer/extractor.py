@@ -1375,10 +1375,15 @@ def _labelled_otherwise(
     on some PEPs, and the place of PEP 8's type holds PEP 257's status,
     "Active", after "Status:", which PEP 8 says before its own status.
 
-    A label its own page does not say is no other field of it: MSN's film
-    pages say "Directors:" on one film and "Director:" on another, before
-    the same place. Only a text written as a label counts (``_a_label``):
-    the text before a value is often something else the template says."""
+    So is the place when that other page says the example's own label
+    somewhere else: PEP 257 puts its Discussions-To where PEP 8 puts its
+    status, and says "Status:" a row further down.
+
+    A label its own page does not say, before a place whose page does not
+    say the example's label elsewhere, is no other field: MSN's film pages
+    say "Directors:" on one film and "Director:" on another, before the same
+    place. Only a text written as a label counts (``_a_label``): the text
+    before a value is often something else the template says."""
     where, _, attribute = path.partition("@")
     if len(docs) < 2 or attribute:
         return None
@@ -1403,9 +1408,11 @@ def _labelled_otherwise(
     if own is None:
         return None
     own_label, own_nodes = own
-    for label, value, _nodes in said:
-        if not _same_label(label, own_label) and any(
-            _same_label(text, label) for text, _ in own_nodes
+    for label, value, nodes in said:
+        if _same_label(label, own_label):
+            continue
+        if any(_same_label(text, label) for text, _ in own_nodes) or any(
+            _same_label(text, own_label) for text, _ in nodes
         ):
             return f"{value!r} after {label!r}"
     return None

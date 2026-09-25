@@ -1005,6 +1005,46 @@ def test_a_header_whose_rows_differ_between_pages_is_read_by_its_labels():
     }
 
 
+def test_a_place_another_page_labels_otherwise_is_read_after_the_own_label():
+    """PEP 257 says "Status:" too, a row further down, and at the place of PEP
+    8's status it puts its Discussions-To. With every value plain text,
+    nothing there contradicted the place: the status was learnt by it, and
+    read "Doc-SIG list" on PEP 257 with the run passing. "Discussions-To:"
+    is no label PEP 8 says, which is all that was asked."""
+    plain = [
+        _pep(
+            number,
+            title,
+            *((label, re.sub(r"<[^>]+>", "", value)) for label, value in rows),
+        )
+        for (number, title, rows) in (
+            (8, "Style Guide for Python Code", _rows_of(PEPS[0])),
+            (20, "The Zen of Python", _rows_of(PEPS[1])),
+            (257, "Docstring Conventions", _rows_of(PEPS[2])),
+        )
+    ]
+
+    learnt = compile_extractor(plain, listing=False, want={"status": "Active"})
+
+    [status] = learnt.fields
+    assert status.anchor is not None and status.anchor.label == "Status:"
+    assert "'Doc-SIG list' after 'Discussions-To:'" in learnt.notes[0]
+    for page in plain:
+        run = run_extractor(learnt, *page)
+        assert run.ok, failed(run)
+        assert run.fields == {"status": "Active"}
+
+
+def _rows_of(page):
+    """A ``_pep`` page's header rows, each a label and its value's HTML."""
+    html, _url = page
+    return re.findall(
+        r'<dt class="field-\w+">([^<]+)<span class="colon">:</span></dt>'
+        r'<dd class="field-\w+">(.*?)</dd>',
+        html,
+    )
+
+
 def _swapped():
     """The second of ``SPECS`` with its SKU's row before its price's."""
     return _specs("ATE", "39.00", "BP-2", "2 kg", ("brand", "sku", "price", "weight"))
