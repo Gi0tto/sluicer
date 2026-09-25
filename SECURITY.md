@@ -73,7 +73,7 @@ Before any request it reads the host the way the client will -- an octal,
 hex or percent-encoded host, a backslash before an `@`, an IPv4 address
 inside an IPv6 one -- resolves it, and refuses `localhost`, `.local` and
 `.internal` names and any address that is not on the public internet:
-loopback, private ranges, link-local, `169.254.169.254` among them. Every
+loopback, private ranges, link-local, `169.254.169.254`, multicast among them. Every
 redirect is judged the same way before it is followed. The HTTP rung then
 connects only to the addresses it checked, so a name that resolves differently
 the second time (DNS rebinding) reaches nothing new; a connection it keeps open

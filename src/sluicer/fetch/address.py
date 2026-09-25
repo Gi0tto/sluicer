@@ -156,6 +156,12 @@ def _judge(
 _NAME = re.compile(r"[a-z0-9_.-]+")
 _NUMERIC = re.compile(r"[0-9a-fx.]+")
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
+# SIIT's IPv4-translated addresses, ::ffff:0:a.b.c.d (RFC 6052's predecessor,
+# RFC 2765), which carry an IPv4 address as a mapped one does.
+_TRANSLATED = ipaddress.ip_network("::ffff:0:0:0/96")
+# What ``is_global`` calls global and the web is not: SRv6's segment
+# identifiers (RFC 9602) and the deprecated site-local range (RFC 3879).
+_NOT_THE_WEB = (ipaddress.ip_network("5f00::/16"), ipaddress.ip_network("fec0::/10"))
 
 
 def _numeric(host: str) -> _Address | None:
@@ -173,9 +179,16 @@ def _numeric(host: str) -> _Address | None:
 
 
 def _public(address: _Address) -> bool:
+    """Whether ``address`` is on the public internet: global, and neither
+    multicast, which ``is_global`` counts as global, nor an IPv6 address
+    carrying an IPv4 one that is not."""
+    if address.is_multicast:
+        return False
     if isinstance(address, ipaddress.IPv6Address):
+        if any(address in network for network in _NOT_THE_WEB):
+            return False
         embedded = address.ipv4_mapped
-        if embedded is None and address in _NAT64:
+        if embedded is None and (address in _NAT64 or address in _TRANSLATED):
             embedded = ipaddress.IPv4Address(int(address) & 0xFFFFFFFF)
         if embedded is None and int(address) >> 32 == 0 and int(address) > 1:
             embedded = ipaddress.IPv4Address(int(address))

@@ -596,6 +596,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   as the sign it looks like, and with a number made of ASCII digits. Only
   the first character was looked at, so ` =1+1`, `\n=1+1` and `＝1+1` were
   written as they came.
+- The private-address filter refuses what Python's `is_global` counts as
+  global and the web is not: multicast (`224.0.0.0/4`, `ff00::/8`), SIIT's
+  IPv4-translated addresses (`::ffff:0:a.b.c.d`), judged by the IPv4 address
+  they carry as a mapped one is, SRv6's segment identifiers (`5f00::/16`)
+  and the deprecated site-local range (`fec0::/10`). Also in 0.7.1.
 
 ## 0.7.1 - 2026-09-25
 
