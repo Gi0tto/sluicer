@@ -99,6 +99,21 @@ class ProxyRefused(ConnectionError):
     """The proxy would not, or could not, connect us to the site."""
 
 
+class UnusableProxy(ValueError):
+    """A proxy address Sluicer cannot use. Its message names the address
+    without its password, which a message would carry into a log."""
+
+
+def shown(address: str) -> str:
+    """``address`` as a message may name it: a password in it is ``***``."""
+    scheme, separator, rest = address.partition("//")
+    if not separator or "@" not in rest:
+        return address
+    who, _, where = rest.rpartition("@")
+    user, colon, _ = who.partition(":")
+    return f"{scheme}//{user}{':***' if colon else ''}@{where}"
+
+
 @dataclass(frozen=True)
 class Proxy:
     """A proxy, read from its address: ``http://``, ``socks5://`` (names
@@ -113,21 +128,24 @@ class Proxy:
 
     @classmethod
     def parse(cls, address: str) -> Proxy:
-        """``address`` as a proxy; a ``ValueError`` names what is wrong with it."""
+        """``address`` as a proxy; an ``UnusableProxy`` names what is wrong
+        with it, and never its password."""
         try:
             parts = urlsplit(address)
             port = parts.port
         except ValueError as invalid:
-            raise ValueError(f"{address!r} is not a proxy address: {invalid}") from None
+            raise UnusableProxy(
+                f"{shown(address)!r} is not a proxy address: {invalid}"
+            ) from None
         scheme = parts.scheme.lower()
         defaults = {"http": 8080, "socks5": 1080, "socks5h": 1080}
         if scheme not in defaults:
-            raise ValueError(
-                f"{address!r} is not a proxy Sluicer speaks to: write "
+            raise UnusableProxy(
+                f"{shown(address)!r} is not a proxy Sluicer speaks to: write "
                 "http://host:port, socks5://host:port or socks5h://host:port"
             )
         if not parts.hostname:
-            raise ValueError(f"{address!r} names no proxy host")
+            raise UnusableProxy(f"{shown(address)!r} names no proxy host")
         return cls(
             scheme,
             parts.hostname,

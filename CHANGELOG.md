@@ -544,6 +544,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   asking its site for as long as that lasted, forever for one planted a
   thousand years ahead. An entry whose status, headers or address are not
   what the cache writes is no entry either. Also in 0.7.1.
+- A proxy address Sluicer cannot use is named without its password: the
+  whole address was in the message, and so in the MCP server's log. The MCP
+  server and `sluicer serve` refuse a `SLUICER_PROXY` they cannot use when
+  they start, exit 2 and one line, where the first tool that fetched answered
+  `internal_error` and logged the traceback.
 
 ## 0.7.1 - 2026-09-25
 

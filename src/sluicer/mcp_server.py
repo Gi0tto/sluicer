@@ -38,7 +38,9 @@ from sluicer.fetch import (
     SiteRefused,
 )
 from sluicer.fetch.archive import NotArchived
+from sluicer.fetch.http_rung import PROXY_ENV, chosen_proxy
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
+from sluicer.fetch.wire import Proxy, UnusableProxy
 from sluicer.markdown import to_markdown
 from sluicer.selectors import (
     SelectorError,
@@ -352,7 +354,17 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
+
+    A ``SLUICER_PROXY`` it cannot use is an ``UnusableProxy``, raised here
+    rather than by the first tool that fetches: there it was an internal
+    error, and its traceback wrote the proxy's password into the log.
     """
+    through = chosen_proxy()
+    if through is not None:
+        try:
+            Proxy.parse(through)
+        except UnusableProxy as unusable:
+            raise UnusableProxy(f"{PROXY_ENV}: {unusable}") from None
     wanted = None if tools is None else list(tools)
     seen: list[str] = []
     server_class = _server_class()
@@ -1280,7 +1292,7 @@ def main(tools: Iterable[str] | None = None) -> None:
         # the one line that says what to install is ever written.
         print(str(missing), file=sys.stderr, flush=True)
         raise SystemExit(1) from missing
-    except UnknownTool as unknown:
+    except (UnknownTool, UnusableProxy) as unknown:
         print(str(unknown), file=sys.stderr, flush=True)
         raise SystemExit(2) from unknown
     # scrapling logs every request at INFO into the server's stderr, and sets

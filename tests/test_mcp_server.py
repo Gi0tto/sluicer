@@ -1614,6 +1614,23 @@ def test_the_server_reads_the_tools_asked_for_from_its_environment(monkeypatch):
     assert asked == [["extract_declared", "map_site"], None, ["read_feed"]]
 
 
+def test_a_proxy_it_cannot_use_stops_the_server_in_one_line(monkeypatch, capsys):
+    """Measured on 0.8.0: SLUICER_PROXY of a kind it does not speak was found
+    at the first tool call, which answered internal_error and wrote the
+    proxy's password into the server's log."""
+    fake_mcp(monkeypatch)
+    monkeypatch.setenv("SLUICER_PROXY", "https://alice:HUNTER2@proxy.invalid:3128")
+    import sluicer.mcp_server as server_module
+
+    with pytest.raises(SystemExit) as raised:
+        server_module.main()
+
+    assert raised.value.code == 2
+    said = capsys.readouterr().err
+    assert "SLUICER_PROXY" in said and "not a proxy Sluicer speaks to" in said
+    assert "HUNTER2" not in said and "Traceback" not in said
+
+
 def test_a_tool_that_does_not_exist_stops_the_server_in_one_line(monkeypatch, capsys):
     """The documented message, and exit 2 as for any wrong option: a
     traceback put the list of the tools under thirty lines of click's frames."""

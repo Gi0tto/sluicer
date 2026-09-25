@@ -514,6 +514,24 @@ def test_a_proxy_of_a_kind_it_does_not_speak_is_refused_when_built():
         http_rung(proxy="ftp://proxy.example:21")
 
 
+@pytest.mark.parametrize(
+    "address",
+    [
+        "https://alice:HUNTER2@proxy.example:3128",
+        "http://alice:HUNTER2@proxy.example:notaport",
+        "socks5://alice:HUNTER2@",
+    ],
+)
+def test_a_proxy_refused_is_not_repeated_with_its_password(address):
+    """Measured on 0.8.0: the whole address, password and all, was in the
+    message, and so in the MCP server's log."""
+    with pytest.raises(ValueError) as refused:
+        wire.Proxy.parse(address)
+
+    assert "HUNTER2" not in str(refused.value)
+    assert "alice" in str(refused.value) or "proxy" in str(refused.value)
+
+
 def test_plain_http_through_an_http_proxy_names_the_whole_address(monkeypatch):
     seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
