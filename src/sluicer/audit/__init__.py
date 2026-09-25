@@ -35,10 +35,11 @@ from sluicer.audit.report import (
     Site,
     SiteFile,
 )
+from sluicer.declared.jsonld import Terms
 from sluicer.declared.readers import BY_NAME
 from sluicer.declared.rights import read_rights
 from sluicer.declared.tdmrep import read_tdmrep, reservation
-from sluicer.document import load
+from sluicer.document import Document, load
 
 __all__ = [
     "Audit",
@@ -92,14 +93,7 @@ def audit(
         )
     else:
         doc = load(page, url=url)
-        found = {
-            name: [
-                node
-                for item in BY_NAME[name].read(doc)
-                if isinstance(node := records.normalise(item), dict)
-            ]
-            for name in records.AUDITED_READERS
-        }
+        found = {name: _normalised(name, doc) for name in records.AUDITED_READERS}
         defined = {name: records.definitions(nodes) for name, nodes in found.items()}
         known_base = doc.base is not None
         for name, nodes in found.items():
@@ -148,6 +142,17 @@ def answered_with(status: int) -> str:
         f"The page asked for: the site answered status {status}, and what is "
         "audited is that answer."
     )
+
+
+def _normalised(name: str, doc: Document) -> list[dict[str, Any]]:
+    """What reader ``name`` declares on the page, each item as the audit reads
+    it: JSON-LD's words named through their context, as the records name them."""
+    terms = Terms() if name == "jsonld" else None
+    return [
+        node
+        for item in BY_NAME[name].read(doc)
+        if isinstance(node := records.normalise(item, terms=terms), dict)
+    ]
 
 
 def _url_of(page: str | bytes | Extraction) -> str | None:

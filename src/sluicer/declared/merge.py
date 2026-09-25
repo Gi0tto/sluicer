@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, TypeAlias
 
+from sluicer.declared.jsonld import Terms
 from sluicer.declared.located import (
     Located,
     Place,
@@ -133,8 +134,11 @@ def merge(*, places: Places | None = None, **found: Any) -> list[Record]:
         if not reader.about_things:
             continue
         candidates = _Candidates(records)
+        # JSON-LD's words are named through the context each was written in,
+        # every context of the page read once.
+        terms = Terms() if reader.name == "jsonld" else None
         for item in found.get(reader.name) or ():
-            record = _record_from(item, reader.name, places, positions)
+            record = _record_from(item, reader.name, places, positions, terms)
             target = candidates.take(record)
             if target is None:
                 records.append(record)
@@ -206,9 +210,17 @@ class _Candidates:
 
 
 def _record_from(
-    item: dict[str, Any], source: str, places: Places | None, positions: Positions
+    item: dict[str, Any],
+    source: str,
+    places: Places | None,
+    positions: Positions,
+    terms: Terms | None = None,
 ) -> Record:
-    types = _types(item.get("@type"))
+    """One item as a record. ``terms``, for JSON-LD, names its words through
+    their context; two words naming one property give the first's value."""
+    if terms is not None and "@context" in item:
+        terms = terms.within(item["@context"])
+    types = _types(item.get("@type"), terms)
     at = item.at if isinstance(item, Located) else None
     record = Record(
         type=types[0] if types else None,
@@ -219,10 +231,13 @@ def _record_from(
     for key, value in item.items():
         if key.startswith("@"):
             continue
-        normalised = _json(value, 0, None if at is None else (at, key))
+        name = key if terms is None else terms.name(key)
+        if name in record.fields:
+            continue
+        normalised = _json(value, 0, None if at is None else (at, key), terms)
         if normalised is None:
             continue
-        record.fields[key] = Field(
+        record.fields[name] = Field(
             value=normalised,
             source=source,
             where=paid(places, partial(place, item, at, (key,), positions)),
@@ -230,7 +245,9 @@ def _record_from(
     return record
 
 
-def _json(value: object, depth: int, at: Place | None = None) -> JsonValue | None:
+def _json(
+    value: object, depth: int, at: Place | None = None, terms: Terms | None = None
+) -> JsonValue | None:
     """``value`` as a field holds it, or None when it carries nothing.
 
     A JSON-LD value object is its ``@value``. An object keeps its ``@type`` and
@@ -240,7 +257,9 @@ def _json(value: object, depth: int, at: Place | None = None) -> JsonValue | Non
 
     ``at`` is where ``value`` was declared. An object keeps its place, as a
     ``Located``, so a value read deep inside a field can still say where it
-    was; one a reader placed keeps the reader's place.
+    was; one a reader placed keeps the reader's place. ``terms`` names a
+    JSON-LD object's words, in its own context when it declares one; a
+    place keeps the word as the page wrote it.
     """
     if depth > MAX_DEPTH:
         return None
@@ -248,7 +267,7 @@ def _json(value: object, depth: int, at: Place | None = None) -> JsonValue | Non
         items = [
             normalised
             for n, item in enumerate(value)
-            if (normalised := _json(item, depth + 1, _on(at, n))) is not None
+            if (normalised := _json(item, depth + 1, _on(at, n), terms)) is not None
         ]
         return items or None
     if not isinstance(value, dict):
@@ -256,7 +275,7 @@ def _json(value: object, depth: int, at: Place | None = None) -> JsonValue | Non
     for keyword in ("@value", "@list", "@set"):
         # A value object is its value; a list or set object is its items.
         if keyword in value:
-            return _json(value[keyword], depth + 1, _on(at, keyword))
+            return _json(value[keyword], depth + 1, _on(at, keyword), terms)
     node: dict[str, JsonValue]
     if isinstance(value, Located):
         node = Located(at=value.at, props=value.props)
@@ -265,20 +284,22 @@ def _json(value: object, depth: int, at: Place | None = None) -> JsonValue | Non
     else:
         node = {}
     here = node if isinstance(node, Located) else None
+    if terms is not None and "@context" in value:
+        terms = terms.within(value["@context"])
     out: dict[str, JsonValue] = {}
     for key, item in value.items():
         if key.startswith("@"):
             continue
-        normalised = _json(item, depth + 1, _on(here, key))
+        normalised = _json(item, depth + 1, _on(here, key), terms)
         if normalised is not None:
-            out[key] = normalised
+            out.setdefault(key if terms is None else terms.name(key), normalised)
     if not out:
         identifier = _scalar(value.get("@id"))
         if identifier is None:
             return None
         node["@id"] = identifier
         return node
-    types = _types(value.get("@type"))
+    types = _types(value.get("@type"), terms)
     if types:
         node["@type"] = types[0] if len(types) == 1 else list(types)
     node.update(out)
@@ -302,8 +323,9 @@ def _scalar(value: object) -> str | None:
     return text or None
 
 
-def _types(declared: object) -> tuple[str, ...]:
-    """Every type declared for one item, in the order the page declared them."""
+def _types(declared: object, terms: Terms | None = None) -> tuple[str, ...]:
+    """Every type declared for one item, in the order the page declared them,
+    each named through ``terms`` when they are given."""
     if isinstance(declared, str):
         declared = [declared]
     if not isinstance(declared, list):
@@ -311,5 +333,7 @@ def _types(declared: object) -> tuple[str, ...]:
     return tuple(
         found
         for name in declared
-        if isinstance(name, str) and (found := type_name(name)) is not None
+        if isinstance(name, str)
+        and (found := type_name(name if terms is None else terms.name(name)))
+        is not None
     )

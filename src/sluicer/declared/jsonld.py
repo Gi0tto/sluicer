@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from sluicer.declared.located import Located, Place, xpath_of
+from sluicer.declared.types import _SCHEMA_ORG
 from sluicer.document import Document
 
 _XPATH = "//script[@type]"
@@ -319,3 +320,231 @@ def _size(value: Any) -> int:
         elif isinstance(item, list):
             pending.extend(item)
     return count
+
+
+# --- the names a context gives ------------------------------------------------
+
+# schema.org's namespace, however a context writes it: without its slash too,
+# which one real page's ``@vocab`` leaves off.
+_SCHEMA_NAMESPACE = re.compile(r"(?i)https?://(?:www\.)?schema\.org/?")
+# The addresses a block names schema.org's own context by.
+_SCHEMA_CONTEXT = re.compile(
+    r"(?i)https?://(?:www\.)?schema\.org(?:/(?:docs/jsonldcontext\.jsonld?)?)?"
+)
+_SCHEMA = "http://schema.org/"
+# What no address holds (RFC 3987): a word with one is no term of any vocabulary.
+_NOT_IN_AN_IRI = re.compile(r'[\s<>"{}|\\^`]')
+# An address: a scheme, then its colon.
+_ABSOLUTE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
+# What an address must end in for its word to be a prefix, in JSON-LD 1.1.
+_GEN_DELIMS = (":", "/", "?", "#", "[", "]", "@")
+
+
+class Terms:
+    """The names a JSON-LD context gives the words written under it.
+
+    A record names a property or a type as every reader does: a schema.org
+    word by its own name, ``name``, however the block wrote it --
+    ``schema:name``, ``http://schema.org/name``, a bare ``name`` under
+    schema.org's context -- and a word of any other vocabulary by its full
+    address, so that a FOAF ``name`` a context defines is never taken for
+    schema.org's. A word the context says nothing about is kept as written,
+    as it always was: most blocks name schema.org's context, and a block with
+    no context, or one naming a context elsewhere, gives no other name to go
+    by. Nothing is fetched.
+
+    What is read of a context: its ``@vocab``, its terms, simple or expanded,
+    and which of them are prefixes, as JSON-LD 1.1 reads them; and
+    schema.org's own context, known by its address. A definition that names
+    no address -- a keyword, a reversed property, ``null``, a word the context
+    does not define (one real page maps two words to ``"Text"``) -- leaves its
+    word as written, and so does a context elsewhere, whose words are not
+    known here. Scoped contexts and ``@base`` are not read.
+    """
+
+    def __init__(
+        self,
+        vocab: str | None = None,
+        iris: dict[str, str | None] | None = None,
+        prefixes: dict[str, str] | None = None,
+    ) -> None:
+        self.vocab = vocab
+        # A word's address, or None where its word stays as written.
+        self.iris = iris or {}
+        self.prefixes = prefixes or {}
+        # The terms inside each context declared under these, read once: one
+        # graph's thousand nodes share one context.
+        self._inside: dict[int, tuple[object, Terms]] = {}
+
+    def within(self, declared: object) -> Terms:
+        """The terms in force inside a node whose ``@context`` is ``declared``."""
+        held = self._inside.get(id(declared))
+        if held is not None and held[0] is declared:
+            return held[1]
+        terms = self
+        for context in declared if isinstance(declared, list) else [declared]:
+            terms = terms._read(context)
+        self._inside[id(declared)] = (declared, terms)
+        return terms
+
+    def name(self, word: str) -> str:
+        """``word``, a property or a type, as a record names it.
+
+        A word no address can hold -- ``JW Videos``, a key written with a
+        trailing space -- is kept as written, and so is a bare word under
+        schema.org's vocabulary, which is its own name there."""
+        if word.startswith("@") or _NOT_IN_AN_IRI.search(word):
+            return word
+        iri = self._iri(word)
+        if iri is None:
+            return word
+        schema_org = _SCHEMA_ORG.fullmatch(iri)
+        return schema_org.group(1) if schema_org else iri
+
+    def _iri(self, word: str) -> str | None:
+        """``word``'s address, or None where it has none to be named by. A
+        word with a colon that no prefix expands is an address already."""
+        if word in self.iris:
+            return self.iris[word]
+        prefix, colon, suffix = word.partition(":")
+        if colon:
+            if prefix in self.prefixes and not suffix.startswith("//"):
+                return self.prefixes[prefix] + suffix
+            return None if prefix == "_" else word
+        if self.vocab is None or self.vocab == _SCHEMA:
+            return None
+        return self.vocab + word
+
+    def _read(self, context: object) -> Terms:
+        if context is None:
+            return Terms()
+        if isinstance(context, str):
+            if _SCHEMA_CONTEXT.fullmatch(context.strip()):
+                return Terms(_SCHEMA, self.iris, {**self.prefixes, "schema": _SCHEMA})
+            return self
+        if not isinstance(context, dict):
+            return self
+        iris = dict(self.iris)
+        prefixes = dict(self.prefixes)
+        reading = _Reading(self)
+        for term, definition in context.items():
+            if not isinstance(term, str) or term.startswith("@"):
+                continue
+            iris.pop(term, None)
+            prefixes.pop(term, None)
+            reading.define(term, definition)
+        for term, iri in reading.addresses().items():
+            iris[term] = iri
+            if reading.is_prefix(term, iri):
+                assert iri is not None
+                prefixes[term] = _SCHEMA if _SCHEMA_NAMESPACE.fullmatch(iri) else iri
+        # Where an undefined word's address would begin, JSON-LD 1.1's @vocab
+        # may itself be written through a prefix or a term.
+        vocab = self.vocab
+        if "@vocab" in context:
+            declared = context["@vocab"]
+            expanded = reading.expand(declared) if isinstance(declared, str) else None
+            vocab = expanded if isinstance(expanded, str) else None
+            if vocab is not None and _SCHEMA_NAMESPACE.fullmatch(vocab):
+                vocab = _SCHEMA
+        return Terms(vocab, iris, prefixes)
+
+
+# How many rounds one context's terms are read in: a term defined through
+# another is read the round after it, so a chain of definitions longer than
+# this names no address. Real contexts chain one or two; five thousand terms
+# each defined through the one before would otherwise be read to their end.
+_ROUNDS = 8
+
+
+class _Wait:
+    """What a definition is read to while it needs a term not read yet."""
+
+
+_WAIT = _Wait()
+
+
+class _Reading:
+    """One context's term definitions, read to their addresses in rounds.
+
+    Each round reads a term from what earlier rounds read, never from the
+    same round's, so which address a term gets does not depend on the order
+    the context lists them in, and a cycle simply never ends.
+    """
+
+    def __init__(self, outer: Terms) -> None:
+        self.outer = outer
+        # What each term's definition writes as its address; None where it
+        # writes none (a keyword, ``null``, a reversed property).
+        self.targets: dict[str, str | None] = {}
+        # JSON-LD 1.1's prefix flag: a simple definition's term is a prefix
+        # when its address ends in a delimiter, an expanded one's when it
+        # says ``"@prefix": true``.
+        self.simple: set[str] = set()
+        self.flagged: set[str] = set()
+        self.read: dict[str, str | None] = {}
+
+    def define(self, term: str, definition: object) -> None:
+        if isinstance(definition, dict):
+            if "@reverse" in definition:
+                self.targets[term] = None
+                return
+            if "@id" not in definition:
+                # Its address is the vocabulary's word, as an undefined one's.
+                return
+            if definition.get("@prefix") is True:
+                self.flagged.add(term)
+            definition = definition["@id"]
+        elif isinstance(definition, str) and ":" not in term and "/" not in term:
+            self.simple.add(term)
+        written = definition if isinstance(definition, str) else None
+        self.targets[term] = None if written is None or written[:1] == "@" else written
+
+    def addresses(self) -> dict[str, str | None]:
+        """Every defined term's address, or None."""
+        pending = {term: t for term, t in self.targets.items() if t is not None}
+        self.read = {term: None for term, t in self.targets.items() if t is None}
+        for _ in range(_ROUNDS):
+            found = {
+                term: step
+                for term, target in pending.items()
+                if not isinstance(step := self.expand(target), _Wait)
+            }
+            if not found:
+                break
+            self.read.update(found)
+            pending = {term: t for term, t in pending.items() if term not in found}
+        self.read.update(dict.fromkeys(pending))
+        return self.read
+
+    def is_prefix(self, term: str, iri: str | None) -> bool:
+        """Whether ``term``, read to ``iri``, expands the words it prefixes."""
+        if iri is None:
+            return False
+        return term in self.flagged or (
+            term in self.simple and iri.endswith(_GEN_DELIMS)
+        )
+
+    def expand(self, written: str) -> str | _Wait | None:
+        """An address as a definition writes it -- whole, through a prefix, or
+        as another term -- from the terms read so far; ``_WAIT`` when it needs
+        one not read yet, None when it names none."""
+        prefix, colon, suffix = written.partition(":")
+        if colon:
+            if prefix == "_":
+                return None
+            if suffix.startswith("//"):
+                return written
+            if prefix in self.targets:
+                if prefix not in self.read:
+                    return _WAIT
+                base = self.read[prefix]
+                if self.is_prefix(prefix, base):
+                    assert base is not None
+                    return base + suffix
+            elif prefix in self.outer.prefixes:
+                return self.outer.prefixes[prefix] + suffix
+            return written if _ABSOLUTE.match(written) else None
+        if written in self.targets:
+            return self.read.get(written, _WAIT)
+        return self.outer.iris.get(written)

@@ -351,6 +351,21 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A JSON-LD record names its properties and types through the block's
+  `@context`, as RDFa's are named through `vocab` and `prefix`: a schema.org
+  word by its own name, however it is written (`schema:name`,
+  `http://schema.org/name`, a prefix of the block's own), and another
+  vocabulary's by its full address. A word a context mapped elsewhere kept
+  its bare spelling, so a `name` defined as FOAF's was schema.org's `name`,
+  the product's title, and `ex:foo` stayed a word no one could read. A word
+  the context says nothing about is kept as written, as before: only
+  schema.org's context is known, nothing is fetched, and a definition naming
+  no address is not followed. The audit names them the same way. Over the
+  3,976 cached corpus pages the summary, `normalised` and conflicts are
+  unchanged; records change on 5 pages, each a word of another vocabulary now
+  named by its address: Contao's `contao:` properties and `contao:Page` type
+  (2 pages), Parse.ly's `asciiDescription` (2), a CSV on the Web table's
+  `csvw:` words (1).
 - A node the JSON-LD reader takes out of a `@graph` keeps the block's
   `@context`, before any context of its own. Taken out without it, a term the
   block defined -- `ex:foo` under `{"ex": "http://example.com/"}` -- named

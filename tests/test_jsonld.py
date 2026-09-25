@@ -303,3 +303,156 @@ def test_a_node_holding_a_graph_comes_after_the_nodes_in_it():
     )
 
     assert [item["name"] for item in found] == ["Shirt", "Top", "Only"]
+
+
+# --- what a block's context names ----------------------------------------------
+
+
+def _record(block: str):
+    from sluicer import extract
+
+    records = extract(
+        f'<html><head><script type="application/ld+json">{block}</script></head></html>'
+    ).records
+    assert len(records) == 1
+    return records[0]
+
+
+def test_a_word_a_context_gives_another_vocabulary_is_named_by_its_address():
+    """A record names a schema.org property by its own name and any other by
+    its full address, as RDFa's are named: a FOAF ``name`` read as schema.org's
+    was the product's title."""
+    record = _record(
+        '{"@context": ["https://schema.org", {"name": "http://xmlns.com/foaf/0.1/name",'
+        ' "ex": "http://example.com/"}],'
+        ' "@type": "Product", "name": "Ann", "ex:colour": "red", "sku": "BP-1"}'
+    )
+
+    assert list(record.fields) == [
+        "http://xmlns.com/foaf/0.1/name",
+        "http://example.com/colour",
+        "sku",
+    ]
+    assert record.fields["http://example.com/colour"].where == (
+        "/html/head/script[1]#/ex:colour"
+    )
+
+
+def test_the_w3c_graph_s_prefixed_words_are_named_by_their_addresses():
+    """The W3C JSON-LD suite's e004: ``ex:foo`` is http://example.com/foo."""
+    from sluicer import extract
+
+    page = (
+        '<script type="application/ld+json">{"@context": {"foo": {"@id":'
+        ' "http://example.com/foo", "@container": "@list"}},'
+        ' "foo": [{"@value": "bar"}]}</script>'
+        '<script type="application/ld+json">{"@context": {"ex": "http://example.com/"},'
+        ' "@graph": [{"ex:foo": {"@value": "foo"}}, {"ex:bar": {"@value": "bar"}}]}'
+        "</script>"
+    )
+
+    assert [
+        {name: field.value for name, field in record.fields.items()}
+        for record in extract(page).records
+    ] == [
+        {"http://example.com/foo": ["bar"]},
+        {"http://example.com/foo": "foo"},
+        {"http://example.com/bar": "bar"},
+    ]
+
+
+def test_a_type_a_context_gives_another_vocabulary_is_named_by_its_address():
+    record = _record(
+        '{"@context": {"@vocab": "http://example.com/"}, "@type": "Product",'
+        ' "name": "Pad"}'
+    )
+
+    assert (record.type, list(record.fields)) == (
+        "http://example.com/Product",
+        ["http://example.com/name"],
+    )
+
+
+def test_schema_org_s_words_keep_their_names_however_they_are_written():
+    for block in (
+        '{"@context": "https://schema.org", "@type": "Product", "name": "Pad"}',
+        '{"@context": "http://schema.org/", "@type": "schema:Product",'
+        ' "schema:name": "Pad"}',
+        '{"@context": {"@vocab": "http://schema.org"}, "@type": "Product",'
+        ' "name": "Pad"}',
+        '{"@context": {"s": "https://schema.org/"}, "@type": "s:Product",'
+        ' "s:name": "Pad"}',
+        '{"@type": "http://schema.org/Product", "http://schema.org/name": "Pad"}',
+        '{"@type": "Product", "name": "Pad"}',
+    ):
+        record = _record(block)
+        assert (record.type, list(record.fields)) == ("Product", ["name"]), block
+
+
+def test_a_word_a_context_does_not_define_to_an_address_is_kept_as_written():
+    """A remote context not schema.org's is not fetched, a word it would
+    define is not known, and a definition naming no address -- one real page
+    maps ``articleId`` and ``topics`` to ``"Text"`` -- is not followed."""
+    for block, names in (
+        ('{"@context": "https://w3id.org/x", "@type": "T", "name": "a"}', ["name"]),
+        (
+            '{"@context": {"@vocab": "http://schema.org", "articleId":'
+            ' {"@id": "Text", "@type": "@id"}}, "@type": "Article", "articleId": "7",'
+            ' "headline": "h"}',
+            ["articleId", "headline"],
+        ),
+        ('{"@context": {"ex": "http://example.com/"}, "@type": "T", "a": "1"}', ["a"]),
+        ('{"@context": {"a": null}, "@type": "T", "a": "1"}', ["a"]),
+    ):
+        assert list(_record(block).fields) == names, block
+
+
+def test_a_word_no_address_can_hold_is_kept_as_written():
+    """Two real pages: AP News types a node ``JW Videos``, and another writes
+    ``"description "``; neither became an address under schema.org's."""
+    record = _record(
+        '{"@context": "https://schema.org", "@type": "JW Videos",'
+        ' "description ": "d", "a/b": "c"}'
+    )
+
+    assert (record.type, list(record.fields)) == ("JW Videos", ["description ", "a/b"])
+
+
+def test_a_nested_node_s_words_are_named_in_its_own_context():
+    record = _record(
+        '{"@context": "https://schema.org", "@type": "Product", "name": "Pad",'
+        ' "offers": {"@context": {"ex": "http://example.com/"}, "@type": "Offer",'
+        ' "price": "41.90", "ex:note": "n"}}'
+    )
+
+    assert record.fields["offers"].value == {
+        "@type": "Offer",
+        "price": "41.90",
+        "http://example.com/note": "n",
+    }
+
+
+def test_a_prefix_is_a_word_whose_address_ends_where_a_name_can_begin():
+    """JSON-LD 1.1: ``foo:bar`` expands through ``foo`` only when foo's
+    address ends in ``/``, ``#`` or another delimiter."""
+    record = _record(
+        '{"@context": {"foo": "http://example.com/foo", "ex": "http://example.com/"},'
+        ' "@type": "T", "foo:bar": "1", "ex:bar": "2"}'
+    )
+
+    assert list(record.fields) == ["foo:bar", "http://example.com/bar"]
+
+
+def test_a_context_of_terms_defined_through_each_other_costs_a_bounded_amount():
+    """Five thousand terms, each the one before with ``:x/``: followed to its
+    end, every term walked the chain, past Python's recursion limit. A term
+    more than a few definitions from an address is kept as written."""
+    import json
+
+    context = {"t0": "http://example.com/"}
+    context.update({f"t{n}": f"t{n - 1}:x/" for n in range(1, 5000)})
+    record = _record(
+        json.dumps({"@context": context, "@type": "T", "t4999": "v", "t2": "w"})
+    )
+
+    assert list(record.fields) == ["t4999", "http://example.com/x/x/"]
