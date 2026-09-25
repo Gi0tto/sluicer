@@ -377,6 +377,21 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A caller's selectors can no longer hold a server's workers. XPath lets one
+  line cost the cube of a page's size -- `//p[count(//p[count(//p) > 0]) >
+  0]` on a 9 KB page of 3,000 paragraphs runs for minutes -- and CSS's
+  `p ~ p` took 110 s on 8,000; lxml evaluates both in C, where no thread can
+  be stopped. Four such `select_values` calls to `sluicer serve --timeout 15`
+  were answered 504 and kept every worker busy, so every later call was a
+  504 too. The MCP tools that evaluate a caller's selectors --
+  `select_values`, and `compile_extractor`, `run_extractor` and
+  `heal_extractor` with an extractor written by selectors -- now evaluate
+  them in a process of their own (`sluicer.isolated`), killed when the
+  call's budget ends over HTTP, or after 60 seconds over stdio, and such a
+  call is answered `bad_input`. It costs a call about 90 ms to start the
+  process. The command line and the library evaluate selectors as before, in
+  their own process. `tests/live/api_check.py` sends four such selectors to
+  a real server and then a harmless one, answered at once.
 - A hand-written listing whose rows selector cannot be read on one page --
   an XPath that selects a comment there, as `//li | //comment()` does -- fails
   that page's listing check, exit 3, with why. It escaped as a traceback:
