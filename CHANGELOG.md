@@ -388,6 +388,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- `extract(visible=True)`, `--visible` and the MCP tools' `visible` read a
+  page whose date sits in a link to an address that is not a URL -- an
+  unfilled template's `https://[domain]/story`, or `http://[::1` -- and a
+  page at such an address. `urlsplit` refuses those with a `ValueError`, which
+  was raised to the caller; such a link is now another page's, and such a
+  page's address gives no date. All 3,976 cached corpus pages answer as
+  before. Found by the second correctness review's fuzzer; also in 0.7.1.
 - The browser's guard proxy serves only the browser it was made for. It
   listened on 127.0.0.1 with no credentials, so any process on the machine
   could use it, and through it the caller's own proxy, whose credentials it

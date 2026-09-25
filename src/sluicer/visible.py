@@ -607,8 +607,7 @@ def _date(page: _Page) -> Guess | None:
     written = _date_in_a_line(page, updates=False)
     if written is not None:
         return written
-    address = doc.url or ""
-    found = _URL_DATE.search(urlsplit(address).path)
+    found = _URL_DATE.search(_path(doc.url))
     if found:
         year, month, day = (int(g) for g in found.groups())
         if 1990 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31:
@@ -692,10 +691,27 @@ def _in_a_link(element: HtmlElement, doc: Document) -> bool:
 
 
 def _path_of(address: str | None) -> str:
-    if not address:
+    """``address``'s host and path, as the same page is written either way.
+
+    An address ``urlsplit`` refuses, an unfilled template's
+    ``https://[domain]/p`` or ``http://[::1``, gives none: it is no page's, so
+    a link to it is to another page, and a page at it has no permalink.
+    """
+    try:
+        parts = urlsplit(address) if address else None
+    except ValueError:
         return ""
-    parts = urlsplit(address)
+    if parts is None:
+        return ""
     return f"{parts.netloc.lower().removeprefix('www.')}{parts.path.rstrip('/')}"
+
+
+def _path(address: str | None) -> str:
+    """``address``'s path, or none where ``urlsplit`` refuses it."""
+    try:
+        return urlsplit(address).path if address else ""
+    except ValueError:
+        return ""
 
 
 # How many text nodes after the heading, and before it, a date is looked for in.
