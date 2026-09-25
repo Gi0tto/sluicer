@@ -76,6 +76,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- A robots.txt is parsed once, not once for every address asked about it:
+  its text was remembered and parsed again each time, and a crawl asks for
+  every page it reads, 2.5 seconds each for one of 16 MiB. The last 64
+  parsed are kept, by their text. Found by review.
 - `--visible` reads a page in step with its size. Each "By" line and each
   date read the whole text of the boxes round it, and a box that holds them
   all was read once for each: 8,000 in one article, 583 KB, took 22 seconds.

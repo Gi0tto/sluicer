@@ -186,7 +186,10 @@ def _rules(
         doing="Reading a site's robots.txt",
         error=FetchExtraMissing,
     )
-    return protego.Protego.parse(text)
+    parsed = _PARSED.get(text)
+    if parsed is None:
+        parsed = _PARSED[text] = protego.Protego.parse(text)
+    return parsed
 
 
 def _robots_text(
@@ -252,6 +255,32 @@ class _Recent(OrderedDict[str, tuple[float, str | None]]):
         while len(self) > self.limit:
             self.popitem(last=False)
 
+
+class _RecentParsed(OrderedDict[str, Any]):
+    """The last ``limit`` robots.txt texts parsed, by their text."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__()
+        self.limit = limit
+
+    def get(self, key: str, default: Any = None) -> Any:
+        if key in self:
+            self.move_to_end(key)
+            return self[key]
+        return default
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+        while len(self) > self.limit:
+            self.popitem(last=False)
+
+
+_PARSED = _RecentParsed(64)
+"""The rules each recent robots.txt parses to, by its text: a crawl asks for
+every address it reads, and each asking parsed the text again, 2.5 s for one
+of 16 MiB. By the text, not the site, so a site's new robots.txt is parsed
+afresh; a string keeps its hash, so finding a long one again costs little."""
 
 _CACHE = _Recent(ROBOTS_CACHE_HOSTS)
 """Every answer this process has been given, with the moment it was given.
