@@ -210,7 +210,10 @@ sluicer compile page1.html page2.html -o brakes.json --rows li.product \
   gives no rows fails `listing`. A field found twice where the pages showed
   it once fails `field` too: when a sale puts the old price beside the new,
   the first is the wrong one. A field the pages showed twice reads the
-  first, and `compile` says so.
+  first, and `compile` says so. A column fewer than half the rows carried
+  -- a sale badge -- fails `field` on a page none of whose rows carries it,
+  once that is under a 1% chance: from 13 rows for a badge three rows in
+  ten carry.
 - **`heal` does not rewrite them.** A selector is what a person said, and
   `heal` cannot say it for you: one the new pages still bear out is kept and
   its profile learnt again; one they break is reported `broken`, a loss, and

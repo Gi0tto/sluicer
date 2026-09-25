@@ -392,6 +392,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   process. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
+- A column of a hand-written listing that fewer than half the learnt rows
+  carried -- a sale badge on three rows in ten -- fails a page none of whose
+  rows carries it when that is under a 1% chance (`written.BY_CHANCE`): from
+  13 rows for that badge, and 0.08% for twenty. 0.8.0 checked such a column's
+  presence nowhere, as a learnt listing does not, so a redesign that broke
+  its selector passed every page with exit 0; and `heal` reported it `kept`
+  when no new row carried it. `heal` now reports it `broken` when the new
+  pages' rows together make that as unlikely. Ten rows without the badge
+  (2.8%) still pass, and a page of twenty on which truly nothing is on sale
+  fails as a redesign would.
 - A hand-written field is taken for an address, with no shape or reading to
   hold it to, only when its values are read from an `href` or a `src`. 0.8.0
   decided from the selector's text, and `.//a[@href]` -- the links that have

@@ -255,6 +255,69 @@ def test_a_page_with_the_rows_but_none_in_them_fails():
     assert "listing" in failed(run)
 
 
+def sales(rows: int, badge: str = "sale", on_sale: int = 3) -> bytes:
+    """A listing of ``rows`` books, every ``on_sale``-th one with a badge."""
+    return listing(
+        [
+            f'<a class="title" href="/b/{n}">Book {n}</a>'
+            f'<span class="price">£{n}.50</span>'
+            + (f'<span class="{badge}">SALE</span>' if n % on_sale == 0 else "")
+            for n in range(1, rows + 1)
+        ]
+    )
+
+
+def on_sale() -> Extractor:
+    """Books, and a sale badge that three rows in ten carry."""
+    return compile_extractor(
+        [
+            (sales(10), "https://shop.example/c1"),
+            (sales(10), "https://shop.example/c2"),
+        ],
+        select={"title": "a.title", "sale": "span.sale::text"},
+        rows="li.product",
+    )
+
+
+def test_a_column_few_rows_carry_fails_when_no_row_of_a_long_page_does():
+    """A badge three rows in ten carry is absent from ten rows by chance one
+    page in thirty-six; from twenty, one in more than a thousand. Its
+    selector broken by a redesign, it found nothing in any row, and every
+    page passed."""
+    extractor = on_sale()
+    [_title, sale] = extractor.written.fields
+    assert sale.missing == 0.7
+
+    renamed = run_extractor(
+        extractor, sales(20, badge="promo"), "https://shop.example/"
+    )
+    short = run_extractor(extractor, sales(10, badge="promo"), "https://shop.example/")
+    none_on_sale = run_extractor(
+        extractor, sales(20, on_sale=99), "https://shop.example/"
+    )
+
+    assert not renamed.ok
+    [check] = [c for c in renamed.checks if not c.ok]
+    assert (check.name, check.expected) == ("field", "sale in some rows")
+    assert check.got == "in none of 20 rows, a 0.08% chance for a field 30% carried"
+    # Ten rows without it are not evidence enough, nor is a page on which
+    # it is truly gone told from one of a day with no sale.
+    assert short.ok and not none_on_sale.ok
+
+
+def test_heal_reports_a_column_no_new_row_carries_broken():
+    old = on_sale()
+
+    healed, changes = heal(
+        old, [(sales(10, badge="promo"), "https://shop.example/")] * 2
+    )
+
+    assert [(c.kind, c.before) for c in changes if c.kind in LOSSES] == [
+        ("broken", "sale")
+    ]
+    assert healed.written == old.written
+
+
 def test_a_column_gone_from_its_rows_fails_as_a_learnt_one_does():
     run = run_extractor(books(), *page("shop_prices_gone.html"))
 

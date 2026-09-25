@@ -31,6 +31,7 @@ from typing import Any
 
 from sluicer.document import Document, load
 from sluicer.extractor import (
+    _COMMON,
     _READERS,
     _SAMPLES,
     _SHAPE_EVIDENCE,
@@ -100,6 +101,14 @@ class Written:
     fields: tuple[WrittenField, ...]
     rows: str | None = None
     empty: float = 0.0
+
+
+BY_CHANCE = 0.01
+"""How unlikely it must be that no row of a page carries a column a few of
+the learnt rows carried before the page fails for it: a sale badge three rows
+in ten carry is absent from ten rows 2.8% of the time, and from twenty 0.08%.
+A column most rows carried is held to some row on every page, as a learnt
+one is."""
 
 
 def compile_written(
@@ -396,6 +405,22 @@ def _replayed(
         )
         _check_rows([column], rows, len(elements), written.empty, own, slots=False)
         said.extend((f.name, check) for check in own[len(level) :])
+        seldom = _seldom(f, len(rows))
+        if seldom is not None:
+            carried = sum(1 for row in rows if f.name in row)
+            said.append(
+                (
+                    f.name,
+                    Check(
+                        "field",
+                        f"{f.name} in some rows",
+                        f"in {carried / len(rows):.0%}"
+                        if carried
+                        else f"in none of {len(rows)} rows, {seldom}",
+                        carried > 0,
+                    ),
+                )
+            )
         if not f.first:
             twice = doubled[f.name]
             said.append(
@@ -412,6 +437,21 @@ def _replayed(
                 )
             )
     return rows, {}, said
+
+
+def _seldom(f: WrittenField, rows: int) -> str | None:
+    """How unlikely ``rows`` rows none of which carries ``f`` are, when ``f``
+    is a column fewer than half the learnt rows carried -- which a learnt
+    listing leaves unchecked -- and that is under ``BY_CHANCE``; else None.
+
+    A person named the column, and a selector a redesign broke finds it in no
+    row: a sale badge renamed passed every page as a day with no sale."""
+    if not 1 - _COMMON < f.missing < 1:
+        return None
+    chance = f.missing**rows
+    if chance >= BY_CHANCE:
+        return None
+    return f"a {chance:.2%} chance for a field {1 - f.missing:.0%} carried"
 
 
 def _replay_field(page: Page, f: WrittenField, said: Said) -> str | None:
@@ -473,8 +513,10 @@ def heal_written(
     cannot say it for them."""
     rows_broken = False
     broken: set[str] = set()
+    pooled: list[dict[str, str]] = []
     for doc in docs:
-        _rows, _fields, said = _replayed(written, doc)
+        rows, _fields, said = _replayed(written, doc)
+        pooled.extend(rows)
         for owner, check in said:
             if check.ok:
                 continue
@@ -484,6 +526,15 @@ def heal_written(
                 broken.add(owner)
     if rows_broken:
         return written, [Change("broken", written.rows, None)]
+    # A column too few rows carry to fail any one page, found in no row of
+    # all the new pages together.
+    broken.update(
+        f.name
+        for f in written.fields
+        if written.rows is not None
+        and _seldom(f, len(pooled)) is not None
+        and not any(f.name in row for row in pooled)
+    )
     changes = [
         Change("broken", f.name, None)
         if f.name in broken
@@ -500,7 +551,8 @@ def heal_written(
             written.rows,
         )
     except NothingToLearn:
-        # A column no new row carries, which its learnt share let go.
+        # A column no new row carries, and too few could have for that to
+        # say it is gone: kept, as it was learnt.
         return written, changes
     return again, changes
 
