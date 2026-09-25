@@ -37,10 +37,15 @@ def test_the_script_parses_in_its_shell(shell, tmp_path):
     if program is None:
         pytest.skip(f"{shell} is not installed here")
     script = tmp_path / f"sluicer.{shell}"
-    script.write_text(_complete({"_SLUICER_COMPLETE": f"{shell}_source"}).stdout)
+    generated = _complete({"_SLUICER_COMPLETE": f"{shell}_source"}).stdout
+    script.write_text(generated, encoding="utf-8")
 
     checked = subprocess.run(
-        [program, "-n", str(script)], capture_output=True, text=True, check=False
+        [program, "-n", str(script)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
     )
 
     assert checked.returncode == 0, checked.stderr
