@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import lxml.html
+from hypothesis import given, strategies as st
 
 from sluicer.structure.groups import repeating_groups
 
@@ -340,3 +341,91 @@ def test_classes_that_name_one_item_or_a_position_do_not_split_a_listing():
     tree = lxml.html.fromstring(f"<body><div id='siteTable'>{rows}</div></body>")
 
     assert len(repeating_groups(tree)[0]) == 6
+
+
+def test_a_row_is_gathered_with_its_own_kind_among_many_other_shapes():
+    """Past a few groups of one kind, a child is compared only with the groups
+    whose first members share one of its rarest paths; the first group it
+    matches is still the one it joins, as when it was compared with them all.
+    """
+    others = "".join(f"<p><a href='/{i}'>x</a><t{i}>y</t{i}></p>" for i in range(40))
+    row = "<p><a href='/r'>Row</a><b>bold</b><i>it</i></p>"
+    near = "<p><a href='/n'>Near</a><b>bold</b><i>it</i><u>u</u></p>"
+    tree = lxml.html.fromstring(
+        f"<body><div>{row}{others}{near}{row}{others}{row}</div></body>"
+    )
+
+    groups = repeating_groups(tree)
+
+    assert [len(group) for group in groups] == [4]
+    assert [member.find("a").get("href") for member in groups[0]] == [
+        "/r",
+        "/n",
+        "/r",
+        "/r",
+    ]
+
+
+def test_siblings_that_share_most_of_their_parts_are_compared_boundedly():
+    """Found by review: each child was compared with every group of its kind
+    begun before it, and children that share three parts and differ in a
+    fourth are never alike, so two thousand of them made two million
+    comparisons. Past the limit a child that matched none begins its own
+    group, and none of those groups has rows enough to be a listing.
+    """
+    from sluicer.structure import groups as module
+
+    compared = 0
+    alike = module.alike
+
+    def counted(one, other):
+        nonlocal compared
+        compared += 1
+        return alike(one, other)
+
+    children = "".join(
+        f"<p><a href='/{i}'>x</a><b>y</b><i>z</i><t{i}>w</t{i}></p>"
+        for i in range(2000)
+    )
+    tree = lxml.html.fromstring(f"<body><div>{children}</div></body>")
+    module.alike = counted
+    try:
+        assert repeating_groups(tree) == []
+    finally:
+        module.alike = alike
+
+    assert compared <= 2000 * module._COMPARED
+
+
+# Text as pages write it: words, the whitespace str.split collapses (a no-break
+# space, an ideographic one, a unit separator), comments whose words are not
+# text, anchors and images that point somewhere.
+_BITS = st.sampled_from(
+    ["a", "bc", " ", "  ", "\n", "\xa0", "　", "\x1f", "<!-- c d -->", ""]
+)
+_FRAGMENTS = st.recursive(
+    _BITS,
+    lambda inner: st.tuples(
+        st.sampled_from(["<b>", "<a href='/x'>", "<a href=' '>", "<p>", "<i>"]),
+        st.lists(inner, max_size=4),
+    ).map(lambda drawn: drawn[0] + "".join(drawn[1]) + "</" + drawn[0][1] + ">"),
+    max_leaves=12,
+)
+
+
+@given(st.lists(_FRAGMENTS, max_size=5), st.booleans())
+def test_what_a_member_is_worth_is_what_its_text_and_addresses_come_to(parts, img):
+    """Worth is made from each element's children rather than read off the
+    member's text, so a member inside another member is not measured twice;
+    it is the same number the text, whitespace collapsed, gives."""
+    from sluicer.structure.groups import _worth
+    from sluicer.structure.records import address_of
+
+    html = "<div>" + "".join(parts) + ("<img src='/i'>" if img else "") + "</div>"
+    tree = lxml.html.fragment_fromstring(html)
+    worths = {}
+
+    for element in [e for e in tree.iter() if isinstance(e.tag, str)][::-1]:
+        text = " ".join(element.text_content().split())
+        addresses = sum(1 for part in element.iter() if address_of(part))
+        assert _worth(element, worths) == len(text) + 8 * addresses, html

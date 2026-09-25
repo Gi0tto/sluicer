@@ -689,3 +689,57 @@ def test_the_filter_refuses_what_is_not_an_address_at_all():
     assert "not a host name" in why_not_public("http://a b.example/", public)
     assert why_not_public("http://1.2.3.4.5/", public) is None
     assert why_not_public("http://8.8.8.8/", public) is None
+
+
+def test_a_listing_of_thousands_of_products_costs_what_its_size_does():
+    """4,000 products in JSON-LD, microdata and RDFa took 5 seconds, not 0.3.
+
+    Three parts grew with the square of the listing: the summary asked, for
+    every product, which one product the page was about; the merge walked
+    every record for every item it folded; and every place written counted
+    all its element's siblings again.
+    """
+    import json
+
+    n = 4000
+    products = [
+        {"@type": "Product", "name": f"P{i}", "offers": {"price": f"{i}.99"}}
+        for i in range(n)
+    ]
+    html = (
+        '<html><body><script type="application/ld+json">'
+        + json.dumps(products)
+        + "</script>"
+        + "".join(
+            f'<div itemscope itemtype="https://schema.org/Product">'
+            f'<span itemprop="name">P{i}</span><span itemprop="sku">{i}</span></div>'
+            for i in range(n)
+        )
+        + '<div vocab="https://schema.org/">'
+        + "".join(
+            f'<div typeof="Product"><span property="name">P{i}</span></div>'
+            for i in range(n)
+        )
+        + "</div></body></html>"
+    )
+
+    assert _timed(html) < 3
+
+
+def test_the_summary_asks_once_per_type_which_record_a_listing_is_about(monkeypatch):
+    import json
+
+    from sluicer import summary
+
+    asked = []
+    real = summary._one_of_many
+
+    def counting(records, name):
+        asked.append(name)
+        return real(records, name)
+
+    monkeypatch.setattr(summary, "_one_of_many", counting)
+    products = [{"@type": "Product", "name": f"P{i}"} for i in range(500)]
+    extract(f'<script type="application/ld+json">{json.dumps(products)}</script>')
+
+    assert asked == ["Product"]

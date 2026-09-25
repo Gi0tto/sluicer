@@ -34,7 +34,8 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
 
     Blocks are read as leniently as the consumers pages are written for: a raw
     newline inside a string, an HTML comment or CDATA wrapper, a byte order
-    mark and a trailing comma are all common and none loses the block. What
+    mark, JavaScript's ``//`` and ``/* */`` comments and a trailing comma are
+    all common and none loses the block; a string's text is never mended. What
     still is not JSON is skipped, and so is a block nested past the parser's
     limit; the good blocks on the page are kept.
 
@@ -79,7 +80,12 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
 
 _OPENING = re.compile(r"^\s*(?:(?://|/\*)\s*)?(?:<!\[CDATA\[|<!--)\s*(?:\*/)?")
 _CLOSING = re.compile(r"(?:(?://|/\*)\s*)?(?:\]\]>|-->)\s*(?:\*/)?\s*$")
-_TRAILING_COMMA = re.compile(r",\s*([}\]])")
+# A JSON string, read to its end or to the block's: what the two patterns
+# below look for inside one is text. Left open, it runs to the end, and so does
+# a comment, so no character is scanned twice whatever the block holds.
+_STRING = r'"(?:[^"\\]|\\.)*(?:"|\Z)'
+_COMMENT = re.compile(_STRING + r"|//[^\n]*|/\*.*?(?:\*/|\Z)", re.DOTALL)
+_TRAILING_COMMA = re.compile(_STRING + r"|,(?=\s*[}\]])", re.DOTALL)
 
 
 def _parse(raw: str, as_written: bool = True) -> object | None:
@@ -93,9 +99,7 @@ def _parse(raw: str, as_written: bool = True) -> object | None:
         unwrapped = _CLOSING.sub("", _OPENING.sub("", unwrapped))
     # The cleaned spellings are tried only after the text as written fails, so
     # a block that is valid JSON is never rewritten.
-    for candidate in dict.fromkeys(
-        (raw, unwrapped, _TRAILING_COMMA.sub(r"\1", unwrapped))
-    ):
+    for candidate in dict.fromkeys((raw, unwrapped, _mended(unwrapped))):
         try:
             parsed: object = (
                 json.loads(
@@ -114,6 +118,18 @@ def _parse(raw: str, as_written: bool = True) -> object | None:
     return None
 
 
+def _mended(text: str) -> str:
+    """``text`` without JavaScript's comments and a trailing comma's comma.
+
+    Both outside strings only. extruct strips the comments, so a block that
+    has them was read there and lost here; and a comma mended inside a string
+    changed its text, ``"Pad, ]"`` read as ``"Pad]"``. A comment is a space,
+    which is what it separates as.
+    """
+    text = _COMMENT.sub(lambda m: m[0] if m[0].startswith('"') else " ", text)
+    return _TRAILING_COMMA.sub(lambda m: m[0] if m[0].startswith('"') else "", text)
+
+
 def _is_ld_json(declared: str) -> bool:
     """Is this script's type attribute the JSON-LD media type?"""
     return declared.split(";", 1)[0].strip().lower() == _MEDIA_TYPE
@@ -123,18 +139,31 @@ def _flatten(parsed: object) -> list[tuple[dict[str, Any], tuple[str | int, ...]
     """Every top-level node in one block, ``@graph`` and arrays unwrapped.
 
     Each with the steps that lead to it inside the block -- ``("@graph", 1)``
-    -- which make its JSON pointer.
+    -- which make its JSON pointer. A node that holds a ``@graph`` and says
+    something of its own besides -- a shop's Product carrying the page's other
+    nodes -- is a node too, without its graph: unwrapped, the Product itself
+    was lost. It comes after the nodes in its graph, so the order they had
+    stays theirs: one shop's Brand holds its Products, and read first, the
+    Brand stood where the product the page is about had stood. One that holds
+    only a graph, its ``@context`` and its ``@id`` is the graph's wrapper, and
+    no node.
     """
     found: list[tuple[dict[str, Any], tuple[str | int, ...]]] = []
+    # A tuple is a node already read, waiting for its graph: JSON makes none.
     pending: list[tuple[object, tuple[str | int, ...]]] = [(parsed, ())]
     while pending:
         value, steps = pending.pop()
-        if isinstance(value, list):
+        if isinstance(value, tuple):
+            found.append((value[0], steps))
+        elif isinstance(value, list):
             pending.extend(
                 (item, (*steps, n)) for n, item in reversed(list(enumerate(value)))
             )
         elif isinstance(value, dict):
             if "@graph" in value:
+                own = {key: item for key, item in value.items() if key != "@graph"}
+                if any(not key.startswith("@") for key in own):
+                    pending.append(((own,), steps))
                 pending.append((value["@graph"], (*steps, "@graph")))
             else:
                 found.append((value, steps))

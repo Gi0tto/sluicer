@@ -177,6 +177,13 @@ absolute canonical
 and OpenGraph's four required properties, `og:title`, `og:type`, `og:image` and
 `og:url` ([ogp.me](https://ogp.me/)). Each missing one is a warning.
 
+The canonical is read as `extract` reads it for `links`: from the `<head>`
+only, since Google accepts a `rel=canonical` nowhere else, and a canonical in
+the body -- which a page's own content, a comment, can put there -- names
+nothing. Two canonicals that resolve to one address, `/pads` and
+`https://example.com/pads` on that site, are one; the relative one is still
+named.
+
 Two vocabularies that each declare one record of a type describe one thing,
 and the facts they state about it must agree: identifiers, prices, the
 currency, availability, the rating and its counts, the dates. Each is compared

@@ -88,7 +88,7 @@ def test_a_parser_that_refuses_bytes_is_still_never_a_traceback(monkeypatch):
     def refuse(*args, **kwargs):
         raise ValueError("Unicode strings with encoding declaration are not supported.")
 
-    monkeypatch.setattr(lxml.html, "fromstring", refuse)
+    monkeypatch.setattr(lxml.html, "document_fromstring", refuse)
     page = b"<html><body><p>hi</p></body></html>"
 
     doc = load(page)
@@ -420,3 +420,57 @@ def test_an_empty_query_or_fragment_resolves_alike_on_every_python(address, reso
     from sluicer.document import join
 
     assert join("https://shop.example/c/brakes", address) == resolved
+
+
+def test_a_fragment_is_parsed_as_a_whole_document():
+    """Its tree is the page's <html>, with the <body> a browser would give it.
+
+    ``lxml.html.fromstring`` made the tree a <div> renamed from the <body>, so
+    an extractor learnt ``html>div>...`` and then could not find it: its
+    search starts at the tree, whose tag was not ``html``.
+    """
+    from sluicer.document import load
+
+    for page in ("<p>a</p><p>b</p>", b"<!-- saved --><p>a</p>", "text <b>b</b>"):
+        doc = load(page)
+
+        assert doc.tree.tag == "html"
+        assert [child.tag for child in doc.tree] == ["body"]
+
+
+def test_a_page_s_newlines_are_normalised_as_a_browser_normalises_them():
+    """CR LF and a lone CR are LF before the page is parsed, on every libxml2.
+
+    libxml2 2.14 (lxml 6) does this itself and 2.12 (lxml 5.3, the floor) does
+    not, so a description or a review read on one kept its CR LF and on the
+    other did not: the same page, two answers, on nine benchmark pages.
+    """
+    from sluicer import extract
+
+    page = (
+        '<html><head><meta name="keywords" content="brakes\r\npads">'
+        '<script type="application/ld+json">{"@type": "Product", "name": "Pad",'
+        ' "description": "one\r\ntwo\rthree"}</script></head><body>'
+        '<div itemscope itemtype="https://schema.org/Review">'
+        '<meta itemprop="reviewBody" content="good\r\nvalue"></div></body></html>'
+    )
+    for form in (page, page.encode()):
+        result = extract(form)
+        fields = {k: f.value for r in result.records for k, f in r.fields.items()}
+
+        assert fields["description"] == "one\ntwo\nthree"
+        assert fields["reviewBody"] == "good\nvalue"
+        assert fields["keywords"] == "brakes\npads"
+
+
+def test_an_address_s_spaces_are_found_as_str_isspace_finds_them():
+    """``clean_address`` searches with ``\\s``: it must be ``str.isspace``'s set."""
+    import sys
+
+    from sluicer.document import _ANY_SPACE
+
+    assert [
+        code
+        for code in range(sys.maxunicode + 1)
+        if bool(_ANY_SPACE.match(chr(code))) != chr(code).isspace()
+    ] == []

@@ -304,14 +304,16 @@ AGENTS: tuple[Agent, ...] = (
 
 def user_agents(text: str) -> list[str]:
     """Every name a ``User-agent`` line in ``text`` gives, lowercased, in order."""
-    names: list[str] = []
+    # Once each, in order: a list asked for each line whether it held the name,
+    # and a robots.txt of forty thousand groups took four seconds.
+    names: dict[str, None] = {}
     for line in text.splitlines():
         key, colon, value = line.split("#", 1)[0].partition(":")
         if colon and key.strip().lower() == "user-agent":
             name = value.strip().lower()
-            if name and name not in names:
-                names.append(name)
-    return names
+            if name:
+                names.setdefault(name)
+    return list(names)
 
 
 def deciding_group(token: str, names: list[str]) -> str | None:

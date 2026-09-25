@@ -1,6 +1,7 @@
 import lxml.html
+from hypothesis import given, strategies as st
 
-from sluicer.structure.shape import same_kind
+from sluicer.structure.shape import alike, same_kind, telling
 
 
 def element(html):
@@ -119,3 +120,27 @@ def test_depth_is_bounded_so_a_deep_page_stays_comparable():
     deep = element("<div><p>x<em><b><i><u>deep</u></i></b></em></p></div>")
 
     assert same_kind(shallow, deep, depth=1)
+
+
+_PATHS = st.frozensets(st.sampled_from([f"p{n}" for n in range(12)]), max_size=12)
+
+
+@given(one=_PATHS, other=_PATHS, rarity=st.permutations(range(12)))
+def test_two_alike_outlines_share_a_telling_path_whatever_the_order(one, other, rarity):
+    """Siblings are compared only with groups that share a telling path, so
+    two alike outlines that shared none would never be grouped."""
+
+    def rank(path):
+        return rarity[int(path[1:])], path
+
+    if one and other and alike(one, other):
+        assert set(telling(one, rank)) & set(telling(other, rank))
+
+
+def test_alike_is_two_thirds_of_the_paths_both_hold():
+    three = frozenset({"a", "b", "c"})
+
+    assert alike(three, frozenset({"a", "b"}))
+    assert not alike(three, frozenset({"a", "b", "d"}))
+    assert alike(frozenset(), frozenset())
+    assert not alike(frozenset(), frozenset({"a"}))

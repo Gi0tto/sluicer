@@ -3,9 +3,16 @@
 How often Sluicer's `summary` gets a page's title, author and publication
 date right, measured beside the tools people use for the same job, on a
 public annotated corpus, with the losses in the same table as the wins.
-Regenerated on 2026-09-24 from commit `7f00cec` by
+Regenerated on 2026-09-25 from commit `c7bf887` by
 `uv run bench/run.py`; the method and every pin are in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
+
+!!! warning "Sluicer's rules were made on these pages"
+    Rules were written, measured on these pages and kept because the
+    numbers here rose (`659f3a6`, `709856e`, `b86aa19`, among others), so this measures
+    Sluicer on pages it was fitted to, not on pages it has never seen.
+    Of the scoreboards, only SWDE's held-out half is a held-out test;
+    [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md) says which pages each rule was made on.
 
 !!! warning "Read this before the numbers"
     WCXB removed every `<script>` from its pages: of the 511 test
@@ -26,7 +33,7 @@ All 511 test pages:
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.7.0 | 0.727 | 0.532 | 0.581 | 42 | 8 |
+| sluicer 0.7.1 | 0.727 | 0.532 | 0.581 | 42 | 8 |
 | trafilatura 2.2.0 | 0.745 | 0.750 | 0.838 | 98 | 216 |
 | metascraper 5.58.1 | 0.654 | 0.787 | 0.725 | 125 | 84 |
 | newspaper4k 0.9.6 | 0.768 | 0.532 | 0.645 | 50 | 52 |
@@ -35,7 +42,7 @@ The 359 article, listing, collection and product pages:
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.7.0 | 0.748 | 0.532 | 0.598 | 18 | 3 |
+| sluicer 0.7.1 | 0.748 | 0.532 | 0.598 | 18 | 3 |
 | trafilatura 2.2.0 | 0.723 | 0.750 | 0.866 | 45 | 124 |
 | metascraper 5.58.1 | 0.661 | 0.787 | 0.723 | 62 | 47 |
 | newspaper4k 0.9.6 | 0.748 | 0.532 | 0.625 | 21 | 27 |
@@ -44,7 +51,7 @@ The 359 article, listing, collection and product pages:
 
 | tool | seconds for all pages | packages installed |
 |---|---|---|
-| sluicer 0.7.0 | 1.50 | 3 |
+| sluicer 0.7.1 | 1.20 | 3 |
 | trafilatura 2.2.0 | 16.19 | 17 |
 | metascraper 5.58.1 | 2.75 | 125 |
 | newspaper4k 0.9.6 | 29.61 | 22 |
@@ -58,11 +65,13 @@ core; packages count everything the tool's own environment holds.
 - **Date.** Sluicer misses 111 labelled pages, and on 86 of them another tool finds the date.
 - **Title.** Of 139 wrong titles, 63 contain the label whole: the page declares a longer title than the heading the labels use.
 
-Authors and dates are where the gap is. The other tools also read bylines
-and dates from the visible text of the page, where no vocabulary declares
-them; Sluicer reads only what the page states in markup that means
-something, and answers nothing rather than guess from prose. That is a
-choice with a cost, and this is the cost.
+Sluicer's hit rate is below another tool's on date (0.581 against trafilatura's 0.838), author (0.532 against metascraper's 0.787) and title (0.727 against newspaper4k's 0.768).
+
+The other tools also read bylines and dates from the visible text of
+the page, where no vocabulary declares them; Sluicer reads only what the
+page states in markup that means something, and answers nothing rather
+than guess from prose. That is a choice with a cost, and the gap above
+is the cost.
 
 ## Where it wins
 
@@ -71,9 +80,10 @@ choice with a cost, and this is the cost.
 - **Date**, right when answering: sluicer 0.917, newspaper4k 0.710, metascraper 0.625, trafilatura 0.463. Fewest inventions: sluicer (8).
 
 Right when answering counts every answer a tool gives, inventions
-included. Sluicer gives none where the page states none; on a product or
-category page with no publication date, a date is not a small error but a
-fact that is not there.
+included. Where a page's label is empty, the tools answered all the
+same: sluicer 1 title, 42 authors and 8 dates; trafilatura 1 title, 98 authors and 216 dates; metascraper 1 title, 125 authors and 84 dates; newspaper4k 1 title, 50 authors and 52 dates. On a product or category page with no
+publication date, a date is not a small error but a fact that is not
+there.
 
 Fastest: sluicer. Smallest install: sluicer.
 
@@ -86,9 +96,9 @@ All 511 test pages:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.0 | title | 370 | 139 | 0 | 1 | 1 | 0.727 | 0.725 |
-| sluicer 0.7.0 | author | 100 | 11 | 77 | 281 | 42 | 0.532 | 0.654 |
-| sluicer 0.7.0 | date | 154 | 6 | 105 | 238 | 8 | 0.581 | 0.917 |
+| sluicer 0.7.1 | title | 370 | 139 | 0 | 1 | 1 | 0.727 | 0.725 |
+| sluicer 0.7.1 | author | 100 | 11 | 77 | 281 | 42 | 0.532 | 0.654 |
+| sluicer 0.7.1 | date | 154 | 6 | 105 | 238 | 8 | 0.581 | 0.917 |
 | trafilatura 2.2.0 | title | 379 | 130 | 0 | 1 | 1 | 0.745 | 0.743 |
 | trafilatura 2.2.0 | author | 141 | 17 | 30 | 225 | 98 | 0.750 | 0.551 |
 | trafilatura 2.2.0 | date | 222 | 42 | 1 | 30 | 216 | 0.838 | 0.463 |
@@ -103,9 +113,9 @@ The 359 article, listing, collection and product pages:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.0 | title | 267 | 90 | 0 | 1 | 1 | 0.748 | 0.746 |
-| sluicer 0.7.0 | author | 100 | 11 | 77 | 153 | 18 | 0.532 | 0.775 |
-| sluicer 0.7.0 | date | 134 | 3 | 87 | 132 | 3 | 0.598 | 0.957 |
+| sluicer 0.7.1 | title | 267 | 90 | 0 | 1 | 1 | 0.748 | 0.746 |
+| sluicer 0.7.1 | author | 100 | 11 | 77 | 153 | 18 | 0.532 | 0.775 |
+| sluicer 0.7.1 | date | 134 | 3 | 87 | 132 | 3 | 0.598 | 0.957 |
 | trafilatura 2.2.0 | title | 258 | 99 | 0 | 1 | 1 | 0.723 | 0.721 |
 | trafilatura 2.2.0 | author | 141 | 17 | 30 | 126 | 45 | 0.750 | 0.695 |
 | trafilatura 2.2.0 | date | 194 | 29 | 1 | 11 | 124 | 0.866 | 0.559 |
@@ -128,8 +138,10 @@ The 359 article, listing, collection and product pages:
 - **Author.** Letter runs, lowercased, less *by, and, the, staff, team,
   editor(s), writer, de, von*; a hit when the shared tokens cover half the
   label's and a quarter of the answer's.
-- **Date.** Both parsed with dateutil; a hit when the calendar dates are
-  equal.
+- **Date.** Both parsed with dateutil under a fixed default; a hit when
+  the answer writes every part of the date the label writes, alike. Dots
+  are day first, slashes month first; with a UTC offset on both, the
+  answer is read in the label's. The rule is in `bench/PREREG.md`.
 - **Sluicer.** `extract(html, url=...).summary`, fields `title`, `author`,
   `published`, base install, from this checkout.
 - **trafilatura.** `extract_metadata(html, default_url=...)`.

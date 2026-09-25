@@ -24,6 +24,7 @@ page nested two hundred deep would weigh more than the page.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Callable, Sequence
 from typing import Any, TypeAlias
 
@@ -34,6 +35,8 @@ Step: TypeAlias = "str | int"
 Place: TypeAlias = "str | HtmlElement | Located | tuple[Place, Step]"
 # A place to pay for: spelt, or what spells it when it is paid for.
 Spelling: TypeAlias = "str | Callable[[], str | None] | None"
+# Each parent's children, each with its step's position as lxml writes it.
+Positions: TypeAlias = "dict[HtmlElement | None, dict[HtmlElement, str]]"
 
 
 class Located(dict[str, Any]):
@@ -59,8 +62,12 @@ class Located(dict[str, Any]):
     @property
     def where(self) -> str | None:
         """The item's place, spelt."""
+        return self.spelt()
+
+    def spelt(self, positions: Positions | None = None) -> str | None:
+        """The item's place, spelt once, with ``positions`` as ``xpath_of``'s."""
         if not self._spelt:
-            self._where, self._spelt = spell(self.at), True
+            self._where, self._spelt = spell(self.at, positions), True
         return self._where
 
 
@@ -79,15 +86,17 @@ _ONCE = frozenset({"html", "head", "body"})
 _PLAIN = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\Z")
 
 
-def xpath_of(element: HtmlElement) -> str:
+def xpath_of(element: HtmlElement, positions: Positions | None = None) -> str:
     """Where an element is on its page, as an XPath nothing after it can change.
 
     lxml leaves out the position of an element that is the only one of its
     name, so a sibling added after it changed its place, ``meta`` to
     ``meta[1]``. Here every step carries its position, but ``html``, ``head``
     and ``body``, of which a parsed page has one each. The positions are
-    lxml's, counted in C: counting siblings here would cost, for each of a
-    page's ten thousand siblings, all those before it.
+    lxml's, counted in C, which walks an element's siblings for each place it
+    writes: four thousand places among four thousand siblings cost sixteen
+    million steps. ``positions``, shared by the places of one answer, holds
+    each parent's children counted once, in lxml's way.
 
     A name XPath cannot read as written is matched by ``name()``, and one
     holding a quote or a ``#`` by its position among its parent's nodes: the
@@ -95,9 +104,12 @@ def xpath_of(element: HtmlElement) -> str:
     pointer starts.
     """
     chain = [*reversed(list(element.iterancestors())), element]
-    written = str(element.getroottree().getpath(element)).split("/")[1:]
-    if len(written) != len(chain):
-        written = [_counted(node) for node in chain]
+    if positions is not None:
+        written = [_step(node, positions) for node in chain]
+    else:
+        written = str(element.getroottree().getpath(element)).split("/")[1:]
+        if len(written) != len(chain):
+            written = [_counted(node) for node in chain]
     steps = []
     for depth, (node, step) in enumerate(zip(chain, written, strict=True)):
         tag = str(node.tag)
@@ -111,6 +123,32 @@ def xpath_of(element: HtmlElement) -> str:
         else:
             steps.append(_by_position(node))
     return "/" + "/".join(steps)
+
+
+def _step(node: HtmlElement, positions: Positions) -> str:
+    """``node``'s step as lxml's ``getpath`` writes it, its siblings counted once.
+
+    libxml2 numbers an element among its element siblings of the same name,
+    and writes no number for the only one of its name; the root's siblings
+    are the other nodes at the top of the document.
+    """
+    parent = node.getparent()
+    steps = positions.get(parent)
+    if steps is None or node not in steps:
+        if parent is not None:
+            siblings = list(parent)
+        else:
+            siblings = [*reversed(list(node.itersiblings(preceding=True))), node]
+            siblings += node.itersiblings()
+        elements = [child for child in siblings if isinstance(child.tag, str)]
+        total = Counter(str(child.tag) for child in elements)
+        seen: Counter[str] = Counter()
+        steps = positions[parent] = {}
+        for child in elements:
+            tag = str(child.tag)
+            seen[tag] += 1
+            steps[child] = tag if total[tag] == 1 else f"{tag}[{seen[tag]}]"
+    return steps[node]
 
 
 def _counted(node: HtmlElement) -> str:
@@ -131,8 +169,10 @@ def _by_position(node: HtmlElement) -> str:
     return f"node()[not(self::text())][{parent.index(node) + 1}]"
 
 
-def spell(at: Place | None) -> str | None:
-    """A place as text: an XPath, and inside JSON-LD a pointer after ``#``."""
+def spell(at: Place | None, positions: Positions | None = None) -> str | None:
+    """A place as text: an XPath, and inside JSON-LD a pointer after ``#``.
+
+    ``positions`` is ``xpath_of``'s, for the places of one answer."""
     steps: list[Step] = []
     while isinstance(at, tuple):
         at, step = at
@@ -140,18 +180,23 @@ def spell(at: Place | None) -> str | None:
     if at is None:
         return None
     if isinstance(at, Located):
-        base = at.where
+        base = at.spelt(positions)
     elif isinstance(at, str):
         base = at
     else:
-        base = xpath_of(at)
+        base = xpath_of(at, positions)
     if base is None or "#" not in base:
         # Steps are a pointer's, and only a JSON-LD block has one.
         return base
     return base + pointer(*reversed(steps))
 
 
-def place(value: Any, at: Place | None, steps: Sequence[Step]) -> str | None:
+def place(
+    value: Any,
+    at: Place | None,
+    steps: Sequence[Step],
+    positions: Positions | None = None,
+) -> str | None:
     """Where the value ``steps`` into ``value`` was declared, ``value`` being at ``at``.
 
     As finely as the page's items say, and never finer: each ``Located`` on
@@ -159,6 +204,7 @@ def place(value: Any, at: Place | None, steps: Sequence[Step]) -> str | None:
     recorded one, and inside JSON-LD a pointer goes the rest of the way. An
     index into a list whose items carry no place stops the pointer at the
     list, since a blank item dropped from it would make the index wrong.
+    ``positions`` is ``xpath_of``'s, for the places of one answer.
     """
     node, base, rest = value, at, list[Step]()
     for step in steps:
@@ -181,7 +227,7 @@ def place(value: Any, at: Place | None, steps: Sequence[Step]) -> str | None:
         base, rest = node, []
     for step in rest:
         base = (base, step)
-    return spell(base)
+    return spell(base, positions)
 
 
 def placed(

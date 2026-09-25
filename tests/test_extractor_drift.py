@@ -1160,13 +1160,13 @@ def test_compile_run_and_heal_parse_each_page_once(monkeypatch):
     from sluicer import document
 
     parsed = []
-    real = document.lxml.html.fromstring
+    real = document.lxml.html.document_fromstring
 
     def counting(*args, **kwargs):
         parsed.append(1)
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(document.lxml.html, "fromstring", counting)
+    monkeypatch.setattr(document.lxml.html, "document_fromstring", counting)
     pages = [
         (shop_page(books(10)), "https://s/1"),
         (shop_page(books(8)), "https://s/2"),

@@ -306,3 +306,61 @@ def test_a_page_nested_deep_answers_with_places_no_longer_than_itself():
     assert places[0] is not None and places[-1] is None, "document order decides"
     # The summary pays from its own budget, so a long record cannot starve it.
     assert result.summary["title"].where == thing.fields["name"].where
+
+
+def test_a_fragment_s_places_are_in_the_page_a_browser_would_build():
+    """lxml.html.fromstring renames a fragment's <body> to a <div> or <span>.
+
+    A page with no head and no <html> or doctype at its start -- a fragment, or
+    a saved page that opens with a comment -- was read from that renamed body,
+    and every XPath went through a div the page never had: /html/div[1]/div[1]
+    for what a browser, and lxml's own document parser, put at
+    /html/body/div[1].
+    """
+    import lxml.html
+
+    from sluicer import extract
+
+    product = (
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<span itemprop="name">Pad</span></div>'
+    )
+    for html in (
+        product + "<p>more</p>",
+        "<!-- saved --><p>x</p>" + product,
+        "text <b>bold</b> " + product,
+    ):
+        record = extract(html).records[0]
+        tree = lxml.html.document_fromstring(html)
+
+        assert record.where == "/html/body/div[1]", html
+        assert tree.xpath(record.where)[0].get("itemtype"), html
+        assert tree.xpath(record.fields["name"].where)[0].text == "Pad", html
+
+
+def test_places_spelt_from_one_count_of_siblings_are_lxml_s_own():
+    """``xpath_of`` with ``positions`` counts each parent's children once; it
+    must write exactly what lxml's ``getpath`` does, quirks included: two
+    top-level ``html`` elements, comments between siblings, a prefixed name,
+    a name XPath cannot read."""
+    from sluicer.declared.located import xpath_of
+    from sluicer.document import load
+
+    page = (
+        "\n<!DOCTYPE html>\n\n    <html><head><title>t</title></head><body>"
+        "<p>a</p><!-- c --><p>b</p><fb:like>x</fb:like><fb:like>y</fb:like>"
+        '<div x"y>q</div><h<ead>z</h<ead><section><p>only</p></section>'
+        "</body></html><html><p>late</p></html>"
+    )
+    root = load(page).tree
+    tops = [*root.itersiblings(preceding=True), root, *root.itersiblings()]
+    elements = [
+        element
+        for top in tops
+        for element in top.iter()
+        if isinstance(element.tag, str)
+    ]
+    positions: dict = {}
+
+    assert len(elements) > 12
+    assert [xpath_of(e, positions) for e in elements] == [xpath_of(e) for e in elements]
