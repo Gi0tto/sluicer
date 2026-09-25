@@ -101,6 +101,27 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer-skill-VERSION.zip` on each release: `skills/sluicer` with the
   folder at the zip's root, the shape claude.ai's skill upload takes and what
   unzipping into `~/.agents/skills/` wants, the same bytes from the same tree.
+- A configuration file for the command line: `sluicer.toml`, or a
+  `[tool.sluicer]` table in `pyproject.toml`, the nearest in the working
+  directory or above it; or the file `SLUICER_CONFIG` or `--config FILE`
+  names; `--no-config`, or `SLUICER_CONFIG` empty, reads none. Its keys are
+  the options' own names -- `proxy`, `header`, `cookie`, `cache`, `max-age`,
+  `no-robots`, `respect`, `delay`, `json`, `max-pages` and the rest -- at the
+  top for every command that takes one, and in a command's own table over
+  that. The command line wins, then `SLUICER_PROXY` and `SLUICER_MCP_TOOLS`,
+  then the file, then the built-in defaults; each flag a file may turn on has
+  its opposite for one run (`--no-json`, `--robots`). A file is refused
+  before anything runs, naming the file and the key, for an unknown key (with
+  the nearest known), a key its command does not take, a value of the wrong
+  type, or an option that belongs to one run (`--out`, `--stealth`,
+  `serve --allow-unauthenticated` among them); no message repeats a proxy,
+  header or cookie value. A file found by searching must be the user's and
+  writable by no one else. `no-robots = true` from a file is said on stderr
+  on every run. `docs/configuration.md` says all of it.
+- `tomli>=1.0.3` on Python 3.10 only, to read that file: 3.10 has no
+  `tomllib`. MIT, pure Python, no dependencies; 1.0.3 is the first that
+  raises its own error for an impossible date, measured, and the floors job
+  installs and asserts it.
 - Shell completion for bash (4.4 and later), zsh and fish, click's own:
   `_SLUICER_COMPLETE=zsh_source sluicer` prints the script, and
   `docs/getting-started.md` says where each shell wants it. The suite

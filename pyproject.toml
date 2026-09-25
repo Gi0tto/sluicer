@@ -42,7 +42,18 @@ classifiers = [
 #   fourteen tests fail.
 #   protego parses robots.txt, which every fetch asks first; the HTTP rung
 #   itself is the standard library, so fetching a page needs nothing else.
-dependencies = ["lxml>=5.3", "click>=8.2", "protego>=0.3"]
+#   tomli reads a sluicer.toml on Python 3.10, which has no tomllib; it is
+#   the parser tomllib was made from, MIT and pure Python, installed on 3.10
+#   alone. 1.0.3 is the first that raises TOMLDecodeError, the one error the
+#   reader catches, for an impossible date: 1.0.2 raises ValueError for
+#   `d = 2021-02-30` (measured), and before 1.0.0 an inline table overwritten
+#   implicitly raised KeyError.
+dependencies = [
+    "lxml>=5.3",
+    "click>=8.2",
+    "protego>=0.3",
+    "tomli>=1.0.3; python_version < '3.11'",
+]
 
 [project.optional-dependencies]
 # The browser rung drives Playwright's Chromium directly; the browser itself

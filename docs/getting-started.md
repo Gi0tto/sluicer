@@ -22,7 +22,8 @@ uv pip install "sluicer[markdown]"
 With pip instead: `pip install "sluicer[markdown]"`.
 
 The base install reads every page you have on disk and fetches pages from the
-web over plain HTTP, with nothing installed but `lxml`, `click` and `protego`;
+web over plain HTTP, with nothing installed but `lxml`, `click` and `protego`
+(and `tomli` on Python 3.10);
 the extra adds turning a page into markdown. A page that is an empty shell a
 script fills in needs a browser: add the `browser` extra, and install its
 Chromium once with `uvx --from "sluicer[browser]" playwright install chromium`.

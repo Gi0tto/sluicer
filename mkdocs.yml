@@ -40,6 +40,7 @@ nav:
       - HTTP API: http-api.md
       - In JavaScript: javascript.md
       - Crawling: crawling.md
+      - Configuration: configuration.md
       - Web archives: warc.md
       - Audit: audit.md
       - In GitHub Actions: github-action.md
