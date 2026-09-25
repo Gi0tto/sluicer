@@ -475,7 +475,31 @@ is asked.
 the whole process, and a site is asked by one caller at a time, so one crawl
 after another, two at once, and single fetches beside them keep the delay; two
 processes do not share it, and neither do `sluicer map --plain | sluicer batch
--`, whose second command starts as the first ends.
+-`, whose second command starts as the first ends; `sluicer crawl --template
+sitemap` reads the same pages in one process.
+
+**The pace counts the browser's time too.** A request's seconds are the whole
+call's, so a page the browser renders is timed with its rendering, half a
+second or more, and the site is asked that much less often after it. It errs
+on the slow side, which is the side a guess about someone else's server
+should err on.
+
+**A retry waits on a worker.** A page asked again waits its backoff in the
+thread that fetched it, so while one site is being retried, one of the sites
+a crawl asks at once is that one. The backoff is bounded by `max_delay`, a
+minute by default and ten seconds for the MCP tools.
+
+**A part of a site is its directory.** The crawl's memory of which rung each
+part needed goes by the address's path without its last segment. A site whose
+listings and products share a directory (`/shop?page=2` and `/shop?id=7`) is
+one part, and is paced as the whole site was before.
+
+**The Shopify template reads what `/products.json` serves.** It pages with
+`?page=N`, as the file is served to anyone, and stops at the first short
+page; a shop that hides products from that file, or a Shopify version that
+stops honouring the page number, gives what the file gives. The file names
+no currency, so neither does the summary. It is tested on local fixtures of
+the file's shape, never against a shop.
 
 **A single fetch waits a second, not a site's `Crawl-delay`.** A crawl reads a
 site's `Crawl-delay` and waits it; a single fetch -- the command line, an MCP or
