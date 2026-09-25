@@ -140,6 +140,18 @@ did.** libxml2 builds its own tree: it adds no `<tbody>` to a table, which a
 browser always does, and it mends broken markup its own way, so a place such
 as `/html/body/table[1]/tr[1]/td[1]` may select nothing in a browser's
 developer tools; the same page parsed by `sluicer.document.load` finds it.
+A fragment, or a page with no head that does not open with `<html>` or a
+doctype, is parsed as a whole document, as lxml's `document_fromstring` and a
+browser both build it, so its places start at `/html/body`.
+
+**The same page can read differently on lxml 5.3 and on lxml 6.** The
+floor, lxml 5.3.0, bundles libxml2 2.12; lxml 6 bundles 2.14, whose tokenizer
+follows HTML5 while its tree building does not yet. Newlines are Sluicer's
+own business -- CR LF and a lone CR are read as LF before either parses a
+page -- but where each puts a stray `<title>` or `<link>`, and whether it
+knows an HTML5-only name such as `&mldr;`, is libxml2's. Measured on 5,948
+benchmark pages, 42 give a different answer on 5.3.0 than on 6.1.3, 38 of
+them SWDE pages from 2010; the newlines had made 13 more.
 Some values have no place at all: a meta tag's -- OpenGraph, the Twitter
 card, Dublin Core and HTML's meta names return values, not elements, and
 their key names the tag -- an induced row's, a microformats item's, an answer
@@ -196,6 +208,14 @@ https://www.google.com/` and a Chrome TLS fingerprint under our name; both are
 now turned off, and a local server confirmed neither reaches it. If you change
 how a rung is built, ask a real server what it saw.
 
+**A robots.txt group is ours when it names our product token.** `User-agent:
+Sluicer`, in any case, is the group Sluicer obeys, and `*` when there is none.
+Until 0.7.1 protego was handed the whole user agent, and a group for
+`https`, `github` or `com` was taken for ours. protego still takes a group
+named by the start of the name for ours, `User-agent: slu`, and one that writes
+a version after it, `Sluicer/1.0`, for someone else's; RFC 9309 would do
+neither.
+
 **The robots answer is believed for a day.** A site that adds a rule is noticed
 within twenty-four hours, not immediately. The process remembers the answers of
 the 4,096 sites it used most recently (`ROBOTS_CACHE_HOSTS`); a site pushed out
@@ -214,7 +234,11 @@ recognised, and announcing yourself and then evading is incoherent. It is not
 part of the automatic ladder for the same reason: climbing on a
 measurement from plain HTTP to a browser is a change of cost, while climbing
 from announcing yourself to hiding is a change of character, and it should not
-happen to a caller who never asked for it.
+happen to a caller who never asked for it. Not announcing is all it does: until
+0.7.1 it inherited scrapling's `google_search` and sent `Referer:
+https://www.google.com/`, claiming a visit from a search that never happened,
+and three tries of thirty seconds. Measured on a local server, it now sends no
+referer, and tries once, as the browser rung does.
 
 **Normalisation reads English and ISO, and refuses what is ambiguous.** A date
 is read from ISO 8601 and its common variants, RFC 2822, JavaScript's
@@ -336,9 +360,18 @@ the trade.
 **A failed climb returns the cheaper page.** When a rung fails after a cheaper
 one brought something back -- a fresh install has no browser -- that page is
 returned and the failure is recorded as a climb back down to it, so the caller
-can see it is the HTTP rung's answer to a page that wanted a browser. When every
-rung failed, `FetchFailed` says what each one said; nothing is returned that
-could pass for a page.
+can see it is the HTTP rung's answer to a page that wanted a browser, unless
+that page is a challenge. When every rung failed, `FetchFailed` says what each
+one said; nothing is returned that could pass for a page.
+
+**A challenge page is a refusal, never a page.** When the page the ladder is
+left with -- its last rung's, or a cheaper one's after a rung above it failed
+-- is a challenge, `SiteRefused` is raised (`refused_by_site` in the MCP
+server, the HTTP API and a crawl's page): until 0.7.1 it was returned, and an
+MCP answer said `ok: true` about a waiting room. A skeletal page or a refusing
+status on the last rung is still returned as it came, with its status: a small
+page is often simply small, and a 429's headers are what a crawl slows down
+by.
 
 **A redirect to a login page is not detected as a refusal.** A refusal status, a
 challenge page and a skeletal body are.
@@ -370,11 +403,17 @@ request. The HTTP rung, and the browser when guarded, refuse the hop before it
 is asked.
 
 **Pacing is kept per process.** When each site was last asked is remembered for
-the whole process, so one crawl after another keeps the delay; two processes
-do not share it, and neither do `sluicer map --plain | sluicer batch -`, whose
-second command starts as the first ends. One request at a time per site holds
-within a crawl; two crawls of one site running at once in one process each
-keep their own.
+the whole process, and a site is asked by one caller at a time, so one crawl
+after another, two at once, and single fetches beside them keep the delay; two
+processes do not share it, and neither do `sluicer map --plain | sluicer batch
+-`, whose second command starts as the first ends.
+
+**A single fetch waits a second, not a site's `Crawl-delay`.** A crawl reads a
+site's `Crawl-delay` and waits it; a single fetch -- the command line, an MCP or
+HTTP API call -- waits a second after the site's last request, whoever made
+it, and then asks robots.txt, the page and any climb one after another, as one
+visit. A redirect to another site inside that fetch is asked in the first
+site's turn, not its own.
 
 **A site is a host, not a domain.** `shop.example.com` and `blog.example.com`
 are two sites, paced apart and, for a crawl kept to its site, not followed
@@ -405,8 +444,10 @@ page's `rights` and not acted on: a crawl that reads a page is not an index.
 day (`1/5s 0900-1700`) is kept at every hour.
 
 **A time budget stops starting, it does not interrupt.** A page already being
-fetched when the time is up finishes, which under the ladder's own bounds is
-under a minute; an MCP answer can take that much longer than its minute.
+fetched when the time is up finishes, within its requests' own bounds: twenty
+seconds for each plain HTTP request, its robots.txt's included, and thirty for
+each thing a browser waits on. An MCP answer can take that much longer than its
+minute.
 
 **A crawl resumes only with the options it was written with.** The file's
 order is the order those options take the site in, so another start, depth or
@@ -478,7 +519,8 @@ unnoticed. The HTTP door is held to that same list, not to a second one.
 **A call that runs out of time still runs to its end.** The 504 is sent when
 the budget runs out, and whatever the call brings later is dropped: a thread
 cannot be stopped from outside, so a fetch keeps its worker until its own
-timeouts end it, twenty seconds of plain HTTP and thirty of a browser. Four
+timeouts end it: twenty seconds for each plain HTTP request, the body included,
+and thirty for each thing a browser waits on. Four
 workers bound how many such calls there can be, and a call still waiting for
 one when its budget runs out is never started. On SIGTERM, which is what
 `docker stop` sends, uvicorn shuts down and then re-raises the signal, so the

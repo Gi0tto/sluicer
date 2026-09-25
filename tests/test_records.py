@@ -1,5 +1,6 @@
 import lxml.html
 import pytest
+from hypothesis import given, strategies as st
 
 from sluicer.structure.records import records_from
 
@@ -300,10 +301,12 @@ def test_a_row_nested_a_thousand_deep_is_walked_not_a_recursion_error():
     # Parsed by load, whose parser keeps what lxml's default drops past 256.
     row = load("<ul><li>" + "<b>x" * depth + "</li></ul>").tree.xpath("//li")[0]
 
-    parts = list(_parts(row, ()))
+    slots = {}
+    parts = list(_parts(row, slots))
 
     assert len(parts) == depth
-    assert [len(path) for _, path in parts] == list(range(1, depth + 1))
+    # Each part is the only child of the one before it.
+    assert [parent for parent, *_ in slots] == list(range(-1, depth - 1))
 
 
 def _listing_of(html):
@@ -357,3 +360,196 @@ def test_a_row_a_thousand_deep_is_named_in_a_moment():
     records_from(rows)
 
     assert time.perf_counter() - started < 0.5
+
+
+@given(st.text(alphabet="aZ9_-.#é", max_size=14))
+def test_a_css_module_is_read_as_the_pattern_it_replaced_read_it(token):
+    """The name and hash are now counted rather than matched, since the
+    pattern backtracked over every ``__`` of a long class."""
+    import re
+
+    from sluicer.structure.records import _css_module
+
+    pattern = re.fullmatch(r"(.+?)__([A-Za-z0-9_-]{5,})", token)
+
+    assert _css_module(token) == (pattern.groups() if pattern else None)
+
+
+def test_thousands_of_parts_under_two_thousand_wrappers_are_named_in_a_moment():
+    """Found by review: each part carried the whole path down to it, copied at
+    every level and hashed again to number it, so a row of forty thousand
+    parts two thousand deep took 1.4 seconds, and each wrapper more cost every
+    part below it. A part now carries its slot as a number."""
+    import time
+
+    inner = (
+        "<div>" * 2000
+        + "".join(f"<span>w{i} </span>" for i in range(40_000))
+        + "</div>" * 2000
+    )
+    rows = _listing_of(
+        "<ul><li><div><div>"
+        + inner
+        + "</div></div></li>"
+        + "<li><div><div><div>a</div></div></div></li>" * 2
+        + "</ul>"
+    )
+
+    started = time.perf_counter()
+    records = records_from(rows)
+
+    assert time.perf_counter() - started < 0.5
+    assert records
+
+
+def _named(html):
+    return [
+        {name: field.value for name, field in record.fields.items()}
+        for record in records_from(rows(html))
+    ]
+
+
+def test_a_numbered_slot_and_a_class_spelt_like_it_keep_both_values():
+    """Found by review: two ``span.tag`` are numbered ``span.tag1`` and
+    ``span.tag2``, and a card's own ``<span class="tag1">`` is ``span.tag1``
+    too, so one value overwrote the other. The class the page wrote keeps its
+    name, and the numbers of the slot that would clash are written after a
+    ``#``."""
+    card = (
+        "<li><span class='tag'>red</span><span class='tag'>blue</span>"
+        "<span class='tag1'>SALE</span></li>"
+    )
+
+    assert _named("<ul>" + card * 3 + "</ul>")[0] == {
+        "span.tag#1": "red",
+        "span.tag#2": "blue",
+        "span.tag1": "SALE",
+    }
+
+
+def test_two_numbered_slots_that_would_clash_are_both_told_apart():
+    """Twelve ``span.tag`` make a ``span.tag12``, and so do two ``span.tag1``."""
+    card = (
+        "<li>"
+        + "".join(f"<span class='tag'>t{n}</span>" for n in range(12))
+        + "<span class='tag1'>a</span><span class='tag1'>b</span></li>"
+    )
+
+    record = _named("<ul>" + card * 3 + "</ul>")[0]
+
+    assert len(record) == 14
+    assert record["span.tag#12"] == "t11"
+    assert record["span.tag1#2"] == "b"
+
+
+def test_a_tag_spelt_like_another_s_name_keeps_its_value():
+    """libxml2 keeps any tag name the page writes, ``a@href`` and ``span.x``
+    among them, and those spell another part's name exactly."""
+    card = (
+        "<li><a href='/p'>link</a><a@href>odd</a@href>"
+        "<span class='x'>one</span><span.x>two</span.x></li>"
+    )
+    from sluicer.document import load
+
+    group = list(load("<ul>" + card * 3 + "</ul>").tree.xpath("//ul")[0])
+    record = {name: f.value for name, f in records_from(group)[0].fields.items()}
+
+    assert sorted(record.values()) == ["/p", "link", "odd", "one", "two"]
+
+
+def test_names_that_do_not_clash_are_as_they_were():
+    card = (
+        "<li><span class='tag'>red</span><span class='tag'>blue</span>"
+        "<span class='tag3'>x</span><h2>t</h2></li>"
+    )
+
+    assert set(_named("<ul>" + card * 3 + "</ul>")[0]) == {
+        "span.tag1",
+        "span.tag2",
+        "span.tag3",
+        "h2",
+    }
+
+
+_TAGS = st.sampled_from(["span", "a", "b", "h", "h1", "b1", "i"])
+_CLASSES = st.sampled_from(["", "tag", "tag1", "tag11", "tag#1", "x"])
+
+
+@given(
+    st.lists(
+        st.lists(st.tuples(_TAGS, _CLASSES), min_size=1, max_size=14),
+        min_size=3,
+        max_size=4,
+    )
+)
+def test_no_value_of_a_row_is_lost_to_another_with_the_same_name(cards):
+    """Every fact of every part is a field of its own, whatever the names."""
+    from sluicer.structure.records import _facts
+
+    html = (
+        "<ul>"
+        + "".join(
+            "<li>"
+            + "".join(
+                f"<{tag}"
+                + (f" class='{css}'" if css else "")
+                + (" href='/l'" if tag == "a" else "")
+                + f">v{n}</{tag}>"
+                for n, (tag, css) in enumerate(card)
+            )
+            + "</li>"
+            for card in cards
+        )
+        + "</ul>"
+    )
+    group = rows(html)
+
+    records = records_from(group)
+
+    facts = [
+        sum(len(_facts(part)) for part in member.iter() if part is not member)
+        for member in group
+    ]
+    assert [len(record.fields) for record in records] == facts
+
+
+@given(
+    st.lists(
+        st.lists(
+            st.sampled_from(
+                [
+                    "<b>x</b>",
+                    "<b> </b>",
+                    "<b><!-- c --></b>",
+                    "<b><i>x</i></b>",
+                    "<b>, <i>x</i></b>",
+                    "<b><i> </i> y</b>",
+                    "<a href='/p'></a>",
+                    "<a href=' '></a>",
+                    "<img alt='a'>",
+                    "<img alt=' '>",
+                    "<span><span></span></span>",
+                ]
+            ),
+            max_size=3,
+        ),
+        min_size=3,
+        max_size=4,
+    )
+)
+def test_a_group_holds_a_fact_when_a_part_of_it_carries_one(cards):
+    """``induce`` passes over a group that holds no fact without walking it."""
+    from sluicer.structure.records import _facts, holds_a_fact
+
+    group = rows(
+        "<ul>" + "".join(f"<li>{''.join(card)}</li>" for card in cards) + "</ul>"
+    )
+
+    carried = any(
+        _facts(part)
+        for member in group
+        for part in member.iter()
+        if part is not member and isinstance(part.tag, str)
+    )
+    assert holds_a_fact(group, {}) == carried
+    assert holds_a_fact(group, {}) == bool(records_from(group))

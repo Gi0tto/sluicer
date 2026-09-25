@@ -6,7 +6,8 @@ import codecs
 import functools
 import re
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 from urllib.parse import quote, urljoin
 
 import lxml.etree
@@ -66,6 +67,10 @@ _BODY = re.compile(rb"<body\b", re.IGNORECASE)
 _SNIFF_LIMIT = 64 * 1024
 # What the URL standard strips from an address's ends: C0 controls and space.
 _C0_OR_SPACE = "".join(chr(code) for code in range(0x21))
+# ``str.isspace``'s characters, as one search in C: asked character by character
+# in Python of every address on a page, it was a tenth of the time a page took.
+# The two agree on every code point.
+_ANY_SPACE = re.compile(r"\s")
 
 
 def sniff_encoding(data: bytes, transport: str | None = None) -> str:
@@ -228,6 +233,13 @@ class Document:
     url: str | None = None
     base: str | None = None
     """What relative links resolve against, worked out once by ``load``."""
+    memo: dict[str, Any] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+    """What several readers scan the page for, scanned once: the ``<meta>``
+    tags, read by five of them. The tree is never changed after ``load``, so
+    a scan stays true of it; what is kept here is never handed out to be
+    changed."""
 
 
 def load(
@@ -246,18 +258,25 @@ def load(
             ``Content-Type``; for bytes, it comes before the page's own
             declaration, as the HTML standard orders them.
 
+    Always parsed as a whole document, whatever its start: ``lxml.html``'s
+    ``fromstring`` renames the ``<body>`` of what it takes for a fragment -- no
+    head, and neither ``<html>`` nor a doctype first -- to a ``<div>``, and
+    every place on such a page went through a div the page never had.
+
     A ``str`` carrying an XML encoding declaration (ordinary XHTML) is refused
     by lxml, since a decoded string cannot also declare an encoding; it is
     parsed as UTF-8 whatever it declares. A document lxml cannot parse at all
     -- empty, only a doctype, a comment or an XML declaration -- becomes an
-    empty ``<html>`` element, so readers find nothing. ``html`` is kept
-    verbatim on the result.
+    empty ``<html>`` element, so readers find nothing. Its newlines are read
+    as the HTML standard reads them, CR LF and a lone CR as LF, on every
+    libxml2. ``html`` is kept verbatim on the result.
     """
     if isinstance(html, bytes):
         tree = _parse_bytes(html, charset)
         return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
+    text = _newlines(html)
     try:
-        tree = lxml.html.fromstring(html, parser=_TEXT_PARSER)
+        tree = lxml.html.document_fromstring(text, parser=_TEXT_PARSER)
     except lxml.etree.LxmlError:
         # ParserError ("Document is empty"): nothing to read, not an error.
         tree = lxml.html.Element("html")
@@ -267,7 +286,7 @@ def load(
         # gets a second chance as bytes before it is called empty.
         # "replace": a lone surrogate is a character a str can hold and UTF-8
         # cannot, and this function promises never to raise.
-        tree = _parse_utf8(html.encode("utf-8", "replace"))
+        tree = _parse_utf8(text.encode("utf-8", "replace"))
     return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
 
 
@@ -279,13 +298,29 @@ def _parse_bytes(data: bytes, charset: str | None = None) -> lxml.html.HtmlEleme
     ``<meta charset="utf-8">`` turned every field on the page to mojibake.
     """
     text = data.decode(sniff_encoding(data, charset), errors="replace")
-    return _parse_utf8(text.encode("utf-8"))
+    return _parse_utf8(_newlines(text).encode("utf-8"))
+
+
+def _newlines(text: str) -> str:
+    """``text`` with CR LF and a lone CR as LF, as the HTML standard reads a page.
+
+    The standard normalises a page's newlines before tokenising it, and
+    libxml2 does too from 2.14, lxml 6's, but not in 2.12, lxml 5.3's, which
+    this package also runs on: done here, the same page gives the same answer
+    on both, where a description kept its CR LF on one and not the other. A
+    reference to a CR, ``&#13;``, is not a newline written, and stays one.
+    """
+    if "\r" not in text:
+        return text
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _parse_utf8(data: bytes) -> lxml.html.HtmlElement:
     """Parse UTF-8 bytes, telling lxml so, or return an empty ``<html>``."""
     try:
-        tree: lxml.html.HtmlElement = lxml.html.fromstring(data, parser=_UTF8_PARSER)
+        tree: lxml.html.HtmlElement = lxml.html.document_fromstring(
+            data, parser=_UTF8_PARSER
+        )
     except (lxml.etree.LxmlError, ValueError):
         tree = lxml.html.Element("html")
     return tree
@@ -351,7 +386,7 @@ def clean_address(address: str) -> str:
     """
     text = address.strip(_C0_OR_SPACE)
     text = text.replace("\t", "").replace("\n", "").replace("\r", "")
-    if any(c.isspace() for c in text):
+    if _ANY_SPACE.search(text):
         text = "".join(quote(c, safe="") if c.isspace() else c for c in text)
     return text
 

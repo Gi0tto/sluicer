@@ -16,7 +16,7 @@ from typing import Any
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch.address import AddressRefused, _resolve
 from sluicer.fetch.browser_guard import MAX_REDIRECTS, Guard
-from sluicer.fetch.http_rung import HTTP_TIMEOUT_SECONDS, http_rung
+from sluicer.fetch.http_rung import HTTP_TIMEOUT_SECONDS, chosen_proxy, http_rung
 from sluicer.fetch.identity import USER_AGENT
 from sluicer.fetch.result import (
     MAX_RESPONSE_BYTES,
@@ -38,9 +38,11 @@ __all__ = [
 BROWSER_TIMEOUT_MS = 30_000
 """How long the browser rung waits for one page, in scrapling's milliseconds.
 
-One try per rung and these two bounds keep a slow site under a minute for the
-whole ladder. scrapling's defaults, three tries of thirty seconds a rung, came to
-three minutes, longer than an agent's tool call waits.
+It bounds each thing the browser waits on -- the page's load, then the network
+going quiet -- not the rung as a whole. One try per rung keeps a slow site to
+that and to ``HTTP_TIMEOUT_SECONDS`` for plain HTTP, the body included.
+scrapling's defaults, three tries of thirty seconds a rung, came to three
+minutes, longer than an agent's tool call waits.
 """
 
 
@@ -90,6 +92,7 @@ def default_rungs(
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
     redirects: Redirects | None = None,
+    proxy: str | None = None,
 ) -> list[tuple[str, Rung]]:
     """Return the rungs a caller gets without asking for anything more.
 
@@ -107,10 +110,19 @@ def default_rungs(
     The browser rung passes ``useragent``, not ``extra_headers``: measured
     against a live server, the browser context silently overrides a
     ``User-Agent`` in ``extra_headers`` with its own, and the site saw Chrome.
+
+    ``proxy`` is ``http_rung``'s, for both rungs: ``SLUICER_PROXY`` when None.
+    Without one the browser is launched with ``--no-proxy-server``, so it
+    uses no proxy the system or the environment names either.
     """
     _, dynamic, _ = _fetchers()
     http = http_rung(
-        allow_private, resolve, max_bytes, error=FetchExtraMissing, redirects=redirects
+        allow_private,
+        resolve,
+        max_bytes,
+        error=FetchExtraMissing,
+        redirects=redirects,
+        proxy=proxy,
     )
     browser = _browser(
         "browser",
@@ -123,6 +135,7 @@ def default_rungs(
             # scrapling's default adds a Google referer, dressing us up as a
             # visitor who came from a search. Measured on the wire, 2026-09-22.
             "google_search": False,
+            **_through(proxy),
         },
         allow_private,
         resolve,
@@ -136,13 +149,18 @@ def stealth_rung(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
+    proxy: str | None = None,
 ) -> tuple[str, Rung]:
     """Return the third rung, for a caller who has decided they want it.
 
     Going from announcing ourselves to disguising ourselves is a change of
     character, not of cost, so it never happens to a caller who did not ask
     (``fetch(url, stealth=True)``). No ``User-Agent`` is sent, deliberately:
-    announcing an identity while evading detection would be incoherent.
+    announcing an identity while evading detection would be incoherent. Nor is
+    a borrowed one claimed: scrapling's ``google_search`` sent ``Referer:
+    https://www.google.com/`` from this rung, measured, and it is off, as on
+    the browser rung. Not saying who we are is not saying we came from a
+    search. One try and the browser rung's timeout bound it the same way.
     """
     _, _, stealthy = _fetchers()
     return (
@@ -150,12 +168,26 @@ def stealth_rung(
         _browser(
             "stealth",
             stealthy.fetch,
-            {"network_idle": True},
+            {
+                "network_idle": True,
+                "google_search": False,
+                "timeout": BROWSER_TIMEOUT_MS,
+                "retries": 1,
+                **_through(proxy),
+            },
             allow_private,
             resolve,
             max_bytes,
         ),
     )
+
+
+def _through(proxy: str | None) -> dict[str, Any]:
+    """A browser's options for ``proxy``: that one, or none at all."""
+    chosen = chosen_proxy(proxy)
+    if chosen is not None:
+        return {"proxy": chosen}
+    return {"extra_flags": ["--no-proxy-server"]}
 
 
 def _browser(

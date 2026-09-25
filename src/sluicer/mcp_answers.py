@@ -21,6 +21,8 @@ from typing_extensions import Required, TypedDict
 ErrorCode = Literal[
     "missing_extra",
     "refused_by_robots",
+    "refused_by_site",
+    "payment_required",
     "refused_address",
     "fetch_failed",
     "too_large",
@@ -32,6 +34,8 @@ ErrorCode = Literal[
 PageErrorCode = Literal[
     "missing_extra",
     "refused_by_robots",
+    "refused_by_site",
+    "payment_required",
     "refused_address",
     "fetch_failed",
     "too_large",

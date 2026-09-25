@@ -7,9 +7,16 @@ scorer, on the same pages as their servers sent them, scripts intact,
 fetched from web archives. Every page is scored twice, once as served
 and once as WCXB kept it, so the difference between the two columns is
 the difference the scripts make, and nothing else.
-Regenerated on 2026-09-24 from commit `7889270` by
+Regenerated on 2026-09-25 from commit `9a91e64` by
 `uv run bench/realweb.py`, from the captures pinned in
 [`bench/realweb-manifest.json`](https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).
+
+!!! warning "Sluicer's rules were made on these pages"
+    Rules were written, measured on these pages and kept because the
+    numbers here rose (`8e723ed`, `7876710`, `074b4ad`, among others), so this measures
+    Sluicer on pages it was fitted to, not on pages it has never seen.
+    Of the scoreboards, only SWDE's held-out half is a held-out test;
+    [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md) says which pages each rule was made on.
 
 !!! warning "Read this before the numbers"
     These are 360 of WCXB's 511 test pages: the ones an
@@ -60,9 +67,9 @@ The same 360 pages, stripped (WCXB's copy) and served (the archive's):
 
 | tool | field | labelled pages | hit rate, stripped | hit rate, served | right when answering, stripped | right when answering, served | wrong, stripped | wrong, served | inventions, stripped | inventions, served |
 |---|---|---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.0 | title | 360 | 0.714 | **0.708** | 0.714 | **0.708** | 103 | 105 | 0 | 0 |
-| sluicer 0.7.0 | author | 129 | 0.450 | **0.690** | 0.644 | **0.636** | 9 | 7 | 23 | 44 |
-| sluicer 0.7.0 | date | 159 | 0.585 | **0.780** | 0.939 | **0.734** | 1 | 9 | 5 | 36 |
+| sluicer 0.7.1 | title | 360 | 0.714 | **0.708** | 0.714 | **0.708** | 103 | 105 | 0 | 0 |
+| sluicer 0.7.1 | author | 129 | 0.450 | **0.690** | 0.644 | **0.636** | 9 | 7 | 23 | 44 |
+| sluicer 0.7.1 | date | 159 | 0.585 | **0.780** | 0.939 | **0.734** | 1 | 9 | 5 | 36 |
 | trafilatura 2.2.0 | title | 360 | 0.756 | **0.756** | 0.756 | **0.756** | 88 | 88 | 0 | 0 |
 | trafilatura 2.2.0 | author | 129 | 0.736 | **0.860** | 0.583 | **0.575** | 13 | 11 | 55 | 71 |
 | trafilatura 2.2.0 | date | 159 | 0.849 | **0.855** | 0.403 | **0.393** | 23 | 23 | 177 | 187 |
@@ -83,7 +90,7 @@ One caution about inventions on served pages. WCXB's annotators labelled
 what a reader sees, and left a label empty where the visible page states
 none. A served page can still declare a date or an author in JSON-LD
 that the visible page never shows; the scorer counts that answer as an
-invention, here as on the full scoreboard, and the rules were not
+invention, here as on the full scoreboard, and the scorer's rules were not
 changed for this page. The table below says how many of Sluicer's
 inventions each source produced.
 
@@ -132,9 +139,9 @@ The 360 pages as served:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.0 | title | 255 | 105 | 0 | 0 | 0 | 0.708 | 0.708 |
-| sluicer 0.7.0 | author | 89 | 7 | 33 | 187 | 44 | 0.690 | 0.636 |
-| sluicer 0.7.0 | date | 124 | 9 | 26 | 165 | 36 | 0.780 | 0.734 |
+| sluicer 0.7.1 | title | 255 | 105 | 0 | 0 | 0 | 0.708 | 0.708 |
+| sluicer 0.7.1 | author | 89 | 7 | 33 | 187 | 44 | 0.690 | 0.636 |
+| sluicer 0.7.1 | date | 124 | 9 | 26 | 165 | 36 | 0.780 | 0.734 |
 | trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 | 0.756 |
 | trafilatura 2.2.0 | author | 111 | 11 | 7 | 160 | 71 | 0.860 | 0.575 |
 | trafilatura 2.2.0 | date | 136 | 23 | 0 | 14 | 187 | 0.855 | 0.393 |
@@ -149,9 +156,9 @@ The same 360 pages as WCXB kept them:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.0 | title | 257 | 103 | 0 | 0 | 0 | 0.714 | 0.714 |
-| sluicer 0.7.0 | author | 58 | 9 | 62 | 208 | 23 | 0.450 | 0.644 |
-| sluicer 0.7.0 | date | 93 | 1 | 65 | 196 | 5 | 0.585 | 0.939 |
+| sluicer 0.7.1 | title | 257 | 103 | 0 | 0 | 0 | 0.714 | 0.714 |
+| sluicer 0.7.1 | author | 58 | 9 | 62 | 208 | 23 | 0.450 | 0.644 |
+| sluicer 0.7.1 | date | 93 | 1 | 65 | 196 | 5 | 0.585 | 0.939 |
 | trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 | 0.756 |
 | trafilatura 2.2.0 | author | 95 | 13 | 21 | 176 | 55 | 0.736 | 0.583 |
 | trafilatura 2.2.0 | date | 135 | 23 | 1 | 24 | 177 | 0.849 | 0.403 |
@@ -183,10 +190,10 @@ The same 360 pages as WCXB kept them:
 | [0.8, 0.9) | 10 |
 | [0.9, 1.0] | 343 |
 
-  A capture of the same page scores near 1 even when a sidebar, a
-  comment count or a price has moved; a homepage, a wall or another
-  article scores near 0. What falls between is mostly a listing whose
-  items have turned over, and is left out rather than argued for.
+  The 360 captures kept score a median of 1.00, the lowest 0.68.
+  The 7 left out between 0.2 and 0.6 are 3 collection, 2 listing, 1 article, 1 service,
+  by WCXB's page types: a page that changed that much is left out rather
+  than argued for.
 - **Bytes.** Every tool reads the bytes as the archive holds them. 1 of the 360 are not UTF-8; Sluicer and trafilatura honour the page's charset, the newspaper4k and metascraper harnesses decode UTF-8, as they do on the full scoreboard.
 - **Pinned.** The manifest holds, per page, the archive, the timestamp, the address asked and the SHA-256 of the body, and for Common Crawl the WARC file, offset and length; for every excluded page, the reason and the best capture tried. `uv run bench/realweb.py` fetches exactly those and stops if any digest differs.
 - **Scoring.** `bench/score.py` and the tool harnesses in `bench/tools/` and `bench/metascraper/`, unchanged, at the pins the full scoreboard uses.

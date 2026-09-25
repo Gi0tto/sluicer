@@ -59,7 +59,12 @@ that drifted (with `failed`, the checks it broke) and for a heal that lost data
   field its share of empty rows, the one shape its values shared if they did,
   and a few sample values.
 
-The file is plain JSON, meant to be read and, if you need to, edited.
+The file is plain JSON, meant to be read and, if you need to, edited. Every
+value is checked when it is read, not only its key: a share that is not a
+number from 0 to 1 (`"missing": "nan"`), rows that are not two counts, a shape
+of other letters than L, N, P and S, two fields of one name, a path that is not
+one. An edit that would quietly turn a check off is refused with a message
+naming it, and `sluicer run` and `heal` exit 2, as for a file that is not JSON.
 
 ## Pointing at what you want
 
@@ -74,18 +79,25 @@ sluicer compile page1.html page2.html -o books.json \
 ```
 
 - **The examples choose the listing.** The first repeated group, in each page's
-  order, whose rows hold every example is the listing, even in a sidebar or a
-  menu, where `compile` alone never looks. An example no row holds is an error
-  that names it; examples held by two different groups are an error too.
+  order, whose rows hold every example, each in a column of its own, is the
+  listing, even in a sidebar or a menu, where `compile` alone never looks. An
+  example no row holds is an error that names it. Examples held by two
+  different groups, or by one column -- a product's table, its price and its
+  SKU in two rows of the same `td` -- are no listing's: they are read as the
+  page's own values, below.
 - **They name the columns.** The rows `run` gives are `{"title": ..., "price":
   ...}`, and no other column is learnt or checked. A value matches when it says
   the same with its spaces collapsed, or is the same amount: `51.77` is the
-  row's `£51.77`. A value in two places in a row takes the first, and the
-  compile notes it.
+  row's `£51.77`, and `8` is `8.00`. A value in two places in a row takes the first no other
+  example needs, and the compile notes it.
 - **The contract is the same.** The listing's place, its rows, each column's
-  presence, shape and reading are checked as for any extractor, and `heal`
-  finds the listing again by the values its columns held, keeps the names, and
-  adds no column the examples did not name.
+  presence, shape and reading are checked as for any extractor. `heal` keeps
+  the listing where it is while it keeps its contract there -- its items may
+  all be new, and a sidebar listing some of the old ones is not where it went
+  -- and otherwise finds it again by the values its columns held, in a group
+  holding at least half of one column's: one related product that costs what a
+  book used to is a coincidence. It keeps the names, and adds no column the
+  examples did not name.
 
 On books.toscrape.com, learnt from its first two pages with `title`, `price`
 and `stock`, the third page replays as 20 rows of those three columns, and a
@@ -110,9 +122,21 @@ sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
   each is still there, reads as it did (a price that reads as an amount on the
   learnt pages must still read as one: "Add to basket" fails the `reads`
   check), and keeps its shape when five pages or more taught it one.
+- A field read by its place also learns its label, when every page given puts
+  the same one right before it, once: text that ends with a colon, or is in a
+  `<th>`, `<dt>` or `<label>`. A page that says the label once, before
+  something else, has moved the row -- the weight where the SKU was -- and the
+  run fails rather than read the weight as the SKU. A page that does not say
+  the label, or says it twice, is read at the place, as learnt. Two pages at
+  least teach a label; one cannot tell its template's words from its own.
 - `heal` keeps a field where its place still holds a value that reads as it
-  did, moves it to where the new pages show one of its old values, and
-  reports it vanished when neither is so.
+  did and its label still stands before it, reads it after its label when the
+  label moved, moves it to where the new pages show one of its old values,
+  and reports it vanished when none is so. It moves a field only among the
+  page's own places, never into its navigation, asides or listings: the old
+  price in a related products strip is another product's. When two own places
+  hold an old value and read different values on the pages given, the move is
+  `ambiguous`, left for a person.
 
 On books.toscrape.com, whose product pages declare nothing, two product pages
 with `title`, `price` and a `upc` from the product table replay on a third
@@ -122,9 +146,9 @@ with all three read, the title from its `<h1>`.
 
 | check | fails when |
 |---|---|
-| `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it |
+| `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it -- or, where the path counts places, `section.box[2]`, there are more or fewer of them than on every learnt page: a box inserted before the second makes another box the second |
 | `rows` | there are no rows, or on a listing of five members or more, more of them are empty shells than the learnt pages had, plus 20% -- skeletons waiting for a script |
-| `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row |
+| `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row; a page field is not found, or its label now stands before something else |
 | `shape` | fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket" -- or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
 | `reads` | a field every learnt value of which read as an amount or a date (see `sluicer.normalise`) reads so in fewer than half its values: a price column that now holds dates keeps its shape, and not its reading |
 | `values` | on a page of five rows or more, a field that held different values in every row now says the same thing in all of them: a page of placeholders, "Loading" |
@@ -173,7 +197,9 @@ exists to prevent.
 When anything was lost -- a field, a summary answer, a declared type, the listing
 itself -- `sluicer heal` exits 3 and does not write the healed extractor unless
 given `--force`: the old one keeps failing, which is the honest state until a
-person looks.
+person looks. A listing that was lost stays in the healed extractor as it was,
+so even a forced one fails every page without it, rather than pass them all
+with no rows.
 
 On the shop fixture in the test suite, a redesign that renamed every class and
 wrapped the listing in a new element moves all four fields to their new places:
@@ -192,6 +218,10 @@ moved: span.stock -> span.availability (2 of 2 learnt values found there; the ne
 - The listing's place is an exact path. Any new wrapper or renamed class above
   the rows fails the `listing` check; that is the point, and `heal` finds the new
   place.
+- A numbered step is held to the number of its kind the learnt pages had, so a
+  box of the same kind added after the listing fails it too: the path cannot
+  tell after from before. Where the learnt pages had different numbers, the
+  step is not held to one.
 - One listing per extractor: the page's most promising repeated group, or the
   one the examples point at.
 - A page field is an element's whole text, or one attribute. A value written

@@ -24,7 +24,8 @@ from urllib.parse import urlsplit
 
 
 class AddressRefused(Exception):
-    """The address is not on the public web, and the caller asked for that.
+    """The address is not on the public web, and the caller asked for that; or
+    it is not on the web at all, which no caller is given.
 
     ``url`` is the address refused -- the one asked for, or the one a redirect
     ended on -- and ``reason`` says why.
@@ -38,6 +39,30 @@ class AddressRefused(Exception):
 
 def _resolve(host: str) -> Iterable[str]:
     return [str(info[4][0]) for info in socket.getaddrinfo(host, None)]
+
+
+WEB_SCHEMES = ("http", "https")
+"""The only schemes anything is fetched over, whatever the caller allows.
+
+curl speaks gopher, dict and file too, and a redirect to ``gopher://`` hands a
+server's bytes to whatever listens where it points -- a Redis on this machine,
+measured -- while ``file://`` reads this machine's own files.
+"""
+
+
+def why_not_web(url: str) -> str | None:
+    """The reason ``url`` is not a web address, http or https, or None when it is.
+
+    Asked of every address before it is requested, private ones allowed or
+    not: a scheme is never a question of which network is reachable.
+    """
+    try:
+        scheme = urlsplit(url).scheme.lower()
+    except ValueError:
+        return "the address is not a valid URL"
+    if scheme not in WEB_SCHEMES:
+        return f"only http and https are fetched, not {scheme or 'no scheme'}"
+    return None
 
 
 def why_not_public(
@@ -94,8 +119,9 @@ def _judge(
         host = (parts.hostname or "").rstrip(".").lower()
     except ValueError:
         return "the address is not a valid URL", []
-    if parts.scheme.lower() not in ("http", "https"):
-        return f"only http and https are fetched, not {parts.scheme or 'no scheme'}", []
+    not_web = why_not_web(url)
+    if not_web is not None:
+        return not_web, []
     if "%" in parts.netloc or "\\" in parts.netloc:
         return "the address writes its host in a way clients read differently", []
     if not host:

@@ -70,6 +70,8 @@ MAX_CONNECTIONS = 64
 TOOL_STATUS: dict[str, int] = {
     "bad_input": 400,
     "refused_by_robots": 403,
+    "refused_by_site": 403,
+    "payment_required": 402,
     "refused_address": 403,
     "too_large": 413,
     "missing_extra": 501,

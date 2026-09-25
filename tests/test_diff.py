@@ -73,3 +73,31 @@ def test_the_diff_command_exits_as_diff_does(tmp_path):
     assert "* price: 41.90 -> 39.90  [jsonld Product.offers.price]" in changed.stdout
     assert json.loads(as_json.stdout)[0]["question"] == "price"
     assert missing.exit_code == 2
+
+
+def _priced(price):
+    return (
+        '<script type="application/ld+json">'
+        + json.dumps({"@type": "Product", "name": "Pads", "offers": {"price": price}})
+        + "</script>"
+    )
+
+
+def test_a_price_in_another_currency_is_a_change_not_a_rewrite():
+    """£41.90 and $41.90 are the same number and not the same price: read as
+    amounts alone, a site that switched its currency was noise."""
+    found = compare(extract(_priced("£41.90")), extract(_priced("$41.90")))
+    assert [(d.question, d.kind) for d in found] == [("price", "changed")]
+
+
+def test_a_currency_written_as_its_code_or_its_sign_is_a_rewrite():
+    found = compare(extract(_priced("£41.90")), extract(_priced("41.9 GBP")))
+    assert [(d.question, d.kind) for d in found] == [("price", "rewritten")]
+
+
+def test_a_bare_price_is_in_the_currency_its_page_declares():
+    declared = _product("41.90")  # priceCurrency EUR
+    found = compare(extract(declared), extract(_priced("41.90 EUR")))
+    assert ("price", "rewritten") in [(d.question, d.kind) for d in found]
+    found = compare(extract(declared), extract(_priced("£41.90")))
+    assert ("price", "changed") in [(d.question, d.kind) for d in found]

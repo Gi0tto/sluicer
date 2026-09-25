@@ -4,7 +4,7 @@ description: Read the structured data a web page already declares (JSON-LD, micr
 license: MIT
 compatibility: Needs the sluicer MCP server (uvx --with "sluicer[mcp]" sluicer mcp) or the sluicer command; reading a URL needs network access.
 metadata:
-  version: "0.7.0"
+  version: "0.7.1"
   homepage: "https://github.com/Gi0tto/sluicer"
 ---
 
@@ -77,7 +77,9 @@ field says `"source": "induced"`.
 
 Every answer carries `ok`: true exactly when it can be used as it is. When it
 is false, the answer says why: `error` with a `code` -- `refused_by_robots`,
-`refused_address`, `fetch_failed`, `too_large`, `missing_extra`, `bad_input` or
+`refused_by_site` (a challenge page on every rung), `payment_required` (a 402,
+never paid), `refused_address`,
+`fetch_failed`, `too_large`, `missing_extra`, `bad_input` or
 `tdm_reserved`,
 and on a crawled page `redirected_off_site` (with its `target`),
 `crawl_delay_too_long` or `rate_limited` -- a `message` and `retryable` (true

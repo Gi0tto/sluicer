@@ -24,6 +24,7 @@ from collections.abc import Callable, Iterable
 from urllib.parse import urlsplit
 
 from sluicer.fetch.address import _resolve
+from sluicer.fetch.gate import GATE, after, ungated
 from sluicer.fetch.ladder import FetchFailed, fetch
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, Capture, Fetched
 
@@ -93,6 +94,7 @@ def fetch_archived(
         raise ValueError(f"{url!r} is not an http(s) address")
     asked = timestamp(at)
     address = f"https://{ARCHIVE}/web/{asked}id_/{url}"
+    real = rung is None
     if rung is None:
         from sluicer.fetch.http_rung import http_rung
         from sluicer.fetch.scrapling_rungs import FetchExtraMissing
@@ -100,14 +102,16 @@ def fetch_archived(
         rung = http_rung(
             allow_private, resolve, max_bytes, FetchExtraMissing, _within_archive
         )
-    fetched = fetch(
-        address,
-        rungs=[("archive", rung)],
-        obey_robots=obey_robots,
-        allow_private=allow_private,
-        resolve=resolve,
-        max_bytes=max_bytes,
-    )
+    # The archive is a site like any other, asked in its turn.
+    with GATE.turn(address) if real else ungated() as ready:
+        fetched = fetch(
+            address,
+            rungs=[("archive", after(ready, rung))],
+            obey_robots=obey_robots,
+            allow_private=allow_private,
+            resolve=resolve,
+            max_bytes=max_bytes,
+        )
     if fetched.status == 404:
         raise NotArchived(url, at)
     landed = _LANDED.match(fetched.url)

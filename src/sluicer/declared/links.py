@@ -59,6 +59,9 @@ _OEMBED = frozenset({"application/json+oembed", "text/xml+oembed"})
 # The most any one list holds: a page is not a directory, and a hostile one
 # should not make the answer grow with its size.
 _MOST = 200
+# The relations read below: on <a> only a series' next and previous pages.
+_READ_ON_ANCHORS = frozenset({"next", "prev", "previous"})
+_READ_ON_LINKS = _READ_ON_ANCHORS | {"amphtml", "manifest", "alternate"}
 
 
 def canonicals(doc: Document) -> list[str]:
@@ -70,13 +73,15 @@ def canonicals(doc: Document) -> list[str]:
     is one address; two different ones are a conflict, and Google then uses
     neither.
     """
-    found: list[str] = []
+    # A dict keeps them once each, in page order: a list asked whether it held
+    # each new one, and forty thousand canonicals took four seconds.
+    found: dict[str, None] = {}
     for link in doc.tree.xpath("//head//link[@rel][@href]"):
         if "canonical" in (link.get("rel") or "").lower().split():
             href = clean_address(link.get("href") or "")
-            if href and href not in found:
-                found.append(href)
-    return found
+            if href:
+                found.setdefault(href)
+    return list(found)
 
 
 def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:
@@ -100,11 +105,16 @@ def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:
     seen: set[tuple[str, str]] = set()
     for element in doc.tree.xpath("//link[@rel][@href] | //a[@rel][@href]"):
         rels = set((element.get("rel") or "").lower().split())
+        is_link = element.tag == "link"
+        if not rels & (_READ_ON_LINKS if is_link else _READ_ON_ANCHORS):
+            # Resolved only when a relation read here names it: most <a rel>
+            # are nofollow or noopener, and resolving each was a fifth of the
+            # time a page took.
+            continue
         href = trimmed(element.get("href"))
         if not href or href.startswith(("javascript:", "#")):
             continue
         address = join(base, href)
-        is_link = element.tag == "link"
         kind = (element.get("type") or "").strip().lower().split(";")[0]
         if "next" in rels:
             found.setdefault("next", address)

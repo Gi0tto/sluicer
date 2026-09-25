@@ -16,8 +16,69 @@ Dates are the day the work landed. Anything not listed here did not happen.
   it: `--induce` for the rows it repeats, `--visible` for the byline and dates
   it shows, and `sluicer compile PAGE --want NAME=VALUE` for the fields a
   person can point to, leaving out the options already given.
+- `fetch(proxy=...)`, `SLUICER_PROXY` and `--proxy` on every command that
+  fetches: the proxy every request goes through, the HTTP rung's and the
+  browsers'. Crawls, maps, batches, the cache, the archive, the MCP server and
+  the HTTP API read `SLUICER_PROXY`.
+
+### Changed
+- The benchmark's date rule no longer depends on the day it runs: dateutil
+  filled a part a date does not write with today's, so "March 2021" matched
+  2021-03-24 on the 24th of a month only. A date is now a hit when the answer
+  writes every part the label writes, alike; dots are read day first, slashes
+  month first, and with a UTC offset on both the answer is read in the
+  label's (`bench/PREREG.md`). It changes five outcomes on the news
+  scoreboard and trafilatura's set, all from wrong to hit, when they are next
+  regenerated.
+- Every sentence a scoreboard's generator writes about its results is
+  counted from them. `bench/run.py` wrote "Sluicer gives none where the page
+  states none" beside a table in which it invented 42 authors and 8 dates,
+  and "authors and dates are where the gap is" whatever the run; the products
+  scoreboard's error classes, the news scoreboard's "most of the authors",
+  trafilatura's set's "nearly every snippet", the extruct page's "raises on
+  none" and "for the same reasons", and the served scoreboard's capture
+  scores were written once by hand and printed on every run. The scoreboards
+  show it when they are next regenerated.
+- `sluicer --help` lists the commands in four sections -- Read a page, Whole
+  sites, Extractors, Servers -- instead of one alphabetical list.
+- The suite runs in a random order (pytest-randomly, now a development
+  dependency), and CI seeds the order with the run's id. Two tests passed only
+  in file order: one cleared the `mcp` package from `sys.modules` but not
+  `mcp.server.mcpserver`, and one failed after a test that reloaded
+  `sluicer.markdown`, which left a second `MarkdownExtraMissing` class the CLI
+  did not catch. No test reloads a module now.
+- `compile`, `run` and `heal` parse each page once. They parsed it again to
+  read what it declares, and `heal` again for each part it healed. The groups a
+  page repeats and its text nodes are worked out once per page while learning,
+  not once per example, and a label is looked up rather than searched for on
+  every candidate, which made a page of labelled rows quadratic: 4,000 rows
+  took 1.86 s, now 0.19 s. On 11 of SWDE's development sites, three seed
+  pages each and 200 pages run, best of three runs interleaved: `compile`
+  1.14 s to 0.52 s, `run` 278 to 321 pages a second. Every output is the
+  same: the extractors, the runs and the heals there, SWDE's development half
+  answer for answer, and the drift benchmark's results.
+
+- `extract()` is 25-41% faster on the benchmark corpora, with the same
+  answers byte for byte: the microdata reader stops at once on a page with no
+  item, links are resolved only for the relations read, an address's spaces
+  are found by one search in C, and the `<meta>` tags are scanned once a page
+  instead of once for each reader and summary question that reads them.
+
+- The sdist is 0.72 MB, from 1.99 MB. It leaves out `uv.lock`, which pins the
+  development environment, the CI workflows, and the pictures under
+  `docs/assets`, which PyPI shows from the repository because the README names
+  them by absolute address. It still carries the source, the tests and all they
+  read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- Four readers kept each name once by asking a list, for every new name,
+  whether it held it already: the head's canonicals (and so the audit's), a
+  JSON-LD author list, an RDFa attribute's terms and a robots.txt's
+  `User-agent` lines. Forty thousand of any took about four and a half
+  seconds, and the sixteen mebibytes a fetch allows would have taken
+  minutes; each now takes 0.02 to 0.1 s. The answers are the same, in the
+  same order: `extract()` gives byte-identical output on the 5,976 cached
+  corpus pages.
 - The scoreboards say which pages Sluicer's rules were made on. Five of the
   six, and the drift benchmark, had rules written, measured on their pages and
   kept because the numbers there rose -- `b86aa19` was "Measured on WCXB's
@@ -58,33 +119,264 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer mcp --tools bogus`, and `SLUICER_MCP_TOOLS=bogus sluicer-mcp`,
   printed a traceback; they print the one line that lists the ten tools and
   exit 2, as a wrong option does.
+- A column or an answer made only of characters with no letter, digit,
+  punctuation or symbol in them, a combining accent alone, is learnt with no
+  shape. It was learnt with the empty one, and `compile` wrote a file that
+  `run` refused.
+- An extractor file is checked value by value when it is read. Edited by hand
+  to `"missing": "nan"`, a field's presence was never checked again: no
+  comparison is true of NaN, and the run passed a page without the field. So
+  did a `missing` of `true`, `1.5` or `"0"`, an `empty` of 5, and rows or
+  counts written as text. Shares must be numbers from 0 to 1, rows two counts,
+  shapes made of L, N, P and S, lists lists, names one per field and paths
+  paths; any other file is refused with a message naming the value, and the
+  command line exits 2, as it does for a file that is not JSON.
+- `heal` never moves a listing chosen by examples on one coincidence. With
+  its old place gone and every item new, one related product costing what a
+  book used to drew the listing of prices into the related strip, a move and
+  no loss, so it was written. A group must now hold at least half of one
+  column's old values to be where the listing went; otherwise it is lost.
+- `heal` keeps a listing chosen by examples where it is while it keeps its
+  contract there. On a page that had not changed it moved the listing to a
+  sidebar listing the same books, and wrote it; on the same template with
+  every item new it reported the listing lost. And a lost listing now stays in
+  the healed extractor as it was: written with `--force`, an extractor without
+  it passed every page, those with no rows at all among them.
+- `heal` never moves a page field into another product's place. After a
+  redesign that also changed the product's price, a related product costing
+  the old price drew the field into the related strip, and the healed
+  extractor read that product's price and passed. A page field now moves only
+  among the page's own places, never its navigation, asides or listings, and
+  a move two own places claim, reading different values, is `ambiguous`. A
+  heal of page fields on pages that declare nothing no longer stops with
+  "nothing to heal from".
+- A box of the same kind inserted before a numbered listing fails the run.
+  The listing at `section.box[2]` read the box that became second, 4 rows
+  instead of 12, and passed, although the docs promised a strip inserted
+  before a listing is caught. An extractor now learns how many elements
+  matched each step of its listing's path on the pages learnt (`siblings`),
+  and a numbered step with more or fewer of its kind fails the `listing`
+  check. A file from 0.7.0 has none and is read as before. The drift
+  benchmark's outcomes are unchanged: 23 survived, 21 failed loudly, none
+  silently, no false alarm.
+- `diff` reports a price in another currency as `changed`, not `rewritten`:
+  `£41.90` and `$41.90` are the same number, and were read as noise. A price's
+  currency is the one its sign or code names, `£` and `GBP` alike, else the
+  one the page declares; `$`, which names several, is only itself.
+- A page field read by its place fails when its row moved. Learnt from pages
+  that agreed on the SKU's row, a page with its table's rows in another order
+  read the weight, "1 kg", as the SKU and passed. A field read by its place
+  now learns the label every page given puts right before it, once -- text
+  ending with a colon, or in a `<th>`, `<dt>` or `<label>` -- and a page that
+  says the label once, before something else, fails the `field` check; `heal`
+  then reads the field after its label. On SWDE's development half this flags
+  575 wrong answers that passed (2,921 to 2,346 unflagged) and no right one;
+  a label taken from any text, links included, flagged 1,204 right answers.
+- Two examples one column holds are no listing. `compile --want price=41.90
+  --want sku=BP-1` on a product's table, the price and the SKU in two of its
+  rows, learnt a listing of the table's rows with both columns the same `td`,
+  and a new page read price "Bosch", sku "Bosch" and exited 0. Each example
+  now needs a column of its own; with none, the examples are the page's own
+  values, and the price and the SKU are read where each sits.
+- An example is one amount however many zeros it is written with: `--want
+  price=8` finds the page's `£8.00`, on the page, in a listing's rows and after
+  a label. Amounts were compared as the text `amount` gives back, `8` against
+  `8.00`, and the comparison was written out three times; it is one now, and
+  numeric.
+- A redirect can no longer take a fetch off the web. The HTTP rung followed a
+  `Location` to any scheme its libcurl speaks: with the defaults every command
+  has, a server answering `302 gopher://127.0.0.1:6379/_SET...` had Sluicer send
+  those bytes to a Redis on the same machine, and `302 file:///etc/hosts` made
+  `sluicer markdown` print the file. Every hop must now be http or https, private
+  addresses allowed or not, curl is told to speak nothing else, the ladder
+  refuses an address off the web before any rung, and a page that landed off it
+  is refused (`AddressRefused`, `refused_address`).
+- The HTTP rung's twenty seconds now cover the body. curl_cffi turns a timeout
+  on a streamed response into "under a byte a second for that long", so a
+  server sending eight bytes a second held a request for as long as it kept
+  sending, and four of them held every worker of `sluicer serve`, which then
+  answered nothing, calls that fetch nothing included. One address -- connecting,
+  every redirect hop, every byte -- now ends by `HTTP_TIMEOUT_SECONDS` with a
+  `TimeoutError`. SECURITY.md said a map or a crawl took "a minute each"; it
+  stops starting requests after a minute, and now says so, with each request's
+  own bound.
+- robots.txt is read as text. The fetch ladder passed it through the HTML
+  parser, so a line like `Disallow: /a<b` opened a tag that swallowed every
+  rule after it, and pages the site disallowed were fetched; `&amp;` in a rule
+  became `&`. The audit already read the file raw, so the two could disagree
+  about one robots.txt. Only a body that is a whole HTML document, a browser's
+  rendering of a text file, has its text taken out.
+- A robots.txt group applies to Sluicer when it names Sluicer's product token,
+  as RFC 9309 says, not when its name is found anywhere in the user agent:
+  `User-agent: https`, `github` or `com` matched
+  `Sluicer/0.7.0 (+https://github.com/Gi0tto/sluicer)`, so another crawler's
+  rules refused Sluicer and its `Crawl-delay` paced it. `PRODUCT_TOKEN` is
+  what the ladder, the crawler and the audit's site files ask with.
+- The page cache never keeps a challenge page. When every rung got a
+  "Just a moment..." page served with 200, `--cache` kept it and gave it back
+  as the page, for `--max-age`, without asking the site; the docs said a
+  challenge was never kept, and now it is not.
+- A challenge page is never an answer. When the last rung also got one, or a
+  cheaper rung got one and the rung above it failed, the ladder returned it
+  as the page and the MCP server answered `ok: true`. It now raises
+  `SiteRefused`, a `FetchFailed`, answered as the new error code
+  `refused_by_site` (HTTP 403, not retryable) by the MCP server, the HTTP API
+  and a crawl's page.
+- A 402 Payment Required is an answer, not a page. Its body was extracted as
+  the site's, and when it looked like a challenge the browser was sent to ask
+  again. Any rung answered 402 now raises `PaymentRequired`, a `FetchFailed`,
+  and no other rung is asked; the MCP server, the HTTP API (402) and a crawl's
+  page say `payment_required`, not retryable. Sluicer never pays.
+- One request at a time per site now holds for the whole process. Two crawls
+  of one site at once asked it in pairs 0.000 s apart, and parallel MCP
+  `extract_declared` calls -- the SDK runs each on a thread -- arrived within
+  3 ms of each other, each reading robots.txt again, while the docs promised
+  one request at a time with its delay. Every fetch of the real web now holds
+  its site in `sluicer.fetch.gate`: a crawl, a map or a batch for each
+  request, with its delay; a single fetch, from the command line, the MCP
+  server or the HTTP API, for its whole visit, a second after the site's last
+  request. Measured on a local site, four parallel `extract_declared` calls:
+  8 requests 0.000 s apart before, 5 requests a second apart now.
+- `crawl --resume` and `batch --resume` read the file before they touch it.
+  They cut an unfinished last line off first and checked the file was a
+  crawl's after: pointed at a file of notes, `--resume` destroyed its last
+  line and then refused it, and a file with no newline at all was emptied and
+  crawled into. The file is now accepted first -- every line a page, the last
+  one the start of a page's line, the order this crawl's -- and only then is a
+  line a stopped crawl left half written cut off. A file refused is left as it
+  was.
+- No proxy is used unless one is asked for. libcurl read `HTTPS_PROXY` and
+  `HTTP_PROXY` itself, so a fetch went through whatever proxy the environment
+  named (measured: a CONNECT reached a local proxy nobody had given Sluicer),
+  and with a proxy the check against private addresses no longer pinned the
+  connection. The HTTP rung now tells curl to use none, and the browser is
+  launched with `--no-proxy-server`. SECURITY.md says what the check does and
+  does not do through a proxy.
+- The stealth rung no longer claims to come from Google. It inherited
+  scrapling's `google_search`, so every page it fetched was sent `Referer:
+  https://www.google.com/` (measured on a local server); it now sends none, as
+  the browser rung already did, and like it tries once within thirty seconds
+  instead of scrapling's three tries.
 
-### Changed
-- The benchmark's date rule no longer depends on the day it runs: dateutil
-  filled a part a date does not write with today's, so "March 2021" matched
-  2021-03-24 on the 24th of a month only. A date is now a hit when the answer
-  writes every part the label writes, alike; dots are read day first, slashes
-  month first, and with a UTC offset on both the answer is read in the
-  label's (`bench/PREREG.md`). It changes five outcomes on the news
-  scoreboard and trafilatura's set, all from wrong to hit, when they are next
-  regenerated.
-- Every sentence a scoreboard's generator writes about its results is
-  counted from them. `bench/run.py` wrote "Sluicer gives none where the page
-  states none" beside a table in which it invented 42 authors and 8 dates,
-  and "authors and dates are where the gap is" whatever the run; the products
-  scoreboard's error classes, the news scoreboard's "most of the authors",
-  trafilatura's set's "nearly every snippet", the extruct page's "raises on
-  none" and "for the same reasons", and the served scoreboard's capture
-  scores were written once by hand and printed on every run. The scoreboards
-  show it when they are next regenerated.
-- `sluicer --help` lists the commands in four sections -- Read a page, Whole
-  sites, Extractors, Servers -- instead of one alphabetical list.
-- The suite runs in a random order (pytest-randomly, now a development
-  dependency), and CI seeds the order with the run's id. Two tests passed only
-  in file order: one cleared the `mcp` package from `sys.modules` but not
-  `mcp.server.mcpserver`, and one failed after a test that reloaded
-  `sluicer.markdown`, which left a second `MarkdownExtraMissing` class the CLI
-  did not catch. No test reloads a module now.
+- A page declaring thousands of products costs what its size does. Three
+  parts of `extract()` grew with the square of a listing: the summary asked,
+  for each product, which one the page was about; the merge walked every
+  record for each item it folded; and each place written counted all its
+  element's siblings again. 4,000 products in JSON-LD, microdata and RDFa
+  took 5.0 seconds and take 0.28; 16,000 in microdata alone, a 2 MB page,
+  0.38. The answers are the same, byte for byte, on the benchmark pages.
+- A GTIN holding a superscript or circled digit -- which `str.isdigit` takes
+  and `int` refuses -- no longer makes `extract()` raise; it has no normalised
+  value. A GTIN or an amount written in another script's decimal digits,
+  fullwidth or Arabic-Indic, is normalised in ASCII digits, as a date already
+  was, and so is a date's offset.
+- A summary answer read from JSON-LD keeps an address's query:
+  `?id=1&region=us&section=a` was `?id=1®ion=us§ion=a`, the old entity
+  names HTML lets go without a semicolon read even before a letter. They are
+  now read as an attribute's are, which is how a browser keeps them in an
+  `href`; `&amp;`, `&#39;` and the rest are read as before. No answer on the
+  benchmark pages changed.
+- A JSON-LD node that holds a `@graph` and properties of its own -- a Product
+  carrying the page's other nodes -- is read as a node too, after the nodes in
+  its graph. Only its graph was read, and the Product was lost. On the
+  benchmark pages, two product pages gain the Brand that wraps their
+  Products; no summary answer changed.
+- JSON-LD with JavaScript comments, `//` or `/* */`, is read: it was
+  skipped, though extruct reads it, so `sluicer.compat.extruct` did worse than
+  extruct. Comments are dropped outside strings only, and a trailing comma is
+  now mended outside strings only too: `"Pad, ]"` was read as `"Pad]"`. On
+  the benchmark pages, two of WCXB's development pages gain six records; no
+  summary answer changed.
+- `normalise.amount("12 50")` is None: every space and apostrophe was dropped,
+  so it was 1250. Digits grouped by a space or an apostrophe must now be
+  grouped in thousands, as those grouped by a point or a comma already were.
+  No answer on the benchmark pages reads differently; of the 259,520
+  distinct values SWDE labels, 163 phone numbers, `202 244 2044`, no longer
+  read as amounts.
+- An RFC 2822 date needs its year in four digits: `email.utils` read
+  `Tue, 03 Jun 25 10:00:00 GMT` as 2025 by a rule of its own, and a
+  three-digit year as the first millennium's. Such a date now has no
+  normalised value.
+- A twelve-hour clock is read with its half of the day: `Jun 16, 2025, 10:00
+  PM` was normalised to 10:00, the morning, since `email.utils` took "PM" for
+  a zone it did not know, and `Dec 1, 2024 11:30 PM EST` lost its zone too.
+  An hour no such clock shows, `13:05 PM`, is not read. A trailing `UTC` with
+  no offset before it is now the offset `+00:00`: it was read and dropped. On
+  the benchmark pages, seven dates on four pages that end in `UTC` gain their
+  offset.
+- A breadcrumb item whose `position` is `NaN` or an infinity is placed where
+  it was written: a NaN compares false with everything, and the crumbs came
+  out in no order.
+- A JSON-LD price JSON wrote with an exponent, `1.5e3`, is the summary's
+  price and normalises to `1500`: the summary counted two numbers in it and
+  refused it, and `amount()` could not read it.
+- An inline SVG's or MathML's `<title>` is no longer the summary's title on a
+  page with no head title, nor weighed as the page's title between a headline
+  and a name: libxml2 has no namespaces, and an icon's "Close menu" was the
+  page's title.
+- A page lxml takes for a fragment -- no head, and neither `<html>` nor a
+  doctype at its start, as a page a PHP warning is printed before -- is parsed as
+  a whole document. `lxml.html.fromstring` renamed its `<body>` to a `<div>`,
+  so every place on it went through an element the page never had,
+  `/html/div[1]/title[1]` for `/html/body/title[1]`; an extractor could not
+  find a path on such a page at all. On the benchmark pages, three evaldata
+  pages' title place changes so; no value changes.
+- A page's newlines are read as the HTML standard reads them, CR LF and a
+  lone CR as LF, before lxml parses it. lxml 6 did so and lxml 5.3, the
+  declared floor, did not, so a description or a review kept its CR LF on one
+  and not the other: on the benchmark pages, 13 of the 55 pages whose answer
+  depended on the lxml version no longer do. No answer on lxml 6 changed.
+
+- `induce` costs in step with the page. Telling rows from sections compared
+  every repeated group with every other one, measuring each group's members
+  again for each comparison, so a 363 KB page of two thousand small lists took
+  35 seconds, and a table of two thousand rows seven. Each group is now
+  credited to the elements above it once: the first page takes 73 ms. The
+  records and the ranking are the same on the 3,948 pages of the benchmark
+  corpora. `induce` runs on pages nobody vouches for, through the MCP server's
+  `extract_declared` and the HTTP API, and a call that times out still runs to
+  its end on its worker: this was also a way to hold a worker for minutes.
+- Gathering a parent's children into groups compared each child with every
+  group of its kind begun before it, so two thousand children that share three
+  parts and differ in a fourth made two million comparisons. Past sixteen
+  groups of one kind, a child is now compared only with the groups whose first
+  members share one of its rarest paths, which is where any match must be, and
+  with at most 64 of those; on the benchmark corpora no child needed more than
+  nine, and the groups are the same.
+- Reading a CSS module's class (`Card_title__a1B2c` is `Card_title`) used a
+  pattern that tried every `__` in a class and scanned to its end from each:
+  a 90 KB class took seven seconds, on every row it sat on, in `induce` and
+  in `compile`. The name and hash are now counted, the same answer in
+  milliseconds.
+- A part of an induced row carried the whole path down to it, copied at each
+  level and hashed again to number it, so every wrapper around a row cost
+  every part below it once more: forty thousand parts under two thousand
+  wrappers took 1.4 seconds to name, and take 0.1.
+- Listings nested inside listings cost the square of their depth: each
+  member's worth was read off all the text and links below it, again for
+  every member around it, and `induce` walked every group's rows in full
+  before trying the next, even a group with nothing in it to name. A 93 KB
+  page of them took seven seconds, and twenty with no text in it. Each
+  element is now measured once from its children's measures, and a group is
+  passed over when no part of it carries a fact, found the same way: both
+  pages take 0.1 seconds, with the same records.
+- Two slots of an induced row could share a name, and one value overwrote the
+  other: two `<span class="tag">` are numbered `span.tag1` and `span.tag2`,
+  and a card's own `<span class="tag1">` is `span.tag1` too. The class the
+  page wrote keeps its name and the numbers of the slot that would clash are
+  written after a `#`: `span.tag#1`, `span.tag#2`. What still clashes, a tag
+  such as `a@href` that libxml2 keeps as written, takes `~2`. Names that do not
+  clash are as they were; on the benchmark corpora two pages' first groups
+  are renamed, where `div.col-12` named both the second of three `div.col-1`
+  and a `div.col-12`, and no page's `induce` output changes.
+
+- `audit` read `<link rel=canonical>` anywhere on the page, while `extract`
+  reads the head only, as Google does: a canonical a comment put in the body
+  made the audit warn `canonicals-disagree` about an address `links` never
+  saw, and a page whose only canonical was in the body passed. The audit now
+  reads the canonicals `links` reads, and two that resolve to one address, as
+  `/pads` and `https://example.com/pads` on that site, are one canonical there
+  too; the relative one is still `canonical-relative`.
 
 ## 0.7.0 - 2026-09-24
 

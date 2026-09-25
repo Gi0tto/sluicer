@@ -252,17 +252,16 @@ def test_robots_can_be_turned_off_deliberately():
     assert result.rung == "http"
 
 
-def test_the_default_reader_takes_the_text_out_of_the_markup():
-    """The real rung wraps a plain-text robots.txt body in HTML.
+def test_the_default_reader_takes_the_text_out_of_a_browsers_markup():
+    """A browser shows a plain-text robots.txt as an HTML document.
 
-    Measured against httpbin.org/robots.txt by the person reviewing this
-    round: scrapling's ``Fetched.html`` for a plain-text response is not the
-    bare directives, it is
-    ``<html><body>User-agent: *\\nDisallow: /deny\\n</body></html>``. A
-    reader that hands that straight to protego gets a first "line" of
-    ``<html><body>User-agent: *``, which protego does not recognise as a
-    directive, so it parses no rules at all and allows everything -- the
-    exact defect this test is written to catch.
+    Measured against httpbin.org/robots.txt when the cheapest rung was
+    scrapling's: its ``Fetched.html`` for a plain-text response was
+    ``<html><body>User-agent: *\\nDisallow: /deny\\n</body></html>``, and a
+    reader handing that to protego got a first "line" of
+    ``<html><body>User-agent: *``, parsed no rules and allowed everything.
+    The cheapest rung is plain HTTP now; a ladder that starts at a browser
+    still gets this shape, and only a whole document is read so.
     """
     from sluicer.fetch.ladder import robots_reader_from
 
@@ -308,6 +307,29 @@ def test_a_site_that_refuses_us_is_obeyed_through_the_real_reader_shape():
     # never asserted, which left "we obeyed" and "we fetched it anyway and
     # then raised" indistinguishable.
     assert calls == ["https://example.com/robots.txt"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "User-agent: *\nDisallow: /a<b\nDisallow: /private/\n",
+        "# see <a href=x>\nUser-agent: *\nDisallow: /private/\n",
+        "# <script>\nUser-agent: *\nDisallow: /private/\n",
+        "User-agent: *\nDisallow: /q&amp;x\nDisallow: /private/\n",
+        "\ufeffUser-agent: *\nDisallow: /private/\n",
+    ],
+)
+def test_a_robots_txt_is_read_as_text_whatever_markup_its_lines_hold(text):
+    """Read through the HTML parser, ``Disallow: /a<b`` opened a tag that
+    swallowed every rule after it, and ``/private/`` was fetched; ``&amp;``
+    became ``&``. A robots.txt is text, and only a BOM is taken off it."""
+    from sluicer.fetch.identity import robots_refusal
+    from sluicer.fetch.ladder import robots_reader_from
+
+    read = robots_reader_from(rung("http", text))
+
+    assert read("https://example.com/robots.txt") == text.lstrip("\ufeff")
+    assert robots_refusal("https://example.com/private/x", read, cache={})
 
 
 def test_a_robots_file_that_answers_200_is_read_as_the_rules_it_publishes():
@@ -481,3 +503,91 @@ def test_without_the_flag_the_stealth_rung_is_never_even_built(monkeypatch):
 
     assert result.rung == "http"
     assert result.climbs == []
+
+
+CHALLENGE = (
+    "<html><head><title>Just a moment...</title></head>"
+    "<body>Checking your browser</body></html>"
+)
+
+
+def test_a_challenge_on_the_last_rung_is_the_site_refusing_not_a_page():
+    """The ladder handed back its last rung's page whatever it was, and an MCP
+    answer said ok: true about a waiting room."""
+    from sluicer.fetch import SiteRefused
+
+    http = rung("http", CHALLENGE)
+    browser = rung("browser", CHALLENGE)
+
+    with pytest.raises(SiteRefused, match="challenge page") as refused:
+        fetch("https://example.com/p", rungs=[("http", http), ("browser", browser)])
+
+    assert isinstance(refused.value, FetchFailed), "a caller of FetchFailed catches it"
+    assert refused.value.url == "https://example.com/p"
+    assert [(c.from_rung, c.to_rung) for c in refused.value.climbs] == [
+        ("http", "browser")
+    ]
+    assert "'just a moment'" in refused.value.reason
+
+
+def test_a_challenge_is_not_returned_when_the_rung_above_it_failed():
+    """A fresh install has no browser: the cheaper page comes back, unless it
+    is a challenge, which is not a page to come back with."""
+    from sluicer.fetch import SiteRefused
+
+    def no_browser(url):
+        raise RuntimeError("no browser installed")
+
+    http = rung("http", CHALLENGE)
+
+    with pytest.raises(SiteRefused) as refused:
+        fetch("https://example.com/p", rungs=[("http", http), ("browser", no_browser)])
+
+    assert [(c.from_rung, c.to_rung) for c in refused.value.climbs] == [
+        ("http", "browser"),
+        ("browser", "http"),
+    ]
+
+
+def test_a_shell_on_the_last_rung_is_still_returned():
+    """Only a challenge is a refusal: a small page is often simply small."""
+    shell = "<html><body><div id=app></div><script src=a.js></script></body></html>"
+
+    result = fetch(
+        "https://example.com/p",
+        rungs=[("http", rung("http", shell)), ("browser", rung("browser", shell))],
+    )
+
+    assert result.rung == "browser"
+
+
+@pytest.mark.parametrize("body", [RICH, CHALLENGE])
+def test_payment_required_is_an_answer_never_a_page_nor_a_reason_to_climb(body):
+    """A 402 was read as the page: its body's records came back as the site's.
+    Whatever the body looks like, no other rung is asked the same question,
+    and nothing is paid."""
+    from sluicer.fetch import PaymentRequired
+
+    http = rung("http", body, status=402)
+    browser = rung("browser", RICH)
+
+    with pytest.raises(PaymentRequired, match="402") as refused:
+        fetch("https://example.com/p", rungs=[("http", http), ("browser", browser)])
+
+    assert isinstance(refused.value, FetchFailed)
+    assert refused.value.url == "https://example.com/p"
+    assert browser.calls == []
+
+
+def test_payment_required_on_a_higher_rung_is_the_answer_too():
+    from sluicer.fetch import PaymentRequired
+
+    http = rung("http", REFUSED, status=403)
+    browser = rung("browser", RICH, status=402)
+
+    with pytest.raises(PaymentRequired) as refused:
+        fetch("https://example.com/p", rungs=[("http", http), ("browser", browser)])
+
+    assert [(c.from_rung, c.to_rung) for c in refused.value.climbs] == [
+        ("http", "browser")
+    ]

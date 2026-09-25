@@ -209,15 +209,17 @@ def _names(element: HtmlElement, declared: str | None) -> list[str]:
     and an OpenGraph term are left out.
     """
     vocab, prefixes = _context(element)
-    names: list[str] = []
+    # Once each, in order: a list asked for each term whether it held it, and
+    # an attribute of forty thousand terms took four seconds.
+    names: dict[str, None] = {}
     for token in (declared or "").split():
         iri = _resolve(token, vocab, prefixes)
         if iri is None or iri.startswith(_OPENGRAPH):
             continue
         name = type_name(iri)
-        if name and name not in names:
-            names.append(name)
-    return names
+        if name:
+            names.setdefault(name)
+    return list(names)
 
 
 def _resolve(token: str, vocab: str | None, prefixes: dict[str, str]) -> str | None:
