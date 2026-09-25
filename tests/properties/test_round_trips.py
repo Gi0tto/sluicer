@@ -84,3 +84,34 @@ def test_so_does_every_extractor_learnt_from_drawn_pages(drawn):
     except NothingToLearn:
         return
     _assert_round_trip(extractor)
+
+
+# Tags and classes spelt with the characters a path or a row's kind parts its
+# steps, classes, numbers and attributes by, which lxml keeps as written.
+_odd = st.text(alphabet="ab@[].%:-_1", min_size=1, max_size=5)
+_odd_tags = st.builds(lambda head, rest: head + rest, st.sampled_from("abxy"), _odd)
+
+
+@given(_odd_tags, _odd_tags, _odd, st.booleans())
+def test_every_extractor_compile_writes_reads_back(wrapper, row, cls, listing):
+    """Whatever tags and classes the pages spell, compile either learns
+    nothing or writes an extractor its own reader reads back as it was."""
+
+    def page(n):
+        rows = "".join(
+            f"<{row} class='{cls} item'><b class='t'>Book {i}</b>"
+            f"<span class='{cls}'>£{i}.99</span></{row}>"
+            for i in range(n)
+        )
+        return (
+            f"<html><body><{wrapper} class='{cls}'><div class='list'>{rows}</div>"
+            f"<{wrapper} class='{cls}'>£41.90</{wrapper}></{wrapper}></body></html>",
+            "https://shop.example/c",
+        )
+
+    want = {"title": "Book 1", "price": "£1.99"} if listing else {"price": "41.90"}
+    try:
+        extractor = compile_extractor([page(5), page(6)], want=want, listing=listing)
+    except NothingToLearn:
+        return
+    _assert_round_trip(extractor)

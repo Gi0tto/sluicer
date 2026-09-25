@@ -47,7 +47,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
   tags the page is a listing of them, and its type is `og:type`'s `article`.
   Nothing else in `extract()`'s answer over the corpus moves.
 
-## 0.7.1
+## 0.7.1 - 2026-09-25
 
 ### Added
 - `docs/stability.md`: what is stable before 1.0 (`extract()` and
@@ -137,6 +137,43 @@ Dates are the day the work landed. Anything not listed here did not happen.
   Each element's text is now read once per page, and a date's label is read
   from the words just before it rather than from its box's whole text. No
   answer changed on the 5,976 cached corpus pages. Found by review.
+- Every extractor `compile` writes is one `from_json` reads. lxml 6 keeps
+  tags such as `<a@b>` and `<p]>` as the page wrote them, and compile wrote
+  paths such as `div.product>a@b.price`, which the reader refused as no path
+  (0.7.0 read it back, as the attribute `b.price` of an `<a>`); `<x[1]>` made
+  compile raise a bare `ValueError`, and a row's tag `<x.y>` another, where
+  it found no rows of its own kind. A row carrying Tailwind's `@container`
+  was written `li.@container.item`, refused too. Such a character in a tag is
+  now written as `%` and its code, `a%40b`, and a class that holds one is
+  left out of the row's kind; other paths and kinds are as they were. A
+  property draws tags and classes of those characters and holds compile's
+  output to reading back as it was. Found by review.
+- A numbered listing is the box its heading says. Learnt at
+  `section.box[2]`, the books among three boxes, a page with the first box
+  gone and another added at the end still had three, and the run read the
+  second, the recent books, 6 rows of another listing, and passed; a box put
+  in the books' place passed too. And a box added after the books, the
+  second still theirs, failed with four boxes where there were three. An
+  extractor now learns the text each numbered step's element begins with,
+  its rows aside, when every page learnt agrees on it and no other element
+  of its kind begins so (`marks`): a step whose element begins so is the
+  listing, however many boxes the page has, and one whose element does not,
+  while another does, fails the `listing` check. Where the heading is not
+  learnt, or the page says it on no box, the count decides, as before. A
+  file without `marks` is read as before. Found by review.
+- A page field whose row moved fails however the page says its label. The
+  check asked for the label said once, exactly as learnt: rows swapped, and
+  a second "SKU" anywhere on the page, or the label written "SKU:", read the
+  weight, "3 kg", as the SKU and passed; with fewer than five pages learnt
+  no shape guarded it. A page that still says the label, once or more, its
+  colon and its case aside, and not right before the place now fails the
+  `field` check. A page that no longer says it is read at the place, as
+  before. Found by review.
+- `diff` reports a price JSON writes with an exponent as the number it is:
+  `1500` before and `1.5e3` after, on a page that declares no currency, was
+  `changed`, since the `e` left once the digits and points were taken away
+  was read as a currency sign. A number written with an exponent now has no
+  sign, and the two are `rewritten`. Found by review.
 - A date's offset is only a zone the date writes. `email.utils` reads any
   word after the time as the zone, and once "PM" was read as the half of the
   day it no longer held that place: "May 24, 2026 10:05 am 4 min read" was

@@ -829,9 +829,46 @@ def test_a_row_that_moved_under_another_label_fails():
     assert check.got == "'SKU' is now before 'BP-3', and the place holds '3 kg'"
 
 
+def test_a_row_that_moved_fails_whether_its_label_is_said_twice_or_rewritten():
+    """Rows swapped, and the label said a second time elsewhere on the page or
+    written "SKU:" rather than "SKU": the check asked only for a label said
+    once, exactly as learnt, and passed sku "3 kg". A label the page still
+    says, however often and with or without its colon, that no longer stands
+    right before the place has left it."""
+    learnt = compile_extractor(SPECS, listing=False, want={"sku": "BP-1"})
+    order = ("brand", "price", "weight", "sku")
+    html, url = _specs("Textar", "12.50", "BP-3", "3 kg", order)
+    aside = "<aside><table><tr><th>SKU</th><td>other</td></tr></table></aside>"
+    for page, got in (
+        (
+            html.replace("</main>", f"</main>{aside}"),
+            "'SKU' is said 2 times, never right before the place, "
+            "which holds '3 kg' after 'Weight'",
+        ),
+        (
+            html.replace("<th>SKU</th>", "<th>SKU:</th>"),
+            "'SKU:' is now before 'BP-3', and the place holds '3 kg'",
+        ),
+    ):
+        run = run_extractor(learnt, page, url)
+        assert not run.ok
+        assert failed(run) == ["field"]
+        [check] = [c for c in run.checks if not c.ok]
+        assert check.got == got
+    unmoved, _ = _specs("Textar", "12.50", "BP-3", "3 kg")
+    for page in (
+        unmoved.replace("<th>SKU</th>", "<th>SKU:</th>"),
+        unmoved.replace("<th>SKU</th>", "<th>sku</th>"),
+        unmoved.replace("</main>", f"</main>{aside}"),
+    ):
+        run = run_extractor(learnt, page, url)
+        assert run.ok, failed(run)
+        assert run.fields == {"sku": "BP-3"}
+
+
 def test_a_label_the_page_does_not_say_once_is_no_verdict():
-    """Renamed, or said twice, the label says nothing about the place: the
-    place is read, as it was learnt."""
+    """Renamed, the label says nothing about the place; said twice, once right
+    before it, it still stands there: the place is read, as it was learnt."""
     learnt = compile_extractor(SPECS, listing=False, want={"sku": "BP-1"})
     html, url = _specs("Textar", "12.50", "BP-3", "3 kg")
     for page in (
@@ -882,14 +919,14 @@ def _sections(*boxes):
 def test_a_box_of_the_same_kind_inserted_before_a_numbered_listing_fails():
     """The listing was the second box, section.box[2]; a sponsored box put
     before it made the pick of the week the second, and the run read its one
-    row and passed. The page now has three boxes where it had two."""
+    row and passed. The second box now begins "Pick", and the third "All"."""
     learnt = compile_extractor([_sections(("Pick", 1), ("All", 12))], listing=True)
     assert learnt.listing.container == "html>body>main>section.box[2]>ul.items"
     run = run_extractor(learnt, *_sections(("Sponsored", 4), ("Pick", 1), ("All", 12)))
     assert not run.ok
     assert failed(run) == ["listing"]
     [check] = [c for c in run.checks if not c.ok]
-    assert check.got == "3 places that match section.box, where there were 2"
+    assert check.got == "section.box[2] begins 'Pick', and 'All' is now section.box[3]"
     assert run_extractor(learnt, *_sections(("Pick", 1), ("All", 9))).ok
     wanted = compile_extractor(
         [_sections(("Pick", 1), ("All", 12))], want={"n": "All 3"}
@@ -910,6 +947,82 @@ def test_pages_that_number_a_step_differently_do_not_hold_it_to_a_count():
     run = run_extractor(learnt, *_sections(("Pick", 1), ("All", 8), ("Seen", 1)))
     assert run.ok, failed(run)
     assert Extractor.from_json(learnt.to_json()) == learnt
+
+
+BOXES = [
+    _sections(("Top", 4), ("Books", 12), ("Recent", 6)),
+    _sections(("Top", 4), ("Books", 10), ("Recent", 6)),
+]
+
+
+def test_a_numbered_listing_is_the_box_its_heading_says():
+    """Learnt at section.box[2], the books among three boxes. With the first
+    box gone and another added after, there were three boxes still, and the
+    run read the recent ones, 6 rows of another listing, and passed; a
+    sponsored box in the books' place passed too. The second box began with
+    "Books" on every page learnt, and no other did: a page whose second box
+    begins otherwise, while one of the others says "Books", has moved it."""
+    learnt = compile_extractor(BOXES, listing=True)
+    assert learnt.listing.container == "html>body>main>section.box[2]>ul.items"
+    assert learnt.listing.marks == (None, None, "Books", None)
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    for boxes, got in (
+        (
+            (("Books", 11), ("Recent", 6), ("More", 9)),
+            "section.box[2] begins 'Recent', and 'Books' is now section.box[1]",
+        ),
+        (
+            (("Top", 4), ("Sponsored", 11), ("Books", 11)),
+            "section.box[2] begins 'Sponsored', and 'Books' is now section.box[3]",
+        ),
+        (
+            (("Ad", 5), ("Top", 4), ("Books", 11), ("Recent", 6)),
+            "section.box[2] begins 'Top', and 'Books' is now section.box[3]",
+        ),
+    ):
+        run = run_extractor(learnt, *_sections(*boxes))
+        assert not run.ok
+        assert failed(run) == ["listing"]
+        [check] = [c for c in run.checks if not c.ok]
+        assert check.got == got
+
+
+def test_a_box_added_after_a_numbered_listing_that_still_heads_it_passes():
+    """Four boxes where the pages learnt had three, the second still "Books":
+    the count alone failed it, though the listing was where it was."""
+    learnt = compile_extractor(BOXES, listing=True)
+    run = run_extractor(
+        learnt, *_sections(("Top", 4), ("Books", 11), ("Recent", 6), ("Extra", 3))
+    )
+    assert run.ok, failed(run)
+    assert len(run.rows) == 11
+    assert run.rows[0]["a.name"] == "Books 1"
+
+
+def test_a_heading_said_nowhere_on_the_page_leaves_the_count_to_decide():
+    """A heading the template writes from the page -- another category's
+    books -- says nothing about where the box went: the count still does."""
+    learnt = compile_extractor(BOXES, listing=True)
+    assert run_extractor(
+        learnt, *_sections(("Top", 4), ("Music", 11), ("Recent", 6))
+    ).ok
+    run = run_extractor(
+        learnt, *_sections(("Top", 4), ("Music", 11), ("Recent", 6), ("Extra", 3))
+    )
+    assert failed(run) == ["listing"]
+    [check] = [c for c in run.checks if not c.ok]
+    assert check.got == "4 places that match section.box, where there were 3"
+
+
+def test_a_heading_every_box_shares_is_no_mark():
+    """Boxes that all begin "Deals" cannot be told apart by it."""
+    learnt = compile_extractor(
+        [_sections(("Deals", 4), ("Deals", 12)), _sections(("Deals", 4), ("Deals", 9))],
+        listing=True,
+    )
+    assert learnt.listing.marks == ()
+    run = run_extractor(learnt, *_sections(("Deals", 5), ("Deals", 4), ("Deals", 12)))
+    assert failed(run) == ["listing"]
 
 
 def _item(price, related=(), cls="price", extra=""):
@@ -1103,6 +1216,10 @@ def _file(**change):
         ({"listing__siblings": [1, "1", 1]}, "siblings"),
         ({"listing__siblings": [1, 0, 1]}, "siblings"),
         ({"listing__siblings": [1, 1]}, "siblings"),
+        ({"listing__marks": [None, "Books"]}, "marks"),
+        ({"listing__marks": [None, None, None]}, "marks"),
+        ({"listing__marks": [None, "", None]}, "marks"),
+        ({"listing__marks": [None, 2, None]}, "marks"),
         ({"listing__container": "html>body>div[x]>ol.row"}, "not a path"),
         ({"listing__container": "html>body>div[0]>ol.row"}, "not a path"),
         ({"listing__member": "li>a"}, "not a row's kind"),
@@ -1203,3 +1320,66 @@ def test_labels_are_looked_up_not_searched_for_on_every_candidate(monkeypatch):
     learnt = compile_extractor(pages, listing=False, want={"flag": "Yes"})
     assert learnt.fields[0].anchor is not None
     assert len(scans) <= len(pages)
+
+
+@pytest.mark.parametrize("tag", ["a@b", "p]", "x[1]", "q[a]", "x.y"])
+def test_an_extractor_through_a_tag_lxml_keeps_as_written_reads_back(tag):
+    """lxml 6 keeps ``<a@b>`` and ``<p]>`` as tags: compile wrote paths such as
+    ``div.product>a@b.price`` that from_json refused as no path, and ``<x[1]>``
+    made compile raise a bare ValueError. A tag is written with the
+    characters a path parts its steps by as ``%XX``, and read back so."""
+
+    def product(price):
+        return (
+            "<html><body><div class='product'><h1>Drill</h1>"
+            f"<{tag} class='price'>£{price}</{tag}></div></body></html>",
+            "https://shop.example/p",
+        )
+
+    learnt = compile_extractor(
+        [product("41.90")], listing=False, want={"price": "41.90"}
+    )
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    run = run_extractor(learnt, *product("12.50"))
+    assert run.ok, failed(run)
+    assert run.fields == {"price": "£12.50"}
+
+    def books(n):
+        rows = "".join(
+            f"<{tag} class='item'><b class='t'>Book {i}</b>"
+            f"<span class='p'>£{i}.99</span></{tag}>"
+            for i in range(n)
+        )
+        return (
+            f"<html><body><{tag} class='w'><ul class='list'>"
+            f"<li class='item'>x</li></ul><div class='list'>{rows}</div>"
+            f"</{tag}></body></html>",
+            "https://shop.example/c",
+        )
+
+    learnt = compile_extractor(
+        [books(5), books(6)], want={"title": "Book 1", "price": "£1.99"}
+    )
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    run = run_extractor(learnt, *books(7))
+    assert run.ok, failed(run)
+    assert len(run.rows) == 7
+
+
+def test_a_row_s_class_a_path_cannot_write_is_left_out_of_its_kind():
+    """Tailwind's ``@container`` is a class with none of the digits that mark a
+    class as varying, and the row's kind was written ``li.@container.item``,
+    which from_json refused."""
+
+    def page(n):
+        rows = "".join(
+            f"<li class='item @container'><a class='t' href='/b/{i}'>Book {i}</a>"
+            f"<span class='p'>£{i}.99</span></li>"
+            for i in range(n)
+        )
+        return f"<html><body><ul class='list'>{rows}</ul></body></html>", None
+
+    learnt = compile_extractor([page(5), page(6)], listing=True)
+    assert learnt.listing.member == "li.item"
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    assert run_extractor(learnt, *page(8)).ok
