@@ -3,7 +3,7 @@
 The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on the pages trafilatura evaluates itself
 on, 990 saved with their scripts, 851 of them annotated for their metadata, and the main text beside them.
-Regenerated on 2026-09-25 from commit `f03681e` by
+Regenerated on 2026-09-25 from commit `a6e42e6` by
 `uv run bench/evaldata.py`, against trafilatura at `c852cae9708a`; the
 method is in [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
