@@ -211,6 +211,22 @@ vanished and new, not as moves. The samples are five values, so on a listing
 whose rows changed completely between learning and healing, heal finds nothing
 to match and says so.
 
+**Heal follows a field's label wherever the page says it.** A page field
+learnt after its label, "Director:", is moved by heal to after that label's
+new place, found anywhere on the page: where another block says the same
+label -- a crew table's "Director:" beside a film's own -- heal can move the
+field there, and the healed extractor then reads that block's value. `run`
+counts the label only among the list it was learnt in; heal does not yet.
+Found by review for 0.8; the same in 0.7.1.
+
+**An extractor can fail a page it was learnt from.** On SWDE, 9 of the 80
+learnt extractors fail one of their own three seed pages, each on a page
+field that only some seeds carry (compile notes it as "at path on 1 of 3
+pages"); and 27 single-page compiles over the products and markdown corpora
+fail their own page, where learning and replay count different rows. Both
+are the same in 0.7.1; refusing such extractors would hide the defects, so
+they are listed here until each is fixed.
+
 **The thresholds are fixed.** 20% of rows may lack a required field, half a
 field's values must keep its shape, and a shape needs five values to be learnt
 or to be held to that half; a page with three or four values of a column that
