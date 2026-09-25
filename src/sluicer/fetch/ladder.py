@@ -199,6 +199,10 @@ class RungMemory:
         with self._lock:
             self._sites.pop(site_key(url), None)
 
+    def of(self, url: str) -> str:
+        """What ``recall`` remembers ``url`` by, as a climb names it: its site."""
+        return site_key(url)
+
     def clear(self) -> None:
         with self._lock:
             self._sites.clear()
@@ -438,13 +442,13 @@ def _climb(
     start = 0
     names = [name for name, _ in rungs]
     known = memory.recall(url) if memory is not None else None
-    if known is not None and known.rung in names[1:]:
+    if memory is not None and known is not None and known.rung in names[1:]:
         start = names.index(known.rung)
         climbs.append(
             Climb(
                 names[0],
                 known.rung,
-                f"an earlier page of {site_key(url)} needed it: {known.reason}",
+                f"an earlier page of {memory.of(url)} needed it: {known.reason}",
             )
         )
     best: Fetched | None = None

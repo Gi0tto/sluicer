@@ -38,7 +38,7 @@ from sluicer.crawl.schedule import (
     Task,
 )
 from sluicer.crawl.urls import canonical_of, links_on, names_a_file, normalise, site_of
-from sluicer.crawl.web import Web, default_web
+from sluicer.crawl.web import Parts, Web, default_web
 from sluicer.declared.tdmrep import WELL_KNOWN, TdmRule, read_tdmrep, reservation
 from sluicer.document import load
 from sluicer.fetch import (
@@ -570,6 +570,9 @@ class _Visitor:
         self.web = web
         self.polite = polite
         self.rungs = polite.paced(web.rungs)
+        # Which rung each part of a site needed, for this crawl, over what
+        # the web remembers of the whole site.
+        self.memory = Parts(web.memory) if web.memory is not None else None
         self.allow_private = allow_private
         self.resolve = resolve
         self.max_bytes = max_bytes
@@ -680,7 +683,7 @@ class _Visitor:
                 allow_private=self.allow_private,
                 resolve=self.resolve,
                 max_bytes=self.max_bytes,
-                memory=self.web.memory,
+                memory=self.memory,
             )
         except RobotsRefused as refused:
             return failed("refused_by_robots", str(refused))
@@ -698,6 +701,8 @@ class _Visitor:
             return failed("fetch_failed", str(failure), retryable=True)
         finally:
             self.polite.ended(task.url)
+        if self.memory is not None and not fetched.climbs:
+            self.memory.served(task.url)
         landed = normalise(fetched.url) or fetched.url
         # A browser follows a redirect itself when nothing guards it, so where
         # the page landed is judged again. Too late to spare the other site its

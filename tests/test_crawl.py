@@ -991,6 +991,71 @@ def test_a_site_that_needed_the_browser_is_asked_of_it_from_its_second_page():
     assert all(p.climbs[0].seconds == 0.0 for p in pages[1:])
 
 
+def _two_rung_shop(listings, details):
+    """A web whose plain HTTP serves ``listings`` whole and ``details`` as
+    empty shells a browser fills, with a memory of its own."""
+    from sluicer.fetch.ladder import RungMemory
+
+    shell = (
+        "<html><body><div id='root'></div>"
+        + "<script src='/app.js'></script>" * 80
+        + "</body></html>"
+    )
+    fake = FakeWeb({**listings, **{url: shell for url in details}})
+    browser = FakeWeb({**listings, **details}, clock=fake.clock)
+    memory = RungMemory()
+    web = Web(
+        rungs=[("http", fake.rung), ("browser", browser.rung)],
+        read=fake.web().read,
+        get=fake.get,
+        memory=memory,
+    )
+    return fake, browser, web, memory
+
+
+def test_listing_pages_stay_on_plain_http_after_a_detail_page_needed_the_browser():
+    """Measured on a local shop before: after its first product needed the
+    browser, three of its seven listing pages were rendered in the browser
+    too, 0.7 s each where plain HTTP took 2 ms."""
+    listings = {
+        f"{ROOT}/": page("Home", "/c/1", "/p/1", "/c/2", "/p/2"),
+        f"{ROOT}/c/1": page("Cat 1"),
+        f"{ROOT}/c/2": page("Cat 2"),
+    }
+    details = {f"{ROOT}/p/1": page("Pad 1"), f"{ROOT}/p/2": page("Pad 2")}
+    fake, browser, web, memory = _two_rung_shop(listings, details)
+
+    pages = list(crawl(f"{ROOT}/", web=web, clock=fake.clock, sleep=fake.clock.sleep))
+
+    assert all(p.ok and p.found for p in pages)
+    assert [url for url in fake.asked() if not url.endswith("robots.txt")] == [
+        f"{ROOT}/",
+        f"{ROOT}/c/1",
+        f"{ROOT}/p/1",
+        f"{ROOT}/c/2",
+    ]
+    assert browser.asked() == [f"{ROOT}/p/1", f"{ROOT}/p/2"]
+    second = {p.url: p for p in pages}[f"{ROOT}/p/2"]
+    assert "an earlier page of /p/ on example.com needed it" in second.climbs[0].reason
+    # What the site needed is still the process's, for the next crawl of it.
+    assert memory.recall(f"{ROOT}/c/9").rung == "browser"
+
+
+def test_a_part_of_the_site_not_yet_seen_starts_where_the_site_needed():
+    listings = {
+        f"{ROOT}/": page("Home", "/p/1", "/news/1"),
+        f"{ROOT}/news/1": page("News"),
+    }
+    fake, browser, web, _ = _two_rung_shop(listings, {f"{ROOT}/p/1": page("Pad")})
+
+    pages = list(crawl(f"{ROOT}/", web=web, clock=fake.clock, sleep=fake.clock.sleep))
+
+    assert all(p.ok for p in pages)
+    assert browser.asked() == [f"{ROOT}/p/1", f"{ROOT}/news/1"]
+    news = pages[-1]
+    assert "an earlier page of example.com needed it" in news.climbs[0].reason
+
+
 def test_the_real_web_remembers_for_the_process(monkeypatch):
     from sluicer.crawl.web import default_web
     from sluicer.fetch.ladder import STICKY
