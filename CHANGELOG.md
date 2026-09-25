@@ -392,6 +392,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   process. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
+- `select_values` answers `bad_input` for a selector that selects a comment
+  on the page it is asked of, and for one with a NUL or a control character,
+  which lxml refuses with a `ValueError` of its own; both reached the agent as
+  the SDK's bare "Error executing tool". Such a selector is a `SelectorError`
+  wherever it is read: `selector()`, `Page.select()`, `sluicer select` (exit
+  2) and an extractor's file.
 - A hand-written listing whose rows selector cannot be read on one page --
   an XPath that selects a comment there, as `//li | //comment()` does -- fails
   that page's listing check, exit 3, with why. It escaped as a traceback:

@@ -955,6 +955,25 @@ def test_an_agent_selects_values_and_sees_where_each_is(monkeypatch):
     assert "'td['" in broken["error"]["message"]
 
 
+@pytest.mark.parametrize(
+    ("selector", "said"),
+    [("xpath://comment()", "a comment"), ("//h1\x00", "is not an XPath")],
+)
+def test_a_selector_the_page_cannot_answer_is_bad_input(monkeypatch, selector, said):
+    """A selector read when written can still select a comment on the page it
+    is asked of; and lxml refuses a NUL with its own ValueError. Both reached
+    the agent as the SDK's bare "Error executing tool"."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    got = registered["select_values"]("<html><body><!--c--><h1>x</h1>", selector)
+
+    assert got["ok"] is False and got["error"]["code"] == "bad_input"
+    assert said in got["error"]["message"]
+
+
 def test_values_past_the_bound_are_left_out_and_counted(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server

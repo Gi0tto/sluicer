@@ -1022,7 +1022,12 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         html, url, fetched, headers = _page_of(html_or_url)
         if respect_tdm:
             _respect_tdm(html, url, fetched, headers)
-        found = isolated(_selected, html, url, headers, selector)
+        try:
+            found = isolated(_selected, html, url, headers, selector)
+        except SelectorError as unanswered:
+            # Read when written, a selector can still select a comment on
+            # the page it is asked of.
+            raise _BadInput(str(unanswered)) from unanswered
         answer: dict[str, Any] = {
             "ok": True,
             "url": url,

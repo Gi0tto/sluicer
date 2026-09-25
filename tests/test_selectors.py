@@ -195,6 +195,19 @@ def test_an_xpath_that_cannot_be_read_is_an_error_naming_it(written, said):
     assert repr(written) in str(raised.value)
 
 
+@pytest.mark.parametrize("written", ["//h1\x00", "h1[title='\x00']", "//h1[@x='\x01']"])
+def test_a_selector_with_a_character_xpath_cannot_hold_is_an_error_naming_it(written):
+    """lxml refuses a NUL or a control character anywhere in an XPath with a
+    ValueError of its own, which escaped as not a SelectorError: over MCP, an
+    unexpected tool error, not bad_input."""
+    with pytest.raises(SelectorError) as raised:
+        selector(written)
+
+    assert repr(written) in str(raised.value)
+    with pytest.raises(SelectorError):
+        shop().select(written)
+
+
 def test_a_selector_error_is_a_value_error():
     assert issubclass(SelectorError, ValueError)
 

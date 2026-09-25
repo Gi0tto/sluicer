@@ -134,7 +134,10 @@ def _translated(text: str) -> Selector:
     translator = cssselect.HTMLTranslator()
     try:
         paths = [translator.selector_to_xpath(one) for one in group]
-    except cssselect.ExpressionError as why:
+        # Compiled once here, so that what lxml refuses in the translation --
+        # a NUL in an attribute's value -- is said when the selector is read.
+        etree.XPath(" | ".join(paths))
+    except (cssselect.ExpressionError, etree.XPathError, ValueError) as why:
         raise SelectorError(
             f"{text!r} is not a CSS selector Sluicer reads: {why}"
         ) from None
@@ -177,7 +180,8 @@ def _xpath(text: str) -> Selector:
         # is a number rather than nodes -- is said when the selector is
         # written, not first on some page an extractor is run on.
         given = etree.XPath(text)(_EMPTY)
-    except etree.XPathError as why:
+    except (etree.XPathError, ValueError) as why:
+        # ValueError: lxml's own refusal of a NUL or a control character.
         raise SelectorError(f"{text!r} is not an XPath: {why}") from None
     if not isinstance(given, list):
         raise SelectorError(
