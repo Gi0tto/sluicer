@@ -56,6 +56,7 @@ nav:
       - News in many languages: scoreboard-news.md
       - trafilatura's evaluation set: scoreboard-evaldata.md
       - Extractors on SWDE: scoreboard-swde.md
+      - RDFa, against the W3C suite: scoreboard-rdfa.md
       - Drift: drift.md
       - Speed and weight: speed.md
       - "Conformance: JSON-LD in HTML": conformance-jsonld.md

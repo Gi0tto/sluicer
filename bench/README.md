@@ -179,6 +179,31 @@ answers are equal as JSON, and RDFa when they are the same graph. Every
 difference is put in the first category whose test explains it; one no test
 explains fails the run.
 
+## RDFa, against the W3C test suite
+
+[`docs/scoreboard-rdfa.md`](../docs/scoreboard-rdfa.md) runs the RDFa test
+suite rdfa.info runs -- every test written for HTML5, under RDFa 1.1, RDFa 1.1
+Lite and the processor graph, vocabulary expansion and `role` sets -- through
+`extract()`'s RDFa reader, `sluicer.compat.extruct`'s and extruct's.
+
+```bash
+uv run bench/rdfa_conformance.py            # the suite, then the scoreboard
+uv run bench/rdfa_conformance.py --reuse    # reuse extruct's last answers
+```
+
+`rdfa_conformance.py` downloads `rdfa/rdfa.github.io` at one pinned commit into
+`bench/cache/rdfa/` (2 MB), and stops if the files it keeps do not hash to
+their pin; the suite is distributed under both the W3C Test Suite License and
+the W3C 3-clause BSD License. extruct runs in an environment pinned by
+`requirements/extruct.txt`. Every answer is written as expanded JSON-LD, and
+each test's own SPARQL ASK query is evaluated on it by rdflib, in an
+environment pinned by `requirements/rdflib.txt`, which no install of Sluicer
+needs. `extract()`'s reader writes records, not a graph, so its records are
+read as triples the way a caller would read them, each a blank node; the
+scoreboard also asks each query again with the subjects it names by address
+replaced by variables, and holds every answer's values against the test's
+expected graph, subjects aside.
+
 ## Extractors learnt from examples, on SWDE
 
 [`docs/scoreboard-swde.md`](../docs/scoreboard-swde.md) measures what

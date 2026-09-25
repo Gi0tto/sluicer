@@ -180,6 +180,33 @@ def test_a_time_declares_its_datetime_not_the_words_around_it():
     assert read_rdfa(doc)[0]["datePublished"] == "2026-09-22"
 
 
+def test_a_link_s_address_belongs_to_its_rel_and_its_words_to_its_property():
+    # data-vocabulary.org's breadcrumbs, and the W3C RDFa suite's test 0334:
+    # `rel` names what the address is, so `property` names the words, as RDFa
+    # Core's processing rules say. The title was the address.
+    doc = load(
+        '<span typeof="v:Breadcrumb">'
+        '<a href="https://shop.example/brakes" rel="v:url" property="v:title">'
+        "Brakes</a></span>"
+    )
+
+    (crumb,) = read_rdfa(doc)
+
+    assert crumb["http://rdf.data-vocabulary.org/#title"] == "Brakes"
+
+
+def test_a_rel_of_plain_html_words_leaves_the_address_to_the_property():
+    # HTML+RDFa ignores the words HTML writes in `rel` on an element that also
+    # carries a property: the W3C RDFa suite's test 0312.
+    doc = load(
+        '<div vocab="https://schema.org/" typeof="Person">'
+        '<a href="https://ada.example/" rel="nofollow noopener" property="url">'
+        "Ada</a></div>"
+    )
+
+    assert read_rdfa(doc)[0]["url"] == "https://ada.example/"
+
+
 def test_a_link_with_no_address_falls_back_to_its_text():
     doc = load('<div typeof="Product"><a property="name">Brake pad set</a></div>')
 
@@ -219,6 +246,48 @@ def test_a_nested_subject_is_the_value_of_its_property():
             "offers": {"@type": "Offer", "price": "41.99"},
         },
     ]
+
+
+def test_a_subject_whose_property_has_a_literal_value_holds_that_property():
+    # Drupal 7 writes a node's author and tags this way. With `datatype` or
+    # `content` on it, a `typeof` element's property is the new subject's own,
+    # not a link to it from the subject around it: RDFa Core's processing
+    # rules, and the W3C RDFa suite's test 0317. The names were lost.
+    doc = load(
+        '<article typeof="sioc:Item">'
+        '<span property="dc:title" content="Antimodes"></span>'
+        '<span rel="sioc:has_creator">'
+        '<span typeof="sioc:UserAccount" property="foaf:name" datatype="">malte'
+        "</span></span>"
+        '<a href="/tags/islam" typeof="skos:Concept" '
+        'property="rdfs:label skos:prefLabel" datatype="">Islam</a>'
+        "</article>"
+    )
+
+    sioc, foaf, skos, rdfs = (
+        "http://rdfs.org/sioc/ns#",
+        "http://xmlns.com/foaf/0.1/",
+        "http://www.w3.org/2004/02/skos/core#",
+        "http://www.w3.org/2000/01/rdf-schema#",
+    )
+    assert read_rdfa(doc) == [
+        {"@type": sioc + "Item", "http://purl.org/dc/terms/title": "Antimodes"},
+        {"@type": sioc + "UserAccount", foaf + "name": "malte"},
+        {
+            "@type": skos + "Concept",
+            rdfs + "label": "Islam",
+            skos + "prefLabel": "Islam",
+        },
+    ]
+
+
+def test_a_datatype_asks_for_the_words_not_the_address():
+    doc = load(
+        '<div typeof="Article">'
+        '<a property="keywords" datatype="" href="/tags/brakes">brakes</a></div>'
+    )
+
+    assert read_rdfa(doc)[0]["keywords"] == "brakes"
 
 
 def test_a_subject_declaring_nothing_at_all_is_not_a_record():
