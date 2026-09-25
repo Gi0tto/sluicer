@@ -545,6 +545,14 @@ jobs:
           docker run --rm -v "$PWD/page.html:/tmp/page.html:ro" sluicer:ci \
             sluicer extract /tmp/page.html | tee out.json
           grep -q '"Pad"' out.json
+      - name: A client lists its ten tools over stdio, and the licences are in it
+        # The check the release runs before it pushes an image, run on every
+        # change, so a release is not the first to find it failing.
+        run: |
+          python3 packaging/mcp_smoke.py -- docker run -i --rm sluicer:ci
+          docker run --rm sluicer:ci sh -c 'cd /usr/share/licenses/sluicer &&
+            test -s LICENSE && test -s NOTICE && test -s LICENSES/CC-BY-SA-3.0.txt &&
+            test -s LICENSES/Unicode-3.0.txt && grep -q "^lxml " THIRD-PARTY.txt'
       - name: Serve the tools over HTTP from it
         # Published on the runner's loopback only, with a token, as the docs
         # say to run it; and the image refuses to listen beyond loopback

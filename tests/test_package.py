@@ -322,7 +322,9 @@ def test_the_package_runs_as_a_module():
 def test_every_action_a_workflow_uses_is_pinned_to_a_commit():
     """A tag can be moved to other code; a commit cannot. Every workflow names
     each action by its full commit, with the release it is in a comment, so a
-    reader sees which version it is and a moved tag changes nothing."""
+    reader sees which version it is and a moved tag changes nothing. The one
+    exception is ``uses: ./``, the repository's own action, which a workflow
+    tests at the commit it runs on."""
     import re
     from pathlib import Path
 
@@ -331,7 +333,9 @@ def test_every_action_a_workflow_uses_is_pinned_to_a_commit():
     assert any(path.name == "js.yml" for path in workflows)
     for path in workflows:
         for line in path.read_text(encoding="utf-8").splitlines():
-            if re.match(r"\s*(?:- )?uses:", line):
+            if re.match(r"\s*(?:- )?uses:", line) and not re.search(
+                r"uses: \./\s*$", line
+            ):
                 assert re.search(r"uses: [\w.-]+/[\w./-]+@[0-9a-f]{40} # v\d", line), (
                     f"{path.name}: {line.strip()}"
                 )

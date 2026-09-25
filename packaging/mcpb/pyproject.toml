@@ -1,0 +1,9 @@
+# The MCPB bundle's own project. It is not a package: the host reads it only
+# for the one dependency to install with uv before it runs server.py, and a
+# test holds both versions here to the repository's pyproject.toml.
+[project]
+name = "sluicer-mcpb"
+version = "0.7.1"
+description = "Sluicer's MCP server, as an MCPB host installs and runs it."
+requires-python = ">=3.10"
+dependencies = ["sluicer[mcp]==0.7.1"]

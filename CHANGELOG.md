@@ -58,6 +58,54 @@ Dates are the day the work landed. Anything not listed here did not happen.
   n8n and Dify are in `docs/agents.md` and `docs/http-api.md`, and CI's
   with-extras job connects the `mcp` package's own client to a real
   `sluicer serve` (`tests/live/mcp_http_check.py`).
+- The image on the GitHub Container Registry: `ghcr.io/gi0tto/sluicer`, for
+  amd64 and arm64, at each release's version and at `latest`. The release
+  builds it from the tagged source on a runner of each architecture, and
+  pushes it only after a client has listed its ten tools from it over stdio,
+  its HTTP API has listed them too, it has been seen to run unprivileged, and
+  its licences have been found in it. The push waits for the repository
+  variable `PUBLISH_TO_GHCR`, as PyPI's waits for `PUBLISH_TO_PYPI`.
+- The image carries, under `/usr/share/licenses/sluicer/`, Sluicer's LICENSE,
+  NOTICE and LICENSES/, and in `THIRD-PARTY.txt` the licence text of every
+  Python package installed in it, lxml's bundled libxml2 and libxslt among
+  them; the build stops when a package installed no licence file.
+- The repository is an Agent Plugin: `plugin.json` and `mcp.json` at its root,
+  in the Agent Plugins 1.0 format that VS Code, GitHub Copilot, Cursor and
+  Codex load, with the skill from `skills/` and the server started as
+  `uvx --with "sluicer[mcp]==VERSION" sluicer mcp`. A test holds both files
+  to the standard's closed fields, to `.claude-plugin/plugin.json` and to
+  `server.json`'s command. Codex 0.157.0 installed it from a local copy, and
+  Claude Code still loads its own plugin beside it.
+- `sluicer-VERSION.mcpb`, the server as an MCPB bundle for Claude Desktop, on
+  each release: 134 KB, no Python in it, the host installing `sluicer[mcp]`
+  at that version with uv, with the two settings the server reads. The
+  release stages it with `packaging/build_assets.py`, passes it through the
+  official validator (`@anthropic-ai/mcpb` 2.1.2), packs it, unpacks it and
+  lists its ten tools from it before attaching it, once PyPI serves the
+  version and the repository variable `PUBLISH_RELEASE_ASSETS` is true.
+- The documentation site serves `llms.txt`, in llmstxt.org's format, and every
+  page's markdown at its path with `.md`. `scripts/docs_llms.py`, a hook of
+  the docs build, writes both from the nav and each page's opening paragraph,
+  so neither can fall behind; the suite holds the result to the format with
+  the reader `sluicer audit` uses, and fails on a page the nav leaves out.
+- `context7.json`: Context7 indexes `docs/` without the changelog, roadmap and
+  contributing guide, and gives agents five rules; the suite holds each
+  command, option, extra and name a rule gives to one Sluicer has.
+- A GitHub Action, `action.yml` at the root: `sluicer audit` on the pages a
+  workflow names, failing the step on a broken rule (or, with `fail-on`, on a
+  warning, or never), each error an annotation with its rule, a summary table,
+  and the counts and a JSON-lines report as outputs. Its inputs reach the
+  script through the environment only. `docs/github-action.md` says how to
+  use it; `.github/workflows/github-action.yml` runs it on pages its job
+  serves on the runner's loopback.
+- `sluicer-skill-VERSION.zip` on each release: `skills/sluicer` with the
+  folder at the zip's root, the shape claude.ai's skill upload takes and what
+  unzipping into `~/.agents/skills/` wants, the same bytes from the same tree.
+- The Docker MCP Catalog entry, `packaging/docker-mcp-registry/servers/sluicer/server.yaml`,
+  the file a pull request to docker/mcp-registry adds, with `SLUICER_MCP_TOOLS`
+  as its one setting. The release writes it pinned to the tagged commit and
+  attaches it as `docker-mcp-registry-server.yaml`; the registry's own
+  validator (`cmd/validate` at 49b643c) passes it. No pull request is opened.
 
 ### Changed
 - Fetching needs no extra. The base install fetches over plain HTTP with the
@@ -117,6 +165,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   HTML handed in waited behind them, about 65 s with 0.7.1's fetch deadlines
   and until the sites answered before them. A call whose every page is handed
   in now runs on four workers of its own (`MAX_READS`).
+- The image's wheel was built without NOTICE and LICENSES/, since the
+  Dockerfile copied LICENSE alone: 0.7.0's image shipped schema.org's and
+  CLDR's data with neither their licences nor the notice saying which files
+  they cover.
 
 ## 0.7.1 - 2026-09-25
 

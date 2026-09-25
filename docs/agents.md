@@ -72,8 +72,34 @@ git clone --depth 1 https://github.com/Gi0tto/sluicer /tmp/sluicer
 mkdir -p ~/.agents/skills && cp -r /tmp/sluicer/skills/sluicer ~/.agents/skills/
 ```
 
+Each release from 0.8.0 also carries the skill as `sluicer-skill-VERSION.zip`,
+with the `sluicer` folder at its root: unzip it into `~/.agents/skills/`, or
+upload it to claude.ai as a custom skill.
+
 Verified end to end on 2026-09-24 with codex-cli 0.144.4: Codex called
 `extract_declared` and answered a page's price with its source and place.
+
+## As an Agent Plugin
+
+The repository is also a plugin in the open
+[Agent Plugins](https://agent-plugins.org) 1.0 format: `plugin.json` and
+`mcp.json` at its root, and the skill in `skills/`. VS Code, GitHub Copilot,
+Cursor and Codex load that format, and each gets the server, started as
+`uvx --with "sluicer[mcp]==VERSION" sluicer mcp` at the plugin's own version,
+and the skill. It needs uv on the `PATH`, as the commands above do.
+
+- **Codex**: `codex plugin marketplace add Gi0tto/sluicer`, then
+  `codex plugin add sluicer@sluicer`.
+- **VS Code**: run **Chat: Install Plugin From Source** and give it
+  `https://github.com/Gi0tto/sluicer`.
+- **Cursor**: copy the repository into `~/.cursor/plugins/local/sluicer`
+  and reload the window.
+
+Run on 2026-09-25 from a local copy of the repository, not from GitHub:
+codex-cli 0.157.0 installed the plugin at its version and registered the
+server with that command, and Claude Code 2.1.282, given the same folder,
+still loaded its own plugin from `.claude-plugin/`, server and skill. The
+official schemas pass both files. VS Code and Cursor were not run.
 
 ## Other clients
 
@@ -137,7 +163,16 @@ it does not, the server is listed as disabled.
 }
 ```
 
-**Claude Desktop** -- `claude_desktop_config.json`, in
+**Claude Desktop** -- each release from 0.8.0 carries `sluicer-VERSION.mcpb`,
+a bundle in the [MCPB](https://github.com/modelcontextprotocol/mcpb) format:
+open it with Claude Desktop to install the server. It is 134 KB and holds no
+Python; its manifest has the host install `sluicer[mcp]` at that version from
+PyPI with uv, and its two settings are the variables at the top of this
+page, `SLUICER_MCP_TOOLS` and `SLUICER_ALLOW_PRIVATE`. The release checks it with the
+format's own validator, then unpacks it and lists its ten tools with uv, as
+the manifest starts it. Installing it in Claude Desktop was not run.
+
+Or by hand: `claude_desktop_config.json`, in
 `~/Library/Application Support/Claude/` on macOS and `%APPDATA%\Claude\` on
 Windows, with the same `mcpServers` entry as Gemini CLI's. An application
 started from the Dock may not see your shell's `PATH`; if `uvx` is not found,
@@ -156,6 +191,24 @@ write its full path, which `which uvx` prints.
   }
 }
 ```
+
+**In Docker** -- the image's default command is the MCP server over stdio,
+so a client starts it with `-i`:
+
+```json
+{
+  "mcpServers": {
+    "sluicer": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "ghcr.io/gi0tto/sluicer"]
+    }
+  }
+}
+```
+
+Each release from 0.8.0 publishes the image, for amd64 and arm64, after a
+client has listed its ten tools from it; the [HTTP API](http-api.md#in-docker)
+page says what it carries.
 
 **Anything else that speaks MCP** -- over stdio, the command above.
 
@@ -202,6 +255,16 @@ Neither was run here; both are written from their documentation as it read on
 2026-09-25. What was run, against `sluicer serve`, is the `mcp` Python SDK's
 client and the TypeScript SDK's, which n8n's MCP nodes are built on: both list
 the ten tools and call them.
+
+## The documentation, for an agent
+
+The site serves [`llms.txt`](https://gi0tto.github.io/sluicer/llms.txt) in
+[llmstxt.org](https://llmstxt.org/)'s format, one link a page with its opening
+paragraph, and every page's markdown at the page's path with `.md`
+(`https://gi0tto.github.io/sluicer/agents.md` for this one). Both are written
+from the nav and the pages at each build. `context7.json` at the repository's
+root says which of these pages [Context7](https://context7.com) indexes, and
+the rules it gives an agent.
 
 ## In your own agent's code
 

@@ -68,6 +68,130 @@ jobs:
           "
           .venv/bin/sluicer --version
 
+  image:
+    # Built from the tagged source, like any build of the Dockerfile, on a
+    # runner of each architecture: an arm64 image built under emulation is
+    # also tested under it, and a Mac runs arm64. Each is tested as a client
+    # uses it before anything is pushed, so a tag always proves its image and
+    # only the push waits for the owner to turn it on.
+    name: The image on ${{ matrix.arch }} answers over MCP and HTTP, then is pushed
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the image
+        run: docker build -t sluicer:release .
+      - name: A client lists its ten tools over stdio
+        # A real MCP handshake with the image, as an agent's client starts it:
+        # an image that installs but cannot answer tools/list stops here.
+        run: python3 packaging/mcp_smoke.py -- docker run -i --rm sluicer:release
+      - name: It serves the tools over HTTP, as nobody, with its licences
+        run: |
+          uid=$(docker run --rm sluicer:release id -u)
+          test "$uid" != 0 || { echo "the image runs as root"; exit 1; }
+          docker run --rm sluicer:release sh -c 'cd /usr/share/licenses/sluicer &&
+            test -s LICENSE && test -s NOTICE && test -s LICENSES/CC-BY-SA-3.0.txt &&
+            test -s LICENSES/Unicode-3.0.txt && grep -q "^lxml " THIRD-PARTY.txt'
+          docker run -d --name api -p 127.0.0.1:8000:8000 -e SLUICER_API_TOKEN=release \
+            sluicer:release sluicer serve --host 0.0.0.0
+          for attempt in $(seq 30); do
+            curl -fsS http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+          count=$(curl -fsS -H 'Authorization: Bearer release' http://127.0.0.1:8000/v1/tools \
+            | python3 -c 'import json, sys; print(len(json.load(sys.stdin)["tools"]))')
+          test "$count" = 10 || { echo "the HTTP API lists $count tools"; exit 1; }
+          docker rm -f api
+      - name: Push it to the GitHub Container Registry
+        # Off until the repository variable PUBLISH_TO_GHCR is true, as the
+        # PyPI job waits for PUBLISH_TO_PYPI. The workflow's own token pushes,
+        # and the image's source label links the package to this repository.
+        if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_TO_GHCR == 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME#v}-${{ matrix.arch }}"
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag sluicer:release "$image"
+          docker push "$image"
+
+  image-index:
+    # One name for both architectures, so `docker pull` picks the machine's
+    # own. imagetools puts the description on the index, where the registry
+    # reads it for an image of several architectures.
+    name: One name for both architectures, at the version and at latest
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_TO_GHCR == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          version="${GITHUB_REF_NAME#v}"
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.description=The data a web page declares, with where each value came from. No model, no API key." \
+            --annotation "index:org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --annotation "index:org.opencontainers.image.licenses=MIT AND CC-BY-SA-3.0 AND Unicode-3.0" \
+            --tag "${image}:${version}" --tag "${image}:latest" \
+            "${image}:${version}-amd64" "${image}:${version}-arm64"
+
+  assets:
+    # The two files a release carries beside the distributions: the skill as
+    # a zip, for claude.ai's upload and ~/.agents/skills/, and the MCPB bundle
+    # Claude Desktop installs with a click. The bundle holds no Python: its
+    # manifest has the host install sluicer[mcp] at this version with uv.
+    name: The skill's zip and the Claude Desktop bundle build, and the bundle answers
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: distributions
+          path: dist/
+      - name: Stage them from the repository, and the catalog entry at this commit
+        run: python3 packaging/build_assets.py assets --commit "$GITHUB_SHA"
+      - name: The official validator passes the bundle, and packs it
+        # A pinned release of the MCPB tool; this job holds no token.
+        run: |
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          npx -y @anthropic-ai/mcpb@2.1.2 validate assets/mcpb
+          npx -y @anthropic-ai/mcpb@2.1.2 pack assets/mcpb "assets/sluicer-${version}.mcpb"
+      - name: A client lists its ten tools from the packed bundle
+        # Unpacked and started as a host does, with uv and the manifest's own
+        # command. PyPI does not serve this version yet, so the wheel this
+        # workflow built and tested stands in for it.
+        run: |
+          mkdir unpacked
+          unzip -q assets/sluicer-*.mcpb -d unpacked
+          python3 packaging/mcp_smoke.py -- uv run --find-links "$PWD/dist" --directory unpacked server.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: |
+            assets/*.mcpb
+            assets/*.zip
+            assets/docker-mcp-registry/servers/sluicer/server.yaml
+
   publish:
     name: Publish to PyPI
     needs: [build, installs]
@@ -130,3 +254,34 @@ jobs:
         run: |
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
+
+  attach:
+    name: Attach the bundle, the skill's zip and the catalog entry to the release
+    # After PyPI serves the version: the bundle installs it from there. Off
+    # until the repository variable PUBLISH_RELEASE_ASSETS is true. A release
+    # already written by hand gets the files; otherwise a draft is opened with
+    # them, for its notes to be written before it is published.
+    needs: [assets, publish]
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_RELEASE_ASSETS == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: assets/
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The catalog entry under a name of its own: the file to copy into a
+          # fork of docker/mcp-registry as servers/sluicer/server.yaml.
+          cp assets/docker-mcp-registry/servers/sluicer/server.yaml docker-mcp-registry-server.yaml
+          files=(assets/sluicer-*.mcpb assets/sluicer-skill-*.zip docker-mcp-registry-server.yaml)
+          if gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" -R "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" -R "$GITHUB_REPOSITORY" \
+              --draft --verify-tag --title "Sluicer ${GITHUB_REF_NAME#v}" \
+              --notes "Opened by the release workflow with its files; the notes are still to write."
+          fi
