@@ -73,3 +73,22 @@ def test_forty_thousand_user_agent_lines_are_read_in_a_moment():
 
     assert _seconds(lambda: user_agents(text)) < 1
     assert user_agents("User-agent: A\nUser-agent: a\nUser-agent: b") == ["a", "b"]
+
+
+def test_forty_thousand_oembed_links_are_read_in_a_moment():
+    """Found by review, the fifth of these: oEmbed addresses were kept once
+    each by asking the list, 4.4 s for forty thousand."""
+    from sluicer.declared.links import read_links
+
+    doc = load(
+        "<html><head>"
+        + "".join(
+            f"<link rel=alternate type=application/json+oembed href='/o/{i}'>"
+            for i in range(_MANY)
+        )
+        + "<link rel=alternate type=application/json+oembed href='/o/0'>"
+        + "</head></html>"
+    )
+
+    assert _seconds(lambda: read_links(doc)) < 1
+    assert read_links(doc)["oembed"][:2] == ["/o/0", "/o/1"]

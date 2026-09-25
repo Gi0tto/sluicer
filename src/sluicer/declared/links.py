@@ -137,7 +137,9 @@ def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:
             seen.add(("feed", address))
             title = " ".join((element.get("title") or "").split())
             feeds.append({"format": _FEEDS[kind], "href": address, "title": title})
-        elif kind in _OEMBED and address not in oembed:
+        elif kind in _OEMBED and ("oembed", address) not in seen:
+            # In the set with the rest: asking the list cost its square.
+            seen.add(("oembed", address))
             oembed.append(address)
     if header is not None:
         for hreflang, address in header["alternates"]:
