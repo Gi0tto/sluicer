@@ -308,7 +308,7 @@ def test_markdown_prints_the_main_content(monkeypatch, tmp_path):
     from sluicer.cli import main
 
     monkeypatch.setattr(
-        "sluicer.cli.to_markdown", lambda html, url=None: "# Title\n\nBody."
+        "sluicer.cli.page.to_markdown", lambda html, url=None: "# Title\n\nBody."
     )
     page = tmp_path / "page.html"
     page.write_text("<html><body><h1>Title</h1></body></html>", encoding="utf-8")
@@ -331,7 +331,7 @@ def test_markdown_without_the_extra_explains_itself(monkeypatch, tmp_path):
             'Install it with: uv pip install "sluicer[markdown]"'
         )
 
-    monkeypatch.setattr("sluicer.cli.to_markdown", refuse)
+    monkeypatch.setattr("sluicer.cli.page.to_markdown", refuse)
     page = tmp_path / "page.html"
     page.write_text("<html><body>hi</body></html>", encoding="utf-8")
 
@@ -347,7 +347,7 @@ def test_markdown_of_a_page_with_nothing_to_say_exits_one(monkeypatch, tmp_path)
 
     from sluicer.cli import main
 
-    monkeypatch.setattr("sluicer.cli.to_markdown", lambda html, url=None: "")
+    monkeypatch.setattr("sluicer.cli.page.to_markdown", lambda html, url=None: "")
     page = tmp_path / "page.html"
     page.write_text("<html><body></body></html>", encoding="utf-8")
 
@@ -388,7 +388,7 @@ def test_a_windows_1252_file_keeps_its_characters(monkeypatch, tmp_path):
             else html_or_bytes
         )
 
-    monkeypatch.setattr("sluicer.cli.to_markdown", fake_to_markdown)
+    monkeypatch.setattr("sluicer.cli.page.to_markdown", fake_to_markdown)
 
     result = CliRunner().invoke(main, ["markdown", str(page)])
 

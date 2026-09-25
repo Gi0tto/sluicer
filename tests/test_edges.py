@@ -306,7 +306,7 @@ def test_microformats_without_its_extra_is_a_message_at_the_command_line(monkeyp
             "install sluicer[microformats]", extra="microformats"
         )
 
-    monkeypatch.setattr("sluicer.cli.extract_html", missing)
+    monkeypatch.setattr("sluicer.cli.page.extract_html", missing)
 
     result = CliRunner().invoke(
         main, ["extract", "-", "--microformats"], input="<p>x</p>"
