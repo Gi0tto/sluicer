@@ -290,6 +290,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is listed with its reason, the rules fixed in `bench/PREREG.md` first.
 
 ### Changed
+- **Upgrading.** A type of another vocabulary than schema.org that a page's
+  JSON-LD names through a prefix of its context is now named by its
+  address, in what `extract` gives and in what `compile` learns:
+  `contao:Page` under `{"contao": "https://schema.contao.org/"}` is
+  `https://schema.contao.org/Page`. An extractor written before 0.8 learnt
+  `contao:Page`, and is read with either spelling, the prefix taken to the
+  address the page's own context gives it, so it passes the page it was
+  learnt from; `heal` does not call the type lost, and writes the address.
+  0.8's own files hold a page to the address alone.
 - Internal: `sluicer/cli.py` is a package, `sluicer/cli/`, a module per group
   of commands; every command, option, message and exit code is as it was.
 - `cssselect` (1.2 or later) joins the base install, for the CSS selectors:
@@ -489,6 +498,22 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `sluicer serve`'s workers for about a minute and a half past their budget.
   The same nodes are chosen, on all 3,976 cached corpus pages. Found by the
   second security review; also in 0.7.1.
+- A CSS descendant step costs the elements it can match, not every element
+  under its ancestor. cssselect writes `div a` as
+  `div/descendant-or-self::*/a`, every element under every div and then the
+  children of each, which libxml2 gathers and sorts div by div: 1.2 seconds
+  for `div a` and 3.4 for `div div div a` on a 390 KB page of the products
+  corpus, and 35.7 seconds for an honest `div a` on a 5.3 MB page, past the
+  30 seconds a selector is given over MCP. Such a step before a tag is now
+  read as `div/descendant::a`, 17 ms, 70 ms and 0.3 seconds there, when the
+  tag's tests ask what an element is and not where it stands among the
+  step's elements, as every test cssselect writes does; one that says
+  `position()` or `last()`, or is a number, is left as cssselect wrote it.
+  The same elements come back in the same order: on 589 cached corpus pages
+  and 44 selectors, from the page and from its rows, and in a property that
+  draws trees and selectors with every pseudo-class that counts siblings,
+  `:has`, `:is`, `:not`, `:lang` and every combinator. `sluicer select`,
+  written extractors and the MCP tools read it so alike.
 - The child process that evaluates an agent's selectors starts in Python's
   isolated mode: with `-c` alone it put its working directory first on its
   path, and a `pickle.py` in the folder `sluicer mcp` was started in ran when a
@@ -504,60 +529,86 @@ Dates are the day the work landed. Anything not listed here did not happen.
   504 too. The MCP tools that evaluate a caller's selectors --
   `select_values`, and `compile_extractor`, `run_extractor` and
   `heal_extractor` with an extractor written by selectors -- now evaluate
-  them in a process of their own (`sluicer.isolated`), killed when the
-  call's budget ends over HTTP, or after 60 seconds over stdio, and such a
-  call is answered `bad_input`. It costs a call about 90 ms to start the
-  process. The command line and the library evaluate selectors as before, in
+  them in a process of their own (`sluicer.isolated`), killed half a second
+  before the call's budget ends over HTTP (a quarter of a budget under two
+  seconds), or after 30 seconds (`sluicer.isolated.SECONDS`) whatever the
+  budget, and such a call is answered `bad_input`, the selector's fault, over
+  REST and at `/mcp` alike: stopped at the budget's end itself, the request's
+  own timer won, and the call was a 504 `timed_out` that said to try again.
+  Starting the process costs a call 77 ms, the median of 30 `select_values`
+  calls on an idle Apple M4 with Python 3.14; a busy machine pays more. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
-- A listing page with fewer than five values of a column is held to one at
-  least reading and shaped as learnt: three rows whose price says "Call"
-  fail a price learnt as an amount, learnt or written. Under five values the
-  `reads` and `shape` checks were skipped, since 0.7.1, and such a page
-  passed; one odd value among them still passes. The drift pairs and SWDE
-  answer exactly as before.
-- A thing declared deep inside one of a page's repeated blocks is the page's
-  subject again, not a row's: only a thing declared on a row or at most two
-  levels inside it is one of the listing's items. Two pages of the products
-  corpus stack their layout in alike tables, the product declared five
-  levels inside one of them; 0.8.0 took it for a row, learnt the tables as
-  the page's listing, 1,452 and 1,618 columns of site furniture, and replayed
-  them with ok=True, where 0.7.1 learnt no listing. Over the products corpus
-  and the test fixtures (152 pages) compile now learns what 0.7.1 learnt on
-  every page, and quotes.toscrape.com, whose quote is declared on its row,
-  keeps its listing. The drift pairs and SWDE never ask this (a listing is
+- A listing page with three or four values of a column that reads as an
+  amount or a date is held to one of them at least reading so: three rows
+  whose price says "Call" fail a price learnt as an amount, learnt or
+  written. Under five values the `reads` check was skipped, since 0.7.1, and
+  such a page passed. A page of one or two values is held to nothing of
+  them, as before -- the last page of a pagination, one part priced "From
+  £12.99" -- nor is a page of fewer than five to its shape: one row whose
+  part is "Bosch Aerotwin AR601S" is no drift of names learnt as letters,
+  and an extractor 0.7.1 wrote passes it as 0.7.1 did. One odd value among
+  three still passes. The drift pairs and SWDE answer exactly as before.
+- A thing declared on one of a page's repeated rows, or at most two levels
+  inside it, is one of the listing's items; one declared deeper inside a
+  repeated block is the page's subject, as in 0.7.1. Two pages of the
+  products corpus stack their layout in alike tables, the product declared
+  five levels inside one of them: taken for a row, it would have the tables
+  learnt as the page's listing, 1,452 and 1,618 columns of site furniture,
+  replayed with ok=True, where 0.7.1 learns no listing. Over the products
+  corpus and the test fixtures (152 pages) compile learns what 0.7.1 learnt
+  on every page, and quotes.toscrape.com, whose quote is declared on its
+  row, keeps its listing. The drift pairs and SWDE never ask this (a listing is
   asked for, or examples choose it), and are unchanged.
 - A page field learnt by its place is read after its label instead when
   another page given puts another labelled value there and says the
-  example's own label elsewhere: PEP 257 puts its Discussions-To where PEP 8
-  puts its status, and says "Status:" a row further down. With every value
-  plain text nothing contradicted the place, and PEP 257's status read
-  "Doc-SIG list" with the run passing; only a label the example's own page
-  says counted.
+  example's own label elsewhere among the same labels: PEP 257 puts its
+  Discussions-To where PEP 8 puts its status, and says "Status:" a row
+  further down. With every value plain text nothing contradicted the place,
+  and PEP 257's status read "Doc-SIG list" with the run passing; only a
+  label the example's own page says counted. The label said outside that
+  list says nothing of the place: a film that labels its director
+  "Directors:" and has a crew table with its own "Director:" further down
+  keeps the director where the other films have it, as 0.7.1 learnt it.
 - A column of a hand-written listing that fewer than half the learnt rows
   carried -- a sale badge on three rows in ten -- fails a page none of whose
   rows carries it when that is under a 1% chance (`written.BY_CHANCE`): from
-  13 rows for that badge, and 0.08% for twenty. 0.8.0 checked such a column's
-  presence nowhere, as a learnt listing does not, so a redesign that broke
-  its selector passed every page with exit 0; and `heal` reported it `kept`
-  when no new row carried it. `heal` now reports it `broken` when the new
-  pages' rows together make that as unlikely. Ten rows without the badge
+  13 rows for that badge, and 0.08% for twenty. A learnt listing checks such
+  a column's presence nowhere; checked nowhere, a redesign that broke its
+  selector would pass every page with exit 0. `heal` reports it `broken`,
+  not `kept`, when the new pages' rows together make that as unlikely. Ten rows without the badge
   (2.8%) still pass, and a page of twenty on which truly nothing is on sale
-  fails as a redesign would.
+  fails as a redesign would. The rows of one page are not what a badge comes
+  by, though: a column a page it was learnt from carried in no row holds no
+  page to it, so an extractor learnt from three category pages of thirty, a
+  "Sold out" badge on half of one and on none of the others, passes the two
+  without it (they were a 0.42% chance, taken row by row), and fails nothing
+  for a badge truly gone from such a template either
+  (`docs/known-limits.md`).
+- A listing learnt or written from several pages no longer fails one of them
+  for what the pages' rows said only when pooled. A column most rows carried
+  was held to some row on every page, though a page it was learnt from had
+  it in none; a column of three values was held to differ from row to row,
+  though each page gave it one value in every row -- a brand, on each
+  brand's page. The extractor failed the pages it was learnt from, with
+  exit 3, since 0.7.1 for a learnt listing. Each column's file now says
+  when a page it was learnt from carried it in no row
+  (`"absent_on_a_page": true`) or gave it one value in every row
+  (`"alike_on_a_page": true`), and that check is not made; a file without
+  them, 0.7.1's among them, keeps every check.
 - A hand-written field is taken for an address, with no shape or reading to
-  hold it to, only when its values are read from an `href` or a `src`. 0.8.0
-  decided from the selector's text, and `.//a[@href]` -- the links that have
-  an href, read as their text -- ended like an address: a title that turned
-  into a number passed with exit 0. `(.//a/@href)[1]` is now an address, as
-  it always read one.
+  hold it to, only when its values are read from an `href` or a `src`, not
+  by how its selector's text ends: `.//a[@href]` -- the links that have an
+  href, read as their text -- ends like an address and is text, held to its
+  shape and reading, so a title that turns into a number fails; and
+  `(.//a/@href)[1]` is an address, as it reads one.
 - CSS's `::text` and `::attr()` are read as parsel, Scrapy's selectors,
   reads them, as the selector language says. After a space, `div.price
   ::text` is every text node inside the element -- `Price:`, `12` and `EUR`
-  -- and `h1 ::text` the heading's text; 0.8.0 read the text of the elements
-  inside it, `12` alone, and nothing for `h1 ::text`. `ol ::attr(class)`
-  reads the `ol`'s own class too. Text nodes come in the page's order, so
-  `div.x::text` on a `div.x` inside another reads `A`, `B`, `C` where it
-  read `A`, `C`, `B`.
+  -- not the text of the elements inside it, `12` alone, and `h1 ::text` is
+  the heading's text, not nothing. `ol ::attr(class)` reads the `ol`'s own
+  class too. Text nodes come in the page's order, so `div.x::text` on a
+  `div.x` inside another reads `A`, `B`, `C`, not `A`, `C`, `B`.
 - `sluicer compile` refuses a field named twice, `--select x=h1 --select
   x=h2` or `--want x=a --want x=b`, exit 2, as an extractor file with two
   fields of one name is refused. The last one was kept and the first dropped

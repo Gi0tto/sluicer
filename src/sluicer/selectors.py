@@ -27,6 +27,7 @@ CSS is read by cssselect, the translator Scrapy's parsel and lxml's own
 from __future__ import annotations
 
 import functools
+import re
 import threading
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -135,7 +136,8 @@ def _translated(text: str) -> Selector:
     translator = cssselect.HTMLTranslator()
     try:
         paths = [
-            _pseudo_read(translator.selector_to_xpath(one), reads) for one in group
+            _descendants(_pseudo_read(translator.selector_to_xpath(one), reads))
+            for one in group
         ]
         # Compiled once here, so that what lxml refuses in the translation --
         # a NUL in an attribute's value -- is said when the selector is read.
@@ -164,6 +166,138 @@ def _pseudo_read(path: str, reads: str) -> str:
     if reads == "attribute" and inside:
         return path[: -len("/*")]
     return path
+
+
+_ANY_DEPTH = "/descendant-or-self::*/"
+# The name test of a step on the child axis: a tag, a namespaced tag, or *.
+_NAME_TEST = re.compile(r"\*|[A-Za-z_][\w.\-]*(?::[A-Za-z_][\w.\-]*)?")
+# What a predicate can say that makes it ask where its node stands among the
+# step's nodes, not what the node is: position() and last() said at its own
+# level, or a number.
+_POSITIONAL = re.compile(r"\b(?:position|last)\s*\(")
+_A_TEST = re.compile(
+    r"[=<>]|\band\b|\bor\b|^\s*(?:@|\.(?!\d)|self::|descendant::|ancestor|not\(|"
+    r"contains\(|starts-with\(|boolean\(|true\(|false\(|lang\()"
+)
+
+
+def _descendants(path: str) -> str:
+    """``path`` with each ``/descendant-or-self::*/`` step before a tag read as
+    ``/descendant::``, where the two select the same elements.
+
+    cssselect writes CSS's descendant combinator, ``div a``, as
+    ``descendant-or-self::div/descendant-or-self::*/a``: every element under
+    every div, then the children of each, which libxml2 gathers and sorts div
+    by div. On a real 390 KB page that was 3.3 seconds for ``div a`` and 8.4
+    for ``div div div a``, and on a 5.3 MB page an honest ``div a`` ran past
+    the 30 seconds a selector is given over MCP (``sluicer.isolated``).
+    ``descendant-or-self::div/descendant::a`` is the same links, in the same
+    order, in 26 ms.
+
+    The two are the same set whenever the tag's predicates ask only what an
+    element is -- a class, a count of its siblings, what it holds -- and not
+    where it stands among the step's elements: ``a[1]`` is each parent's first
+    link after ``descendant-or-self::*/``, and the first link of all after
+    ``descendant::``. cssselect's own predicates never ask; any that says
+    ``position()`` or ``last()`` at its own level, or is not plainly a test,
+    is left as cssselect wrote it. Text inside a string is never read as a
+    step: ``[@title = '/descendant-or-self::*/a']`` is a title.
+    """
+    out: list[str] = []
+    start = 0
+    at = 0
+    quote = ""
+    while at < len(path):
+        char = path[at]
+        if quote:
+            if char == quote:
+                quote = ""
+            at += 1
+            continue
+        if char in "'\"":
+            quote = char
+            at += 1
+            continue
+        if path.startswith(_ANY_DEPTH, at):
+            step = at + len(_ANY_DEPTH)
+            name = _NAME_TEST.match(path, step)
+            if name is not None and not path.startswith(("::", "("), name.end()):
+                end = _after_predicates(path, name.end())
+                if end is not None and all(
+                    _not_positional(p) for p in _predicates(path[name.end() : end])
+                ):
+                    out.append(path[start:at])
+                    out.append("/descendant::")
+                    start = step
+                    at = step
+                    continue
+            at = step
+            continue
+        at += 1
+    out.append(path[start:])
+    return "".join(out)
+
+
+def _after_predicates(path: str, at: int) -> int | None:
+    """Where the predicates of the step whose name test ends at ``at`` end,
+    or None when a bracket or a quote is left open."""
+    depth = 0
+    quote = ""
+    while at < len(path):
+        char = path[at]
+        if quote:
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            quote = char
+        elif char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth < 0:
+                return None
+        elif depth == 0:
+            return at
+        at += 1
+    return at if depth == 0 and not quote else None
+
+
+def _predicates(text: str) -> list[str]:
+    """Each top-level predicate of ``text``, ``[a][b]``, as its own level
+    reads it: what it nests in brackets and strings left out."""
+    found: list[str] = []
+    level: list[str] = []
+    depth = 0
+    quote = ""
+    for char in text:
+        if quote:
+            quote = "" if char == quote else quote
+            continue
+        if char in "'\"":
+            quote = char
+            if depth == 1:
+                level.append("''")
+            continue
+        if char == "[":
+            depth += 1
+            if depth == 2:
+                level.append("[]")
+            continue
+        if char == "]":
+            depth -= 1
+            if depth == 0:
+                found.append("".join(level))
+                level = []
+            continue
+        if depth == 1:
+            level.append(char)
+    return found
+
+
+def _not_positional(predicate: str) -> bool:
+    """Whether a predicate, as its own level reads it, is a test of the
+    element alone: no position() or last() at that level, and plainly true or
+    false rather than a number."""
+    return not _POSITIONAL.search(predicate) and bool(_A_TEST.search(predicate))
 
 
 def _pseudo(text: str, pseudo: Any) -> tuple[str, str | None]:

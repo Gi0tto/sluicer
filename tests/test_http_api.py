@@ -474,8 +474,10 @@ def test_a_call_over_its_budget_is_answered_and_a_queued_one_never_starts(
 def test_a_hostile_selector_cannot_hold_a_worker_past_its_budget(client):
     """A selector that would run for minutes once held its worker for as long
     as it ran: four of them froze a server. Evaluated in a process of its
-    own, it is stopped when its call's budget ends, and the one worker it
-    held answers the next call."""
+    own, it is stopped before its call's budget ends, and the one worker it
+    held answers the next call. The call is answered as the selector's
+    fault, ``bad_input``: stopped at the budget's end itself, the request's
+    own timer won, and it was a 504 that said to try again."""
     import time
 
     from test_mcp_server import HOSTILE_PAGE, HOSTILE_SELECTOR
@@ -493,7 +495,10 @@ def test_a_hostile_selector_cannot_hold_a_worker_past_its_budget(client):
         )
         took = time.monotonic() - began
 
-    assert hostile.status_code in (400, 504)
+    assert hostile.status_code == 400, hostile.json()
+    assert hostile.json()["error"]["code"] == "bad_input"
+    assert hostile.json()["error"]["retryable"] is False
+    assert "stopped after" in hostile.json()["error"]["message"]
     assert after.status_code == 200
     assert after.json()["count"] == 1
     assert took < 8

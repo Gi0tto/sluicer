@@ -12,8 +12,9 @@ No rule on what a selector may say bounds that -- the costly selectors
 include ordinary CSS -- so the servers bound the time instead. The MCP tools
 (``sluicer mcp``, and ``sluicer serve`` over HTTP) evaluate a caller's
 selectors through ``isolated``: in a child process, killed at a deadline --
-the call's own budget when the HTTP door set one with ``until``, and never
-past ``SECONDS`` -- and answered as the selector's fault. The command line and the
+the one the HTTP door set with ``until``, a little before the call's own
+budget ends, and never past ``SECONDS`` -- and answered as the selector's
+fault. The command line and the
 library evaluate selectors in the caller's own process, since whoever writes
 the selector is then the one who waits.
 """
@@ -83,7 +84,8 @@ def isolated(function: Callable[..., T], *args: Any) -> T:
 
     ``function`` is a module's own, and ``args`` and what it returns or raises
     are pickled across: a page's HTML and a selector's text go, values and
-    ``Run``s come back. About 90 ms go to starting the child.
+    ``Run``s come back. Starting the child costs a call 77 ms, measured on an
+    idle Apple M4 with Python 3.14, and more on a busy machine.
 
     Raises:
         TookTooLong: the deadline passed first; the child is killed.

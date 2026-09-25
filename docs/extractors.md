@@ -59,7 +59,10 @@ that drifted (with `failed`, the checks it broke) and for a heal that lost data
   always with `--listing`: where it sits (`html>body>div.page>ol.row`), what one
   row looks like (`li.product`), how many rows each page had, and for every
   field its share of empty rows, the one shape its values shared if they did,
-  and a few sample values.
+  and a few sample values; and, when it was so, that one of the pages had
+  it in no row (`"absent_on_a_page": true`) or said one thing in every row of
+  five or more (`"alike_on_a_page": true`), which no page is then failed
+  for, since the page it was learnt from would be.
 
 The file is plain JSON, meant to be read and, if you need to, edited. Every
 value is checked when it is read, not only its key: a share that is not a
@@ -140,9 +143,12 @@ sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
   example does, or another page puts it right after a label the example's
   own page gives another of its values -- a PEP's header has a
   Discussions-To row on PEP 257 and not on PEP 8, so PEP 8's type is PEP
-  257's status, after `Status:`. A label the example's page does not say
-  moves nothing: "Directors:" on one film and "Director:" on another is one
-  field. The label is the text every page
+  257's status, after `Status:`; so does another page that says the
+  example's own label further down the same list, as PEP 257 says `Status:`.
+  A label the example's page does not say moves nothing: "Directors:" on one
+  film and "Director:" on another is one field, and so does the label said
+  outside the list, a crew table's `Director:` below the film's facts. The
+  label is the text every page
   says once right before the value, `Type:`; a colon in an element of its
   own, `Type<span class="colon">:</span>`, is the label's. Where the pages
   label the place differently and no such label is found, `compile` refuses
@@ -213,7 +219,8 @@ sluicer compile page1.html page2.html -o brakes.json --rows li.product \
   first, and `compile` says so. A column fewer than half the rows carried
   -- a sale badge -- fails `field` on a page none of whose rows carries it,
   once that is under a 1% chance: from 13 rows for a badge three rows in
-  ten carry.
+  ten carry, and only when every page given carried it in some row, since a
+  badge comes by the page, not by the row.
 - **`heal` does not rewrite them.** A selector is what a person said, and
   `heal` cannot say it for you: one the new pages still bear out is kept and
   its profile learnt again; one they break is reported `broken`, a loss, and
@@ -255,10 +262,10 @@ li.product` and three selectors fails the redesign with `listing` -- no
 |---|---|
 | `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it -- or, where the path counts places, `section.box[2]`, the second box no longer begins with the heading it began with on every learnt page while another box does, or, where the heading is not learnt or is on no box, there are more or fewer boxes than on every learnt page: a box inserted before the second makes another box the second |
 | `rows` | there are no rows, or on a listing of five members or more, more of them are empty shells than the learnt pages had, plus 20% -- skeletons waiting for a script |
-| `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row; a page field is not found, or its label now stands before something else |
-| `shape` | fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket" -- or, on a page with fewer than five values of it, none does; or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
-| `reads` | a field every learnt value of which read as an amount or a date (see `sluicer.normalise`) reads so in fewer than half its values, or in none of fewer than five: a price column that now holds dates keeps its shape, and not its reading |
-| `values` | on a page of five rows or more, a field that held different values in every row now says the same thing in all of them: a page of placeholders, "Loading" |
+| `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had, and some row of every learnt page, is missing from every row; a page field is not found, or its label now stands before something else |
+| `shape` | on a page with five values of it or more, fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket"; or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
+| `reads` | a field every learnt value of which read as an amount or a date (see `sluicer.normalise`) reads so in fewer than half its values, or in none of three or four: a price column that now holds dates keeps its shape, and not its reading |
+| `values` | on a page of five rows or more, a field that held different values in every row now says the same thing in all of them: a page of placeholders, "Loading"; not when a learnt page of five rows or more said one thing in all of them, a brand on its own page |
 | `summary` | a summary question every learnt page answered goes unanswered |
 | `type` | a declared record type every learnt page carried is gone |
 | `extractor` | the extractor checks nothing at all, so a pass would mean nothing |

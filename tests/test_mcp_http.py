@@ -502,3 +502,26 @@ def test_a_call_that_fetches_nothing_never_waits_behind_fetches_over_mcp(
     assert answer.structured_content["summary"]["title"]["value"] == "Pad"
     assert took < 0.5
     assert len(fetch.calls) == http_api.MAX_CALLS
+
+
+def test_a_selector_stopped_by_the_budget_is_the_selector_s_fault(mcp):
+    """Stopped at the end of the call's budget itself, the call's own timer
+    won the race and a hostile selector came back ``timed_out``, a failure to
+    try again. It is stopped before the budget ends, and answered as
+    ``select_values`` answers a selector it cannot evaluate: ``bad_input``."""
+    from test_mcp_server import HOSTILE_PAGE, HOSTILE_SELECTOR
+
+    async def act(client, http):
+        began = time.monotonic()
+        result = await client.call_tool(
+            "select_values",
+            {"html_or_url": HOSTILE_PAGE, "selector": HOSTILE_SELECTOR},
+        )
+        return result, time.monotonic() - began
+
+    result, took = mcp(http_api.build_app(timeout=2), act)
+
+    assert result.is_error is False, result.content
+    assert result.structured_content["error"]["code"] == "bad_input"
+    assert "stopped after" in result.structured_content["error"]["message"]
+    assert took < 8

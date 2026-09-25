@@ -211,7 +211,7 @@ why, in the shape the MCP tools use: `{"code", "message", "retryable"}`, with
 
 | Code | Status | From | Means |
 |---|---|---|---|
-| `bad_input` | 400 | tool or door | Something the tool cannot take: literal HTML to `fetch_page`, no pages, an object that is not an extractor, arguments that do not fit the input schema, a body that is not a JSON object. |
+| `bad_input` | 400 | tool or door | Something the tool cannot take: literal HTML to `fetch_page`, no pages, an object that is not an extractor, arguments that do not fit the input schema, a body that is not a JSON object, a caller's selector that ran too long and was stopped half a second before `--timeout` (a quarter of a budget under two seconds). Not retryable: the same selector on the same page runs as long again. |
 | `unauthorized` | 401 | door | No token, or the wrong one. |
 | `payment_required` | 402 | tool | The site answered 402 Payment Required. Sluicer never pays, and asks no other rung. |
 | `refused_by_robots` | 403 | tool | The site's robots.txt says no. Do not work around it. |
