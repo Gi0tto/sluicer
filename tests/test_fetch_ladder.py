@@ -995,6 +995,47 @@ def test_a_failure_says_whether_asking_again_may_bring_something_else(error, tra
     assert failed.value.transient is transient
 
 
+_NETWORK = ["EHOSTUNREACH", "ENETUNREACH", "ENETDOWN", "EHOSTDOWN", "ENETRESET"]
+_NETWORK += ["ECONNABORTED", "EPIPE"]
+
+
+@pytest.mark.parametrize("name", _NETWORK)
+def test_a_network_that_failed_for_now_is_transient(name):
+    """A route that went away, a network down, a connection aborted: the
+    network flapped, and a crawl asked a page no more when it did. Measured,
+    one EHOSTUNREACH ended a page fetch_failed with retryable false."""
+    import errno
+
+    number = getattr(errno, name, None)
+    if number is None:
+        pytest.skip(f"{name} is not an errno on this platform")
+    with pytest.raises(FetchFailed) as failed:
+        fetch(
+            "https://example.com/p",
+            rungs=[("http", _failing(OSError(number, name)))],
+            obey_robots=False,
+        )
+
+    assert failed.value.transient
+
+
+def test_a_host_with_no_address_to_connect_to_is_transient():
+    import time
+
+    from sluicer.fetch import wire
+
+    with pytest.raises(OSError) as none:
+        wire._connect([], 443, time.monotonic() + 5)
+
+    assert wire.passing(none.value)
+
+
+def test_a_browser_that_found_no_route_is_transient():
+    from sluicer.fetch.ladder import transient
+
+    assert transient(RuntimeError("net::ERR_ADDRESS_UNREACHABLE at http://x/"))
+
+
 def test_one_rung_that_may_answer_later_makes_the_failure_transient():
     ladder = [
         ("http", _failing(ConnectionRefusedError("refused"))),
@@ -1004,6 +1045,25 @@ def test_one_rung_that_may_answer_later_makes_the_failure_transient():
     with pytest.raises(FetchFailed) as failed:
         fetch("https://example.com/p", rungs=ladder, obey_robots=False)
 
+    assert failed.value.transient
+
+
+def test_a_robots_txt_that_answered_5xx_is_named_as_the_reason():
+    """RFC 9309 reads a robots.txt's 5xx as nothing allowed for now, and so
+    does the ladder, which asks a robots.txt without the caller's login: a
+    site that answers 500 to anyone not logged in has its logged-in pages
+    refused too. The message says it was the robots.txt, and why."""
+
+    def rung(url):
+        status = 500 if url.endswith("/robots.txt") else 200
+        return Fetched(url=url, html="<html>page</html>", status=status, rung="http")
+
+    with pytest.raises(FetchFailed) as failed:
+        fetch("https://example.com/p", rungs=[("http", rung)])
+
+    said = str(failed.value)
+    assert "robots.txt for https://example.com/p: it answered status 500" in said
+    assert "RFC 9309" in said and "without the caller's headers" in said
     assert failed.value.transient
 
 

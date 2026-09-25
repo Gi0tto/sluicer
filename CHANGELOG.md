@@ -694,10 +694,20 @@ Dates are the day the work landed. Anything not listed here did not happen.
   all had what came returned with its status, 200, and kept by `--cache` as
   the page: the standard library's `read1()` answers an empty read at the end
   of the connection, which was taken for the end of the body. It is a
-  `ProtocolError`, and that connection is not kept.
-- A body whose gzip, deflate or zstd stream ends before its end -- the
-  framing whole, the compressed stream cut -- is a `ProtocolError`, not the
-  page it began. 0.7.1 returned the words it held as the page too.
+  `BodyCutShort`, a `ProtocolError` worth asking again, as is a chunked body
+  without its last chunk; that connection is not kept, and the ladder does
+  not climb past it: the browser, sent the same cut, returned half the page
+  with 200. `tests/live/browser_check.py` counts the requests.
+- A body whose framing came whole and whose gzip, deflate or zstd stream
+  stops mid-way is `BodyUnfinished`, not the page it began, and not worth
+  asking again at once: the server sent what it meant to. 0.7.1 returned the
+  words it held as the page too. A whole body whose stream lacks only its
+  formal end -- gzip's trailer or part of it, zlib's checksum, the final
+  block after a flush -- is the page, as 0.7.1 and curl read it and Chromium
+  does: it is taken when it ends where a whole stream could, checked by
+  gzip's and zlib's checksums against what it gave. Delimited only by the
+  close, the same stream is `BodyCutShort`, since nothing says the
+  connection did not lose its end; 0.7.1 returned it.
 - A raw deflate body whose first read brought one byte is decoded: whether
   deflate is zlib's or raw was decided on that byte, which is no zlib header
   yet, and the next read failed zlib's check.
@@ -816,6 +826,37 @@ Dates are the day the work landed. Anything not listed here did not happen.
   library's `concurrency=` and `retries=`, or a `sluicer.toml` asks for more:
   a file in a directory above is read by every command run below it, and one
   asking for a million jobs started a thread for every site of a batch.
+- The HTTP rung reads past an interim answer -- a 102, a 103 Early Hints --
+  to the answer it precedes. The standard library skips a 100 and no other:
+  a 103 came back as the answer, empty, its connection was kept with the
+  real answer unread on it, and the next request to the site was handed
+  that answer as its own -- in a crawl, `/p/p3` recorded Product p2 with no
+  error, and `fetch` returned the site's robots.txt as a page. A 101 nobody
+  asked for is a `ProtocolError`, and its connection is not kept. A 204 that
+  names a length for a body is not kept either: the bytes sent after its
+  headers were read by the next request as the start of its answer.
+  `tests/live/http_check.py` sends both in a segment of their own.
+- A network that failed for now is worth asking again: no route to the host
+  or its network (`EHOSTUNREACH`, `ENETUNREACH`), one of them down
+  (`ENETDOWN`, `EHOSTDOWN`), a connection the network dropped (`ENETRESET`),
+  a host with no address to connect to, and the browser's
+  `net::ERR_ADDRESS_UNREACHABLE`. None was counted as transient, so a crawl
+  never asked a page again when the network flapped once, and the MCP tools
+  said `retryable: false`. An aborted connection and a broken pipe already
+  were, as the `ConnectionError`s Python raises for them.
+- The failure a robots.txt's 5xx ends a fetch with says what the 5xx means:
+  RFC 9309 reads it as nothing allowed until the robots.txt answers
+  otherwise, and the robots.txt was asked without the caller's headers and
+  cookies, so a site that answers 500 to anyone not logged in has its
+  logged-in pages refused. It said only that the robots.txt answered 500.
+  Nothing on such a site is fetched, as in 0.7.1.
+- `run` and `heal` do not hold an extractor to a page the site answered
+  with a status outside 2xx: they exit 2, naming the status. An empty 503
+  was replayed as the page, and `run` exited 3 blaming the extractor's
+  contract and `heal` 3 for the fields it lost, neither naming the status.
+  `extract` on an empty error page names the status, where it suggested
+  `compile --want` on the site's error. A crawl and the MCP tools record
+  the status as before.
 
 ## 0.7.1 - 2026-09-25
 

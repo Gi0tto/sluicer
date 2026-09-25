@@ -95,8 +95,16 @@ def extract(
     except MicroformatsExtraMissing as missing:
         _fail(str(missing), missing)
     if not result.records and not result.summary and not result.visible:
-        click.echo("This page gives nothing: no record and no summary.", err=True)
-        click.echo(_what_to_try(source, induce, visible), err=True)
+        if fetched is not None and not 200 <= fetched.status < 300:
+            # The site's error, not the page: nothing else would read more.
+            click.echo(
+                f"This page gives nothing: the site answered status "
+                f"{fetched.status}, and its answer holds no record and no summary.",
+                err=True,
+            )
+        else:
+            click.echo("This page gives nothing: no record and no summary.", err=True)
+            click.echo(_what_to_try(source, induce, visible), err=True)
         if fetched is not None:
             # What the page cost is reported even when it declared nothing.
             click.echo(f"Fetch reached the '{fetched.rung}' rung.", err=True)

@@ -15,7 +15,7 @@ import zlib
 import pytest
 
 from fake_browser import FakeHost
-from fake_wire import fake_http
+from fake_wire import fake_http, render
 from sluicer.fetch import wire
 from sluicer.fetch.address import AddressRefused, public_addresses
 from sluicer.fetch.browser_guard import Guard
@@ -92,36 +92,113 @@ def _cut(body: bytes) -> bytes:
     return body[: len(body) // 2]
 
 
-@pytest.mark.parametrize(
-    ("encoding", "encode"),
-    [
-        ("gzip", lambda body: _cut(gzip.compress(body))),
-        ("deflate", lambda body: _cut(zlib.compress(body))),
-        ("deflate", lambda body: _cut(zlib.compress(body)[2:-4])),
-        # The stream is whole and the gzip trailer that checks it is missing.
-        ("gzip", lambda body: gzip.compress(body)[:-8]),
-    ],
-)
-def test_a_compressed_body_cut_short_is_not_a_page(monkeypatch, encoding, encode):
-    """The framing was whole -- the length said, every byte came -- and the
-    compressed stream inside it ended before its end: half a page, which
-    inflated to the words it held and was returned as the page."""
-    page = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
-    fake_http(monkeypatch, [(200, encode(page), {"Content-Encoding": encoding})])
-    from sluicer.fetch.http_rung import ProtocolError, http_responses
+_WORDS = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
 
-    with pytest.raises(ProtocolError, match="cut short"):
+
+def _flushed(body: bytes, wbits: int) -> bytes:
+    """``body`` compressed and sync-flushed, with no final block after it."""
+    squeeze = zlib.compressobj(wbits=wbits)
+    return squeeze.compress(body) + squeeze.flush(zlib.Z_SYNC_FLUSH)
+
+
+def _chunked(body: bytes) -> bytes:
+    pieces = [body[i : i + 700] for i in range(0, len(body), 700)]
+    return b"".join(b"%x\r\n%s\r\n" % (len(p), p) for p in pieces) + b"0\r\n\r\n"
+
+
+_CUT = [
+    ("gzip", lambda body: _cut(gzip.compress(body))),
+    ("deflate", lambda body: _cut(zlib.compress(body))),
+    ("deflate", lambda body: _cut(zlib.compress(body)[2:-4])),
+    ("gzip", lambda body: _cut(_flushed(body, 31))),
+]
+
+
+@pytest.mark.parametrize(("encoding", "encode"), _CUT)
+@pytest.mark.parametrize("framing", ["length", "chunked"])
+def test_a_whole_body_whose_stream_is_cut_is_not_a_page(
+    monkeypatch, encoding, encode, framing
+):
+    """The framing was whole -- the length said, every byte came -- and the
+    compressed stream inside it stops mid-way: half a page, which inflated
+    to the words it held and was returned as the page. The server sent what
+    it meant to, so asking again is told the same."""
+    body = encode(_WORDS)
+    headers = {"Content-Encoding": encoding}
+    if framing == "chunked":
+        body, headers["Transfer-Encoding"] = _chunked(body), "chunked"
+    fake_http(monkeypatch, [(200, body, headers)])
+    from sluicer.fetch.http_rung import BodyUnfinished, http_responses
+    from sluicer.fetch.ladder import transient
+
+    with pytest.raises(BodyUnfinished, match="ends before its end") as unfinished:
         http_responses()("https://example.com/p")
+    assert not transient(unfinished.value)
+
+
+_UNENDED = [
+    ("gzip", lambda body: gzip.compress(body)[:-8]),
+    ("gzip", lambda body: gzip.compress(body)[:-3]),
+    ("gzip", lambda body: _flushed(body, 31)),
+    ("deflate", lambda body: zlib.compress(body)[:-4]),
+    ("deflate", lambda body: _flushed(body, 15)),
+    ("deflate", lambda body: _flushed(body, -15)),
+]
+
+
+@pytest.mark.parametrize(("encoding", "encode"), _UNENDED)
+@pytest.mark.parametrize("framing", ["length", "chunked"])
+def test_a_whole_body_whose_stream_lacks_only_its_formal_end_is_the_page(
+    monkeypatch, encoding, encode, framing
+):
+    """Every word came and the framing says the body is whole; only the
+    stream's own end is missing -- gzip's trailer, zlib's checksum, the final
+    block after a flush. curl and Chromium return the page, and so does the
+    rung: the stream ends where a whole one could, checked by its checksum
+    where it has one."""
+    body = encode(_WORDS)
+    headers = {"Content-Encoding": encoding}
+    if framing == "chunked":
+        body, headers["Transfer-Encoding"] = _chunked(body), "chunked"
+    fake_http(monkeypatch, [(200, body, headers)], chunk=333)
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == _WORDS
+
+
+@pytest.mark.parametrize(("encoding", "encode"), [*_CUT, *_UNENDED])
+def test_a_stream_without_its_end_on_a_connection_that_closed_is_cut_short(
+    monkeypatch, encoding, encode
+):
+    """Delimited by the close, a body has no framing to say it is whole: a
+    stream without its end may be one the connection lost, and it is worth
+    asking again."""
+    head = f"HTTP/1.1 200 OK\r\nContent-Encoding: {encoding}\r\n"
+    raw = (head + "Connection: close\r\n\r\n").encode() + encode(_WORDS)
+    fake_http(monkeypatch, [raw])
+    from sluicer.fetch.http_rung import BodyCutShort, http_responses
+    from sluicer.fetch.ladder import transient
+
+    with pytest.raises(BodyCutShort, match="cut short") as cut:
+        http_responses()("https://example.com/p")
+    assert transient(cut.value)
+
+
+def test_a_whole_stream_on_a_connection_that_closed_is_the_page(monkeypatch):
+    head = b"HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nConnection: close\r\n\r\n"
+    fake_http(monkeypatch, [head + gzip.compress(_WORDS)])
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == _WORDS
 
 
 @pytest.mark.skipif(wire.ZSTD is None, reason="this Python has no zstd")
 def test_a_zstd_body_cut_short_is_not_a_page(monkeypatch):
-    page = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
-    cut = _cut(wire.ZSTD.compress(page))
+    cut = _cut(wire.ZSTD.compress(_WORDS))
     fake_http(monkeypatch, [(200, cut, {"Content-Encoding": "zstd"})])
-    from sluicer.fetch.http_rung import ProtocolError, http_responses
+    from sluicer.fetch.http_rung import BodyUnfinished, http_responses
 
-    with pytest.raises(ProtocolError, match="cut short"):
+    with pytest.raises(BodyUnfinished, match="ends before its end"):
         http_responses()("https://example.com/p")
 
 
@@ -665,6 +742,84 @@ def test_a_new_connection_that_fails_is_not_tried_again(monkeypatch):
     with pytest.raises(ConnectionResetError):
         http_rung()("https://example.com/1")
 
+    assert seen.connections == 1
+
+
+# One byte a read, so that what a server sent after an answer's headers is
+# still on the connection when they were read: the next segment, not yet come.
+_HINTS = b"HTTP/1.1 103 Early Hints\r\nLink: </style.css>; rel=preload\r\n\r\n"
+
+
+def test_early_hints_are_read_past_to_the_answer_they_precede(monkeypatch):
+    """http.client skips a 100 and no other 1xx: a 103 came back as the
+    answer, empty, the connection was kept with the real answer unread on it,
+    and the next page of the site was handed that answer as its own. Measured
+    in a crawl: /p/p3 recorded Product p2."""
+    first = _HINTS + render((200, b"<p>first</p>", {}))
+    seen = fake_http(monkeypatch, [first, (200, b"<p>second</p>", {})], chunk=1)
+    from sluicer.fetch.http_rung import http_rung
+
+    rung = http_rung()
+    got = rung("https://example.com/1")
+    assert (got.status, got.html) == (200, "<p>first</p>")
+    assert rung("https://example.com/2").html == "<p>second</p>"
+    assert seen.connections == 1
+
+
+@pytest.mark.parametrize("chunk", [1, None])
+def test_every_interim_answer_is_read_past(monkeypatch, chunk):
+    """Read whole, as one segment, the page after the hints was in the reader
+    the 103 was parsed from, and went with it."""
+    interim = (
+        b"HTTP/1.1 102 Processing\r\n\r\n"
+        + _HINTS
+        + b"HTTP/1.1 100 Continue\r\n\r\n"
+        + _HINTS
+    )
+    fake_http(monkeypatch, [interim + render((200, b"<p>ok</p>", {}))], chunk=chunk)
+    from sluicer.fetch.http_rung import http_rung
+
+    got = http_rung()("https://example.com/p")
+    assert (got.status, got.html) == (200, "<p>ok</p>")
+
+
+def test_a_switch_of_protocols_nobody_asked_for_is_not_an_answer(monkeypatch):
+    switching = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: h2c\r\n\r\n"
+    seen = fake_http(monkeypatch, [switching, PAGE])
+    from sluicer.fetch.http_rung import ProtocolError, http_responses
+
+    with pytest.raises(ProtocolError, match="101"):
+        http_responses()("https://example.com/p")
+
+    assert seen.sockets[0].closed
+    assert seen.pool._idle == []
+
+
+def test_a_no_content_answer_that_announces_content_is_not_kept(monkeypatch):
+    """A 204 may carry no body and must not say it has one: one that sends
+    a Content-Length and its bytes after the headers left them on the kept
+    connection, where the next request read them as the start of its answer."""
+    no_content = b"HTTP/1.1 204 No Content\r\nContent-Length: 5\r\n\r\nhello"
+    seen = fake_http(monkeypatch, [no_content, PAGE], chunk=1)
+    from sluicer.fetch.http_rung import http_responses
+
+    get = http_responses()
+    assert (get("https://example.com/1").status, seen.connections) == (204, 1)
+    assert get("https://example.com/2").body == PAGE[1]
+    assert seen.connections == 2
+
+
+def test_a_not_modified_answer_with_its_length_keeps_the_connection(monkeypatch):
+    """A 304 may name the length the page would have had (RFC 9110, 8.6),
+    and sends no body: its connection is kept, as the cache's revalidations
+    count on."""
+    not_modified = b"HTTP/1.1 304 Not Modified\r\nContent-Length: 1234\r\n\r\n"
+    seen = fake_http(monkeypatch, [not_modified, PAGE], chunk=1)
+    from sluicer.fetch.http_rung import http_responses
+
+    get = http_responses()
+    assert get("https://example.com/1").status == 304
+    assert get("https://example.com/2").body == PAGE[1]
     assert seen.connections == 1
 
 
@@ -1254,6 +1409,38 @@ def test_a_page_too_heavy_is_never_a_reason_to_climb():
         )
 
     assert browser.calls == []
+
+
+_HALF = b"HTTP/1.1 200 OK\r\nContent-Length: 2000\r\n\r\n<html>half"
+_HALF_CHUNKED = (
+    b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n7d0\r\n<html>half"
+)
+_HALF_GZIP = render((200, _cut(gzip.compress(_WORDS)), {"Content-Encoding": "gzip"}))
+
+
+@pytest.mark.parametrize(
+    ("reply", "again"),
+    [(_HALF, True), (_HALF_CHUNKED, True), (_HALF_GZIP, False)],
+    ids=["length", "chunked", "gzip"],
+)
+def test_a_body_cut_short_is_never_a_reason_to_climb(monkeypatch, reply, again):
+    """With the browser installed, a page the HTTP rung refused as cut short
+    was asked of the browser, which was sent the same cut and returned half
+    the page with 200: the refusal undone one rung up."""
+    fake_http(monkeypatch, [reply])
+    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.ladder import FetchFailed
+
+    browser = _rung("browser")
+    with pytest.raises(FetchFailed, match=r"cut short|ends before its end") as failed:
+        fetch(
+            "https://example.com/p",
+            rungs=[("http", http_rung()), ("browser", browser)],
+            robots_reader=lambda url: None,
+        )
+
+    assert browser.calls == []
+    assert failed.value.transient is again
 
 
 def test_the_ladder_holds_an_injected_rung_to_the_bound():

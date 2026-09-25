@@ -100,6 +100,36 @@ class Server(http.server.BaseHTTPRequestHandler):
                 Content_Type="text/html",
                 Content_Encoding="gzip",
             )
+        elif self.path in ("/hints", "/no-content"):
+            # What comes after the headers comes in a segment of its own, a
+            # moment later: after the client has read them, as on the web.
+            if self.path == "/hints":
+                self.send_response_only(103)
+                self.send_header("Link", "</style.css>; rel=preload; as=style")
+            else:
+                self.send_response_only(204)
+                self.send_header("Content-Length", "5")
+            self.end_headers()
+            time.sleep(0.1)
+            if self.path == "/hints":
+                self._send(200, b"<html><body>hinted</body></html>")
+            else:
+                with contextlib.suppress(OSError):
+                    self.wfile.write(b"hello")
+        elif self.path in ("/no-trailer", "/no-trailer-closed"):
+            # Every word, and the gzip trailer that checks them missing.
+            whole = gzip.compress(b"<html><body>" + b"<p>words</p>" * 400)[:-8]
+            if self.path == "/no-trailer":
+                self._send(
+                    200, whole, Content_Type="text/html", Content_Encoding="gzip"
+                )
+            else:
+                self.send_response(200)
+                self.send_header("Content-Encoding", "gzip")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(whole)
+                self.close_connection = True
         elif self.path == "/announced":
             self._send(200, b"a" * BIG, Content_Type="text/html")
         elif self.path == "/bomb":
@@ -143,9 +173,9 @@ def _record() -> None:
 def main() -> int:
     from sluicer.fetch import address
     from sluicer.fetch.address import AddressRefused
-    from sluicer.fetch.http_rung import ProtocolError, http_rung
+    from sluicer.fetch.http_rung import http_responses, http_rung
     from sluicer.fetch.identity import USER_AGENT
-    from sluicer.fetch.result import ResponseTooLarge
+    from sluicer.fetch.result import BodyCutShort, BodyUnfinished, ResponseTooLarge
     from sluicer.fetch.wire import ACCEPT_ENCODING
 
     server = _Quiet(("127.0.0.1", 0), Server)
@@ -173,6 +203,20 @@ def main() -> int:
             f"twenty pages of one site took {len(connections) - before} connections"
         )
 
+    # An interim answer, and a 204 that names a length, leave nothing on a
+    # kept connection for the next request to read as its answer.
+    for path, first in (("/hints", 200), ("/no-content", 204)):
+        try:
+            answer = http_responses()(base + path)
+            after = rung(base + "/page")
+        except Exception as other:  # noqa: BLE001 -- any failure is one
+            failures.append(f"{path}: it, or the next page, raised {other!r}")
+            continue
+        if answer.status != first:
+            failures.append(f"{path}: answered {answer.status} {answer.body[:40]!r}")
+        if "Café" not in after.html:
+            failures.append(f"{path}: the next page read {after.html[:40]!r}")
+
     if rung(base + "/hop").url != base + "/page":
         failures.append("a redirect was not followed to where it led")
 
@@ -196,14 +240,23 @@ def main() -> int:
     if reached:
         failures.append(f"a redirect off the web reached a socket with {reached}")
 
-    for path in ("/cut", "/cut-gzip"):
+    for path, refusal in (
+        ("/cut", BodyCutShort),
+        ("/cut-gzip", BodyUnfinished),
+        ("/no-trailer-closed", BodyCutShort),
+    ):
         try:
             cut = rung(base + path)
             failures.append(f"{path}: a body cut short came back: {cut.html[:40]!r}")
-        except ProtocolError:
+        except refusal:
             pass
         except Exception as other:  # noqa: BLE001 -- any other answer is a failure
             failures.append(f"{path}: a body cut short raised {other!r}")
+    try:
+        if rung(base + "/no-trailer").html.count("<p>words</p>") != 400:
+            failures.append("a whole gzip body without its trailer came back short")
+    except Exception as other:  # noqa: BLE001 -- any failure is one
+        failures.append(f"a whole gzip body without its trailer raised {other!r}")
 
     for path in ("/announced", "/chunked", "/bomb"):
         try:
@@ -281,7 +334,8 @@ def main() -> int:
         print("FAIL:", failure)
     if not failures:
         print(
-            "http: charset, identity, one connection for twenty pages, redirects, "
+            "http: charset, identity, one connection for twenty pages, interim "
+            "answers, redirects, "
             "the web only, the deadline, bodies cut short, heavy bodies, the pin "
             "and no proxy "
             "unasked all hold"

@@ -415,7 +415,29 @@ library's, which speaks no HTTP/2 or HTTP/3: a site is asked one request at a
 time on one kept connection, which is what the gate allows anyway. A
 connection is kept up to a minute idle, 32 of them for the process; one the
 server closed is found out before it is used, and a request that meets a
-close anyway is sent once more, on a new connection.
+close anyway is sent once more, on a new connection. An interim answer (a
+102, a 103 Early Hints) is read past to the answer it precedes; a 101 nobody
+asked for is a failure. A 204 that names a length for a body it may not have
+is not kept. A 304 is kept whatever length it names, as RFC 9110 lets it name
+the page's: a server that sends a body after one anyway has it found by the
+check before the connection is used again, or, when those bytes arrive later
+still, read by the next request as the start of its answer, which fails as
+unreadable and is worth asking again.
+
+**A compressed stream without its end is the page only when its framing
+says it is whole.** A body sent with a `Content-Length`, all of it, or in
+chunks to the last one, whose gzip or deflate stream lacks only its formal
+end -- gzip's trailer, zlib's checksum, the final block after a flush -- is
+read as curl and Chromium read it: the page. Only its end is missing: the
+decoder, handed the end a whole stream would have had, ends there, and
+gzip's and zlib's checksums of what it gave agree. Raw deflate has no
+checksum, and a stream cut exactly at the edge of one of its blocks passes
+for one that was flushed there. A stream that stops mid-way, framing whole,
+is refused (`BodyUnfinished`) and not asked again at once. The same stream
+delimited only by the connection's close is refused as cut short
+(`BodyCutShort`) and worth asking again: nothing says the connection did not
+lose its end, where 0.7.1 returned what came. zstd is never read without its
+end.
 
 **Brotli is never asked for.** A body is decoded as it arrives and held to the
 16 MiB bound as it grows, and the standard library has no brotli decoder to
@@ -459,7 +481,10 @@ batch sends them to the origin of every address it is given, as `curl -H`
 sends them to every address, so a batch of several sites gives each site the
 same cookie; a redirect's target, read in its own turn, is sent none.
 robots.txt is always read without them, so its answer is the site's for
-every caller, and so is a sitemap on another origin. The archive (`--at`)
+every caller, and so is a sitemap on another origin. A site that answers its
+robots.txt with a 5xx to anyone not logged in has every page refused,
+logged-in ones too: RFC 9309 reads a 5xx as nothing allowed until it
+answers otherwise, and the failure says so. The archive (`--at`)
 and the stealth rung are sent none.
 
 **The cache serves single pages.** `--cache` is read by `extract`, `inspect`,

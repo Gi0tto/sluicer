@@ -1200,3 +1200,73 @@ def test_a_crawl_and_a_batch_send_them_with_every_request(monkeypatch):
         )
         assert seen["cookies"] == {"session": "abc"}, command
         assert seen["headers"] == {"X-Team": "a"}, command
+
+
+# -- a page that answered an error --------------------------------------------
+
+
+def _answered(monkeypatch, status, html=""):
+    from sluicer.fetch.result import Fetched
+
+    def fake_fetch(url, rungs=None, **kwargs):
+        return Fetched(url=url, html=html, status=status, rung="http")
+
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
+
+
+def _shop_extractor(tmp_path):
+    from pathlib import Path
+
+    from sluicer.extractor import compile_extractor
+
+    drift = Path(__file__).parent / "fixtures" / "drift"
+    pages = [
+        ((drift / name).read_bytes(), f"https://shop.example/{name}")
+        for name in ("shop_v1.html", "shop_v1_page2.html")
+    ]
+    out = tmp_path / "shop.json"
+    out.write_text(compile_extractor(pages).to_json(), encoding="utf-8")
+    return out
+
+
+@pytest.mark.parametrize("command", ["run", "heal"])
+@pytest.mark.parametrize(
+    ("status", "html"), [(503, ""), (404, "<p>Not found</p>")], ids=["503", "404"]
+)
+def test_run_and_heal_do_not_read_an_error_page_as_the_page(
+    monkeypatch, tmp_path, command, status, html
+):
+    """An empty 503 was replayed as the page: run exited 3 blaming the
+    extractor's contract, heal 3 for fields lost, and neither named the
+    status. The page was never read, which is exit 2."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    extractor = _shop_extractor(tmp_path)
+    _answered(monkeypatch, status, html)
+
+    result = CliRunner().invoke(
+        main, [command, str(extractor), "https://shop.example/p"]
+    )
+
+    assert result.exit_code == 2, result.output
+    assert f"answered status {status}" in result.stderr
+    assert result.stdout == ""
+
+
+@pytest.mark.parametrize("status", [404, 503])
+def test_extract_of_an_empty_error_page_names_the_status(monkeypatch, status):
+    """An empty 404 was "This page gives nothing", with compile --want to try
+    on a page that is the site's error."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    _answered(monkeypatch, status)
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+
+    assert result.exit_code == 1
+    assert f"the site answered status {status}" in result.stderr
+    assert "compile" not in result.stderr
