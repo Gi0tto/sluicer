@@ -513,6 +513,28 @@ def test_a_top_level_value_every_command_refuses_is_refused_naming_them(here, fe
     assert "map" in result.stderr
 
 
+def test_a_top_level_value_the_commands_own_tables_override_is_still_judged():
+    """Found by the second review: with [crawl] and [batch] setting their own
+    format, the only command left to use the top's "jsonl" was map, which
+    refuses it, and a valid file was refused; and "xml", which no command
+    takes, was accepted wherever every table set its own. A top-level value
+    is judged by every command that takes the key, and used by those whose
+    table does not set it."""
+    path = Path("sluicer.toml")
+    tables = {"crawl": {"format": "csv"}, "batch": {"format": "csv"}}
+
+    defaults = config.defaults({"format": "jsonl", **tables}, path, cli.main.commands)
+    assert defaults["crawl"]["output_format"] == "csv"
+    assert defaults["batch"]["output_format"] == "csv"
+    assert "output_format" not in defaults["map"]
+
+    everywhere = {**tables, "map": {"format": "csv"}}
+    with pytest.raises(config.ConfigError) as refused:
+        config.defaults({"format": "xml", **everywhere}, path, cli.main.commands)
+    assert "format is refused by every command that takes it" in str(refused.value)
+    assert all(name in str(refused.value) for name in ("batch", "crawl", "map"))
+
+
 @pytest.mark.parametrize(
     "text",
     [

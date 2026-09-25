@@ -388,6 +388,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A value at the top of a configuration file is judged by every command that
+  takes its key, whether or not the command's own table sets the key too.
+  `format = "jsonl"` with `[crawl]` and `[batch]` each setting `format =
+  "csv"` was refused, since map, which writes `json` or `csv`, was the only
+  command left to judge it; and `format = "xml"` was accepted wherever every
+  such command's table set its own. Found by the second correctness review.
 - `sluicer.compat.extruct`'s Dublin Core copies an element's attributes as
   extruct does, pair by pair. Copied by key, an attribute a page names `{},`,
   `{a}b` or `{` was read by lxml as a namespaced name and raised `KeyError` or

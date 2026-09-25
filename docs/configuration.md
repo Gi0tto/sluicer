@@ -28,8 +28,9 @@ A key at the top applies to every command that takes that option, and the
 others ignore it: `json` above is for `fetch`, `diff` and `audit`. A command
 whose option takes other values ignores it too: `format = "jsonl"` at the top
 is for `crawl` and `batch`, and `map`, which writes `json` or `csv`, keeps its
-own. A value that no command taking the key accepts is refused. A table
-named after a command is that command's own, and its keys win over the top's.
+own. A value that no command taking the key accepts is refused, even where
+each of their tables sets its own. A table named after a command is that
+command's own, and its keys win over the top's.
 A repeatable option is a list; a flag is `true` or `false`; `cache` is a
 directory, where `~` is your home and a relative path is taken from the file's
 directory, not from where you run the command.

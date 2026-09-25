@@ -471,7 +471,10 @@ def defaults(
     # A key at the top is for the commands that take it with its value: map's
     # format is "json" or "csv" and crawl's "jsonl" or "csv", so format =
     # "jsonl" is crawl's and batch's, and no reason for every command to
-    # stop. Only a value no command that takes the key takes is refused.
+    # stop. Only a value no command that takes the key takes is refused, and
+    # every command that takes it judges it, its own table's value or not:
+    # else "jsonl" was refused where crawl's and batch's tables left it to
+    # map alone, and "xml" was accepted where every table set its own.
     refused: dict[str, list[tuple[str, ConfigError]]] = {}
     taken: set[str] = set()
     for name in commands:
@@ -479,16 +482,16 @@ def defaults(
         answer[name] = {}
         for key, value in top.items():
             param = options[name].get(key)
-            if param is None or param.name is None or key in own or _in_env(key):
+            if param is None or param.name is None or _in_env(key):
                 continue
             try:
-                answer[name][param.name] = _value(
-                    key, value, param, path, f"{prefix}{key}"
-                )
+                checked = _value(key, value, param, path, f"{prefix}{key}")
             except ConfigError as refusal:
                 refused.setdefault(key, []).append((name, refusal))
             else:
                 taken.add(key)
+                if key not in own:
+                    answer[name][param.name] = checked
         for key, value in own.items():
             param = options[name][key]
             if param.name is None or _in_env(key):
