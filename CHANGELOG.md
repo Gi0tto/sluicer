@@ -377,6 +377,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- The RDFa reader reads each element's `vocab` and `prefix` once. Every
+  property read every `prefix` attribute of every element around it again,
+  so 8,000 prefixes over 8,000 properties (478 KB) took 8 seconds, 26 on
+  the reviewer's machine; 0.03 now. A prefix is looked up element by
+  element, nearest first, as before, so nothing is copied into each one.
 - An llms.txt heading line is read in time proportional to it. The pattern
   that read one took the text lazily and then spaces, marks and spaces to the
   end, so a line ending in anything else was tried at every split of it: "#

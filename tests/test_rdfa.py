@@ -322,3 +322,74 @@ def test_a_value_copied_many_times_costs_at_most_ten_times_the_page(html):
 
     assert found
     assert len(json.dumps(found)) <= 11 * len(html)
+
+
+def test_prefixes_and_vocab_are_the_nearest_declared():
+    """The nearest ``vocab`` decides and an empty one means none; the nearest
+    ``prefix`` naming a prefix decides, the first mapping of it in one
+    attribute, a name matched ignoring case; RDFa's initial context last."""
+    doc = load(
+        '<div vocab="http://outer.example/" prefix="a: http://a1.example/'
+        ' A: http://a2.example/ b: http://b1.example/" typeof="Thing">'
+        '<span property="x a:x b:x schema:x">1</span>'
+        '<div vocab="" prefix="b: http://b2.example/ b: http://b3.example/">'
+        '<span property="y a:y b:y">2</span>'
+        '<p><span property="z B:z">3</span></p></div></div>'
+    )
+
+    assert read_rdfa(doc) == [
+        {
+            "@type": "http://outer.example/Thing",
+            "http://outer.example/x": "1",
+            "http://a1.example/x": "1",
+            "http://b1.example/x": "1",
+            "x": "1",
+            "y": "2",
+            "http://a1.example/y": "2",
+            "http://b2.example/y": "2",
+            "z": "3",
+            "http://b2.example/z": "3",
+        }
+    ]
+
+
+def _prefixed(n: int) -> str:
+    """``n`` prefixes declared once, and ``n`` properties under them."""
+    prefix = " ".join(f"p{i}: http://e.example/{i}/" for i in range(n))
+    props = '<span property="name p1:x">v</span>' * n
+    return (
+        f'<html><body><div prefix="{prefix}" vocab="https://schema.org/"'
+        f' typeof="Thing">{props}</div></body></html>'
+    )
+
+
+def test_prefixes_are_read_once_not_once_for_each_property():
+    """Found by security review: every property read every prefix of every
+    element around it again: 478 KB of a page took 26 seconds."""
+    import sys
+    import time
+
+    def work(n: int) -> int:
+        doc = load(_prefixed(n))
+        count = 0
+
+        def tick(frame, event, arg):
+            nonlocal count
+            if event in ("call", "c_call"):
+                count += 1
+
+        sys.setprofile(tick)
+        try:
+            read_rdfa(doc)
+        finally:
+            sys.setprofile(None)
+        return count
+
+    work(10)
+    assert work(1_000) / work(500) < 2.5
+
+    doc = load(_prefixed(8_000))
+    started = time.perf_counter()
+    found = read_rdfa(doc)
+    assert time.perf_counter() - started < 1.5
+    assert found[0]["http://e.example/1/x"] == ["v"] * 8_000
