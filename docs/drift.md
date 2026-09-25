@@ -6,7 +6,7 @@ and replayed on a later one. An oracle that does not use the extractor's
 code judges the result. Losses come first.
 
 Regenerated on 2026-09-25 from commit
-`a6e42e6` (sluicer 0.8.0, Scrapling 0.4.15, anansi 1.1.0 at commit 117fbe2) with
+`10211f3` (sluicer 0.9.0, Scrapling 0.4.15, anansi 1.1.0 at commit 117fbe2) with
 `uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`. It
 prints no seconds: its run time is mostly reading the archive's
 captures ([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md),
