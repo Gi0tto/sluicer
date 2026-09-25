@@ -157,6 +157,9 @@ def test_a_site_it_cannot_reach_is_a_bad_gateway(proxy, monkeypatch):
 @pytest.mark.parametrize(
     "request_",
     [b"GET /relative HTTP/1.1\r\n\r\n", b"x" * (browser_proxy.HEAD_BYTES + 10), b""],
+    # Short names: pytest puts a test's id in an environment variable, and
+    # Windows refuses one past 32,767 characters.
+    ids=["relative", "too-long", "empty"],
 )
 def test_what_is_no_request_it_serves_is_a_bad_request_or_nothing(proxy, request_):
     answer = _served(proxy, request_)
