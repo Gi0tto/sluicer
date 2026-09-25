@@ -272,7 +272,10 @@ template -- the last of a pagination -- passes, and the second or third tag of a
 card is a count, not a column, so pages with fewer tags pass too.
 
 `sluicer run` prints every page's rows and failed checks as JSON and exits 3 when
-any page failed any check. A run that broke its contract never exits 0.
+any page failed any check. A run that broke its contract never exits 0. An
+address the site answers with a status outside 2xx -- a 404, a 503 -- is not a
+page to hold the extractor to: `run` and `heal` exit 2, naming the status, as
+for a page that could not be fetched.
 
 ## What healing does
 

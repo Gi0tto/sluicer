@@ -171,6 +171,18 @@ def _read_page(
 
 
 def _read_pages(
-    sources: tuple[str, ...], stealth: bool, no_robots: bool
+    sources: tuple[str, ...], stealth: bool, no_robots: bool, pages_only: bool = False
 ) -> list[tuple[str | bytes, str | None]]:
-    return [_read_source(source, stealth, no_robots, None)[:2] for source in sources]
+    """Each of ``sources``, read. ``pages_only``: an address the site answered
+    with a status outside 2xx exits with ``COULD_NOT_READ``, naming it -- a
+    404's or a 503's answer is not the page an extractor is held to."""
+    read = []
+    for source in sources:
+        html, url, fetched = _read_source(source, stealth, no_robots, None)
+        if pages_only and fetched is not None and not 200 <= fetched.status < 300:
+            _fail(
+                f"Could not read {source}: the site answered status "
+                f"{fetched.status}, which is its error, not the page."
+            )
+        read.append((html, url))
+    return read

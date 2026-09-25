@@ -795,6 +795,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   cookies, so a site that answers 500 to anyone not logged in has its
   logged-in pages refused. It said only that the robots.txt answered 500.
   Nothing on such a site is fetched, as in 0.7.1.
+- `run` and `heal` do not hold an extractor to a page the site answered
+  with a status outside 2xx: they exit 2, naming the status. An empty 503
+  was replayed as the page, and `run` exited 3 blaming the extractor's
+  contract and `heal` 3 for the fields it lost, neither naming the status.
+  `extract` on an empty error page names the status, where it suggested
+  `compile --want` on the site's error. A crawl and the MCP tools record
+  the status as before.
 
 ## 0.7.1 - 2026-09-25
 
