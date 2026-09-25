@@ -557,6 +557,7 @@ def main() -> int:
             check.failures.append(
                 "the time budget was not kept: the answer took over 10 s"
             )
+        _hostile_selectors_hold_no_worker(check, b)
         check.expect("no token", request(a, "GET", "/v1/tools"), 401, "unauthorized")
         check.expect(
             "an unknown tool",
@@ -646,6 +647,63 @@ def main() -> int:
             f"{len(check.codes)} error codes provoked, every answer fits its schema"
         )
     return 1 if check.failures else 0
+
+
+HOSTILE_PAGE = "<p>" * 3_000
+HOSTILE_SELECTOR = "//p[count(//p[count(//p) > 0]) > 0]"
+
+
+def _hostile_selectors_hold_no_worker(check: Check, port: int) -> None:
+    """As many selectors as the server has workers for calls that only read,
+    each of which would run for minutes: every one is answered within its
+    budget, and a harmless call after them is answered at once. Evaluated on
+    the workers' own threads, they froze the server, and every call after
+    them was a 504 too."""
+    from sluicer import http_api
+
+    answers: list[tuple[int, dict[str, str], Any]] = []
+
+    def hostile() -> None:
+        body = {"html_or_url": HOSTILE_PAGE, "selector": HOSTILE_SELECTOR}
+        answers.append(request(port, "POST", "/v1/tools/select_values", body))
+
+    started = time.monotonic()
+    senders = [threading.Thread(target=hostile) for _ in range(http_api.MAX_READS)]
+    for sender in senders:
+        sender.start()
+    for sender in senders:
+        sender.join(60)
+    if len(answers) != len(senders) or time.monotonic() - started > 12:
+        check.failures.append(
+            f"hostile selectors: {len(answers)} of {len(senders)} answered, "
+            f"after {time.monotonic() - started:.1f} s"
+        )
+    for answer in answers:
+        check.expect(
+            "a hostile selector",
+            answer,
+            400 if answer[0] == 400 else 504,
+            tool="select_values",
+        )
+        if answer[0] not in (400, 504):
+            check.failures.append(f"a hostile selector answered {answer[0]}")
+    began = time.monotonic()
+    after = check.expect(
+        "a selector after the hostile ones",
+        request(
+            port,
+            "POST",
+            "/v1/tools/select_values",
+            {"html_or_url": "<p>x</p>", "selector": "//p"},
+        ),
+        200,
+        tool="select_values",
+    )
+    if after.get("count") != 1 or time.monotonic() - began > 2:
+        check.failures.append(
+            f"the call after the hostile selectors waited "
+            f"{time.monotonic() - began:.1f} s for {after}"
+        )
 
 
 def _references_resolve(check: Check, document: dict[str, Any]) -> None:

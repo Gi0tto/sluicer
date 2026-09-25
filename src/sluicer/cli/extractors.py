@@ -106,6 +106,7 @@ def compile_command(
             name, equals, value = pair.partition("=")
             if not equals or not name.strip() or not value.strip():
                 _fail(f"--want takes NAME=VALUE, not {pair!r}.")
+            _named_once(name.strip(), want, "--want")
             want[name.strip()] = value
     pages = _read_pages(sources, stealth, no_robots)
     try:
@@ -144,6 +145,14 @@ def compile_command(
         click.echo(f"Note: {note}.", err=True)
 
 
+def _named_once(name: str, named: dict[str, str], option: str) -> None:
+    """Refuse a field named twice, as a file with two is refused: the second
+    was kept over the first, and the extractor had one field where two were
+    asked for."""
+    if name in named:
+        _fail(f"two fields named {name!r}: each {option} names one field.")
+
+
 def _compile_selected(
     sources: tuple[str, ...],
     output: str,
@@ -169,6 +178,7 @@ def _compile_selected(
         name, equals, text = pair.partition("=")
         if not equals or not name.strip() or not text.strip():
             _fail(f"--select takes NAME=SELECTOR, not {pair!r}.")
+        _named_once(name.strip(), select, "--select")
         select[name.strip()] = text
     try:
         compile_extractor([], select=select, rows=rows)
