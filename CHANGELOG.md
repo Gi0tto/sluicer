@@ -255,6 +255,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is listed with its reason, the rules fixed in `bench/PREREG.md` first.
 
 ### Changed
+- Internal: `sluicer/cli.py` is a package, `sluicer/cli/`, a module per group
+  of commands; every command, option, message and exit code is as it was.
 - `cssselect` (1.2 or later) joins the base install, for the CSS selectors:
   one pure-Python wheel of 21 KB with no dependency, BSD-3-Clause, which
   Pyodide ships, so the npm package loads it beside lxml and click. The
