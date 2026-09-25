@@ -30,6 +30,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   official validator (`@anthropic-ai/mcpb` 2.1.2), packs it, unpacks it and
   lists its ten tools from it before attaching it, once PyPI serves the
   version and the repository variable `PUBLISH_RELEASE_ASSETS` is true.
+- The documentation site serves `llms.txt`, in llmstxt.org's format, and every
+  page's markdown at its path with `.md`. `scripts/docs_llms.py`, a hook of
+  the docs build, writes both from the nav and each page's opening paragraph,
+  so neither can fall behind; the suite holds the result to the format with
+  the reader `sluicer audit` uses, and fails on a page the nav leaves out.
+- `context7.json`: Context7 indexes `docs/` without the changelog, roadmap and
+  contributing guide, and gives agents five rules; the suite holds each
+  command, option, extra and name a rule gives to one Sluicer has.
 
 ### Fixed
 - The image's wheel was built without NOTICE and LICENSES/, since the

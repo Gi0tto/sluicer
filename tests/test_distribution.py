@@ -10,6 +10,7 @@ check nobody has seen fail is a check nobody knows works.
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
 import json
 import re
@@ -408,3 +409,147 @@ def test_the_release_builds_the_bundle_and_tests_it_before_attaching_it():
     assert re.search(r"if: .*vars\.PUBLISH_RELEASE_ASSETS == 'true'", attach)
     for asset in (".mcpb", "sluicer-skill-"):
         assert asset in attach, asset
+
+
+# -- what the documentation tells agents: llms.txt and context7.json --------
+
+MKDOCS = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+
+
+def _setting(name: str) -> str:
+    found = re.search(rf"^{name}: (.+)$", MKDOCS, re.MULTILINE)
+    assert found, name
+    return found[1]
+
+
+def _hook():
+    spec = importlib.util.spec_from_file_location(
+        "docs_llms", ROOT / "scripts" / "docs_llms.py"
+    )
+    assert spec is not None and spec.loader is not None
+    hook = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hook)
+    return hook
+
+
+def _llms_txt() -> tuple[list, str]:
+    hook = _hook()
+    entries = hook.nav_of(MKDOCS)
+    text = hook.llms_txt(
+        _setting("site_name"),
+        _setting("site_description"),
+        _setting("site_url"),
+        entries,
+        lambda path: (ROOT / "docs" / path).read_text(encoding="utf-8"),
+    )
+    return entries, text
+
+
+def test_the_docs_build_writes_an_llms_txt():
+    hooks = MKDOCS.split("\nhooks:\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert "  - scripts/docs_llms.py" in hooks
+
+
+def test_the_docs_llms_txt_keeps_to_llmstxt_org_s_format():
+    """Read by the reader `sluicer audit` holds a site's llms.txt to."""
+    from sluicer.audit.llmstxt import read_llms_txt
+    from sluicer.audit.report import SiteFile
+
+    entries, text = _llms_txt()
+    url = _setting("site_url") + "llms.txt"
+    read = read_llms_txt(SiteFile(url=url, status=200, text=text))
+    assert [f for f in read.findings if f.severity != "info"] == []
+    assert read.name == "Sluicer"
+    assert read.summary == _setting("site_description")
+    assert read.links == len(entries)
+    assert len(read.sections) == len({section for section, _, _ in entries})
+
+
+def test_the_docs_llms_txt_links_every_page_with_its_first_paragraph():
+    entries, text = _llms_txt()
+    pages = {
+        path.relative_to(ROOT / "docs").as_posix()
+        for path in (ROOT / "docs").rglob("*.md")
+    }
+    assert {path for _, _, path in entries} == pages, "a page outside the nav"
+    base = _setting("site_url")
+    for _section, title, path in entries:
+        assert f"- [{title}]({base}{path})" in text, path
+    agents = next(line for line in text.splitlines() if "agents.md)" in line)
+    assert agents.endswith(
+        ": Sluicer's MCP server is one command, and every client "
+        "that speaks MCP can start it."
+    )
+
+
+def test_a_page_s_note_is_its_opening_paragraph_or_nothing():
+    hook = _hook()
+    page = "# Title\n\n<p>\n  A badge line.\n</p>\n\nThe [first](x.md) one:\ngoes on.\n"
+    assert hook.summary_of(page) == "The first one: goes on."
+    assert hook.summary_of("# FAQ\n\n## A question?\n\nIts answer.\n") == ""
+    assert hook.summary_of("# Title\n\n```\ncode\n```\n\nThen prose:\n") == (
+        "Then prose."
+    )
+
+
+def test_the_docs_nav_reader_refuses_a_line_it_does_not_know():
+    hook = _hook()
+    with pytest.raises(ValueError, match="Blog"):
+        hook.nav_of("nav:\n  - Home: index.md\n  - Blog: https://example.com/\n")
+
+
+CONTEXT7_FIELDS = {
+    "$schema",
+    "projectTitle",
+    "description",
+    "branch",
+    "folders",
+    "excludeFolders",
+    "excludeFiles",
+    "rules",
+    "disallow",
+    "redirect",
+    "previousVersions",
+    "url",
+    "public_key",
+}
+"""The fields https://context7.com/schema/context7.json allows, read on
+2026-09-25: the schema is closed."""
+
+
+def test_context7_indexes_the_docs_and_says_what_the_package_says():
+    config = _json(ROOT / "context7.json")
+    assert set(config) <= CONTEXT7_FIELDS, set(config) - CONTEXT7_FIELDS
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    described = re.search(r'^description = "(.+)"$', pyproject, re.MULTILINE)
+    assert described and config["description"] == described[1]
+    assert 10 <= len(config["description"]) <= 200
+    for folder in config["folders"] + config.get("excludeFolders", []):
+        assert (ROOT / folder).is_dir(), folder
+    for name in config.get("excludeFiles", []):
+        assert (ROOT / "docs" / name).is_file(), name
+
+
+def test_context7_s_rules_name_only_what_exists():
+    """A rule an agent reads as fact, so each command, extra and name it
+    gives is one Sluicer has."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    rules = _json(ROOT / "context7.json")["rules"]
+    assert 0 < len(rules) <= 50 and all(0 < len(rule) <= 255 for rule in rules)
+    text = " ".join(rules)
+    commands = CliRunner().invoke(main, ["--help"]).output
+    for command, options in re.findall(r"`sluicer ([a-z]+)((?: --[a-z-]+)*)", text):
+        assert re.search(rf"^  {command} ", commands, re.MULTILINE), command
+        told = CliRunner().invoke(main, [command, "--help"]).output
+        for option in options.split():
+            assert re.search(rf"^  {option}\b", told, re.MULTILINE), option
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    for extra in re.findall(r"sluicer\[([a-z]+)\]", text):
+        assert re.search(rf"^{extra} = \[", pyproject, re.MULTILINE), extra
+    for dotted in re.findall(r"`(sluicer(?:\.[A-Za-z_]+)+)", text):
+        module, _, name = dotted.rpartition(".")
+        assert hasattr(importlib.import_module(module), name), dotted
+    assert re.findall(r"`sluicer ([a-z]+)", text) and re.findall(r"sluicer\.", text)

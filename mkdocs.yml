@@ -81,6 +81,7 @@ markdown_extensions:
 # The examples' made-up site, published at demo/ for trying Sluicer on.
 hooks:
   - scripts/docs_demo.py
+  - scripts/docs_llms.py
 
 extra:
   social:

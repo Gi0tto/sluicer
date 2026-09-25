@@ -6,8 +6,9 @@ on:
     # A release publishes the site. Path filters are not applied to tags.
     tags: ["v*"]
     # The site is built from more than docs/: it links the root's changelog,
-    # roadmap, contributing and security files, and scripts/docs_demo.py adds
-    # the examples' site. A change to any of them changes the published site.
+    # roadmap, contributing and security files, scripts/docs_demo.py adds
+    # the examples' site, and scripts/docs_llms.py writes llms.txt and each
+    # page's markdown. A change to any of them changes the published site.
     paths:
       - "docs/**"
       - "mkdocs.yml"
@@ -18,6 +19,7 @@ on:
       - "SECURITY.md"
       - "examples/site/**"
       - "scripts/docs_demo.py"
+      - "scripts/docs_llms.py"
   # CI skips a change to Markdown or docs alone, yet tests read the README and
   # the pages; a pull request that touches only them is checked here.
   pull_request:
@@ -32,6 +34,7 @@ on:
       - "SECURITY.md"
       - "examples/site/**"
       - "scripts/docs_demo.py"
+      - "scripts/docs_llms.py"
   workflow_dispatch:
 
 permissions:
@@ -62,6 +65,8 @@ jobs:
         # and mkdocs-material already warns about it, so an unpinned uvx would
         # change what --strict means on the day it lands, not on a day we chose.
         run: uvx --from 'mkdocs>=1.6,<2' --with 'mkdocs-material>=9.7,<10' mkdocs build --strict
+      - name: The site serves llms.txt, and each page's markdown beside it
+        run: test -s site/llms.txt && test -s site/index.md && test -s site/reference/mcp.md
       - name: The tests that read the README and the pages pass
         run: >-
           uv run --python 3.13 --extra mcp pytest -q

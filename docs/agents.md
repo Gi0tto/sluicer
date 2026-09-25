@@ -208,6 +208,16 @@ page says what it carries.
 
 **Anything else that speaks MCP** -- over stdio, the command above.
 
+## The documentation, for an agent
+
+The site serves [`llms.txt`](https://gi0tto.github.io/sluicer/llms.txt) in
+[llmstxt.org](https://llmstxt.org/)'s format, one link a page with its opening
+paragraph, and every page's markdown at the page's path with `.md`
+(`https://gi0tto.github.io/sluicer/agents.md` for this one). Both are written
+from the nav and the pages at each build. `context7.json` at the repository's
+root says which of these pages [Context7](https://context7.com) indexes, and
+the rules it gives an agent.
+
 ## In your own agent's code
 
 Any framework that speaks MCP starts the same server. Run it as its own

@@ -116,7 +116,11 @@ before a release.
 `docs/security.md` are symlinks to the files of the same name in the repository
 root: edit the root file, and the site follows. The site also publishes
 `examples/site/` at `demo/`, through `scripts/docs_demo.py`, a hook `mkdocs.yml`
-names.
+names; and `scripts/docs_llms.py`, another, writes the site's `llms.txt` from
+the nav and each page's opening paragraph, with every page's markdown beside
+it. A page outside the nav fails the suite, since `llms.txt` would not list it.
+`context7.json` tells Context7 which of the docs to index; the suite holds its
+rules to the commands, options, extras and names that exist.
 
 ## The documentation site
 
