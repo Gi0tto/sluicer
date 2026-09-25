@@ -72,6 +72,10 @@ git clone --depth 1 https://github.com/Gi0tto/sluicer /tmp/sluicer
 mkdir -p ~/.agents/skills && cp -r /tmp/sluicer/skills/sluicer ~/.agents/skills/
 ```
 
+Each release from 0.8.0 also carries the skill as `sluicer-skill-VERSION.zip`,
+with the `sluicer` folder at its root: unzip it into `~/.agents/skills/`, or
+upload it to claude.ai as a custom skill.
+
 Verified end to end on 2026-09-24 with codex-cli 0.144.4: Codex called
 `extract_declared` and answered a page's price with its source and place.
 

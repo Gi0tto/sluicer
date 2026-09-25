@@ -45,6 +45,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   script through the environment only. `docs/github-action.md` says how to
   use it; `.github/workflows/github-action.yml` runs it on pages its job
   serves on the runner's loopback.
+- `sluicer-skill-VERSION.zip` on each release: `skills/sluicer` with the
+  folder at the zip's root, the shape claude.ai's skill upload takes and what
+  unzipping into `~/.agents/skills/` wants, the same bytes from the same tree.
+- The Docker MCP Catalog entry, `packaging/docker-mcp-registry/servers/sluicer/server.yaml`,
+  the file a pull request to docker/mcp-registry adds, with `SLUICER_MCP_TOOLS`
+  as its one setting. The release writes it pinned to the tagged commit and
+  attaches it as `docker-mcp-registry-server.yaml`; the registry's own
+  validator (`cmd/validate` at 49b643c) passes it. No pull request is opened.
 
 ### Fixed
 - The image's wheel was built without NOTICE and LICENSES/, since the

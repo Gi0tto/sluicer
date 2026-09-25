@@ -1,6 +1,6 @@
-"""Stage the release's two extra assets: the skill as a zip, and the MCPB bundle.
+"""Stage what a release carries beside the wheel: the skill, the bundle, the entry.
 
-    python3 packaging/build_assets.py OUT
+    python3 packaging/build_assets.py OUT [--commit SHA]
 
 writes, for the version in pyproject.toml:
 
@@ -14,6 +14,10 @@ writes, for the version in pyproject.toml:
   from ``packaging/mcpb/``, the icon, and the licence files. The bundle holds no
   Python and no dependencies: its server type is ``uv``, so the host installs
   ``sluicer[mcp]`` at this version from PyPI (MANIFEST.md, "UV Runtime").
+- with ``--commit``, ``OUT/docker-mcp-registry/servers/sluicer/server.yaml``:
+  the entry a pull request to docker/mcp-registry adds, pinned to that commit,
+  which is how the registry says which source Docker builds and signs. The
+  committed entry holds a placeholder, since a commit cannot name itself.
 
 It stops if a file that states the version disagrees with pyproject.toml, so a
 release never ships a bundle that installs another version. Standard library
@@ -86,7 +90,32 @@ def mcpb_stage(out: Path, stated: str) -> Path:
     return stage
 
 
+CATALOG = ROOT / "packaging" / "docker-mcp-registry" / "servers" / "sluicer"
+PLACEHOLDER = (
+    "  commit: TAGGED_COMMIT # build_assets.py --commit writes the tagged one\n"
+)
+
+
+def catalog_entry(out: Path, commit: str) -> Path:
+    # The registry's own check: a 40-character lowercase SHA-1, not a tag.
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise SystemExit(f"--commit takes the 40-character commit, not {commit!r}")
+    entry = (CATALOG / "server.yaml").read_text(encoding="utf-8")
+    if entry.count(PLACEHOLDER) != 1:
+        raise SystemExit("the catalog entry has no commit line to fill")
+    target = out / "docker-mcp-registry" / "servers" / "sluicer" / "server.yaml"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        entry.replace(PLACEHOLDER, f"  commit: {commit}\n"), encoding="utf-8"
+    )
+    return target
+
+
 def main(argv: list[str]) -> None:
+    commit = None
+    if len(argv) == 3 and argv[1] == "--commit":
+        commit = argv.pop()
+        argv.pop()
     if len(argv) != 1:
         raise SystemExit(__doc__)
     out = Path(argv[0])
@@ -94,6 +123,8 @@ def main(argv: list[str]) -> None:
     stated = version()
     print(skill_zip(out, stated))
     print(mcpb_stage(out, stated))
+    if commit is not None:
+        print(catalog_entry(out, commit))
 
 
 if __name__ == "__main__":

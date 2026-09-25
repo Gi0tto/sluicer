@@ -407,7 +407,7 @@ def test_the_release_builds_the_bundle_and_tests_it_before_attaching_it():
     assert "needs: [assets, publish]" in attach, "the bundle installs from PyPI"
     assert "contents: write" in attach
     assert re.search(r"if: .*vars\.PUBLISH_RELEASE_ASSETS == 'true'", attach)
-    for asset in (".mcpb", "sluicer-skill-"):
+    for asset in (".mcpb", "sluicer-skill-", "server.yaml"):
         assert asset in attach, asset
 
 
@@ -666,3 +666,54 @@ def test_a_workflow_runs_the_action_on_pages_it_serves_itself():
     assert "python3 -m http.server" in workflow
     assert workflow.count("uses: ./") >= 3
     assert "steps.broken.outcome" in workflow
+
+
+# -- the Docker MCP Catalog entry --------------------------------------------
+
+CATALOG = PACKAGING / "docker-mcp-registry" / "servers" / "sluicer" / "server.yaml"
+"""What a pull request to docker/mcp-registry adds, at servers/sluicer/."""
+
+
+def test_the_catalog_entry_keeps_to_the_registry_s_rules():
+    """The rules docker/mcp-registry's cmd/validate applies, read on
+    2026-09-25: the folder's name is the entry's, lowercase with hyphens; a
+    title of capitalised words naming neither MCP nor Server; a local server
+    pinned to a commit; an env value naming only this server's parameters."""
+    from sluicer import mcp_server
+
+    entry = CATALOG.read_text(encoding="utf-8")
+
+    def field(pattern: str) -> str:
+        found = re.search(pattern, entry, re.MULTILINE)
+        assert found, pattern
+        return found[1]
+
+    assert field(r"^name: (.+)$") == CATALOG.parent.name == "sluicer"
+    assert field(r"^image: (.+)$") == "mcp/sluicer"
+    assert field(r"^type: (.+)$") == "server"
+    title = field(r"^  title: (.+)$")
+    assert all(word[0].isupper() for word in title.split())
+    assert "MCP" not in title and "Server" not in title
+    assert field(r"^  project: (.+)$") == "https://github.com/Gi0tto/sluicer"
+    assert field(r"^  commit: (\S+)") == "TAGGED_COMMIT"
+    icon = field(r"^  icon: (.+)$")
+    assert icon.startswith("https://raw.githubusercontent.com/Gi0tto/sluicer/main/")
+    assert (ROOT / icon.split("/main/", 1)[1]).is_file()
+    assert field(r"^    - name: (.+)$") == mcp_server.TOOLS_ENV
+    assert field(r"^      value: \"(.+)\"$") == "{{sluicer.tools}}"
+    # Docker builds the image from the Dockerfile at the repository's root.
+    assert (ROOT / "Dockerfile").is_file() and "dockerfile:" not in entry
+
+
+def test_the_release_writes_the_catalog_entry_at_its_commit(tmp_path):
+    build = _script("build_assets")
+    commit = "0123456789abcdef0123456789abcdef01234567"
+    build.main([str(tmp_path), "--commit", commit])
+    written = tmp_path / "docker-mcp-registry" / "servers" / "sluicer" / "server.yaml"
+    assert written.read_text(encoding="utf-8") == CATALOG.read_text(
+        encoding="utf-8"
+    ).replace("TAGGED_COMMIT", commit, 1).replace(
+        " # build_assets.py --commit writes the tagged one", ""
+    )
+    with pytest.raises(SystemExit, match="40"):
+        build.main([str(tmp_path / "again"), "--commit", "v0.8.0"])

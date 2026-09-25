@@ -168,8 +168,8 @@ jobs:
         with:
           name: distributions
           path: dist/
-      - name: Stage them from the repository
-        run: python3 packaging/build_assets.py assets
+      - name: Stage them from the repository, and the catalog entry at this commit
+        run: python3 packaging/build_assets.py assets --commit "$GITHUB_SHA"
       - name: The official validator passes the bundle, and packs it
         # A pinned release of the MCPB tool; this job holds no token.
         run: |
@@ -190,6 +190,7 @@ jobs:
           path: |
             assets/*.mcpb
             assets/*.zip
+            assets/docker-mcp-registry/servers/sluicer/server.yaml
 
   publish:
     name: Publish to PyPI
@@ -255,7 +256,7 @@ jobs:
           ./mcp-publisher publish
 
   attach:
-    name: Attach the bundle and the skill's zip to the release
+    name: Attach the bundle, the skill's zip and the catalog entry to the release
     # After PyPI serves the version: the bundle installs it from there. Off
     # until the repository variable PUBLISH_RELEASE_ASSETS is true. A release
     # already written by hand gets the files; otherwise a draft is opened with
@@ -273,7 +274,10 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          files=(assets/sluicer-*.mcpb assets/sluicer-skill-*.zip)
+          # The catalog entry under a name of its own: the file to copy into a
+          # fork of docker/mcp-registry as servers/sluicer/server.yaml.
+          cp assets/docker-mcp-registry/servers/sluicer/server.yaml docker-mcp-registry-server.yaml
+          files=(assets/sluicer-*.mcpb assets/sluicer-skill-*.zip docker-mcp-registry-server.yaml)
           if gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${files[@]}" -R "$GITHUB_REPOSITORY" --clobber
           else
