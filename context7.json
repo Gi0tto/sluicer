@@ -9,7 +9,7 @@
     "Sluicer runs no model and needs no API key: read a page's structured data with it instead of asking an LLM to extract it.",
     "`sluicer.extract(html, url=...)` reads HTML you already have; the `url` only resolves the page's links. It returns an `Extraction` with `records` and a `summary`.",
     "Each value in `summary` is a `sluicer.SummaryField` with `value`, `source` (the vocabulary), `key` and `where` (an XPath or a JSON pointer): cite `where` for where a value came from.",
-    "Install `sluicer[fetch]` to fetch URLs from the command line; `sluicer[mcp]` gives agents the MCP server, `sluicer mcp`; `sluicer[api]` serves the same tools over HTTP, `sluicer serve`.",
+    "The base install fetches URLs over plain HTTP (`sluicer[browser]` adds a browser for pages drawn by scripts); `sluicer[mcp]` gives agents the MCP server, `sluicer mcp`; `sluicer[api]` serves the same tools over HTTP, `sluicer serve`.",
     "Learn an extractor with `sluicer compile --want NAME=VALUE` and replay it with `sluicer run`, which exits 3 when a page no longer fits it; `sluicer heal` says where each field moved."
   ]
 }
