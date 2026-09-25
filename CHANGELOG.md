@@ -5,6 +5,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Added
+- `bench/stats.py`: how sure a scoreboard's number is, and how a difference
+  is called, as `bench/PREREG.md` fixed them before any was computed: the 95%
+  Wilson score interval of a rate, printed with its bounds rounded outwards,
+  and a paired bootstrap over pages -- 10,000 samples drawn by
+  `random.Random(20260924).choices`, every comparison from the seed again --
+  whose percentile interval calls a difference better, worse or
+  inconclusive. Its tests hold it to Wilson intervals published for known
+  counts (Newcombe 1998) and to the bootstrap written out the slow way.
+
+## 0.7.1
+
+### Added
 - `docs/stability.md`: what is stable before 1.0 (`extract()` and
   `Extraction`, the summary's questions, the extractor file and its exit
   codes, the MCP tools and their documented fields), what is experimental
