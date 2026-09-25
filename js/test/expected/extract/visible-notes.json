@@ -1,0 +1,48 @@
+{
+  "page": "examples/site/notes.html",
+  "url": "http://127.0.0.1:8000/notes.html",
+  "as": "bytes",
+  "options": {
+    "visible": true
+  },
+  "answer": {
+    "url": "http://127.0.0.1:8000/notes.html",
+    "summary": {
+      "title": {
+        "value": "Notes from the lock: spring | The Lock Keeper",
+        "source": "html",
+        "key": "<title>",
+        "where": "/html/head/title[1]"
+      },
+      "language": {
+        "value": "en",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [],
+    "sources": [],
+    "links": {},
+    "rights": {},
+    "visible": {
+      "title": {
+        "value": "Notes from the lock: spring",
+        "where": "/html/body/main/article/h1",
+        "rule": "h1"
+      },
+      "author": {
+        "value": "Jane Doe",
+        "where": "/html/body/main/article/p[1]/span[1]",
+        "rule": "byline"
+      },
+      "published": {
+        "value": "2025-04-14",
+        "where": "/html/body/main/article/p[1]/span[2]",
+        "rule": "date-text"
+      }
+    }
+  }
+}

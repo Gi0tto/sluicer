@@ -1,0 +1,65 @@
+{
+  "page": "tests/fixtures/product_xhtml.html",
+  "url": null,
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": null,
+    "summary": {
+      "title": {
+        "value": "Wiper blade set",
+        "source": "jsonld",
+        "key": "Product.name",
+        "where": "/html/head/script[1]#/name"
+      },
+      "language": {
+        "value": "en",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      },
+      "type": {
+        "value": "Product",
+        "source": "jsonld",
+        "key": "@type",
+        "where": "/html/head/script[1]#"
+      },
+      "sku": {
+        "value": "BP-3041",
+        "source": "jsonld",
+        "key": "Product.sku",
+        "where": "/html/head/script[1]#/sku"
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [
+      {
+        "type": "Product",
+        "types": [
+          "Product"
+        ],
+        "fields": {
+          "name": {
+            "value": "Wiper blade set",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/name"
+          },
+          "sku": {
+            "value": "BP-3041",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/sku"
+          }
+        },
+        "source": "jsonld",
+        "where": "/html/head/script[1]#"
+      }
+    ],
+    "sources": [
+      "jsonld"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

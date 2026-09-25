@@ -1,0 +1,7 @@
+{
+  "page": "examples/site/article.html",
+  "url": "http://127.0.0.1:8000/article.html",
+  "as": "bytes",
+  "options": {},
+  "answer": "# How a sluice gate works\n\nA sluice gate is a plate that slides up and down across a channel. Lowered, it holds the water back; raised, it lets the water pass beneath it. How far it is raised decides how much passes, which is why sluices are found wherever water has to be measured out rather than simply stopped: at mill races, irrigation canals, locks and the outlets of reservoirs.\n\n## The gate and its frame\n\nThe gate runs in two grooves cut into the walls of the channel, or in a steel frame set into them. Older gates are oak planks bolted together, newer ones steel. A screw, a rack and pinion or a winch lifts the gate, and the water pressing on it holds it against its grooves, so a well-fitted gate leaks very little.\n\n## How much water passes\n\nThe flow under a raised gate depends on two things: the height of the opening and the depth of the water behind it. Double the opening and about twice the water flows. The depth counts for less, since the flow grows only with its square root: four times the depth gives twice the flow.\n\n## A gate is also a meter\n\nBecause the flow can be worked out from the opening and the depth, a sluice set to a known opening lets a known amount through. That is how many irrigation schemes divide their water between the fields they serve."
+}

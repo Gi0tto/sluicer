@@ -1,0 +1,104 @@
+{
+  "page": "js/test/pages/htmlmeta.html",
+  "url": "https://example.com/notes/discs",
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": "https://example.com/notes/discs",
+    "summary": {
+      "title": {
+        "value": "Notes on discs | Example Parts",
+        "source": "html",
+        "key": "<title>",
+        "where": "/html/head/title[1]"
+      },
+      "description": {
+        "value": "A sentence about brake discs.",
+        "source": "html",
+        "key": "meta name=description",
+        "where": null
+      },
+      "url": {
+        "value": "https://example.com/notes/discs",
+        "source": "html",
+        "key": "<link rel=canonical>",
+        "where": null
+      },
+      "author": {
+        "value": "Jane Doe",
+        "source": "html",
+        "key": "meta name=author",
+        "where": "/html/head/meta[2]"
+      },
+      "language": {
+        "value": "en",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [
+      {
+        "type": null,
+        "types": [],
+        "fields": {
+          "author": {
+            "value": "Jane Doe",
+            "source": "html",
+            "where": null
+          },
+          "description": {
+            "value": "A sentence about brake discs.",
+            "source": "html",
+            "where": null
+          },
+          "keywords": {
+            "value": "brakes, discs",
+            "source": "html",
+            "where": null
+          }
+        },
+        "source": null,
+        "where": null
+      }
+    ],
+    "sources": [
+      "html"
+    ],
+    "links": {
+      "next": "https://example.com/notes/discs?page=2",
+      "canonical": "https://example.com/notes/discs",
+      "alternates": [
+        {
+          "hreflang": "de",
+          "href": "https://example.com/de/notes/discs"
+        }
+      ],
+      "feeds": [
+        {
+          "format": "rss",
+          "href": "https://example.com/notes/feed.xml",
+          "title": "Notes"
+        }
+      ]
+    },
+    "rights": {
+      "tdm_reservation": "1",
+      "robots": [
+        "noindex",
+        "nofollow"
+      ],
+      "agents": {
+        "gptbot": [
+          "noai"
+        ]
+      },
+      "license": [
+        "https://example.com/licence"
+      ]
+    },
+    "visible": {}
+  }
+}

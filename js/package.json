@@ -1,0 +1,55 @@
+{
+  "name": "sluicer",
+  "version": "0.7.1",
+  "description": "Turn a web page into structured data with no model in the loop: the Python package, run in Pyodide.",
+  "keywords": [
+    "scraping",
+    "structured-data",
+    "json-ld",
+    "microdata",
+    "opengraph",
+    "schema-org",
+    "extraction",
+    "html",
+    "deterministic",
+    "pyodide"
+  ],
+  "homepage": "https://gi0tto.github.io/sluicer/javascript/",
+  "bugs": "https://github.com/Gi0tto/sluicer/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gi0tto/sluicer.git",
+    "directory": "js"
+  },
+  "license": "MIT AND CC-BY-SA-3.0 AND Unicode-3.0",
+  "author": "Nichita Briculschi",
+  "funding": "https://github.com/sponsors/Gi0tto",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "types": "./index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bridge.py",
+    "python/",
+    "NOTICE",
+    "LICENSES/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "python3 scripts/build_wheel.py",
+    "prepack": "python3 scripts/build_wheel.py",
+    "expected": "uv run --project .. --extra markdown python scripts/expected.py",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "pyodide": "314.0.7"
+  }
+}

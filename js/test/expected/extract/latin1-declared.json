@@ -1,0 +1,65 @@
+{
+  "page": "tests/fixtures/product_latin1_declared.html",
+  "url": "https://shop.example/p/4",
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": "https://shop.example/p/4",
+    "summary": {
+      "title": {
+        "value": "Bremsöl",
+        "source": "jsonld",
+        "key": "Product.name",
+        "where": "/html/head/script[1]#/name"
+      },
+      "language": {
+        "value": "de",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      },
+      "type": {
+        "value": "Product",
+        "source": "jsonld",
+        "key": "@type",
+        "where": "/html/head/script[1]#"
+      },
+      "sku": {
+        "value": "BP-7712",
+        "source": "jsonld",
+        "key": "Product.sku",
+        "where": "/html/head/script[1]#/sku"
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [
+      {
+        "type": "Product",
+        "types": [
+          "Product"
+        ],
+        "fields": {
+          "name": {
+            "value": "Bremsöl",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/name"
+          },
+          "sku": {
+            "value": "BP-7712",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/sku"
+          }
+        },
+        "source": "jsonld",
+        "where": "/html/head/script[1]#"
+      }
+    ],
+    "sources": [
+      "jsonld"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

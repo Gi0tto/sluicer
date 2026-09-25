@@ -1,0 +1,95 @@
+{
+  "pages": [
+    {
+      "page": "tests/fixtures/drift/shop_v1.html",
+      "url": "https://shop.example/shop_v1.html"
+    },
+    {
+      "page": "tests/fixtures/drift/shop_v1_page2.html",
+      "url": "https://shop.example/shop_v1_page2.html"
+    }
+  ],
+  "answer": {
+    "format": 1,
+    "sluicer": "0.7.1",
+    "learnt_from": [
+      "https://shop.example/shop_v1.html",
+      "https://shop.example/shop_v1_page2.html"
+    ],
+    "summary": {
+      "title": null,
+      "language": null
+    },
+    "types": [],
+    "listing": {
+      "container": "html>body>div.page>ol.row",
+      "member": "li.product",
+      "rows": [
+        5,
+        6
+      ],
+      "empty": 0.0,
+      "siblings": [
+        1,
+        1,
+        1
+      ],
+      "fields": [
+        {
+          "name": "a.title",
+          "path": "a.title",
+          "missing": 0.0,
+          "shape": "L",
+          "reads": null,
+          "samples": [
+            "A Light in the Attic",
+            "Tipping the Velvet",
+            "Soumission",
+            "Sharp Objects",
+            "Sapiens"
+          ]
+        },
+        {
+          "name": "a.title@href",
+          "path": "a.title@href",
+          "missing": 0.0,
+          "shape": null,
+          "reads": null,
+          "samples": [
+            "https://shop.example/book/1",
+            "https://shop.example/book/2",
+            "https://shop.example/book/3",
+            "https://shop.example/book/4",
+            "https://shop.example/book/5"
+          ]
+        },
+        {
+          "name": "span.price",
+          "path": "span.price",
+          "missing": 0.0,
+          "shape": "NPS",
+          "reads": "amount",
+          "samples": [
+            "£51.77",
+            "£53.74",
+            "£50.10",
+            "£47.82",
+            "£54.23"
+          ]
+        },
+        {
+          "name": "span.stock",
+          "path": "span.stock",
+          "missing": 0.0,
+          "shape": "L",
+          "reads": null,
+          "samples": [
+            "In stock",
+            "Out of stock"
+          ]
+        }
+      ]
+    },
+    "notes": []
+  }
+}

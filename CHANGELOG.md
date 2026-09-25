@@ -18,6 +18,34 @@ Dates are the day the work landed. Anything not listed here did not happen.
   other, the proxy asked for, one browser) and `tests/live/extras_check.py`
   (each fetching extra installed and called for real) run in CI; the base
   install's job runs the live HTTP check with nothing else installed.
+- `sluicer` on npm: the Python package itself, run in Pyodide 314.0.7, for
+  Node 18 and later. `createSluicer()` installs the wheel the npm package
+  carries, built from the same commit as the Python release of the same
+  version, and hands `extract`, `compile`, `run` and `toMarkdown` to it; the
+  answers are `dataclasses.asdict` of the Python ones, and the tests hold them
+  to the native package's on 22 pages. Measured on an Apple M4 with Node
+  26.1.0: it packs to 378 KB beside pyodide's 6.5 MB, `createSluicer()` takes
+  1.30 s and downloads 2.25 MB (lxml and click, from jsDelivr) the first time,
+  1.14 s and nothing after, and a warm `extract()` of the brake-pads example
+  0.78 ms (`js/scripts/measure.mjs`). `docs/javascript.md` says how to
+  install and call it, what it does not do -- it does not fetch: a page is
+  handed to it, since Sluicer's fetching guards are not in this version --
+  and which versions it pins. `.github/workflows/js.yml` runs the Node tests
+  on Node 18, 22 and 24, fails when the committed native answers are not this
+  commit's, holds the npm version to the Python one from both sides, and
+  opens the try page in Chromium; its publish job, like PyPI's, runs only
+  from a tag, in the `npm` environment, once `PUBLISH_TO_NPM` is true, and
+  publishes with provenance through npm's trusted publishing, no token
+  stored. Every action in every workflow is now held to a full commit by a
+  test.
+- A try page on the site (`try/`) that runs Sluicer in the reader's
+  browser, in Pyodide, on HTML they paste: the wheel of the commit the site is
+  built from, and the npm package's bridge. Nothing is sent anywhere: a
+  Content-Security-Policy lets the page connect to its own site and jsDelivr
+  only, every request it makes is made before Sluicer is ready, and a pasted
+  page is text, never rendered. `scripts/check_try_page.py` opens it in
+  Chromium, pastes 16 pages and requires the native answer on each; ready in
+  1.8 s with an empty cache, after 8.9 MB (8.5 MB of it Pyodide and lxml).
 
 ### Changed
 - Fetching needs no extra. The base install fetches over plain HTTP with the

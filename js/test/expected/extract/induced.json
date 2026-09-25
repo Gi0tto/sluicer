@@ -1,0 +1,141 @@
+{
+  "page": "tests/fixtures/listing_no_declared_data.html",
+  "url": "https://shop.example/c/pads",
+  "as": "bytes",
+  "options": {
+    "induce": true
+  },
+  "answer": {
+    "url": "https://shop.example/c/pads",
+    "summary": {
+      "title": {
+        "value": "Parts",
+        "source": "html",
+        "key": "<title>",
+        "where": "/html/head/title[1]"
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [
+      {
+        "type": null,
+        "types": [],
+        "fields": {
+          "h3.name": {
+            "value": "Brake pad set",
+            "source": "induced",
+            "where": null
+          },
+          "span.price": {
+            "value": "41.99",
+            "source": "induced",
+            "where": null
+          },
+          "a.more": {
+            "value": "details",
+            "source": "induced",
+            "where": null
+          },
+          "a.more@href": {
+            "value": "/p/1",
+            "source": "induced",
+            "where": null
+          }
+        },
+        "source": "induced",
+        "where": null
+      },
+      {
+        "type": null,
+        "types": [],
+        "fields": {
+          "h3.name": {
+            "value": "Oil filter",
+            "source": "induced",
+            "where": null
+          },
+          "span.price": {
+            "value": "8.50",
+            "source": "induced",
+            "where": null
+          },
+          "a.more": {
+            "value": "details",
+            "source": "induced",
+            "where": null
+          },
+          "a.more@href": {
+            "value": "/p/2",
+            "source": "induced",
+            "where": null
+          }
+        },
+        "source": "induced",
+        "where": null
+      },
+      {
+        "type": null,
+        "types": [],
+        "fields": {
+          "h3.name": {
+            "value": "Wiper blade",
+            "source": "induced",
+            "where": null
+          },
+          "span.price": {
+            "value": "12.00",
+            "source": "induced",
+            "where": null
+          },
+          "a.more": {
+            "value": "details",
+            "source": "induced",
+            "where": null
+          },
+          "a.more@href": {
+            "value": "/p/3",
+            "source": "induced",
+            "where": null
+          }
+        },
+        "source": "induced",
+        "where": null
+      },
+      {
+        "type": null,
+        "types": [],
+        "fields": {
+          "h3.name": {
+            "value": "Spark plug",
+            "source": "induced",
+            "where": null
+          },
+          "span.price": {
+            "value": "3.25",
+            "source": "induced",
+            "where": null
+          },
+          "a.more": {
+            "value": "details",
+            "source": "induced",
+            "where": null
+          },
+          "a.more@href": {
+            "value": "/p/4",
+            "source": "induced",
+            "where": null
+          }
+        },
+        "source": "induced",
+        "where": null
+      }
+    ],
+    "sources": [
+      "induced"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

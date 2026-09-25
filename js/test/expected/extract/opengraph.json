@@ -1,0 +1,79 @@
+{
+  "page": "tests/fixtures/site_opengraph_and_a_story_list.html",
+  "url": "https://news.example/",
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": "https://news.example/",
+    "summary": {
+      "title": {
+        "value": "Example community",
+        "source": "opengraph",
+        "key": "og:title",
+        "where": null
+      },
+      "description": {
+        "value": "Computing news, filtered by the people who read it",
+        "source": "opengraph",
+        "key": "og:description",
+        "where": null
+      },
+      "url": {
+        "value": "https://example.community/",
+        "source": "opengraph",
+        "key": "og:url",
+        "where": null
+      },
+      "language": {
+        "value": "en",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      },
+      "site_name": {
+        "value": "Example community",
+        "source": "opengraph",
+        "key": "og:site_name",
+        "where": null
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [
+      {
+        "type": null,
+        "types": [],
+        "fields": {
+          "site_name": {
+            "value": "Example community",
+            "source": "opengraph",
+            "where": null
+          },
+          "title": {
+            "value": "Example community",
+            "source": "opengraph",
+            "where": null
+          },
+          "description": {
+            "value": "Computing news, filtered by the people who read it",
+            "source": "opengraph",
+            "where": null
+          },
+          "url": {
+            "value": "https://example.community/",
+            "source": "opengraph",
+            "where": null
+          }
+        },
+        "source": null,
+        "where": null
+      }
+    ],
+    "sources": [
+      "opengraph"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

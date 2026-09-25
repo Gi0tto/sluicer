@@ -1,0 +1,78 @@
+{
+  "page": "js/test/pages/twitter.html",
+  "url": "https://example.com/guides/pads",
+  "as": "bytes",
+  "options": {},
+  "answer": {
+    "url": "https://example.com/guides/pads",
+    "summary": {
+      "title": {
+        "value": "Brake pads, explained",
+        "source": "twitter",
+        "key": "twitter:title",
+        "where": null
+      },
+      "description": {
+        "value": "How to tell when a pad is worn.",
+        "source": "twitter",
+        "key": "twitter:description",
+        "where": null
+      },
+      "image": {
+        "value": "https://example.com/i/worn.jpg",
+        "source": "twitter",
+        "key": "twitter:image",
+        "where": null
+      },
+      "language": {
+        "value": "en",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      }
+    },
+    "normalised": {},
+    "conflicts": [],
+    "records": [
+      {
+        "type": null,
+        "types": [],
+        "fields": {
+          "card": {
+            "value": "summary_large_image",
+            "source": "twitter",
+            "where": null
+          },
+          "site": {
+            "value": "@exampleparts",
+            "source": "twitter",
+            "where": null
+          },
+          "title": {
+            "value": "Brake pads, explained",
+            "source": "twitter",
+            "where": null
+          },
+          "description": {
+            "value": "How to tell when a pad is worn.",
+            "source": "twitter",
+            "where": null
+          },
+          "image": {
+            "value": "https://example.com/i/worn.jpg",
+            "source": "twitter",
+            "where": null
+          }
+        },
+        "source": null,
+        "where": null
+      }
+    ],
+    "sources": [
+      "twitter"
+    ],
+    "links": {},
+    "rights": {},
+    "visible": {}
+  }
+}

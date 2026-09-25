@@ -1,0 +1,34 @@
+{
+  "page": "tests/fixtures/drift/shop_redesigned.html",
+  "url": "https://shop.example/shop_redesigned.html",
+  "answer": {
+    "url": "https://shop.example/shop_redesigned.html",
+    "ok": false,
+    "rows": [],
+    "summary": {
+      "title": "Books | Example Shop",
+      "language": "en"
+    },
+    "checks": [
+      {
+        "name": "summary",
+        "expected": "the summary answers title",
+        "got": "yes",
+        "ok": true
+      },
+      {
+        "name": "summary",
+        "expected": "the summary answers language",
+        "got": "yes",
+        "ok": true
+      },
+      {
+        "name": "listing",
+        "expected": "the listing at html>body>div.page>ol.row",
+        "got": "not found",
+        "ok": false
+      }
+    ],
+    "fields": {}
+  }
+}

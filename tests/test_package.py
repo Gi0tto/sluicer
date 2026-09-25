@@ -179,10 +179,12 @@ def test_a_submodule_is_importable_in_a_process_that_knows_nothing():
 
 
 def test_every_file_that_states_the_version_or_the_licence_agrees():
-    """The version is written in five files and the licence in four: a release
-    that bumps one and forgets another tells PyPI, the plugin, the skill and
-    a citation four different things. Read with patterns, not ``tomllib``,
-    which Python 3.10 lacks."""
+    """The version is written in six files and the licence in five: a release
+    that bumps one and forgets another tells PyPI, npm, the plugin, the skill
+    and a citation five different things. The npm package carries the wheel
+    built from this checkout, and its build refuses a version other than
+    pyproject's. Read with patterns, not ``tomllib``, which Python 3.10
+    lacks."""
     import json
     import re
     from pathlib import Path
@@ -196,6 +198,7 @@ def test_every_file_that_states_the_version_or_the_licence_agrees():
     )
     skill = (root / "skills" / "sluicer" / "SKILL.md").read_text(encoding="utf-8")
     citation = (root / "CITATION.cff").read_text(encoding="utf-8")
+    npm = json.loads((root / "js" / "package.json").read_text(encoding="utf-8"))
 
     def stated(pattern: str, text: str) -> str:
         found = re.search(pattern, text, re.MULTILINE)
@@ -208,10 +211,14 @@ def test_every_file_that_states_the_version_or_the_licence_agrees():
     # Under metadata: the Agent Skills standard allows no top-level version.
     assert stated(r'^metadata:\n(?:  .+\n)*?  version: "(.+)"$', skill) == version
     assert stated(r"^version: (.+)$", citation) == version
+    assert npm["version"] == version
 
     licence = stated(r'^license = "(.+)"$', pyproject)
     assert licence == "MIT AND CC-BY-SA-3.0 AND Unicode-3.0"
     assert plugin["license"] == licence
+    # The wheel inside the npm package holds the same two files that are not
+    # under MIT.
+    assert npm["license"] == licence
     listed = stated(r"^license:\n((?:  - .+\n)+)", citation).splitlines()
     assert " AND ".join(line.removeprefix("  - ") for line in listed) == licence
 
@@ -310,3 +317,51 @@ def test_the_package_runs_as_a_module():
         check=True,
     )
     assert sluicer.__version__ in ran.stdout
+
+
+def test_every_action_a_workflow_uses_is_pinned_to_a_commit():
+    """A tag can be moved to other code; a commit cannot. Every workflow names
+    each action by its full commit, with the release it is in a comment, so a
+    reader sees which version it is and a moved tag changes nothing."""
+    import re
+    from pathlib import Path
+
+    folder = Path(__file__).parent.parent / ".github" / "workflows"
+    workflows = sorted(folder.glob("*.yml"))
+    assert any(path.name == "js.yml" for path in workflows)
+    for path in workflows:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if re.match(r"\s*(?:- )?uses:", line):
+                assert re.search(r"uses: [\w.-]+/[\w./-]+@[0-9a-f]{40} # v\d", line), (
+                    f"{path.name}: {line.strip()}"
+                )
+
+
+def test_the_npm_package_is_tested_and_published_only_from_a_tag():
+    """js.yml runs the npm package's tests on the answers the native package
+    gives at the same commit, and publishes only as the PyPI job does: from a
+    tag, in its own environment, behind a repository variable, after the
+    tests, with the version the tag names."""
+    from pathlib import Path
+
+    workflow = (
+        Path(__file__).parent.parent / ".github" / "workflows" / "js.yml"
+    ).read_text(encoding="utf-8")
+    jobs = workflow.split("\njobs:\n", 1)[1]
+    publish = jobs.split("\n  publish:\n", 1)[1]
+    tests = jobs.split("\n  publish:\n", 1)[0]
+
+    assert "permissions:\n  contents: read" in workflow
+    assert "npm ci" in tests and "npm test" in tests
+    # The committed answers are this commit's native ones.
+    assert "js/scripts/expected.py" in tests and "git diff --exit-code" in tests
+    assert "tests/test_package.py" in tests
+    assert "npm publish" not in tests
+    assert (
+        "if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_TO_NPM == 'true'"
+        in publish
+    )
+    assert "environment: npm" in publish
+    assert "needs:" in publish
+    assert "GITHUB_REF_NAME" in publish
+    assert "npm publish --provenance" in publish
