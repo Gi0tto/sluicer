@@ -13,10 +13,15 @@ walked here and only its last answer handed over; the document's own redirect
 stops the load, and the rung asks for the new address as a fresh fetch, which
 is judged like the first.
 
-What it cannot do: the browser still resolves names in its own network stack,
-so a name that answers differently between the check and the connection (DNS
-rebinding) is reached. Only the HTTP rung pins its connections. Service workers
-fetch outside any route, so the page is not given them.
+What it cannot do: see the requests the browser makes for the page rather than
+the page itself -- a speculation rule's prefetch and prerender, a WebRTC
+connection -- and stop a name that answers differently between the check and
+the connection (DNS rebinding), since the browser resolves names in its own
+network stack. The browser rung puts every connection of a guarded page
+through ``sluicer.fetch.browser_proxy`` for both. Service workers fetch
+outside any route, so the page is not given them, and WebRTC connects outside
+any route, so the page is not given that either: it reached a private address
+by STUN and by TURN, measured, and the guard proxy carries no UDP.
 
 The caller's own headers (``send``) go with the requests for the origins it
 named (``asked``), each hop of a chain judged again, and with none elsewhere.
@@ -36,6 +41,12 @@ MAX_REDIRECTS = 10
 _NO_SERVICE_WORKERS = (
     "Object.defineProperty(Navigator.prototype, 'serviceWorker', "
     "{get() { return undefined; }, configurable: true});"
+)
+# Every frame's, a frame a script makes included: an init script runs in each.
+_NO_WEBRTC = (
+    "for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', "
+    "'RTCDataChannel', 'RTCIceCandidate', 'RTCSessionDescription', "
+    "'WebTransport']) { try { delete globalThis[name]; } catch (e) {} }"
 )
 
 
@@ -67,6 +78,7 @@ class Guard:
         """Route every request of ``page`` -- a page or a browser context,
         which take the same calls -- through this guard."""
         page.add_init_script(_NO_SERVICE_WORKERS)
+        page.add_init_script(_NO_WEBRTC)
         page.route("**/*", self._route)
         page.route_web_socket("**/*", self._socket)
         self.installed = True

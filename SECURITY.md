@@ -81,14 +81,26 @@ for the site's next request is used again only while the address it reached is
 still among the ones checked. The browser rung sends
 every request the page makes -- images, frames, `fetch()`, websockets, and each
 hop of a redirect -- through the same judgement, and gives pages no service
-workers. What it does not stop, and cannot from inside a library: the browser
-resolves names itself, so DNS rebinding is still possible through the browser
-rung. `tests/live/guard_check.py` shows a real Chromium reaching a private
-server by six routes without the guard and by none with it. A browser driven
-over the DevTools protocol (`SLUICER_CDP_URL`) runs elsewhere: the guard still
-judges every request by this machine's resolver, and "private" then means
-private as seen from here, not from the browser's network. Set
-`SLUICER_ALLOW_PRIVATE=1` to turn the filter off.
+workers and no WebRTC. The browser also makes requests for a page that no
+route of the page sees: until 0.8, a speculation rule's prefetch and
+prerender -- written in the page, sent in a `Speculation-Rules` header, added
+by a script, aimed at another site -- and a WebRTC connection to a STUN or a
+TURN server reached a private address with the guard installed. So every
+connection of a guarded page, the browser's own for it included, goes
+through a proxy Sluicer runs on this machine's loopback, which judges each
+host and port by the same rule and connects only to the addresses it
+checked; Chromium is told not to pass loopback by it, and WebRTC's UDP, which
+no proxy carries, is off. The browser then resolves no name itself, so a name
+that answers differently the second time (DNS rebinding) reaches nothing new
+through it either. `tests/live/guard_check.py` has a real Chromium try
+thirteen routes to a private server -- six reach it without the guard -- and
+none does. A browser driven over the DevTools protocol (`SLUICER_CDP_URL`)
+runs elsewhere and cannot reach this machine's loopback, so it is given no
+guard proxy: the routes still judge every request the page makes, by this
+machine's resolver -- "private" then means private as seen from here, not
+from the browser's network -- but a speculation rule's requests, and a name
+that rebinds, reach past them there. Set `SLUICER_ALLOW_PRIVATE=1` to turn
+the filter off.
 
 No proxy is used unless one is asked for. Until 0.7.1 a fetch went through
 whatever proxy the environment named (libcurl read `HTTPS_PROXY` itself), the

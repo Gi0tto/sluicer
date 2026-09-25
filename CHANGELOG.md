@@ -570,6 +570,21 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `SLUICER_BROWSER_SANDBOX=0` runs it without one; SECURITY.md and the
   Dockerfile say what a container needs. `tests/live/browser_check.py` fails
   when the browser it starts has `--no-sandbox`.
+- The guarded browser reaches no private address by the requests it makes
+  for a page, which no route of the page sees. Measured with the guard
+  installed, a speculation rule's prefetch and prerender -- written in the
+  page, sent in a `Speculation-Rules` header, added by a script, aimed at
+  another site -- and a WebRTC connection to a STUN or a TURN server each
+  reached a private address. Every connection of a guarded page now goes
+  through a proxy on this machine's loopback (`sluicer.fetch.browser_proxy`)
+  that judges each host and port as the HTTP rung does and connects only to
+  the addresses it checked, a proxy the caller asked for its way out;
+  Chromium is told not to pass loopback by it, WebRTC's UDP, which no proxy
+  carries, is off, and a page has no WebRTC. So the browser resolves no name
+  itself, and DNS rebinding reaches nothing new through it either, as
+  through the HTTP rung. A browser driven elsewhere (`SLUICER_CDP_URL`)
+  cannot reach that proxy and is judged by the routes alone, as SECURITY.md
+  says. `tests/live/guard_check.py` tries thirteen routes, these among them.
 
 ## 0.7.1 - 2026-09-25
 

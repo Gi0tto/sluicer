@@ -20,7 +20,12 @@ stands then.
 
 With ``allow_private`` false, every request the page makes goes through
 ``sluicer.fetch.browser_guard``, installed on the page's context before it
-navigates; a guard that did not install fails the rung.
+navigates; a guard that did not install fails the rung. And every connection
+the browser makes for the page -- a speculation rule's prefetch, a WebRTC
+TURN server, which no route sees -- goes through
+``sluicer.fetch.browser_proxy``, the context's proxy, which judges each one
+by the same rule and connects only to the addresses it checked. WebRTC's UDP,
+which no proxy carries, is off.
 
 Backends, chosen by the environment:
 
@@ -233,7 +238,13 @@ def _open(playwright: Any) -> Any:
     }
     try:
         return playwright.chromium.launch(
-            args=["--no-proxy-server"], chromium_sandbox=sandboxed
+            args=[
+                "--no-proxy-server",
+                # WebRTC over UDP goes past any proxy, the guard's included:
+                # measured, a page reached a STUN server on a private address.
+                "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            ],
+            chromium_sandbox=sandboxed,
         )
     except Exception as failure:
         if sandboxed and "sandbox" in str(failure).lower():
@@ -253,9 +264,17 @@ HOST = BrowserHost()
 atexit.register(HOST.close)
 
 
-def _context_options(proxy: str | None) -> dict[str, Any]:
-    """A page's context: our name, no service workers, the proxy asked for."""
+def _context_options(proxy: str | None, through: str | None = None) -> dict[str, Any]:
+    """A page's context: our name, no service workers, the proxy asked for.
+
+    ``through`` is a guard proxy's address, which is then the context's proxy,
+    loopback included -- Chromium passes loopback by a proxy unless its
+    bypass list says ``<-loopback>`` -- and the one asked for its way out.
+    """
     options: dict[str, Any] = {"user_agent": USER_AGENT, "service_workers": "block"}
+    if through is not None:
+        options["proxy"] = {"server": through, "bypass": "<-loopback>"}
+        return options
     chosen = chosen_proxy(proxy)
     if chosen is not None:
         named = Proxy.parse(chosen)
@@ -276,6 +295,7 @@ def _load(
     cookies: Mapping[str, str],
     asked: Sequence[str],
     proxy: str | None,
+    through: str | None = None,
 ) -> Job:
     """The job that loads ``url`` in a new context of the browser.
 
@@ -285,7 +305,7 @@ def _load(
     """
 
     def job(browser: Any) -> Loaded | None:
-        context = browser.new_context(**_context_options(proxy))
+        context = browser.new_context(**_context_options(proxy, through))
         try:
             if cookies:
                 context.add_cookies(
@@ -385,10 +405,13 @@ def browser_rung(
         if allow_private:
             loaded = driver.run(_load(url, None, sent, crumbs, asked, proxy))
             return _as_fetched(loaded, url, max_bytes)
+        through = _guard_proxy(resolve, proxy)
         current = url
         for _ in range(MAX_REDIRECTS + 1):
             guard = Guard(resolve, send=sent, asked=asked)
-            loaded = driver.run(_load(current, guard, sent, crumbs, asked, proxy))
+            loaded = driver.run(
+                _load(current, guard, sent, crumbs, asked, proxy, through)
+            )
             if not guard.installed:
                 raise RuntimeError(
                     "the browser rung could not guard the page's requests, so it "
@@ -409,6 +432,20 @@ def browser_rung(
         raise RuntimeError(f"{url} redirected more than {MAX_REDIRECTS} times")
 
     return rung
+
+
+def _guard_proxy(
+    resolve: Callable[[str], Iterable[str]], proxy: str | None
+) -> str | None:
+    """The address of the guard proxy a guarded page's context goes through,
+    the proxy asked for its way out; None for a browser elsewhere
+    (``SLUICER_CDP_URL``), which cannot reach this machine's loopback, and
+    whose pages the guard's routes alone judge."""
+    if os.environ.get(CDP_ENV, "").strip():
+        return None
+    from sluicer.fetch.browser_proxy import guard_proxy
+
+    return guard_proxy(resolve, chosen_proxy(proxy)).address
 
 
 def _as_fetched(loaded: Loaded | None, url: str, max_bytes: int) -> Fetched:

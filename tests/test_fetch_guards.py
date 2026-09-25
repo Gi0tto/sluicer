@@ -1299,11 +1299,13 @@ def test_the_ladder_says_how_long_each_rung_took():
     assert [climb.seconds >= 0 for climb in result.climbs] == [True]
 
 
-def test_the_guard_installs_its_route_its_socket_route_and_no_service_workers():
+def test_the_guard_installs_its_routes_and_no_service_workers_nor_webrtc():
+    """WebRTC connects past every route: measured on 0.8.0, a page reached a
+    STUN and a TURN server on a private address with the guard installed."""
     calls = []
     page = types.SimpleNamespace(
         add_init_script=lambda script: calls.append(
-            ("script", "serviceWorker" in script)
+            ("script", "serviceWorker" in script or "RTCPeerConnection" in script)
         ),
         route=lambda pattern, handler: calls.append(("route", pattern)),
         route_web_socket=lambda pattern, handler: calls.append(("socket", pattern)),
@@ -1313,7 +1315,95 @@ def test_the_guard_installs_its_route_its_socket_route_and_no_service_workers():
     guard.setup(page)
 
     assert guard.installed
-    assert calls == [("script", True), ("route", "**/*"), ("socket", "**/*")]
+    assert calls == [
+        ("script", True),
+        ("script", True),
+        ("route", "**/*"),
+        ("socket", "**/*"),
+    ]
+
+
+# -- the guard proxy ----------------------------------------------------------------
+
+
+def test_the_guard_proxy_reads_a_tunnel_and_a_plain_request():
+    from sluicer.fetch.browser_proxy import asked_of
+
+    tunnel = asked_of(b"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443")
+    six = asked_of(b"CONNECT [2001:db8::1]:8443 HTTP/1.1")
+    plain = asked_of(
+        b"GET http://example.com:8080/a?b=1 HTTP/1.1\r\nHost: example.com:8080\r\n"
+        b"Proxy-Connection: keep-alive\r\nAccept: */*"
+    )
+
+    assert (tunnel.tunnel, tunnel.host, tunnel.port) == (True, "example.com", 443)
+    assert (six.host, six.port, six.url) == (
+        "2001:db8::1",
+        8443,
+        "http://[2001:db8::1]:8443/",
+    )
+    assert (plain.host, plain.port, plain.path) == ("example.com", 8080, "/a?b=1")
+    assert plain.head(absolute=False) == (
+        b"GET /a?b=1 HTTP/1.1\r\nHost: example.com:8080\r\nAccept: */*\r\n"
+        b"Connection: close\r\n\r\n"
+    )
+    assert plain.head(absolute=True, authorization="Basic dTpw").startswith(
+        b"GET http://example.com:8080/a?b=1 HTTP/1.1\r\n"
+    )
+    assert b"Proxy-Authorization: Basic dTpw" in plain.head(True, "Basic dTpw")
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        b"GET /relative HTTP/1.1",
+        b"GET https://example.com/ HTTP/1.1",
+        b"CONNECT example.com HTTP/1.1",
+        b"CONNECT example.com:99999 HTTP/1.1",
+        b"CONNECT example.com:\xb2 HTTP/1.1",
+        b"GET ftp://example.com/ HTTP/1.1",
+        b"BREW coffee HTCPCP/1.0",
+    ],
+)
+def test_the_guard_proxy_serves_nothing_else(head):
+    from sluicer.fetch.browser_proxy import asked_of
+
+    assert asked_of(head) is None
+
+
+def test_a_guarded_pages_context_goes_through_the_guard_proxy(monkeypatch):
+    """Every connection the browser makes for the page, loopback included:
+    Chromium passes loopback by a proxy unless told ``<-loopback>``."""
+    monkeypatch.delenv("SLUICER_CDP_URL", raising=False)
+    monkeypatch.setattr(
+        "sluicer.fetch.browser_proxy.guard_proxy",
+        lambda resolve, upstream: types.SimpleNamespace(
+            address=f"http://127.0.0.1:1/ via {upstream}"
+        ),
+    )
+    host = FakeHost({"https://example.com/p": "<p>hi</p>"})
+    from sluicer.fetch.browser import browser_rung
+
+    browser_rung(allow_private=False, resolve=public, host=host, proxy="socks5://p:1")(
+        "https://example.com/p"
+    )
+
+    assert host.contexts[0].options["proxy"] == {
+        "server": "http://127.0.0.1:1/ via socks5://p:1",
+        "bypass": "<-loopback>",
+    }
+
+
+def test_a_browser_elsewhere_is_given_no_guard_proxy_it_cannot_reach(monkeypatch):
+    monkeypatch.setenv("SLUICER_CDP_URL", "ws://browser.example:9222/")
+    host = FakeHost({"https://example.com/p": "<p>hi</p>"})
+    from sluicer.fetch.browser import browser_rung
+
+    browser_rung(allow_private=False, resolve=public, host=host)(
+        "https://example.com/p"
+    )
+
+    assert "proxy" not in host.contexts[0].options
 
 
 def test_the_guard_ends_a_subresource_redirect_loop():

@@ -610,9 +610,14 @@ The HTTP rung connects only to the addresses it checked, so DNS rebinding
 reaches nothing there. The browser rung routes every request the page makes --
 images, frames, `fetch()`, websockets -- through the same judgement and never
 lets the browser follow a redirect itself, and pages get no service workers,
-which fetch outside any route. What remains: the browser resolves names in its
-own network stack, so a name that answers differently between the check and the
-connection is reached from there. SECURITY.md says so too.
+which fetch outside any route, and no WebRTC. The requests the browser makes
+for a page, which no route sees -- a speculation rule's prefetch and prerender
+-- go with every other connection of a guarded page through a proxy on
+loopback that judges them and connects only where it checked, so the
+browser's names are resolved there too. What remains: a browser elsewhere
+(`SLUICER_CDP_URL`) cannot reach that proxy, and is judged by the routes
+alone, which a speculation rule and a name that rebinds reach past. SECURITY.md
+says so too.
 
 **A page is bounded at 16 MiB, and one answer to an agent at 75,000 bytes.**
 Claude Code puts an answer over 25,000 tokens in a file rather than the

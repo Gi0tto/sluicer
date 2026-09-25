@@ -8,10 +8,12 @@ refused before any request is made, and a redirect into them refused before
 the page is handed back.
 
 The HTTP rung connects only to the addresses checked here (``public_addresses``),
-so a name that resolves differently the second time reaches nothing new. The
-browser resolves names itself, in its own network stack: there a name that
-answers differently between the check and the connection (DNS rebinding) is
-still reached. Egress control belongs in the network.
+so a name that resolves differently the second time reaches nothing new, and
+so does the guard proxy a guarded browser page's connections go through
+(``sluicer.fetch.browser_proxy``). A browser driven elsewhere resolves names
+itself, in its own network stack: there a name that answers differently
+between the check and the connection (DNS rebinding) is still reached. Egress
+control belongs in the network.
 """
 
 from __future__ import annotations

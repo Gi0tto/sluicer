@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import contextlib
 import http.server
+import ipaddress
 import os
 import socket
 import socketserver
@@ -106,7 +107,8 @@ def _judged_public() -> None:
 
     def by_port(url: str, resolve: object) -> tuple[str | None, list[object]]:
         if urlsplit(url.replace("ws://", "http://", 1)).port in (ASKED, OTHER):
-            return None, []
+            # With the address, which the guard proxy connects to.
+            return None, [ipaddress.ip_address("127.0.0.1")]
         return judge(url, resolve)  # type: ignore[arg-type]
 
     address._judge = by_port  # type: ignore[assignment]
@@ -221,6 +223,16 @@ def main() -> int:
         through("http://nowhere.invalid/page")
     if not any(b"nowhere.invalid" in line for line in told):
         failures.append(f"the proxy asked for was not used: {told}")
+    # Guarded, the page's connections go through the guard proxy, and the
+    # guard proxy's through the proxy asked for.
+    told.clear()
+    guarded_through = browser_rung(
+        allow_private=False, proxy=f"http://127.0.0.1:{proxy.getsockname()[1]}"
+    )
+    with contextlib.suppress(Exception):
+        guarded_through(f"http://127.0.0.1:{ASKED}/page")
+    if not any(f"127.0.0.1:{ASKED}".encode() in line for line in told):
+        failures.append(f"guarded, the proxy asked for was not used: {told}")
 
     started = time.monotonic()
     plain = browser_rung()

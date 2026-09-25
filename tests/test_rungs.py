@@ -114,7 +114,13 @@ def test_the_browser_is_launched_sandboxed_with_no_proxy_of_its_own(monkeypatch)
 
     playwright = types.SimpleNamespace(chromium=types.SimpleNamespace(launch=launch))
     assert _open(playwright) == "browser"
-    assert launched == {"args": ["--no-proxy-server"], "chromium_sandbox": True}
+    assert launched == {
+        "args": [
+            "--no-proxy-server",
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+        ],
+        "chromium_sandbox": True,
+    }
 
 
 @pytest.mark.parametrize("off", ["0", "off", "no", "false"])
