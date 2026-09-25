@@ -16,6 +16,15 @@ const metascraper = require('metascraper')([
   require('metascraper-date')({ datePublished: true })
 ])
 
+// The call a scoreboard scores and bench/timing.py times.
+async function extract (html, url) {
+  try {
+    return await metascraper({ html, url: url || 'http://example.com/' })
+  } catch (error) {
+    return {}
+  }
+}
+
 async function main (pagesPath, outPath, modules) {
   const root = path.dirname(pagesPath)
   const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf8'))
@@ -24,12 +33,7 @@ async function main (pagesPath, outPath, modules) {
   for (const page of pages) {
     const html = zlib.gunzipSync(fs.readFileSync(path.join(root, page.path))).toString('utf8')
     const started = process.hrtime.bigint()
-    let found = {}
-    try {
-      found = await metascraper({ html, url: page.url || 'http://example.com/' })
-    } catch (error) {
-      found = {}
-    }
+    const found = await extract(html, page.url)
     seconds += Number(process.hrtime.bigint() - started) / 1e9
     results.push({
       id: page.id,
@@ -70,4 +74,46 @@ function countPackages (modules) {
   return count
 }
 
-main(process.argv[2], process.argv[3], process.env.NODE_PATH)
+// Every file under the installed packages, in bytes.
+function installBytes (dir) {
+  let total = 0
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) total += installBytes(full)
+    else if (entry.isFile()) total += fs.statSync(full).size
+  }
+  return total
+}
+
+// bench/timing.py's pass: every page read once untimed, then one timed pass
+// of the extraction call alone, reported on the last line as JSON.
+async function timing (pagesPath, modules) {
+  const root = path.dirname(pagesPath)
+  const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf8')).map((page) => ({
+    html: zlib.gunzipSync(fs.readFileSync(path.join(root, page.path))).toString('utf8'),
+    url: page.url
+  }))
+  for (const page of pages) await extract(page.html, page.url)
+  let seconds = 0
+  for (const page of pages) {
+    const started = process.hrtime.bigint()
+    await extract(page.html, page.url)
+    seconds += Number(process.hrtime.bigint() - started) / 1e9
+  }
+  console.log(JSON.stringify({
+    tool: 'metascraper',
+    version: require('metascraper/package.json').version,
+    runtime: `Node ${process.version.replace(/^v/, '')}`,
+    seconds,
+    // maxRSS is in kilobytes.
+    peak_rss: process.resourceUsage().maxRSS * 1024,
+    packages: countPackages(modules),
+    install_bytes: installBytes(modules)
+  }))
+}
+
+if (process.argv[2] === '--timing') {
+  timing(process.argv[3], process.env.NODE_PATH)
+} else {
+  main(process.argv[2], process.argv[3], process.env.NODE_PATH)
+}

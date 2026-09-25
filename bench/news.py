@@ -187,16 +187,12 @@ def _document(pages_list, pages, runs, per_page, languages) -> str:
     per_publisher = Counter(p["publisher"] for p in pages_list).values()
     today = datetime.date.today().isoformat()
     commit = board._git("rev-parse", "--short", "HEAD")
-    own = ":!docs/scoreboard-news.md"
-    changed = board._git("status", "--porcelain", "--", ".", own)
-    dirty = " (with uncommitted changes)" if changed else ""
+    dirty = " (with uncommitted changes)" if board.changed() else ""
     speed = [
-        "| tool | seconds for all pages | packages installed |",
-        "|---|---|---|",
-        *(
-            f"| {board._name(r)} | {r['seconds']:.2f} | {r['packages']} |"
-            for r in runs.values()
-        ),
+        *board._timing().published("news", runs, commit),
+        "",
+        "How install size and memory are counted, and the other tables, are in",
+        "[speed and weight](speed.md).",
     ]
     lines = [
         "# Scoreboard, news in many languages",

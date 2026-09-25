@@ -32,6 +32,12 @@ def attempt(html: bytes, url: str | None, **options: Any) -> Any:
         return failure(error)
 
 
+def extract(html: bytes, url: str | None) -> Any:
+    """The default call ``docs/extruct.md`` times, as ``bench/timing.py``
+    times it too."""
+    return attempt(html, url)
+
+
 def main(pages_path: str, out_path: str) -> None:
     pages = json.loads(Path(pages_path).read_text(encoding="utf-8"))
     results: dict[str, Any] = {}
@@ -48,7 +54,7 @@ def main(pages_path: str, out_path: str) -> None:
             answer = attempt(html, url, syntaxes=[syntax], uniform=True)
             found["uniform"][syntax] = answer.get(syntax, answer)
         started = time.perf_counter()
-        whole = attempt(html, url)
+        whole = extract(html, url)
         seconds += time.perf_counter() - started
         found["default"] = whole.get("__error__", "ok")
         results[page["key"]] = found

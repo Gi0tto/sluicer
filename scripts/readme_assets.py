@@ -401,7 +401,12 @@ def _wcxb_seconds() -> dict[str, str]:
     seconds = {}
     for line in speed.splitlines():
         cells = [cell.strip() for cell in line.strip("|").split("|")]
-        if len(cells) == 3 and re.fullmatch(r"\d+\.\d+", cells[1]):
+        # | tool | runtime | seconds per page | seconds for all pages, the
+        # median and its spread | ... |, as bench/timing.py writes it.
+        if len(cells) == 8 and re.match(r"\d+\.\d+ \(", cells[3]):
+            seconds[cells[0]] = cells[3].split()[0]
+        # The table before bench/timing.py: | tool | seconds | packages |.
+        elif len(cells) == 3 and re.fullmatch(r"\d+\.\d+", cells[1]):
             seconds[cells[0]] = cells[1]
     return seconds
 

@@ -236,10 +236,7 @@ def _document(labelled, pages, runs, per_page, body) -> str:
     }
     today = datetime.date.today().isoformat()
     commit = board._git("rev-parse", "--short", "HEAD")
-    changed = board._git(
-        "status", "--porcelain", "--", ".", ":!docs/scoreboard-evaldata.md"
-    )
-    dirty = " (with uncommitted changes)" if changed else ""
+    dirty = " (with uncommitted changes)" if board.changed() else ""
     lines = [
         "# Scoreboard, trafilatura's evaluation set",
         "",

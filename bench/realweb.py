@@ -1089,10 +1089,7 @@ def _document(manifest, everything, pages, runs, per_page, sources) -> str:
     found = verdicts(per_page)
     today = datetime.date.today().isoformat()
     commit = board._git("rev-parse", "--short", "HEAD")
-    changed = board._git(
-        "status", "--porcelain", "--", ".", ":!docs/scoreboard-served.md"
-    )
-    dirty = " (with uncommitted changes)" if changed else ""
+    dirty = " (with uncommitted changes)" if board.changed() else ""
     n = len(pages)
     labelled = {
         field: sum(1 for page in pages.values() if score.as_text(page[field]))

@@ -13,8 +13,24 @@ Dates are the day the work landed. Anything not listed here did not happen.
   whose percentile interval calls a difference better, worse or
   inconclusive. Its tests hold it to Wilson intervals published for known
   counts (Newcombe 1998) and to the bootstrap written out the slow way.
+- `bench/timing.py` and `docs/speed.md`, speed and weight: every tool of a
+  table timed in one run on one machine, five rounds whose order turns, each
+  a fresh process in the tool's own environment that reads every page once
+  untimed and times one pass of the call its scoreboard scores; the median
+  with the fastest and slowest pass, seconds per page, pages per second, peak
+  memory, install size and packages, and the machine, as PREREG's "How a
+  second is measured" fixes it. Three tables: WCXB's and the news pages'
+  four tools, and extruct beside `sluicer.compat.extruct`.
 
 ### Changed
+- The WCXB and news scoreboards and `docs/extruct.md` print seconds only from
+  `bench/timing.py`'s record, and refuse one that is not all one run of the
+  commit they name, on a clean tree, of the versions they score. Each had
+  printed the seconds each tool's harness summed on its own run: commit
+  `b8f525e` re-timed Sluicer alone and printed its time beside the others'
+  older ones. The products scoreboard and the drift page print no seconds.
+  The scoreboards' generators no longer count one another's pages as
+  uncommitted changes, so all can be regenerated at one commit.
 - Every scoreboard prints how sure its numbers are and calls a difference
   only as the paired comparison does. The title, author and date scoreboards
   print each hit rate and share right when answering with its Wilson

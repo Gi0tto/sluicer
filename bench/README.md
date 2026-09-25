@@ -13,6 +13,8 @@ uv run bench/run.py --tools sluicer    # rerun one tool, reuse the others' resul
 
 It needs `uv` and, for metascraper, Node with `npm`. The first run downloads
 the corpus, about 150 MB; after that it runs offline, in about two minutes.
+The page prints its seconds from `bench/timing.py`'s record of the same
+commit, and stops if there is none: run `uv run bench/timing.py wcxb` first.
 
 ## What is measured
 
@@ -51,8 +53,8 @@ given, inventions included.
 ## How each tool runs
 
 Each in an environment of its own, holding only what it needs, pinned with its
-dependencies, given the same bytes and the page's address. Only the extraction
-call is timed.
+dependencies, given the same bytes and the page's address. Their seconds are
+measured apart, by `timing.py` (below).
 
 | tool | environment | call |
 |---|---|---|
@@ -216,6 +218,26 @@ today's outcomes with those calls it worse, or when it is past the floor by
 more than its tolerance (0.010 for a rate or an F1, 1% of what it is counted
 over for a count); otherwise it is held within noise, and the gate says so.
 A floor is lowered only with `--allow-regression`, in a commit that says why.
+
+## How a second is measured
+
+```bash
+uv run bench/timing.py              # every table, then docs/speed.md
+uv run bench/timing.py wcxb         # one table: wcxb, news or extruct
+```
+
+`timing.py` times every tool of a table in one run on one machine: five
+rounds, every tool once per round in an order turned by one place each round,
+each a fresh process in the tool's own environment that reads every page once
+untimed, then times one pass of the extraction call its scoreboard scores
+(`tools/timing_worker.py`, `metascraper/run.js --timing`). It records the
+median, the fastest and slowest passes, the peak resident size, what each
+environment installs, and the machine, into `bench/cache/timing/`, and writes
+[`docs/speed.md`](../docs/speed.md). A scoreboard prints seconds only from that
+record, and refuses one of another commit, another version, a tree with
+uncommitted changes, or a tool timed apart from the rest; so time on a clean
+checkout, then regenerate the scoreboards at the same commit. SWDE and the
+drift benchmark print no seconds.
 
 ## How sure a number is
 

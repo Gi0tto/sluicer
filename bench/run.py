@@ -48,22 +48,25 @@ def _uv(requirements: list[str], script: str, pages: Path, out: Path) -> list[st
     ]  # fmt: skip
 
 
+def requirements(tool: str) -> list[str]:
+    """What ``uv run`` puts in a Python tool's own environment: this checkout,
+    installed editable, for Sluicer; the pinned file for every other."""
+    if tool in ("sluicer", "sluicer.compat.extruct"):
+        return ["--with-editable", str(ROOT)]
+    return ["--with-requirements", str(HERE / "requirements" / f"{tool}.txt")]
+
+
+_HARNESS = {
+    "sluicer": "sluicer_tool.py",
+    "trafilatura": "trafilatura_tool.py",
+    "newspaper4k": "newspaper_tool.py",
+}
+
+
 def _command(tool: str, pages: Path, out: Path) -> tuple[list[str], dict[str, str]]:
     env = dict(os.environ)
-    if tool == "sluicer":
-        return _uv(["--with-editable", str(ROOT)], "sluicer_tool.py", pages, out), env
-    if tool == "trafilatura":
-        requirements = [
-            "--with-requirements",
-            str(HERE / "requirements" / "trafilatura.txt"),
-        ]
-        return _uv(requirements, "trafilatura_tool.py", pages, out), env
-    if tool == "newspaper4k":
-        requirements = [
-            "--with-requirements",
-            str(HERE / "requirements" / "newspaper4k.txt"),
-        ]
-        return _uv(requirements, "newspaper_tool.py", pages, out), env
+    if tool in _HARNESS:
+        return _uv(requirements(tool), _HARNESS[tool], pages, out), env
     modules = _install_metascraper()
     env["NODE_PATH"] = str(modules)
     return ["node", str(HERE / "metascraper" / "run.js"), str(pages), str(out)], env
@@ -108,6 +111,32 @@ def _git(*args: str) -> str:
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
     return found.stdout.strip()
+
+
+# What the generators write. A scoreboard regenerated beside another is not a
+# change to the tree the other measured, so none of these makes it dirty.
+GENERATED = (
+    "docs/scoreboard*.md",
+    "docs/speed.md",
+    "docs/extruct.md",
+    "docs/drift.md",
+    "docs/conformance-jsonld.md",
+)
+
+
+def _timing() -> Any:
+    """``bench/timing.py``, imported when a page is written: it imports this
+    module for the tools and their environments."""
+    import timing
+
+    return timing
+
+
+def changed() -> str:
+    """The checkout's uncommitted changes, the generators' own pages left out."""
+    return _git(
+        "status", "--porcelain", "--", ".", *(f":!{path}" for path in GENERATED)
+    )
 
 
 def _corpus_scripts(pages: list[dict[str, Any]]) -> tuple[int, int]:
@@ -356,7 +385,7 @@ def _gaps(verdicts) -> str:
     )
 
 
-def _wins(runs, per_page, pages, verdicts) -> list[str]:
+def _wins(runs, per_page, pages, verdicts, speed=None) -> list[str]:
     """What Sluicer does better, stated only where this run's paired
     comparisons call it better."""
     if "sluicer" not in per_page:
@@ -386,18 +415,13 @@ def _wins(runs, per_page, pages, verdicts) -> list[str]:
             f"inventions: {fewest}."
         )
     lines += ["", *_inventions(counts)]
-    # A tie would make "smallest" mean "first listed"; name every one.
-    fastest = min(runs, key=lambda tool: runs[tool]["seconds"])
-    least = min(run["packages"] for run in runs.values())
-    smallest = " and ".join(t for t in runs if runs[t]["packages"] == least)
-    lines += [
-        "",
-        f"Fastest: {fastest}. Smallest install: {smallest}.",
-    ]
+    if speed is not None:
+        lines += ["", _timing().leaders(speed)]
     return lines
 
 
 def _document(pages_list, pages, runs, per_page) -> str:
+    timing = _timing()
     verdicts = comparisons(per_page)
     scripts, json_ld = _corpus_scripts(pages_list)
     commercial = [p for p in pages_list if p["page_type"] in score.COMMERCIAL]
@@ -407,9 +431,8 @@ def _document(pages_list, pages, runs, per_page) -> str:
     }
     today = datetime.date.today().isoformat()
     commit = _git("rev-parse", "--short", "HEAD")
-    # Its own output does not make the tree it measured dirty.
-    changed = _git("status", "--porcelain", "--", ".", ":!docs/scoreboard.md")
-    dirty = " (with uncommitted changes)" if changed else ""
+    # Its own output, nor another scoreboard's, makes the tree it measured dirty.
+    dirty = " (with uncommitted changes)" if changed() else ""
     node = subprocess.run(
         ["node", "--version"], capture_output=True, text=True, encoding="utf-8"
     )
@@ -459,15 +482,10 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "",
         "## Speed and size",
         "",
-        "| tool | seconds for all pages | packages installed |",
-        "|---|---|---|",
-        *[
-            f"| {_name(run)} | {run['seconds']:.2f} | {run['packages']} |"
-            for run in runs.values()
-        ],
+        *timing.published("wcxb", runs, commit),
         "",
-        "Seconds count only the extraction call, one page after another on one",
-        "core; packages count everything the tool's own environment holds.",
+        "How install size and memory are counted, and the other tables, are in",
+        "[speed and weight](speed.md).",
         "",
         "## Where Sluicer loses, and why",
         "",
@@ -482,7 +500,7 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "",
         "## Where it wins",
         "",
-        *_wins(runs, per_page, pages, verdicts),
+        *_wins(runs, per_page, pages, verdicts, timing.read("wcxb")),
         "",
         "## How sure, and what differs",
         "",

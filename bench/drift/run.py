@@ -22,7 +22,6 @@ import json
 import re
 import subprocess
 import sys
-import time
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
@@ -548,7 +547,7 @@ def _count(items: list[str]) -> dict[str, int]:
     return tally
 
 
-def write_page(results: list[dict[str, Any]], seconds: float) -> None:
+def write_page(results: list[dict[str, Any]]) -> None:
     written = json.loads((HERE / "explanations.json").read_text(encoding="utf-8"))
     explained, notes = written["losses"], written["notes"]
     ok = [r for r in results if "error" not in r]
@@ -581,8 +580,10 @@ def write_page(results: list[dict[str, Any]], seconds: float) -> None:
         "",
         f"Regenerated on {datetime.date.today().isoformat()} from commit",
         f"`{commit}` (sluicer {__version__}{_scrapling_version(scr)}) with",
-        "`uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`, in",
-        f"{seconds:.0f} seconds from the cache.",
+        "`uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`. It",
+        "prints no seconds: its run time is mostly reading the archive's",
+        "captures ([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md),",
+        '"How a second is measured").',
         "",
         '!!! warning "Read this before the numbers"',
         f"    This is {len(ok)} pairs on {len({r['url'] for r in ok})} sites,",
@@ -794,7 +795,6 @@ def main() -> None:
     pairs = json.loads((HERE / "pairs.json").read_text(encoding="utf-8"))
     if args.only:
         pairs = [p for p in pairs if any(o in p["id"] for o in args.only)]
-    started = time.perf_counter()
     results = []
     for pair in pairs:
         result = score_pair(pair, with_scrapling=not args.no_scrapling)
@@ -805,12 +805,11 @@ def main() -> None:
             f"| scrapling {result.get('scrapling', {}).get('result', '')}",
             flush=True,
         )
-    seconds = time.perf_counter() - started
     (CACHE / "results.json").write_text(
         json.dumps(results, indent=2, default=str), encoding="utf-8"
     )
     if not args.only:
-        write_page(results, seconds)
+        write_page(results)
 
 
 if __name__ == "__main__":

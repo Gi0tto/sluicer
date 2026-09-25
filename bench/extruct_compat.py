@@ -429,9 +429,7 @@ def table(
         "",
         f"`extruct.extract(html, base_url=url)`, every argument else at its "
         f"default, raises on {failed} of the {len(found)} pages; sluicer's raises "
-        f"on {ours_failed or 'none'}. The same call over every page took "
-        f"{theirs['seconds']:.1f} s in extruct and {ours['seconds']:.1f} s in "
-        "sluicer.",
+        f"on {ours_failed or 'none'}. {_speed(theirs['version'])}",
         "",
         "Every difference, by what explains it:",
         "",
@@ -462,6 +460,41 @@ def table(
         _uniform_sentence(report),
     ]
     return "\n".join(lines)
+
+
+def _speed(version: str) -> str:
+    """The same call's time on every page, from ``bench/timing.py``'s run of
+    both, which is refused unless it is of this commit, these versions and
+    this interpreter: it said the seconds of this script's own one pass."""
+    import timing
+
+    import sluicer
+
+    commit = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=ROOT, capture_output=True, text=True, check=False, encoding="utf-8",
+    ).stdout.strip()  # fmt: skip
+    runs = {
+        "extruct": {"version": version},
+        "sluicer.compat.extruct": {"version": sluicer.__version__},
+    }
+    timing.published("extruct", runs, commit)
+    record = timing.read("extruct")
+    assert record is not None
+    if record["python"] != PYTHON:
+        raise SystemExit(
+            f"refusing to print the extruct timing: it ran on Python "
+            f"{record['python']}, this comparison on {PYTHON}"
+        )
+    median = {
+        tool: timing.summary(timed, record["pages"])["median"]
+        for tool, timed in record["tools"].items()
+    }
+    return (
+        f"The same call over every page takes {median['extruct']:.1f} s in "
+        f"extruct and {median['sluicer.compat.extruct']:.1f} s in sluicer, the "
+        "median of five passes measured as [speed and weight](speed.md) says."
+    )
 
 
 def _uniform_sentence(report: dict[str, Any]) -> str:

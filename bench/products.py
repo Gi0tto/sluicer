@@ -32,7 +32,6 @@ import re
 import subprocess
 import sys
 import tarfile
-import time
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -83,16 +82,16 @@ def availability(value: str | None) -> str:
     return "InStock"
 
 
-def predict(bench: Path) -> tuple[dict[str, dict[str, str]], float, set[str]]:
-    """Sluicer's answer for every page, keyed as the ground truth is, the
-    seconds it took, and the pages that declare a price Sluicer could not read
-    as a decimal."""
+def predict(bench: Path) -> tuple[dict[str, dict[str, str]], set[str]]:
+    """Sluicer's answer for every page, keyed as the ground truth is, and the
+    pages that declare a price Sluicer could not read as a decimal. It is not
+    timed: ``bench/PREREG.md`` measures a second only with every tool of a
+    table in one run, and Zyte's and Diffbot's were measured by Zyte in 2021."""
     truth = json.loads(
         (bench / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
     )
     predictions: dict[str, dict[str, str]] = {}
     unread: set[str] = set()
-    started = time.perf_counter()
     for page_id, labels in truth.items():
         html = gzip.decompress(
             (bench / "dataset" / "html" / f"{page_id}.html.gz").read_bytes()
@@ -111,7 +110,7 @@ def predict(bench: Path) -> tuple[dict[str, dict[str, str]], float, set[str]]:
         answer["availability"] = availability(declared.value if declared else None)
         answer[answer["availability"]] = answer["availability"]
         predictions[page_id] = answer
-    return predictions, time.perf_counter() - started, unread
+    return predictions, unread
 
 
 def evaluate(bench: Path) -> dict[str, Any]:
@@ -288,7 +287,6 @@ def _comparisons(labels: dict[str, str], systems: list[str]) -> list[str]:
 
 def publish(
     metrics: dict[str, Any],
-    seconds: float,
     truth: dict[str, Any],
     predictions: dict[str, Any],
     unread: set[str],
@@ -324,7 +322,7 @@ def publish(
         "",
         f"Regenerated on {datetime.date.today().isoformat()} from commit "
         f"`{commit}` by `uv run bench/products.py`, against the benchmark at "
-        f"`{COMMIT[:12]}`. Sluicer read the {pages} pages in {seconds:.1f} s.",
+        f"`{COMMIT[:12]}`.",
         "",
         '!!! warning "Sluicer\'s rules were made on these pages"',
         "    Rules were written, measured on these pages and kept because the",
@@ -380,7 +378,7 @@ def publish(
 
 def main() -> None:
     bench = ensure()
-    predictions, seconds, unread = predict(bench)
+    predictions, unread = predict(bench)
     output = bench / "dataset" / "output" / "sluicer.json"
     output.write_text(
         json.dumps(predictions, indent=4, sort_keys=True) + "\n", encoding="utf-8"
@@ -389,7 +387,7 @@ def main() -> None:
     truth = json.loads(
         (bench / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
     )
-    publish(metrics, seconds, truth, predictions, unread)
+    publish(metrics, truth, predictions, unread)
     for attribute in ("price", "sku", "availability"):
         row = "  ".join(
             f"{system} {metrics[system][attribute]['f1']:.3f}"
