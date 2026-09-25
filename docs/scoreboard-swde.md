@@ -16,8 +16,11 @@ Sluicer, [Scrapling](https://github.com/D4Vinci/Scrapling)'s adaptive
 selectors, which promise to find an element again when a page changes,
 are asked the same thing, as [the drift benchmark](drift.md) asks them.
 
-Regenerated on 2026-09-25 from commit `6ee2d03` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
-archive checked against its SHA-256. Sluicer took 462 s of CPU to learn and run its 80 extractors, Scrapling 1660 s.
+Regenerated on 2026-09-25 from commit `ef4038d` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
+archive checked against its SHA-256. No seconds are printed: five
+timed rounds of every tool would take nearly seven hours
+([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md),
+"How a second is measured").
 
 !!! warning "Read this before the numbers"
     These pages declare almost nothing, so every value here is learnt from
@@ -30,12 +33,27 @@ archive checked against its SHA-256. Sluicer took 462 s of CPU to learn and run 
 ## Every site and attribute
 
 F1 is averaged over the site-attributes, as SWDE's results are reported;
-precision and recall pool every page.
+precision and recall pool every page. One extractor is learnt per site
+and its pages stand or fall together, so each interval is the 95%
+percentile interval of 10,000 resamples of the sites, not of the pages.
 
 | system | mean F1 | precision | recall |
 |---|---|---|---|
-| **sluicer 0.7.1** | 0.849 | 0.972 | 0.849 |
-| Scrapling 0.4.15, adaptive | 0.671 | 0.864 | 0.710 |
+| **sluicer 0.7.1** | 0.849 (0.81–0.89) | 0.972 (0.95–0.99) | 0.849 (0.80–0.89) |
+| Scrapling 0.4.15, adaptive | 0.671 (0.60–0.74) | 0.864 (0.81–0.91) | 0.710 (0.64–0.78) |
+
+| Sluicer against Scrapling | difference (95% interval) | verdict |
+|---|---|---|
+| mean F1 | +0.178 (+0.124 to +0.236) | better |
+| precision | +0.109 (+0.068 to +0.155) | better |
+| recall | +0.139 (+0.085 to +0.198) | better |
+
+The difference is Sluicer's minus Scrapling's; its interval is the 95%
+percentile interval of 10,000 resamples of the sites, drawn together for
+both (`bench/stats.py`, seed 20260924): **better** above zero, **worse**
+below, **inconclusive** when it holds zero. With the two halves below,
+these are five comparisons, made with no correction for making many, so
+read them as a table, not one at a time.
 
 | system | wrong answers | of them flagged by the run | not learnt (site-attributes) |
 |---|---|---|---|
@@ -62,10 +80,10 @@ reading. One exception: all ten camera sites were read while the
 benchmark was being built, before the split, so the held-out camera
 sites are not a clean test.
 
-| half | site-attributes | sluicer F1 | Scrapling F1 |
-|---|---|---|---|
-| development | 160 | 0.854 | 0.675 |
-| held-out | 160 | 0.845 | 0.667 |
+| half | site-attributes | sluicer F1 | Scrapling F1 | difference (95% interval) | verdict |
+|---|---|---|---|---|---|
+| development | 160 | 0.854 (0.80–0.91) | 0.675 (0.59–0.76) | +0.179 (+0.107 to +0.251) | better |
+| held-out | 160 | 0.845 (0.79–0.90) | 0.667 (0.57–0.77) | +0.178 (+0.097 to +0.261) | better |
 
 ## By vertical
 
