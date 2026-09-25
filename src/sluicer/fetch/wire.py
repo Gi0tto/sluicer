@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import errno
 import importlib
 import io
 import ipaddress
@@ -72,16 +73,27 @@ theirs sooner or later, and one left longer is more likely closed than not."""
 _HEADER_BYTES = 65536
 
 
+# A network that failed for now: no route to the host or its network, one of
+# them down, a connection the network dropped. Python gives these no
+# ConnectionError of their own; each only where the platform has it.
+_NETWORK_DOWN = frozenset(
+    getattr(errno, name)
+    for name in ("EHOSTUNREACH", "ENETUNREACH", "ENETDOWN", "EHOSTDOWN", "ENETRESET")
+    if hasattr(errno, name)
+)
+
+
 def passing(error: BaseException) -> bool:
     """Whether ``error``, raised on the wire, is one asking again later may
-    not meet: a connection refused, reset or closed (a body cut short among
-    them), time that ran out, a TLS connection closed mid-handshake, a name
-    the resolver could not look up for now."""
+    not meet: a connection refused, reset, aborted or closed (a body cut
+    short among them), a route or a network that went away, time that ran
+    out, a TLS connection closed mid-handshake, a name the resolver could not
+    look up for now."""
     if isinstance(error, (ConnectionError, TimeoutError, ssl.SSLEOFError)):
         return True
     if isinstance(error, socket.gaierror):
         return error.errno == socket.EAI_AGAIN
-    return False
+    return isinstance(error, OSError) and error.errno in _NETWORK_DOWN
 
 
 class UnreadableEncoding(ValueError):
@@ -325,7 +337,7 @@ def _connect(
             last = failure
             continue
         return sock, address
-    raise last or OSError("the host has no address to connect to")
+    raise last or ConnectionError("the host has no address to connect to")
 
 
 def _resolved(host: str, port: int, deadline: float) -> list[str]:

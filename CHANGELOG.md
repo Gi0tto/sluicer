@@ -781,6 +781,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   names a length for a body is not kept either: the bytes sent after its
   headers were read by the next request as the start of its answer.
   `tests/live/http_check.py` sends both in a segment of their own.
+- A network that failed for now is worth asking again: no route to the host
+  or its network (`EHOSTUNREACH`, `ENETUNREACH`), one of them down
+  (`ENETDOWN`, `EHOSTDOWN`), a connection the network dropped (`ENETRESET`),
+  a host with no address to connect to, and the browser's
+  `net::ERR_ADDRESS_UNREACHABLE`. None was counted as transient, so a crawl
+  never asked a page again when the network flapped once, and the MCP tools
+  said `retryable: false`. An aborted connection and a broken pipe already
+  were, as the `ConnectionError`s Python raises for them.
 
 ## 0.7.1 - 2026-09-25
 

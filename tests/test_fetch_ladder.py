@@ -995,6 +995,47 @@ def test_a_failure_says_whether_asking_again_may_bring_something_else(error, tra
     assert failed.value.transient is transient
 
 
+_NETWORK = ["EHOSTUNREACH", "ENETUNREACH", "ENETDOWN", "EHOSTDOWN", "ENETRESET"]
+_NETWORK += ["ECONNABORTED", "EPIPE"]
+
+
+@pytest.mark.parametrize("name", _NETWORK)
+def test_a_network_that_failed_for_now_is_transient(name):
+    """A route that went away, a network down, a connection aborted: the
+    network flapped, and a crawl asked a page no more when it did. Measured,
+    one EHOSTUNREACH ended a page fetch_failed with retryable false."""
+    import errno
+
+    number = getattr(errno, name, None)
+    if number is None:
+        pytest.skip(f"{name} is not an errno on this platform")
+    with pytest.raises(FetchFailed) as failed:
+        fetch(
+            "https://example.com/p",
+            rungs=[("http", _failing(OSError(number, name)))],
+            obey_robots=False,
+        )
+
+    assert failed.value.transient
+
+
+def test_a_host_with_no_address_to_connect_to_is_transient():
+    import time
+
+    from sluicer.fetch import wire
+
+    with pytest.raises(OSError) as none:
+        wire._connect([], 443, time.monotonic() + 5)
+
+    assert wire.passing(none.value)
+
+
+def test_a_browser_that_found_no_route_is_transient():
+    from sluicer.fetch.ladder import transient
+
+    assert transient(RuntimeError("net::ERR_ADDRESS_UNREACHABLE at http://x/"))
+
+
 def test_one_rung_that_may_answer_later_makes_the_failure_transient():
     ladder = [
         ("http", _failing(ConnectionRefusedError("refused"))),

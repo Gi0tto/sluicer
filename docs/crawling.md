@@ -104,8 +104,9 @@ a log, one line a page.
   request after a page that took 2.0 s waited 1.01 s, the next 0.51 s, then
   0.31 s. A redirect hop's rest is not counted as the site's slowness.
 - **Asked again, a few times and later each time.** A page whose request
-  did not answer -- a connection refused or reset, a timeout, an answer cut
-  short, a name the resolver could not look up for now, a `robots.txt`
+  did not answer -- a connection refused or reset, no route to the host or
+  its network for now, a timeout, an answer cut short, a name the resolver
+  could not look up for now, a `robots.txt`
   nobody could read -- or answered 429 or a 5xx is
   asked again, twice at most by default and ten at most at all (`--retries`,
   `retries=`; 0 asks
