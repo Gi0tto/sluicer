@@ -382,24 +382,33 @@ def test_thousands_of_parts_under_two_thousand_wrappers_are_named_in_a_moment():
     part below it. A part now carries its slot as a number."""
     import time
 
-    inner = (
-        "<div>" * 2000
-        + "".join(f"<span>w{i} </span>" for i in range(40_000))
-        + "</div>" * 2000
-    )
-    rows = _listing_of(
-        "<ul><li><div><div>"
-        + inner
-        + "</div></div></li>"
-        + "<li><div><div><div>a</div></div></div></li>" * 2
-        + "</ul>"
-    )
+    def rows_under(depth: int) -> list:
+        inner = (
+            "<div>" * depth
+            + "".join(f"<span>w{i} </span>" for i in range(40_000))
+            + "</div>" * depth
+        )
+        return _listing_of(
+            "<ul><li><div><div>"
+            + inner
+            + "</div></div></li>"
+            + "<li><div><div><div>a</div></div></div></li>" * 2
+            + "</ul>"
+        )
 
-    started = time.perf_counter()
-    records = records_from(rows)
+    def seconds(rows: list) -> float:
+        best = float("inf")
+        for _ in range(3):
+            started = time.perf_counter()
+            assert records_from(rows)
+            best = min(best, time.perf_counter() - started)
+        return best
 
-    assert time.perf_counter() - started < 0.5
-    assert records
+    # Against the same parts with no wrapper, on the same machine: a bound in
+    # seconds failed on CI's slower runners (0.52 to 0.83 s against 0.5).
+    # Measured: the deep row cost 9.2 times the flat one before the fix, and
+    # 0.8 times after.
+    assert seconds(rows_under(2000)) < 3 * seconds(rows_under(0))
 
 
 def _named(html):

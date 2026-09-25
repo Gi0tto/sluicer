@@ -65,6 +65,11 @@ number from 0 to 1 (`"missing": "nan"`), rows that are not two counts, a shape
 of other letters than L, N, P and S, two fields of one name, a path that is not
 one. An edit that would quietly turn a check off is refused with a message
 naming it, and `sluicer run` and `heal` exit 2, as for a file that is not JSON.
+Every file `compile` and `heal` write is one this reading accepts: a tag the
+page spelt with a character a path parts its steps by, which lxml keeps as
+written (`<a@b>`, `<x[1]>`), is written with it as `%` and its code,
+`a%40b`, and a row's class that holds one, Tailwind's `@container`, is left
+out of the row's kind.
 
 ## Pointing at what you want
 
@@ -124,11 +129,13 @@ sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
   check), and keeps its shape when five pages or more taught it one.
 - A field read by its place also learns its label, when every page given puts
   the same one right before it, once: text that ends with a colon, or is in a
-  `<th>`, `<dt>` or `<label>`. A page that says the label once, before
-  something else, has moved the row -- the weight where the SKU was -- and the
-  run fails rather than read the weight as the SKU. A page that does not say
-  the label, or says it twice, is read at the place, as learnt. Two pages at
-  least teach a label; one cannot tell its template's words from its own.
+  `<th>`, `<dt>` or `<label>`. A page that still says the label, once or
+  more, with or without its colon, in any case, and not right before the
+  place has moved the row -- the weight where the SKU was -- and the run
+  fails rather than read the weight as the SKU. A page that does not say the
+  label at all is read at the place, as learnt: a label renamed is not a row
+  moved. Two pages at least teach a label; one cannot tell its template's
+  words from its own.
 - `heal` keeps a field where its place still holds a value that reads as it
   did and its label still stands before it, reads it after its label when the
   label moved, moves it to where the new pages show one of its old values,
@@ -146,7 +153,7 @@ with all three read, the title from its `<h1>`.
 
 | check | fails when |
 |---|---|
-| `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it -- or, where the path counts places, `section.box[2]`, there are more or fewer of them than on every learnt page: a box inserted before the second makes another box the second |
+| `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it -- or, where the path counts places, `section.box[2]`, the second box no longer begins with the heading it began with on every learnt page while another box does, or, where the heading is not learnt or is on no box, there are more or fewer boxes than on every learnt page: a box inserted before the second makes another box the second |
 | `rows` | there are no rows, or on a listing of five members or more, more of them are empty shells than the learnt pages had, plus 20% -- skeletons waiting for a script |
 | `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row; a page field is not found, or its label now stands before something else |
 | `shape` | fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket" -- or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
@@ -218,10 +225,14 @@ moved: span.stock -> span.availability (2 of 2 learnt values found there; the ne
 - The listing's place is an exact path. Any new wrapper or renamed class above
   the rows fails the `listing` check; that is the point, and `heal` finds the new
   place.
-- A numbered step is held to the number of its kind the learnt pages had, so a
-  box of the same kind added after the listing fails it too: the path cannot
-  tell after from before. Where the learnt pages had different numbers, the
-  step is not held to one.
+- A numbered step is held to the text its element began with, its rows
+  aside -- a box's heading -- when every learnt page began it so and no other
+  box: a box added after the listing then passes, and one inserted before,
+  or the first box removed and another added at the end, fails. Where there
+  is no such heading, or the page says it on no box, the step is held to the
+  number of its kind the learnt pages had, and a box added after the listing
+  fails too: the count cannot tell after from before. Where the learnt pages
+  had different numbers, the step is not held to one.
 - One listing per extractor: the page's most promising repeated group, or the
   one the examples point at.
 - A page field is an element's whole text, or one attribute. A value written

@@ -101,3 +101,14 @@ def test_a_bare_price_is_in_the_currency_its_page_declares():
     assert ("price", "rewritten") in [(d.question, d.kind) for d in found]
     found = compare(extract(declared), extract(_priced("£41.90")))
     assert ("price", "changed") in [(d.question, d.kind) for d in found]
+
+
+def test_a_price_json_writes_with_an_exponent_names_no_currency():
+    """``1.5e3`` is 1500 as JSON may write it: its ``e`` is the exponent's, not
+    a currency sign, and a price written either way is a rewrite."""
+    found = compare(extract(_priced("1500")), extract(_priced("1.5e3")))
+    assert [(d.question, d.kind) for d in found] == [("price", "rewritten")]
+    found = compare(extract(_priced("1500")), extract(_priced("1.5E+3")))
+    assert [(d.question, d.kind) for d in found] == [("price", "rewritten")]
+    found = compare(extract(_priced("£1500")), extract(_priced("1.5e3")))
+    assert [(d.question, d.kind) for d in found] == [("price", "changed")]
