@@ -4,6 +4,8 @@ The commands build the real web; each test hands them a ``FakeWeb`` instead,
 by wrapping the library call the command makes, so nothing opens a socket.
 """
 
+import csv
+import io
 import json
 
 import pytest
@@ -345,3 +347,83 @@ def test_a_batch_without_an_extra_it_needs_says_how_to_install_it(monkeypatch):
 
     assert result.exit_code == 2
     assert "sluicer[browser]" in result.stderr
+
+
+# -- a table, and a bar --------------------------------------------------------------
+
+
+def rows(text):
+    return list(csv.DictReader(io.StringIO(text)))
+
+
+@pytest.mark.parametrize("command", ["crawl", "batch"])
+def test_format_csv_is_a_row_per_page_with_its_summary_flattened(fake, command):
+    source = f"{ROOT}/" if command == "crawl" else "-"
+
+    result = invoke(command, source, "--format", "csv", stdin=f"{ROOT}/\n{ROOT}/a\n")
+
+    assert result.exit_code == 0, result.stderr
+    from sluicer.crawl.table import PAGE_COLUMNS
+
+    assert result.stdout.splitlines()[0] == ",".join(PAGE_COLUMNS)
+    got = rows(result.stdout)
+    assert [row["url"] for row in got][:2] == [f"{ROOT}/", f"{ROOT}/a"]
+    assert got[0]["summary.title"] == "Home" and got[0]["types"] == "Product"
+    assert "pages:" in result.stderr
+
+
+def test_format_csv_to_a_file_writes_the_table_there(fake, tmp_path):
+    out = tmp_path / "pages.csv"
+
+    result = invoke("crawl", f"{ROOT}/", "--format", "csv", "-o", str(out))
+
+    assert result.exit_code == 0, result.stderr
+    assert result.stdout == ""
+    assert [row["url"] for row in rows(out.read_text(encoding="utf-8"))] == [
+        f"{ROOT}/",
+        f"{ROOT}/a",
+        f"{ROOT}/b",
+    ]
+    assert "3 pages: 3 read." in result.stderr
+
+
+def test_a_table_cannot_be_resumed(fake, tmp_path):
+    out = tmp_path / "pages.csv"
+
+    result = invoke("crawl", f"{ROOT}/", "--format", "csv", "-o", str(out), "--resume")
+
+    assert result.exit_code == 2
+    assert "--resume reads JSON Lines" in result.stderr
+    assert fake.requests == []
+
+
+def test_map_as_csv_is_a_row_per_address(fake):
+    fake.pages[f"{ROOT}/sitemap.xml"] = SITEMAP
+
+    result = invoke("map", f"{ROOT}/", "--format", "csv")
+
+    assert result.exit_code == 0, result.stderr
+    assert rows(result.stdout) == [
+        {"url": f"{ROOT}/a", "lastmod": "2026-09-01", "sitemap": f"{ROOT}/sitemap.xml"},
+        {"url": f"{ROOT}/b", "lastmod": "", "sitemap": f"{ROOT}/sitemap.xml"},
+    ]
+    assert invoke("map", f"{ROOT}/", "--format", "csv", "--plain").exit_code == 2
+
+
+def test_a_terminal_sees_a_bar_and_not_a_line_per_page(fake, monkeypatch):
+    monkeypatch.setattr("sluicer.cli._stderr_is_a_terminal", lambda: True)
+
+    result = invoke("crawl", f"{ROOT}/")
+
+    assert result.exit_code == 0, result.stderr
+    assert "200 http" not in result.stderr
+    assert "Crawling" in result.stderr
+    assert "3 pages: 3 read." in result.stderr
+    assert len(lines(result.stdout)) == 3
+
+
+def test_what_is_not_a_terminal_sees_no_bar(fake):
+    result = invoke("crawl", f"{ROOT}/")
+
+    assert "Crawling" not in result.stderr
+    assert "\r" not in result.stderr

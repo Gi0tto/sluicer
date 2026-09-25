@@ -19,6 +19,7 @@ Ctrl-C exits 130 with what it wrote intact, and ``--resume`` continues it.
 from __future__ import annotations
 
 import codecs
+import contextlib
 import functools
 import io
 import json
@@ -47,6 +48,13 @@ from sluicer.crawl import Crawl, crawl as crawl_site, extract_many
 from sluicer.crawl.pages import MAX_DEPTH, MAX_PAGES
 from sluicer.crawl.schedule import CONCURRENCY, DEFAULT_DELAY_SECONDS, RETRIES
 from sluicer.crawl.sitemaps import MAX_SITEMAP_URLS, map_site
+from sluicer.crawl.table import (
+    PAGE_COLUMNS,
+    SITE_URL_COLUMNS,
+    page_row,
+    site_url_row,
+    write_csv,
+)
 from sluicer.declared.microformats import MicroformatsExtraMissing
 from sluicer.declared.readers import READERS
 from sluicer.diff import compare
@@ -1625,13 +1633,23 @@ def _llms_lines(label: str, llms: LlmsTxt) -> list[str]:
 @click.option(
     "--plain", is_flag=True, help="One address a line, for `sluicer batch -`."
 )
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "csv"]),
+    default="json",
+    show_default=True,
+    help="json: the map as one object; csv: a row per address (url, lastmod, sitemap).",
+)
 @_with_proxy
-def map_command(url: str, limit: int, plain: bool) -> None:
+def map_command(url: str, limit: int, plain: bool, output_format: str) -> None:
     """List a site's addresses, from its sitemaps or its start page's links.
 
     Each sitemap is asked politely, through robots.txt and after the site's
     delay, and stderr says what became of each one.
     """
+    if plain and output_format != "json":
+        raise click.UsageError("--plain is one address a line; --format is another")
     try:
         found = map_site(url, limit=limit, **_sent())
     except (
@@ -1651,6 +1669,10 @@ def map_command(url: str, limit: int, plain: bool) -> None:
     if plain:
         for address in found.urls:
             click.echo(address.url)
+    elif output_format == "csv":
+        write = write_csv(sys.stdout, SITE_URL_COLUMNS)
+        for address in found.urls:
+            write(site_url_row(asdict(address)))
     else:
         click.echo(json.dumps(asdict(found), indent=2, ensure_ascii=False))
     if not found.urls:
@@ -1664,6 +1686,15 @@ _many_options = [
         metavar="FILE",
         help="Write one JSON line per page here, not to stdout; the file is the "
         "state --resume continues from.",
+    ),
+    click.option(
+        "--format",
+        "output_format",
+        type=click.Choice(["jsonl", "csv"]),
+        default="jsonl",
+        show_default=True,
+        help="jsonl: a JSON line per page; csv: a row per page, its summary "
+        "flattened into a column a question (docs/crawling.md says which).",
     ),
     click.option(
         "--resume",
@@ -1755,6 +1786,7 @@ def crawl_command(
     exclude: tuple[str, ...],
     any_site: bool,
     out: str | None,
+    output_format: str,
     resume: bool,
     delay: float,
     retries: int,
@@ -1768,7 +1800,8 @@ def crawl_command(
     robots.txt and one request at a time with the site's delay between. Run
     twice, it takes the same pages in the same order.
     """
-    _check_out(out, resume)
+    table = output_format == "csv"
+    _check_out(out, resume, table)
     try:
         pages = crawl_site(
             url,
@@ -1777,7 +1810,7 @@ def crawl_command(
             same_site=not any_site,
             include=include,
             exclude=exclude,
-            state=out,
+            state=None if table else out,
             induce=induce,
             respect_tdm="tdm" in respect,
             min_delay=delay,
@@ -1787,7 +1820,7 @@ def crawl_command(
         )
     except (FetchExtraMissing, ValueError) as failure:
         _fail(str(failure), failure)
-    _report(pages, out)
+    _report(pages, out, table, total=max_pages, label="Crawling")
 
 
 @main.command("feed")
@@ -1904,6 +1937,7 @@ def warc_command(files: tuple[str, ...], induce: bool, microformats: bool) -> No
 def batch_command(
     urls_file: str,
     out: str | None,
+    output_format: str,
     resume: bool,
     delay: float,
     retries: int,
@@ -1918,7 +1952,8 @@ def batch_command(
     No link is followed. Several sites are asked at once, each one request at
     a time, and the pages come out in the order the file lists them.
     """
-    _check_out(out, resume)
+    table = output_format == "csv"
+    _check_out(out, resume, table)
     try:
         text = (
             sys.stdin.read()
@@ -1937,7 +1972,7 @@ def batch_command(
     try:
         pages = extract_many(
             listed,
-            state=out,
+            state=None if table else out,
             induce=induce,
             respect_tdm="tdm" in respect,
             min_delay=delay,
@@ -1947,17 +1982,23 @@ def batch_command(
         )
     except (FetchExtraMissing, ValueError) as failure:
         _fail(str(failure), failure)
-    _report(pages, out)
+    _report(pages, out, table, total=len(listed), label="Reading")
 
 
-def _check_out(out: str | None, resume: bool) -> None:
+def _check_out(out: str | None, resume: bool, table: bool = False) -> None:
     """Refuse to append to a file that holds pages unless asked to continue it.
 
     A crawl's file is hours of other people's servers' time; writing a second
-    crawl onto its end would make both unusable.
+    crawl onto its end would make both unusable. A table is not a state: it
+    holds no page's links, so there is nothing to continue from.
     """
     if resume and out is None:
         _fail("--resume needs --out: the file is what the crawl continues from.")
+    if resume and table:
+        _fail(
+            "--resume reads JSON Lines: a table holds no page's links to "
+            "continue from. Write --format jsonl, and turn it into a table after."
+        )
     if out is not None and not resume:
         path = Path(out)
         if path.is_file() and path.stat().st_size > 0:
@@ -1967,36 +2008,95 @@ def _check_out(out: str | None, resume: bool) -> None:
             )
 
 
-def _report(pages: Crawl, out: str | None) -> None:
+def _stderr_is_a_terminal() -> bool:
+    """Whether a person is watching stderr, who is shown a bar, not a log."""
+    try:
+        return sys.stderr.isatty()
+    except (AttributeError, ValueError):
+        return False
+
+
+def _report(
+    pages: Crawl,
+    out: str | None,
+    table: bool = False,
+    total: int | None = None,
+    label: str = "Crawling",
+) -> None:
     """Write each page as its turn comes, say how it went, and exit by it.
 
-    The verdict is the whole crawl's, pages resumed from the file included, so
-    a crawl finished in two runs exits as it would have in one.
+    Each page is a JSON line, or with ``table`` a row of ``PAGE_COLUMNS``, on
+    stdout or in ``out``. stderr says what became of each page, a line each,
+    or, to a terminal, on one bar of ``total`` pages. The verdict is the whole
+    crawl's, pages resumed from the file included, so a crawl finished in two
+    runs exits as it would have in one.
     """
     if pages.resumed:
         click.echo(f"Resuming after the {pages.resumed} pages {out} holds.", err=True)
     tally = _Tally()
     count = pages.resumed
+    watched = _stderr_is_a_terminal()
     try:
-        for page in pages:
-            count += 1
-            line = page.to_json()
-            if out is None:
-                click.echo(json.dumps(line, ensure_ascii=False))
-                tally.add(line)
-            said = page.error.code if page.error else f"{page.status} {page.rung}"
-            if page.retries:
-                said += f", asked {len(page.retries) + 1} times"
-            click.echo(f"{count:>5}  {said}  {page.url}", err=True)
+        with contextlib.ExitStack() as held:
+            write = None
+            if table:
+                sink = (
+                    held.enter_context(
+                        Path(out).open("w", encoding="utf-8", newline="")
+                    )
+                    if out is not None
+                    else sys.stdout
+                )
+                write = write_csv(sink, PAGE_COLUMNS)
+            bar = (
+                held.enter_context(
+                    click.progressbar(
+                        length=max(total or 0, count, 1),
+                        label=label,
+                        file=sys.stderr,
+                        show_pos=True,
+                        item_show_func=lambda said: said,
+                    )
+                )
+                if watched
+                else None
+            )
+            if bar is not None and count:
+                bar.update(count)
+            for page in pages:
+                count += 1
+                line = page.to_json()
+                if write is not None:
+                    write(page_row(line))
+                    tally.add(line)
+                elif out is None:
+                    click.echo(json.dumps(line, ensure_ascii=False))
+                    tally.add(line)
+                said = page.error.code if page.error else f"{page.status} {page.rung}"
+                if page.retries:
+                    said += f", asked {len(page.retries) + 1} times"
+                if bar is not None:
+                    if bar.length is not None and count > bar.length:
+                        bar.length = count
+                    bar.update(1, f"{said}  {page.url}")
+                else:
+                    click.echo(f"{count:>5}  {said}  {page.url}", err=True)
+            if bar is not None:
+                # A crawl that ran out of links ends short of its budget: the
+                # bar ends full at what it took.
+                bar.length = bar.pos = max(count, 1)
+                bar.render_progress()
     except KeyboardInterrupt:
-        kept = f"; {out} holds them, and --resume continues" if out else ""
+        kept = ""
+        if out is not None:
+            kept = f"; {out} holds them" + ("" if table else ", and --resume continues")
         click.echo(f"Stopped after {count} pages{kept}.", err=True)
         raise SystemExit(INTERRUPTED) from None
     except FetchExtraMissing as missing:
         _fail(str(missing), missing)
     except OSError as failure:
         _fail(f"Could not write {out}: {failure.strerror or failure}", failure)
-    if out is not None:
+    if out is not None and not table:
         with Path(out).open(encoding="utf-8") as written:
             for raw in written:
                 if raw.strip():

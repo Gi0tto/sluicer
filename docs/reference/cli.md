@@ -101,6 +101,9 @@ Usage: sluicer batch [OPTIONS] URLS_FILE
 Options:
   -o, --out FILE              Write one JSON line per page here, not to stdout; the file
                               is the state --resume continues from.
+  --format [jsonl|csv]        jsonl: a JSON line per page; csv: a row per page, its
+                              summary flattened into a column a question
+                              (docs/crawling.md says which).  [default: jsonl]
   --resume                    Continue what --out already holds, fetching none of it
                               again.
   --delay FLOAT RANGE         The least seconds between two requests to one site; its
@@ -183,6 +186,9 @@ Options:
   --any-site                  Follow links that leave URL's site too.
   -o, --out FILE              Write one JSON line per page here, not to stdout; the file
                               is the state --resume continues from.
+  --format [jsonl|csv]        jsonl: a JSON line per page; csv: a row per page, its
+                              summary flattened into a column a question
+                              (docs/crawling.md says which).  [default: jsonl]
   --resume                    Continue what --out already holds, fetching none of it
                               again.
   --delay FLOAT RANGE         The least seconds between two requests to one site; its
@@ -442,6 +448,8 @@ Usage: sluicer map [OPTIONS] URL
 Options:
   --limit INTEGER RANGE       The most addresses listed.  [default: 50000; x>=1]
   --plain                     One address a line, for `sluicer batch -`.
+  --format [json|csv]         json: the map as one object; csv: a row per address (url,
+                              lastmod, sitemap).  [default: json]
   --proxy URL                 Fetch through this proxy (http://host:port,
                               socks5h://host:port); the environment's HTTPS_PROXY is
                               never used. Same as SLUICER_PROXY.
