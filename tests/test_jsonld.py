@@ -225,10 +225,74 @@ def test_a_node_holding_a_graph_beside_its_own_properties_is_a_node_too():
 
 
 def test_a_graph_s_own_identifier_or_context_is_no_node():
+    """Its context is its nodes': see the test below."""
     assert _one(
         '{"@context": "https://schema.org", "@id": "https://shop.example/#graph",'
         ' "@graph": [{"@type": "Product", "name": "Pad"}]}'
-    ) == [{"@type": "Product", "name": "Pad"}]
+    ) == [{"@context": "https://schema.org", "@type": "Product", "name": "Pad"}]
+
+
+def test_a_node_read_out_of_a_graph_keeps_the_context_it_was_written_in():
+    """The W3C JSON-LD suite's tests e004, c004 and r004.
+
+    Read out of its graph without the block's context, ``ex:foo`` no longer
+    said ``http://example.com/foo``: to a processor it was an address with the
+    scheme ``ex``, and nothing could tell it from a word of any vocabulary. A
+    node that has a context of its own keeps it, after the graph's; a graph
+    inside a graph passes on both.
+    """
+    found = _one(
+        '{"@context": {"ex": "http://example.com/"}, "@graph": ['
+        '{"ex:foo": "a"},'
+        ' {"@context": {"b": "http://b.example/"}, "b:x": "y"},'
+        ' {"@context": ["https://schema.org"], "@graph": [{"ex:bar": "c"}]}]}'
+    )
+
+    assert found == [
+        {"@context": {"ex": "http://example.com/"}, "ex:foo": "a"},
+        {
+            "@context": [{"ex": "http://example.com/"}, {"b": "http://b.example/"}],
+            "b:x": "y",
+        },
+        {
+            "@context": [{"ex": "http://example.com/"}, "https://schema.org"],
+            "ex:bar": "c",
+        },
+    ]
+    assert [node.where for node in found] == [
+        "/html/head/script[1]#/@graph/0",
+        "/html/head/script[1]#/@graph/1",
+        "/html/head/script[1]#/@graph/2/@graph/0",
+    ]
+
+
+def test_a_node_beside_a_graph_is_in_the_context_of_the_graph_around_it():
+    found = _one(
+        '{"@context": {"ex": "http://example.com/"}, "@graph": ['
+        '{"@type": "Brand", "ex:name": "Only", "@graph": [{"ex:foo": "a"}]}]}'
+    )
+
+    assert found == [
+        {"@context": {"ex": "http://example.com/"}, "ex:foo": "a"},
+        {
+            "@context": {"ex": "http://example.com/"},
+            "@type": "Brand",
+            "ex:name": "Only",
+        },
+    ]
+
+
+def test_a_term_a_context_defines_is_never_resolved_as_a_reference():
+    """A term defined as ``{"@id": ...}`` is not a reference to a node."""
+    found = _one(
+        '{"@context": {"@vocab": "https://schema.org/", "maker": {"@id": "#me"}},'
+        ' "@graph": [{"@id": "#me", "@type": "Person", "name": "Ann"},'
+        ' {"@type": "Product", "maker": {"@id": "#me"}}]}'
+    )
+
+    context = {"@vocab": "https://schema.org/", "maker": {"@id": "#me"}}
+    assert found[1]["@context"] == context
+    assert found[1]["maker"]["name"] == "Ann"
 
 
 def test_a_node_holding_a_graph_comes_after_the_nodes_in_it():

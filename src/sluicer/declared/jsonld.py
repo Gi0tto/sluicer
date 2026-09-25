@@ -140,27 +140,52 @@ def _flatten(parsed: object) -> list[tuple[dict[str, Any], tuple[str | int, ...]
     Brand stood where the product the page is about had stood. One that holds
     only a graph, its ``@context`` and its ``@id`` is the graph's wrapper, and
     no node.
+
+    A node read out of a graph keeps the ``@context`` its terms were written
+    in: the wrapper's, before any of its own. Without it ``ex:foo``, written
+    under ``{"ex": "http://example.com/"}``, named nothing once unwrapped.
     """
     found: list[tuple[dict[str, Any], tuple[str | int, ...]]] = []
     # A tuple is a node already read, waiting for its graph: JSON makes none.
-    pending: list[tuple[object, tuple[str | int, ...]]] = [(parsed, ())]
+    # Beside each value, the contexts of the graphs around it, outermost first.
+    pending: list[tuple[object, tuple[str | int, ...], tuple[object, ...]]] = [
+        (parsed, (), ())
+    ]
     while pending:
-        value, steps = pending.pop()
+        value, steps, around = pending.pop()
         if isinstance(value, tuple):
-            found.append((value[0], steps))
+            found.append((_within(value[0], around), steps))
         elif isinstance(value, list):
             pending.extend(
-                (item, (*steps, n)) for n, item in reversed(list(enumerate(value)))
+                (item, (*steps, n), around)
+                for n, item in reversed(list(enumerate(value)))
             )
         elif isinstance(value, dict):
             if "@graph" in value:
                 own = {key: item for key, item in value.items() if key != "@graph"}
                 if any(not key.startswith("@") for key in own):
-                    pending.append(((own,), steps))
-                pending.append((value["@graph"], (*steps, "@graph")))
+                    pending.append(((own,), steps, around))
+                inner = (*around, value["@context"]) if "@context" in value else around
+                pending.append((value["@graph"], (*steps, "@graph"), inner))
             else:
-                found.append((value, steps))
+                found.append((_within(value, around), steps))
     return found
+
+
+def _within(node: dict[str, Any], around: tuple[object, ...]) -> dict[str, Any]:
+    """``node`` holding the contexts of the graphs around it, then its own.
+
+    One context is written as itself, several as the list JSON-LD reads in
+    order, a list among them spread into it."""
+    if not around:
+        return node
+    declared = (*around, node["@context"]) if "@context" in node else around
+    contexts: list[object] = []
+    for context in declared:
+        contexts.extend(context if isinstance(context, list) else [context])
+    held: dict[str, Any] = {"@context": contexts[0] if len(contexts) == 1 else contexts}
+    held.update((key, item) for key, item in node.items() if key != "@context")
+    return held
 
 
 def _own_id(node: dict[str, Any]) -> frozenset[str]:
@@ -199,8 +224,12 @@ def _definitions(
             ):
                 index[identifier] = value
                 defined_at[identifier] = chain
+            # A context defines terms, never a node: ``{"@id": ...}`` there is a
+            # term's address.
             pending.extend(
-                (item, (chain, key)) for key, item in reversed(list(value.items()))
+                (item, (chain, key))
+                for key, item in reversed(list(value.items()))
+                if key != "@context"
             )
     return index, defined_at
 
@@ -258,8 +287,12 @@ class _Walk:
                 self.resolve(target, path | {identifier}, hops + 1, depth + 1),
                 self.defined_at[identifier],
             )
+        # A context is carried as the page wrote it, and shared, not copied:
+        # a term it defines as ``{"@id": ...}`` names an address, not a node.
         return {
-            key: self.resolve(item, path | _own_id(value), hops, depth + 1)
+            key: item
+            if key == "@context"
+            else self.resolve(item, path | _own_id(value), hops, depth + 1)
             for key, item in value.items()
         }
 
@@ -270,7 +303,8 @@ def _size(value: Any) -> int:
     One for every value, itself included, and one for every character of its
     text and of its keys. Counting values alone priced a node holding one long
     string at three, so four hundred references to a 4,000-character name were
-    copied in full: 1.6 MB of JSON from a 10 KB page.
+    copied in full: 1.6 MB of JSON from a 10 KB page. A ``@context`` costs
+    nothing: it is shared, never copied.
     """
     count = 0
     pending = [value]
@@ -280,8 +314,8 @@ def _size(value: Any) -> int:
         if isinstance(item, str):
             count += len(item)
         elif isinstance(item, dict):
-            count += sum(len(key) for key in item)
-            pending.extend(item.values())
+            count += sum(len(key) for key in item if key != "@context")
+            pending.extend(held for key, held in item.items() if key != "@context")
         elif isinstance(item, list):
             pending.extend(item)
     return count

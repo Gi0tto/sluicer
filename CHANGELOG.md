@@ -351,6 +351,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A node the JSON-LD reader takes out of a `@graph` keeps the block's
+  `@context`, before any context of its own. Taken out without it, a term the
+  block defined -- `ex:foo` under `{"ex": "http://example.com/"}` -- named
+  nothing, to a JSON-LD processor or to sluicer: the W3C JSON-LD suite's
+  tests e004, c004 and r004 showed it. A term a context defines as
+  `{"@id": ...}` is no longer taken for a reference to a node, and a context
+  is shared by the nodes it covers, never copied or paid for from the
+  reference budget. Over the 3,976 cached corpus pages, `extract()` and the
+  audit answer exactly as before; the reader's answer gains the context on
+  624 of them.
 - `sluicer.compat.extruct` reads a JSON-LD block's text as extruct does:
   `json.loads`, then without a comment on its first line and without
   JavaScript's comments and trailing commas. It read blocks as
