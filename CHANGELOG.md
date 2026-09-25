@@ -438,6 +438,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- A month named like an English weekday is a month. A date's leading "Sat" or
+  "Sun" was taken off as Saturday's or Sunday's, and Hausa writes September
+  "Sat": "Sat 1, 2000" was no date. Where the rest reads as no date, the
+  whole text is read again with the word as its month. Found by the weekly
+  fuzz profile; no answer changed on the 5,976 cached corpus pages.
 - A robots.txt is parsed once, not once for every address asked about it:
   its text was remembered and parsed again each time, and a crawl asks for
   every page it reads, 2.5 seconds each for one of 16 MiB. The last 64
