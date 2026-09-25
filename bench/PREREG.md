@@ -238,7 +238,9 @@ its dependencies in `bench/requirements/`.
   the first item of A whose title and link are still on B. Its element on A
   is the innermost whose text is that title, or of several the one whose link
   is the item's; its selector is the one anansi writes for an element
-  (`AdaptiveParser._tag_to_selector`). `AdaptiveParser(db_path=...)`, a fresh
+  (`AdaptiveParser._tag_to_selector`). A capture's bytes are handed to it as
+  they are, and BeautifulSoup, which it parses with, reads their encoding; the
+  element on A is found by the same parse. `AdaptiveParser(db_path=...)`, a fresh
   store for each pair, is asked `extract(A, {"item": selector}, url=...)`,
   then the same on B, with the pair's address both times; no page-level
   property is named `item`, so its JSON-LD and Open Graph pre-pass answers
