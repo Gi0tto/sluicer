@@ -26,7 +26,7 @@ uv pip install sluicer                  # without it: syntaxes=[...] leaving it 
 in `.rdfa`, `MicroformatExtractor` in `.microformat`, `DublinCoreExtractor` in
 `.dublincore`, and the uniform functions in `.uniform`.
 
-What it installs is sluicer's base, three packages, and mf2py's twelve for
+What it installs is sluicer's base, four packages, and mf2py's twelve for
 microformats, where extruct brings twenty-one: RDFa is read by sluicer's own
 processor, with no rdflib and no pyRdfa, and the only reader borrowed is
 mf2py, which extruct uses too.

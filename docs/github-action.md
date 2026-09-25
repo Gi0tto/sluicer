@@ -27,8 +27,8 @@ to, `Gi0tto/sluicer@<commit> # v0.8.0`, since a tag can be moved.
 | `urls` | required | The pages, one a line or separated by spaces; a line starting with `#` is a comment. A path in the workspace is read as a file, so a site built earlier in the job can be audited without serving it. |
 | `fail-on` | `error` | `error` fails the step when a page breaks a rule its documentation states, or cannot be read. `warning` fails it on a warning too. `never` only reports. |
 | `site` | `true` | Also read each site's robots.txt and llms.txt: which AI agents it admits, and whether its llms.txt keeps to llmstxt.org's format. `false` reads the pages alone. |
-| `version` | this release's | The Sluicer release it installs from PyPI, with the `fetch` extra. |
-| `package` | empty | What to install instead, as uv's `--with` takes it; `.[fetch]` in a checkout of Sluicer is how this repository tests the action. |
+| `version` | this release's | The Sluicer release it installs from PyPI, with no extra: the base install fetches over HTTP. |
+| `package` | empty | What to install instead, as uv's `--with` takes it; `.` in a checkout of Sluicer is how this repository tests the action. |
 
 The action installs uv and runs Sluicer with the Python uv brings, so the job
 needs no Python of its own. Every input reaches the script through its

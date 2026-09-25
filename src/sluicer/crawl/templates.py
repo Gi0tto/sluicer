@@ -53,7 +53,7 @@ from sluicer.crawl.schedule import (
     Politeness,
 )
 from sluicer.crawl.sitemaps import MAX_SITEMAP_URLS, map_site
-from sluicer.crawl.urls import normalise
+from sluicer.crawl.urls import normalise, not_a_start
 from sluicer.crawl.web import Web
 from sluicer.declared.merge import MAX_DEPTH, Field, JsonValue, Record
 from sluicer.document import load
@@ -217,9 +217,7 @@ def shopify_products(
     """
     start = normalise(url)
     if start is None:
-        raise ValueError(
-            shown(f"{url!r} is not an http(s) address a crawl can start at")
-        )
+        raise ValueError(shown(not_a_start(url)))
     if per_page < 1:
         raise ValueError(f"per_page must be 1 or more, not {per_page}")
     _check_retries(retries)

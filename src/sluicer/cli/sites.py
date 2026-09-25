@@ -147,7 +147,7 @@ _many_options = [
         default=RETRIES,
         show_default=True,
         help="Ask a page again this many times when it did not answer, or "
-        "answered 429 or a 5xx, each time twice as late; never a 4xx.",
+        "answered 429 or a 5xx, each time twice as late; never another 4xx.",
     ),
     click.option(
         "--jobs",

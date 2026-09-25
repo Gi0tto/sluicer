@@ -86,7 +86,8 @@ the browser without it, the machine or the container then its only boundary.
 Treat fetching an untrusted URL with the same care you would treat opening it
 in your own browser. The `stealth` extra
 (scrapling's patched Chromium) runs only for one page a person asked for with
-`--stealth`, never for the MCP server, the HTTP API or a crawl.
+`--stealth`, never for the MCP server, the HTTP API or a crawl, and its
+requests do not go through the guard proxy below.
 
 ## The MCP server fetches what it is told to fetch
 
@@ -120,8 +121,8 @@ through a proxy Sluicer runs on this machine's loopback, which judges each
 host and port by the same rule and connects only to the addresses it
 checked; Chromium is told not to pass loopback by it, and WebRTC's UDP, which
 no proxy carries, is off. The proxy asks every connection for credentials of
-its own, made at random when it starts and given only to the browser it
-serves: listening on loopback with none, any process on the machine could
+its own, made at random when it starts and given only to the browsers of
+this process that it serves: listening on loopback with none, any process on the machine could
 have used it, and through it the proxy the caller named, whose credentials it
 adds. The browser then resolves no name itself, so a name
 that answers differently the second time (DNS rebinding) reaches nothing new

@@ -364,4 +364,4 @@ sluicer.extract(doc.raw_html, url=doc.metadata.source_url)
 ```
 
 All six install beside Sluicer's base package in one environment; the base
-package needs only lxml and click.
+package needs only lxml, click, cssselect and protego.

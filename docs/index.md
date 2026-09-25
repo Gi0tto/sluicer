@@ -195,15 +195,15 @@ measures, the row shows it.
 | [WCXB](scoreboard.md), 511 pages | title, author, date found; dates invented | 0.727, 0.532, 0.581; 8 invented | trafilatura 0.745, 0.750, 0.838; 216 invented |
 | [As served](scoreboard-served.md), 360 pages | dates found; right when it answers | 0.780; 0.734 | trafilatura 0.855; 0.393 |
 | [News](scoreboard-news.md), 21 languages | title, author, date found | 0.871, 0.829, 0.970 | trafilatura 0.852, 0.879, 0.970 |
-| [trafilatura's set](scoreboard-evaldata.md), 990 pages | title, author, date found | 0.776, 0.468, 0.585 | trafilatura 0.738, 0.669, 0.865 |
+| [trafilatura's set](scoreboard-evaldata.md), 851 annotated pages | title, author, date found | 0.776, 0.468, 0.585 | trafilatura 0.738, 0.669, 0.865 |
 
 Sluicer reads only what a page states in its markup, so on titles, authors and
 dates it answers less often than tools that also read the visible text, and it
 invents far fewer dates. Its rules were written while reading the pages of these
 scoreboards, so the numbers show how it does on pages it was tuned on. The one
 held-out test is the half of SWDE's sites whose pages and errors were not read
-while making the rules; its numbers were looked at three times, once to decide
-whether to keep a rule. There it scores 0.845, including five camera sites that
+while making the rules; its numbers were read at each release and a few times
+besides, each listed there, once to decide whether to keep a rule. There it scores 0.845, including five camera sites that
 were read before the split and so are not a clean test.
 [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md)
 records which pages each rule was made on.
@@ -212,8 +212,9 @@ records which pages each rule was made on.
 
 - **You need authors or dates that pages do not declare.** trafilatura reads
   them from the visible text and finds more of them. Sluicer's `--visible`
-  option guesses them too, but it is new and not yet measured on the
-  scoreboards.
+  option guesses them too: on the scoreboards it finds more of them and
+  invents some, and on two of them its dates are right less often when it
+  answers.
 - **You need an article's full text.** `sluicer markdown` uses trafilatura for
   it; if you need trafilatura's options or other output formats, use it
   directly.
@@ -257,7 +258,7 @@ scoreboards measured and the extractors working as the web changes.
 MIT, except two data files under their own licences: schema.org's type names
 (CC BY-SA 3.0) and CLDR's month and weekday names (Unicode License v3); the
 package's licence expression is `MIT AND CC-BY-SA-3.0 AND Unicode-3.0`. The base
-install needs `lxml`, `click` and `protego`, all BSD-3-Clause, and on Python
+install needs `lxml`, `click`, `cssselect` and `protego`, all BSD-3-Clause, and on Python
 3.10 `tomli`, MIT. The extras pull a wider
 tree that is not all permissive: `tld` is MPL-1.1, GPL-2.0-only or
 LGPL-2.1-or-later, `orjson` is MPL-2.0 alongside Apache-2.0 or MIT, and

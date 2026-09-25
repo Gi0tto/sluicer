@@ -19,7 +19,7 @@ npm install sluicer
 
 It needs Node 18 or later, and is an ES module. It brings one dependency,
 `pyodide`, pinned to one version. The first `createSluicer()` on a machine
-downloads lxml and click, 2.25 MB, from Pyodide's package repository on
+downloads lxml, click and cssselect, 2.27 MB, from Pyodide's package repository on
 jsDelivr; later ones download nothing.
 
 ```js
@@ -160,7 +160,7 @@ What `createSluicer()` takes, in a new Node process:
 | First run, `markdown: true` | 4.0 s (3.9-4.4) | 17.9 MB |
 | Every later run, `markdown: true` | 3.9 s (3.3-4.0) | 14.3 MB, from PyPI |
 
-The first run downloads lxml and click, Sluicer's two requirements, from
+The first run downloads lxml, click and cssselect, Sluicer's requirements, from
 Pyodide's own package repository on jsDelivr, and keeps them in Pyodide's
 package cache (by default beside Pyodide in `node_modules`). The markdown extra
 installs trafilatura and its requirements from PyPI with micropip on every

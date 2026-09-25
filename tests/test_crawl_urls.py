@@ -203,3 +203,13 @@ def test_an_x_robots_tag_nofollow_for_everyone_or_for_sluicer_stops_the_walk():
     ]
     assert links_on(doc, {"x-robots-tag": "noindex"}) == ["https://example.com/a"]
     assert links_on(doc, {}) == ["https://example.com/a"]
+
+
+def test_a_start_with_a_login_is_refused_for_the_login():
+    """It was refused as "not an http(s) address", which it is."""
+    from sluicer.crawl.urls import normalise, not_a_start
+
+    assert normalise("http://u:pw@site.example/") is None
+    assert "carries a login" in not_a_start("http://u:pw@site.example/")
+    assert "not an http(s) address" in not_a_start("ftp://site.example/")
+    assert "not an http(s) address" in not_a_start("http://[::1/")

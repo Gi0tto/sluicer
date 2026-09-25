@@ -51,7 +51,8 @@ classifiers = [
 #   cssselect reads the CSS selectors a person writes into the XPath lxml
 #   evaluates: one pure-Python wheel of 21 KB with no dependency of its own,
 #   BSD-3-Clause, the translator of parsel and of lxml's own `cssselect`.
-#   1.2 is the first with `:is()`, `:where()` and `:has()`, and with types.
+#   1.2 is the first with `:is()`, `:where()` and `:has()`, and with types;
+#   `:has()` is translated right from 1.5, and refused below it.
 dependencies = [
     "lxml>=5.3",
     "click>=8.2",
