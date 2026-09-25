@@ -214,7 +214,7 @@ def test_diff_at_a_date_reads_before_from_the_archive_and_after_live(
             url=url, html=PAGE.replace("Brake pads", "Disc"), status=200, rung="http"
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fetch_live)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fetch_live)
     result = CliRunner().invoke(
         main,
         ["diff", "http://shop.example/p/1", "http://shop.example/p/1", "--at", "2020"],

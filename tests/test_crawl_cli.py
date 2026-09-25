@@ -42,14 +42,16 @@ def fake(monkeypatch):
 
         return call
 
-    monkeypatch.setattr("sluicer.cli.crawl_site", wrap(library.crawl))
-    monkeypatch.setattr("sluicer.cli.extract_many", wrap(library.extract_many))
-    monkeypatch.setattr("sluicer.cli.map_site", wrap(library.map_site))
+    monkeypatch.setattr("sluicer.cli.sites.crawl_site", wrap(library.crawl))
+    monkeypatch.setattr("sluicer.cli.sites.extract_many", wrap(library.extract_many))
+    monkeypatch.setattr("sluicer.cli.sites.map_site", wrap(library.map_site))
     from sluicer.crawl import templates
 
-    monkeypatch.setattr("sluicer.cli.sitemap_pages", wrap(templates.sitemap_pages))
     monkeypatch.setattr(
-        "sluicer.cli.shopify_products", wrap(templates.shopify_products)
+        "sluicer.cli.sites.sitemap_pages", wrap(templates.sitemap_pages)
+    )
+    monkeypatch.setattr(
+        "sluicer.cli.sites.shopify_products", wrap(templates.shopify_products)
     )
     return web
 
@@ -180,7 +182,7 @@ def test_a_crawl_without_an_extra_it_needs_says_how_to_install_it(monkeypatch):
             'Install it with: uv pip install "sluicer[browser]"'
         )
 
-    monkeypatch.setattr("sluicer.cli.crawl_site", missing)
+    monkeypatch.setattr("sluicer.cli.sites.crawl_site", missing)
 
     result = invoke("crawl", f"{ROOT}/")
 
@@ -196,7 +198,7 @@ def test_a_missing_extra_found_mid_crawl_says_so_too(monkeypatch):
         raise FetchExtraMissing("Loading a page in a browser needs playwright")
         yield
 
-    monkeypatch.setattr("sluicer.cli.crawl_site", lambda *a, **k: Crawl(pages))
+    monkeypatch.setattr("sluicer.cli.sites.crawl_site", lambda *a, **k: Crawl(pages))
 
     result = invoke("crawl", f"{ROOT}/")
 
@@ -232,7 +234,7 @@ def test_jobs_is_how_many_sites_are_asked_at_once(monkeypatch, command):
         raise ValueError("stop here")
 
     name = "crawl_site" if command == "crawl" else "extract_many"
-    monkeypatch.setattr(f"sluicer.cli.{name}", record)
+    monkeypatch.setattr(f"sluicer.cli.sites.{name}", record)
     source = f"{ROOT}/" if command == "crawl" else "-"
 
     invoke(command, source, "--jobs", "7", stdin=f"{ROOT}/a\n")
@@ -347,7 +349,7 @@ def test_a_batch_without_an_extra_it_needs_says_how_to_install_it(monkeypatch):
     def missing(*args, **kwargs):
         raise FetchExtraMissing('Install it with: uv pip install "sluicer[browser]"')
 
-    monkeypatch.setattr("sluicer.cli.extract_many", missing)
+    monkeypatch.setattr("sluicer.cli.sites.extract_many", missing)
 
     result = invoke("batch", "-", stdin=f"{ROOT}/a\n")
 
@@ -417,7 +419,7 @@ def test_map_as_csv_is_a_row_per_address(fake):
 
 
 def test_a_terminal_sees_a_bar_and_not_a_line_per_page(fake, monkeypatch):
-    monkeypatch.setattr("sluicer.cli._stderr_is_a_terminal", lambda: True)
+    monkeypatch.setattr("sluicer.cli.sites._stderr_is_a_terminal", lambda: True)
 
     result = invoke("crawl", f"{ROOT}/")
 

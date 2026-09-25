@@ -828,8 +828,7 @@ def test_the_command_hands_its_options_to_the_server(monkeypatch):
 
     seen = {}
     monkeypatch.setattr(
-        cli,
-        "serve_http",
+        "sluicer.cli.servers.serve_http",
         lambda host, port, **options: seen.update(host=host, port=port, **options),
     )
     monkeypatch.setenv(http_api.TOKEN_ENV, TOKEN)

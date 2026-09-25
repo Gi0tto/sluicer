@@ -306,7 +306,7 @@ def test_microformats_without_its_extra_is_a_message_at_the_command_line(monkeyp
             "install sluicer[microformats]", extra="microformats"
         )
 
-    monkeypatch.setattr("sluicer.cli.extract_html", missing)
+    monkeypatch.setattr("sluicer.cli.page.extract_html", missing)
 
     result = CliRunner().invoke(
         main, ["extract", "-", "--microformats"], input="<p>x</p>"
@@ -606,14 +606,14 @@ def test_an_uppercase_scheme_is_still_an_address():
         seen.append(url)
         return Fetched(url=url, html="<title>t</title>", status=200, rung="http")
 
-    import sluicer.cli
+    import sluicer.cli.source
 
-    original = sluicer.cli.fetch_url
-    sluicer.cli.fetch_url = fake
+    original = sluicer.cli.source.fetch_url
+    sluicer.cli.source.fetch_url = fake
     try:
         CliRunner().invoke(main, ["extract", "HTTPS://example.com/p"])
     finally:
-        sluicer.cli.fetch_url = original
+        sluicer.cli.source.fetch_url = original
 
     assert seen == ["HTTPS://example.com/p"]
 

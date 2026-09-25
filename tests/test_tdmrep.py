@@ -202,7 +202,7 @@ def test_respect_tdm_reads_the_sites_file_for_a_fetched_page(monkeypatch):
             ),
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fetch_url)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fetch_url)
     monkeypatch.setattr("sluicer.fetch.site.read_tdmrep_file", the_file)
     refused = CliRunner().invoke(main, ["extract", f"{ROOT}/p", "--respect", "tdm"])
     assert refused.exit_code == 2
@@ -311,7 +311,7 @@ def test_sluicer_crawl_takes_respect_on_the_command_line(monkeypatch):
         seen.update(kwargs)
         raise ValueError("stop here")
 
-    monkeypatch.setattr("sluicer.cli.crawl_site", crawl_site)
+    monkeypatch.setattr("sluicer.cli.sites.crawl_site", crawl_site)
     CliRunner().invoke(main, ["crawl", f"{ROOT}/", "--respect", "tdm"])
     assert seen["respect_tdm"] is True
 
@@ -355,7 +355,7 @@ def test_the_audit_says_whether_a_page_reserves_its_rights():
         True, None, "meta"
     )
     assert audit("<html></html>").tdm is None
-    from sluicer.cli import _audit_report
+    from sluicer.cli.audit import _audit_report
 
     report = _audit_report(f"{ROOT}/p", audited, None, True, False)
     assert (
