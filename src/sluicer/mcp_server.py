@@ -152,7 +152,8 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
     challenge page on every rung: nor that), ``payment_required`` (a 402,
     which Sluicer never pays), ``refused_address`` (a
     private address, refused by default), ``fetch_failed`` (worth trying
-    later: the only retryable one, unless the archive holds no capture),
+    later: the only retryable one, unless the archive holds no capture or
+    what failed would fail again, a redirect loop for one),
     ``too_large`` and ``bad_input``. Raised
     instead, each reached the agent as the SDK's bare "Error executing tool".
 
@@ -183,7 +184,9 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
             # Asking again will not make the archive have held the page.
             return _error("fetch_failed", missing, url=missing.url)
         except FetchFailed as failed:
-            return _error("fetch_failed", failed, retryable=True, url=failed.url)
+            return _error(
+                "fetch_failed", failed, retryable=failed.transient, url=failed.url
+            )
         except _BadInput as bad:
             return _error("bad_input", bad)
         except _Reserved as reserved:

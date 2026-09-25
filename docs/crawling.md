@@ -104,14 +104,18 @@ a log, one line a page.
   request after a page that took 2.0 s waited 1.01 s, the next 0.51 s, then
   0.31 s. A redirect hop's rest is not counted as the site's slowness.
 - **Asked again, a few times and later each time.** A page whose request
-  did not answer -- a connection reset, a timeout, a name that did not
-  resolve, a `robots.txt` nobody could read -- or answered 429 or a 5xx is
+  did not answer -- a connection refused or reset, a timeout, an answer cut
+  short, a name the resolver could not look up for now, a `robots.txt`
+  nobody could read -- or answered 429 or a 5xx is
   asked again, twice at most by default (`--retries`, `retries=`; 0 asks
   once): the first time twice the site's delay after the failed request
   ended, the second four times it, or the site's `Retry-After` when that is
   longer, never more than `max_delay` and never past the time budget. A 4xx
-  other than 429 is the site's answer about the page, and is never asked
-  again. A site whose page failed through all its retries is asked once a
+  other than 429 is the site's answer about the page, with a body or empty,
+  and is never asked again; nor is a failure asking again would meet again,
+  a redirect loop, an encoding the fetch cannot read, a page with nothing in
+  it, whose line says `fetch_failed` with `retryable` false. A site whose
+  page failed through all its retries is asked once a
   page until one of its pages answers, so a site that is down costs its
   retries once, not once a page. The page's line says each time in
   `retries`, `[{"reason": "it answered 503", "after": 1.0}]`, and is what its

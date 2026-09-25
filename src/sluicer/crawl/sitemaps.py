@@ -313,7 +313,9 @@ def map_site(
     """
     start = normalise(url)
     if start is None:
-        raise FetchFailed(url, [], f"{url!r} is not an http(s) address")
+        raise FetchFailed(
+            url, [], f"{url!r} is not an http(s) address", transient=False
+        )
     if not allow_private:
         refused = why_not_public(start, resolve)
         if refused is not None:

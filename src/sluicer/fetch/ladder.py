@@ -63,6 +63,7 @@ from sluicer.fetch.result import (
     Rung,
 )
 from sluicer.fetch.rules import challenge_marker, why_climb
+from sluicer.fetch.wire import passing
 
 __all__ = [
     "AddressRefused",
@@ -98,14 +99,49 @@ class FetchFailed(Exception):
     not be read. The message names what each rung said, and the last rung's
     own exception is the ``__cause__``. One type to catch whatever library a
     rung is built on: a browser's timeout, for one, is not an ``OSError``.
+
+    ``transient`` says whether asking again later may bring something else.
+    The ladder sets it false when every rung was answered with what it would
+    be answered again -- a redirect loop, an encoding this install cannot
+    read, an empty page -- or the address is not one; true when a rung's
+    failure was one of ``transient``'s -- a connection or a name lookup that
+    failed, time that ran out, a body cut short -- or the robots.txt could not
+    be read. True unless it is known not to be.
     """
 
-    def __init__(self, url: str, climbs: list[Climb], last: str) -> None:
+    def __init__(
+        self, url: str, climbs: list[Climb], last: str, transient: bool = True
+    ) -> None:
         said = "; ".join(f"{c.from_rung}: {c.reason}" for c in climbs)
         before = f" (before that, {said})" if said else ""
         super().__init__(f"Could not fetch {url}: {last}{before}")
         self.url = url
         self.climbs = climbs
+        self.transient = transient
+
+
+_PASSING_BROWSER_ERRORS = re.compile(
+    r"net::ERR_(?:CONNECTION_\w+|TIMED_OUT|EMPTY_RESPONSE|NETWORK_CHANGED"
+    r"|INTERNET_DISCONNECTED)"
+)
+
+
+def transient(error: BaseException) -> bool:
+    """Whether ``error`` is one asking again later may not meet.
+
+    A connection refused, reset or closed, a body cut short (``ProtocolError``
+    is a ``ConnectionError``), time that ran out, a name the resolver could
+    not look up for now, a robots.txt that could not be read; the browser's
+    own timeouts and connection failures by the names Playwright and Chromium
+    give them. Anything else is taken for the site's answer, which asking
+    again would be given again: a crawl retries only these.
+    """
+    if isinstance(error, RobotsUnreachable) or passing(error):
+        return True
+    if type(error).__name__ == "TimeoutError":
+        # Playwright's, which is not the built-in one.
+        return True
+    return bool(_PASSING_BROWSER_ERRORS.search(str(error)))
 
 
 class SiteRefused(FetchFailed):
@@ -120,7 +156,7 @@ class SiteRefused(FetchFailed):
     """
 
     def __init__(self, url: str, climbs: list[Climb], reason: str) -> None:
-        super().__init__(url, climbs, f"the site refused it: {reason}")
+        super().__init__(url, climbs, f"the site refused it: {reason}", transient=False)
         self.reason = reason
 
 
@@ -139,6 +175,7 @@ class PaymentRequired(FetchFailed):
             url,
             climbs,
             "the site answered 402 Payment Required; Sluicer does not pay",
+            transient=False,
         )
 
 
@@ -401,7 +438,7 @@ def fetch(
         urlsplit(url).port  # noqa: B018 -- parsing is the check
     except ValueError as invalid:
         raise FetchFailed(
-            url, [], f"{url!r} is not a valid address: {invalid}"
+            url, [], f"{url!r} is not a valid address: {invalid}", transient=False
         ) from None
 
     refused = why_not_web(url)
@@ -472,6 +509,8 @@ def _climb(
     # The remembered rung's page, once the ladder started again below it:
     # its place on the ladder and the page, which is not asked for twice.
     asked: tuple[int, Fetched] | None = None
+    # Whether a rung failed in a way asking again later may not meet.
+    passing = False
     last = len(rungs) - 1
     index = start
     while index <= last:
@@ -488,6 +527,7 @@ def _climb(
         except Exception as e:
             seconds = time.monotonic() - started
             failure = f"the rung raised {type(e).__name__}: {e}"
+            passing = passing or transient(e)
             # A refusal or a page too heavy is the page's answer, not the
             # rung's: the next rung would be told the same, at a higher cost.
             final = isinstance(e, (AddressRefused, RedirectRefused, ResponseTooLarge))
@@ -514,7 +554,7 @@ def _climb(
             if best is None:
                 if final:
                     raise
-                raise FetchFailed(url, climbs, failure) from e
+                raise FetchFailed(url, climbs, failure, transient=passing) from e
             best.climbs = [*climbs, Climb(name, best.rung, failure, seconds=seconds)]
             if best_refused is not None:
                 raise SiteRefused(url, best.climbs, best_refused) from e
@@ -603,7 +643,7 @@ def _robots(url: str, read: Callable[[str], str | None]) -> str | None:
     try:
         return robots_refusal(url, read=read)
     except RobotsUnreachable as unreachable:
-        raise FetchFailed(url, [], str(unreachable)) from unreachable
+        raise FetchFailed(url, [], str(unreachable), transient=True) from unreachable
 
 
 def _origin(url: str) -> tuple[str, str, int | None]:

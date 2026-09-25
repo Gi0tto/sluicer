@@ -302,7 +302,7 @@ def _asking(
         body = response.body
         sent = charset({"content-type": response.content_type})
         html = body.decode(sniff_encoding(body, sent), errors="replace")
-        if not html:
+        if not html and response.status < 400:
             raise EmptyBody(address, "http", response.status)
         return Fetched(
             url=response.url,

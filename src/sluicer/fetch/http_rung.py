@@ -254,7 +254,9 @@ def http_rung(
     Every argument but ``allow_empty`` is ``http_responses``'s.
     ``allow_empty`` returns an empty body rather than failing on it: a page
     with no HTML is a rung that failed, but an empty robots.txt or llms.txt is
-    an answer, and ``sluicer.fetch.site`` reads those.
+    an answer, and ``sluicer.fetch.site`` reads those. An empty 4xx or 5xx is
+    always returned: it is that status's answer about the address, as the
+    same status with a body is.
     """
     get = http_responses(
         allow_private,
@@ -273,7 +275,7 @@ def http_rung(
         body = response.body
         sent = charset({"content-type": response.content_type})
         html = body.decode(sniff_encoding(body, sent), errors="replace")
-        if not html and not allow_empty:
+        if not html and not allow_empty and response.status < 400:
             raise EmptyBody(url, "http", response.status)
         return Fetched(
             url=response.url,

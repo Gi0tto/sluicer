@@ -739,7 +739,7 @@ class _Visitor:
         except PaymentRequired as unpaid:
             return failed("payment_required", str(unpaid))
         except FetchFailed as failure:
-            return failed("fetch_failed", str(failure), retryable=True)
+            return failed("fetch_failed", str(failure), retryable=failure.transient)
         finally:
             self.polite.ended(task.url)
         if self.memory is not None and not fetched.climbs:
@@ -836,10 +836,13 @@ def asking_again(
 
 def _worth_asking_again(page: Page) -> str | None:
     """What ``page`` came to, when asking again later may bring back more:
-    a fetch that failed -- the page or its robots.txt did not answer -- or a
-    429 or a 5xx. None for any other answer."""
+    a fetch that failed in a way that may pass -- the page or its robots.txt
+    did not answer, or its answer was cut short (``FetchFailed.transient``)
+    -- or a 429 or a 5xx. None for any other answer: a redirect loop, an
+    encoding the fetch cannot read, a 404 are asked again for the same."""
     if page.error is not None:
-        return page.error.message if page.error.code == "fetch_failed" else None
+        retry = page.error.code == "fetch_failed" and page.error.retryable
+        return page.error.message if retry else None
     if page.status is not None and (page.status == 429 or page.status >= 500):
         return f"it answered {page.status}"
     return None

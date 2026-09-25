@@ -1354,6 +1354,19 @@ def test_an_empty_robots_txt_is_judged_by_its_status(monkeypatch, status, fetche
             fetch("https://example.com/p", rungs=ladder)
 
 
+@pytest.mark.parametrize("status", [404, 410, 403, 500, 503])
+def test_an_empty_error_page_is_that_statuses_answer(monkeypatch, status):
+    """An empty 404 is a 404: the site's answer about the address, which the
+    rung reported as a rung that failed, so the ladder climbed and a crawl
+    asked again."""
+    fake_http(monkeypatch, [(status, b"", {})])
+    from sluicer.fetch.http_rung import http_rung
+
+    page = http_rung()("https://example.com/p")
+
+    assert (page.status, page.html) == (status, "")
+
+
 def test_an_empty_page_is_still_a_rung_that_failed(monkeypatch):
     from sluicer.fetch.http_rung import http_rung
     from sluicer.fetch.result import EmptyBody

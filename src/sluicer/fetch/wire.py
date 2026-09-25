@@ -72,6 +72,18 @@ theirs sooner or later, and one left longer is more likely closed than not."""
 _HEADER_BYTES = 65536
 
 
+def passing(error: BaseException) -> bool:
+    """Whether ``error``, raised on the wire, is one asking again later may
+    not meet: a connection refused, reset or closed (a body cut short among
+    them), time that ran out, a TLS connection closed mid-handshake, a name
+    the resolver could not look up for now."""
+    if isinstance(error, (ConnectionError, TimeoutError, ssl.SSLEOFError)):
+        return True
+    if isinstance(error, socket.gaierror):
+        return error.errno == socket.EAI_AGAIN
+    return False
+
+
 class UnreadableEncoding(ValueError):
     """The body came in a content encoding this install cannot decode."""
 

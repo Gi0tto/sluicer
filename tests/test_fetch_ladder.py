@@ -963,3 +963,56 @@ def test_a_crawls_part_forgets_a_rung_whose_page_is_refused():
     assert page.rung == "http"
     assert parts.recall("https://shop.example/3") is None
     assert site.recall("https://shop.example/3") is None
+
+
+# -- whether a failure may be different later ---------------------------------------
+
+
+def _failing(error):
+    def go(url):
+        raise error
+
+    return go
+
+
+@pytest.mark.parametrize(
+    ("error", "transient"),
+    [
+        (ConnectionResetError("reset"), True),
+        (TimeoutError("took too long"), True),
+        (ValueError("the browser rung returned no HTML"), False),
+        (RuntimeError("redirected more than 10 times"), False),
+    ],
+)
+def test_a_failure_says_whether_asking_again_may_bring_something_else(error, transient):
+    with pytest.raises(FetchFailed) as failed:
+        fetch(
+            "https://example.com/p",
+            rungs=[("http", _failing(error))],
+            obey_robots=False,
+        )
+
+    assert failed.value.transient is transient
+
+
+def test_one_rung_that_may_answer_later_makes_the_failure_transient():
+    ladder = [
+        ("http", _failing(ConnectionRefusedError("refused"))),
+        ("browser", _failing(ValueError("the browser rung returned no HTML"))),
+    ]
+
+    with pytest.raises(FetchFailed) as failed:
+        fetch("https://example.com/p", rungs=ladder, obey_robots=False)
+
+    assert failed.value.transient
+
+
+def test_a_robots_txt_that_did_not_answer_is_transient():
+    """Whatever the rung that read it raised: RFC 9309 counts every way of
+    not reaching it as one event, and it may answer later."""
+    ladder = [("http", _failing(ValueError("the browser rung returned no HTML")))]
+
+    with pytest.raises(FetchFailed, match=r"robots\.txt") as failed:
+        fetch("https://example.com/p", rungs=ladder)
+
+    assert failed.value.transient

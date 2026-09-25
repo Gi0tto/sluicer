@@ -1183,6 +1183,67 @@ def test_a_client_error_is_the_page_s_answer_and_never_asked_again():
     assert len(requests_of(fake, f"{ROOT}/c/2")) == 1
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "TooManyRedirects",
+        "UnreadableEncoding",
+        "EmptyBody",
+    ],
+)
+def test_a_failure_that_asking_again_cannot_change_is_asked_once(failure):
+    """Measured on 0.8.0: a redirect loop was followed three times over, 33
+    requests, and the site was then treated as failing; every failure was
+    retried, whatever it was."""
+    from sluicer.fetch.http_rung import TooManyRedirects
+    from sluicer.fetch.result import EmptyBody
+    from sluicer.fetch.wire import UnreadableEncoding
+
+    raised = {
+        "TooManyRedirects": TooManyRedirects("it redirected more than 10 times"),
+        "UnreadableEncoding": UnreadableEncoding(f"{ROOT}/c/1", "br"),
+        "EmptyBody": EmptyBody(f"{ROOT}/c/1", "http", 200),
+    }[failure]
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = raised
+    fake = FakeWeb(pages)
+
+    again = {p.url: p for p in run(fake)}[f"{ROOT}/c/1"]
+
+    assert again.error.code == "fetch_failed"
+    assert not again.error.retryable
+    assert again.retries == ()
+    assert len(requests_of(fake, f"{ROOT}/c/1")) == 1
+
+
+def test_a_page_cut_short_or_timed_out_is_asked_again():
+    from sluicer.fetch.http_rung import ProtocolError
+
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = [ProtocolError("cut short"), pages[f"{ROOT}/c/1"]]
+    pages[f"{ROOT}/c/2"] = [TimeoutError("took too long"), pages[f"{ROOT}/c/2"]]
+    fake = FakeWeb(pages)
+
+    result = {p.url: p for p in run(fake)}
+
+    assert [len(result[f"{ROOT}/c/{n}"].retries) for n in (1, 2)] == [1, 1]
+    assert result[f"{ROOT}/c/1"].ok and result[f"{ROOT}/c/2"].ok
+
+
+def test_an_empty_404_is_the_page_s_answer_and_asked_once(monkeypatch):
+    """Measured on 0.8.0: an empty 404 was the HTTP rung failing, not a 404;
+    asked three times, it ended fetch_failed."""
+    from fake_wire import fake_http
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    seen = fake_http(monkeypatch, [(404, b"", {}), (404, b"", {})])
+
+    pages = list(extract_many([f"{ROOT}/gone"], min_delay=0))
+
+    assert [(p.status, p.error) for p in pages] == [(404, None)]
+    assert [r.target for r in seen.requests] == ["/robots.txt", "/gone"]
+
+
 def test_a_robots_file_that_did_not_answer_is_asked_again():
     pages = shop()
     pages[f"{ROOT}/robots.txt"] = [ConnectionError("no route"), "User-agent: *\n"]

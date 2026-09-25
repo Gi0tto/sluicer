@@ -728,6 +728,27 @@ def test_a_fetch_that_failed_says_what_failed_rather_than_raising(monkeypatch):
     assert "connection refused" in result["error"]["message"]
 
 
+def test_a_fetch_that_would_fail_again_is_not_retryable(monkeypatch):
+    """A redirect loop, asked again, loops again: an agent told retryable
+    would ask for it again and again."""
+    from sluicer.fetch import FetchFailed
+
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(
+        monkeypatch,
+        raises=FetchFailed(
+            "https://example.com/p", [], "a redirect loop", transient=False
+        ),
+    )
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    result = registered["fetch_page"]("https://example.com/p")
+
+    assert result["error"]["code"] == "fetch_failed"
+    assert result["error"]["retryable"] is False
+
+
 def test_a_real_bug_below_the_fetch_is_still_not_swallowed(monkeypatch):
     registered = fake_mcp(monkeypatch)
     fake_fetch(monkeypatch, raises=KeyError("a bug"))

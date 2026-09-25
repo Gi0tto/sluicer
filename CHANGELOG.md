@@ -522,6 +522,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   it the browser, its articles, which plain HTTP read whole and the browser
   was refused, came back as the browser's 403, every one of them, and a
   crawl's parts did the same.
+- A crawl asks a page again only when what failed may pass: a connection
+  refused or reset, a timeout, an answer cut short, a name the resolver could
+  not look up for now, a robots.txt nobody could read, or a 429 or a 5xx.
+  Every failed fetch was asked again: measured, a redirect loop was followed
+  three times over, 33 requests, before the site was taken for failing, and
+  so was an encoding the fetch cannot read. `FetchFailed.transient` says
+  which it is, and a crawled page's `retryable`, and the MCP tools' and the
+  HTTP API's, is false for one that would fail again.
+- An empty 4xx or 5xx is that status's answer about the address, as the same
+  status with a body is: the HTTP rung reported an empty 404 as a rung that
+  failed, so a crawl asked for it three times and ended `fetch_failed`, not
+  404, and the ladder climbed past an empty 404 to the browser.
 
 ## 0.7.1 - 2026-09-25
 

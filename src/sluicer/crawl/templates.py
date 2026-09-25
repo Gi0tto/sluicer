@@ -60,6 +60,7 @@ from sluicer.fetch import AddressRefused, Fetched, ResponseTooLarge
 from sluicer.fetch.address import _resolve, why_not_public
 from sluicer.fetch.identity import RobotsUnreachable, robots_refusal
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
+from sluicer.fetch.wire import passing
 from sluicer.summary import FIELDS, SummaryField
 
 TEMPLATES = ("sitemap", "shopify")
@@ -322,7 +323,7 @@ class _Listing:
 
     def take(self, address: str) -> _Answer:
         def failed(code: str, message: str, again: str | None = None) -> _Answer:
-            error = PageError(code, message, retryable=code == "fetch_failed")
+            error = PageError(code, message, retryable=again is not None)
             return _Answer(error=error, again=again)
 
         refused = None if self.allow_private else why_not_public(address, self.resolve)
@@ -357,11 +358,12 @@ class _Listing:
         except AddressRefused as refused_address:
             return failed("refused_address", str(refused_address))
         # Deliberately blind, as the ladder is about its rungs: every way a
-        # transport can fail to bring the page back is one event, worth
-        # asking again, and the sentence says which.
+        # transport can fail to bring the page back is one event, and the
+        # sentence says which; asked again only when it may pass.
         except Exception as failure:  # noqa: BLE001
             said = f"Could not fetch {address}: {type(failure).__name__}: {failure}"
-            return failed("fetch_failed", said, again=said)
+            again = said if passing(failure) else None
+            return failed("fetch_failed", said, again=again)
         seconds = self.polite.clock() - began
         self.polite.slow_down(
             address,
