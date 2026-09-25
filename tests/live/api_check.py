@@ -310,6 +310,19 @@ def main() -> int:
         )
         if audited.get("ok") is not True or not audited.get("records"):
             check.failures.append(f"audit_page audited nothing: {audited}")
+        selected = check.expect(
+            "select_values",
+            call(
+                a,
+                "select_values",
+                {"html_or_url": PAGE, "selector": "h1::text"},
+                headers=auth,
+            ),
+            200,
+            tool="select_values",
+        )
+        if [v.get("value") for v in selected.get("values") or ()] != ["Brake pad set"]:
+            check.failures.append(f"select_values selected nothing: {selected}")
         v1 = (DRIFT / "shop_v1.html").read_text(encoding="utf-8")
         learnt = check.expect(
             "compile_extractor",
