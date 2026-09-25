@@ -16,8 +16,8 @@ Sluicer, [Scrapling](https://github.com/D4Vinci/Scrapling)'s adaptive
 selectors, which promise to find an element again when a page changes,
 are asked the same thing, as [the drift benchmark](drift.md) asks them.
 
-Regenerated on 2026-09-25 from commit `aebc85e` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
-archive checked against its SHA-256. Sluicer took 909 s of CPU to learn and run its 80 extractors, Scrapling 1660 s.
+Regenerated on 2026-09-25 from commit `9cf419d` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
+archive checked against its SHA-256. Sluicer took 967 s of CPU to learn and run its 80 extractors, Scrapling 1660 s.
 
 !!! warning "Read this before the numbers"
     These pages declare almost nothing, so every value here is learnt from
