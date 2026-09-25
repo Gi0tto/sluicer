@@ -70,7 +70,7 @@ behind an answer instead of describing the page, and a property test follows
 every place on every drawn page to the value.
 
 **In every agent.** The MCP server is one `uvx` command, with an entry for
-the MCP Registry and a guide for seven clients. Its ten tools say they only
+the MCP Registry and a guide for seven clients. Its eleven tools say they only
 read, so Codex and Claude Code run them without asking first, and the skill
 keeps to the open Agent Skills format Codex reads.
 

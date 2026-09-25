@@ -54,6 +54,8 @@ test("every package index.js loads is one Pyodide ships", async () => {
     assert.ok(name in lock.packages, `${name} is not a Pyodide package`);
   }
   assert.ok(wheel.fetching.some((r) => r.startsWith("protego")));
+  // tomli is for Pythons older than 3.11, and Pyodide's is 3.14.
+  assert.ok(!wheel.requires.some((r) => r.startsWith("tomli")));
 });
 
 test("a page can be a string, a Buffer, a Uint8Array or an ArrayBuffer", () => {

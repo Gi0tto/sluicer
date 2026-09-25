@@ -73,6 +73,7 @@ from sluicer.http_api import (
     serve as serve_http,
 )
 from sluicer.markdown import MarkdownExtraMissing, to_markdown
+from sluicer.selectors import SelectorError, parse as parse_page
 
 NOTHING_FOUND = 1
 COULD_NOT_READ = 2
@@ -102,7 +103,15 @@ def _what_to_try(source: str, induce: bool, visible: bool) -> str:
 
 
 SECTIONS: dict[str, tuple[str, ...]] = {
-    "Read a page": ("fetch", "extract", "inspect", "markdown", "diff", "audit"),
+    "Read a page": (
+        "fetch",
+        "extract",
+        "select",
+        "inspect",
+        "markdown",
+        "diff",
+        "audit",
+    ),
     "Whole sites": ("map", "crawl", "batch", "feed", "warc"),
     "Extractors": ("compile", "run", "heal"),
     "Servers": ("mcp", "serve"),
@@ -688,6 +697,57 @@ def extract(
     click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
+@main.command("select")
+@click.argument("source")
+@click.argument("selector")
+@click.option(
+    "--json", "as_json", is_flag=True, help="Print the values as a JSON list."
+)
+@_with_fetch_options
+def select_command(
+    source: str,
+    selector: str,
+    as_json: bool,
+    stealth: bool,
+    no_robots: bool,
+    base_url: str | None,
+    respect: tuple[str, ...],
+    cache_dir: str | None,
+    max_age: float | None,
+    at: str | None,
+) -> None:
+    """Print what a CSS or XPath selector gives on a page, and where.
+
+    One value a line, a tab, then the XPath of its element: 'h1',
+    'span.price::text', 'a::attr(href)' or '//li/a/@href'. A selector that
+    cannot be read exits 2 naming it, before any page is fetched; one that
+    gives nothing exits 1.
+    """
+    from sluicer.selectors import selector as read_selector
+
+    try:
+        read_selector(selector)
+    except SelectorError as unread:
+        _fail(f"{unread}.", unread)
+    html, url, fetched = _read_source(
+        source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
+    )
+    page = parse_page(html, url, fetched.headers if fetched else None)
+    try:
+        found = page.select(selector)
+    except SelectorError as unread:
+        _fail(f"{unread}.", unread)
+    if not found:
+        click.echo(f"{selector!r} gives nothing on this page.", err=True)
+        raise SystemExit(NOTHING_FOUND)
+    if as_json:
+        values = [{"value": one.value, "where": one.where} for one in found]
+        click.echo(json.dumps(values, indent=2, ensure_ascii=False))
+        return
+    for one in found:
+        click.echo(f"{one.value}\t{one.where}")
+
+
 @main.command()
 @click.argument("source")
 @click.option(
@@ -1059,7 +1119,7 @@ def _load_extractor(path: str) -> Extractor:
 
 
 @main.command("compile")
-@click.argument("sources", nargs=-1, required=True)
+@click.argument("sources", nargs=-1)
 @click.option("-o", "--output", required=True, help="Where to write the extractor.")
 @click.option(
     "--listing/--no-listing",
@@ -1074,6 +1134,20 @@ def _load_extractor(path: str) -> Extractor:
     help="A value one row holds, and the column's name: --want price=41.90. "
     "Chooses the listing and keeps only the columns named.",
 )
+@click.option(
+    "--select",
+    "selected",
+    multiple=True,
+    metavar="NAME=SELECTOR",
+    help="A field you name by CSS or XPath instead of an example: "
+    "--select price='span.price::text'. No page is needed.",
+)
+@click.option(
+    "--rows",
+    metavar="SELECTOR",
+    help="With --select, the rows of a listing, each field read inside each: "
+    "--rows li.product.",
+)
 @click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
 @click.option("--no-robots", is_flag=True, help="Fetch even where robots.txt says no.")
 @_with_proxy
@@ -1082,6 +1156,8 @@ def compile_command(
     output: str,
     listing: bool | None,
     wanted: tuple[str, ...],
+    selected: tuple[str, ...],
+    rows: str | None,
     stealth: bool,
     no_robots: bool,
 ) -> None:
@@ -1093,7 +1169,19 @@ def compile_command(
     columns. When no repeated group holds them -- a product page -- or with
     --no-listing, they are the page's own values, each learnt where it sits.
     A value that is nowhere is an error that names it.
+
+    With --select, you name each field by selector instead, and --rows the
+    listing's rows: nothing is learnt of where they are, and from the pages,
+    if any are given, what each field looks like, as for any extractor. A
+    selector that gives nothing on a page given is an error that names it.
     """
+    if selected or rows is not None:
+        _compile_selected(
+            sources, output, listing, wanted, selected, rows, stealth, no_robots
+        )
+        return
+    if not sources:
+        _fail("compile needs pages to learn from, or fields named with --select.")
     want: dict[str, str] | None = None
     if wanted:
         want = {}
@@ -1124,9 +1212,10 @@ def compile_command(
             + ")"
         )
     if extractor.listing is not None:
-        rows = extractor.listing.rows
+        counted = extractor.listing.rows
         learnt.append(
-            f"a listing at {extractor.listing.container}, {rows[0]}-{rows[1]} rows "
+            f"a listing at {extractor.listing.container}, "
+            f"{counted[0]}-{counted[1]} rows "
             f"of {len(extractor.listing.fields)} fields"
         )
     if extractor.summary:
@@ -1134,6 +1223,63 @@ def compile_command(
     if extractor.types:
         learnt.append("declared " + ", ".join(extractor.types))
     click.echo(f"Learnt {'; '.join(learnt)}. Wrote {output}.", err=True)
+    for note in extractor.notes:
+        click.echo(f"Note: {note}.", err=True)
+
+
+def _compile_selected(
+    sources: tuple[str, ...],
+    output: str,
+    listing: bool | None,
+    wanted: tuple[str, ...],
+    selected: tuple[str, ...],
+    rows: str | None,
+    stealth: bool,
+    no_robots: bool,
+) -> None:
+    """``compile --select``: an extractor of fields a person named by selector.
+
+    Every selector is read before any page is fetched, so one that cannot be
+    read costs no request, and exits 2 naming it."""
+    if not selected:
+        _fail("--rows says where the rows of fields named with --select are.")
+    if wanted:
+        _fail("--select and --want name fields two ways; use one of them.")
+    if listing is not None:
+        _fail("With --select, --rows says where a listing's rows are, not --listing.")
+    select: dict[str, str] = {}
+    for pair in selected:
+        name, equals, text = pair.partition("=")
+        if not equals or not name.strip() or not text.strip():
+            _fail(f"--select takes NAME=SELECTOR, not {pair!r}.")
+        select[name.strip()] = text
+    try:
+        compile_extractor([], select=select, rows=rows)
+        extractor = compile_extractor(
+            _read_pages(sources, stealth, no_robots),
+            select=select,
+            rows=rows,
+            names=list(sources),
+        )
+    except SelectorError as unread:
+        _fail(f"{unread}.", unread)
+    except NothingToLearn as nothing:
+        click.echo(f"Learnt nothing: {nothing}.", err=True)
+        raise SystemExit(NOTHING_FOUND) from nothing
+    _write(output, extractor.to_json())
+    written = extractor.written
+    assert written is not None
+    where = f" in rows at {written.rows}" if written.rows is not None else ""
+    learnt = [
+        f"{len(written.fields)} fields by selector{where} ("
+        + ", ".join(f"{f.name} at {f.selector}" for f in written.fields)
+        + ")"
+    ]
+    if extractor.summary:
+        learnt.append(f"{len(extractor.summary)} summary answers")
+    if extractor.types:
+        learnt.append("declared " + ", ".join(extractor.types))
+    click.echo(f"Wrote {'; '.join(learnt)} to {output}.", err=True)
     for note in extractor.notes:
         click.echo(f"Note: {note}.", err=True)
 
@@ -1239,6 +1385,13 @@ def heal_command(
             click.echo(said, err=True)
         else:
             click.echo(f"{change.kind}: {change.before or change.after}", err=True)
+    if any(c.kind == "broken" for c in changes):
+        click.echo(
+            "A selector you wrote no longer holds, and heal does not rewrite a "
+            "selector a person wrote: find the new one with sluicer select on "
+            "the new page, then compile again.",
+            err=True,
+        )
     lost = any(c.kind in LOSSES for c in changes)
     if output and (force or not lost):
         _write(output, healed.to_json())

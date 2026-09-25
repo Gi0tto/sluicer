@@ -11,7 +11,7 @@ It needs [uv](https://docs.astral.sh/uv/) on the `PATH`; `uvx` fetches Sluicer
 and its `mcp` extra, which brings fetching and markdown, the first time.
 `sluicer-mcp`, after `uv pip install "sluicer[mcp]"`, is the same server.
 
-Every one of its ten tools only reads -- the page it is given, or the web --
+Every one of its eleven tools only reads -- the page it is given, or the web --
 and says so in its MCP annotations (`readOnlyHint`, not `destructiveHint`), so
 a client that asks before a tool writes runs them without asking. Measured
 with Codex 0.144.4 on 2026-09-24: before the annotations, `codex exec`
@@ -22,7 +22,7 @@ Each tool a client registers costs its agent context, called or not. To offer
 only some, name them: `sluicer mcp --tools extract_declared,page_markdown`, or
 `SLUICER_MCP_TOOLS=extract_declared,page_markdown` for a client that sets
 variables rather than arguments. A name that is not a tool stops the server
-with the list of the ten, and exit code 2. Where the scripts directory is not on the `PATH`,
+with the list of them, and exit code 2. Where the scripts directory is not on the `PATH`,
 `python -m sluicer mcp` starts the same server.
 
 The server refuses to fetch `localhost`, a private network or a cloud's
@@ -169,7 +169,7 @@ open it with Claude Desktop to install the server. It is 134 KB and holds no
 Python; its manifest has the host install `sluicer[mcp]` at that version from
 PyPI with uv, and its two settings are the variables at the top of this
 page, `SLUICER_MCP_TOOLS` and `SLUICER_ALLOW_PRIVATE`. The release checks it with the
-format's own validator, then unpacks it and lists its ten tools with uv, as
+format's own validator, then unpacks it and lists its tools with uv, as
 the manifest starts it. Installing it in Claude Desktop was not run.
 
 Or by hand: `claude_desktop_config.json`, in
@@ -207,7 +207,7 @@ so a client starts it with `-i`:
 ```
 
 Each release from 0.8.0 publishes the image, for amd64 and arm64, after a
-client has listed its ten tools from it; the [HTTP API](http-api.md#in-docker)
+client has listed its tools from it; the [HTTP API](http-api.md#in-docker)
 page says what it carries.
 
 **Anything else that speaks MCP** -- over stdio, the command above.
@@ -216,7 +216,7 @@ page says what it carries.
 
 n8n and Dify do not start MCP servers over stdio; they connect to one over
 HTTP. `sluicer serve` (the `api` extra) is that server at `/mcp`, over MCP's
-streamable HTTP transport, with the same ten tools:
+streamable HTTP transport, with the same tools:
 
 ```bash
 uv tool install "sluicer[api]"
@@ -253,8 +253,8 @@ and what the server refuses.
 
 Neither was run here; both are written from their documentation as it read on
 2026-09-25. What was run, against `sluicer serve`, is the `mcp` Python SDK's
-client and the TypeScript SDK's, which n8n's MCP nodes are built on: both list
-the ten tools and call them.
+client and the TypeScript SDK's, which n8n's MCP nodes are built on: both
+listed the ten tools it had before `select_values` and called them.
 
 ## The documentation, for an agent
 
@@ -273,8 +273,8 @@ process, as below, rather than importing it into your application's
 environment: measured on 2026-09-24, `langchain-mcp-adapters` 0.3.1 resolves
 mcp 1.30 and fails to import against mcp 2.2, which `sluicer[mcp]` needs, so
 the two in one environment break the application. As separate processes they
-speak MCP to each other, and every one of these listed the ten tools and
-answered a page's price with its place:
+speak MCP to each other, and every one of these listed the ten tools it had
+before `select_values` and answered a page's price with its place:
 
 LangChain (`langchain-mcp-adapters` 0.3.1, its client on mcp 1.30):
 
@@ -315,7 +315,7 @@ whichever model reads them, since none is asked to produce them.
 
 ## Without MCP
 
-`sluicer serve` answers the same ten tools over HTTP, for any language and any
+`sluicer serve` answers the same tools over HTTP, for any language and any
 model's function calling: `POST /v1/tools/<name>` with the tool's arguments as
 JSON, described at `/openapi.json`. See [the HTTP API](http-api.md). And in
 Python, `sluicer.extract(html, url=...)` is the library the server calls.

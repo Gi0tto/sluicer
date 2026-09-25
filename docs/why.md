@@ -45,7 +45,7 @@ could not be checked from the project's own code or README.
 | robots.txt, by default | obeyed, and not fetched when it cannot be read | not obeyed unless `robots_txt_obey` | not checked unless `check_robots_txt` | obeyed in a crawl; a single scrape only under a team setting | does not fetch | obeyed by its spider |
 | Bot protection | none: it announces itself | its fetchers bypass anti-bot systems, its README says | a stealth mode, its README says | the service's job, its README says | does not fetch | does not fetch |
 | When a site's layout changes | fails loudly, exit 3; `heal` says what moved | relocates an element by similarity, when asked | ? | ? | -- | -- |
-| MCP server | ten tools, each annotated read-only | yes | in its Docker server | yes | no | no |
+| MCP server | eleven tools, each annotated read-only | yes | in its Docker server | yes | no | no |
 | Where it runs | your machine | your machine | your machine, or its Docker server | its cloud with a key, or self-hosted | your machine | your machine |
 
 Read from each project at one commit on 2026-09-24 -- Scrapling `0b85f7e`,
@@ -103,7 +103,7 @@ request says `Sluicer/<version>`, borrows no browser's referer or fingerprint,
 and obeys `robots.txt` -- and nothing is fetched when `robots.txt` cannot be
 read, as RFC 9309 says. The stealth rung exists and never runs unless asked.
 
-**A tool an agent can trust.** Ten MCP tools, each answer with `ok` and an
+**A tool an agent can trust.** Eleven MCP tools, each answer with `ok` and an
 output schema, an error that can never be mistaken for the page, and a server
 that keeps every request -- redirects, images, frames, websockets -- off
 private addresses unless told otherwise.

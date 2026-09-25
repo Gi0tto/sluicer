@@ -31,6 +31,12 @@ OUT = JS / "python"
 # Pyodide ships none of them. protego, the robots.txt parser, joined the base
 # install with fetching over plain HTTP, and every start failed on it.
 FETCHING_ONLY = frozenset({"protego"})
+# A requirement for some Pythons only, "tomli; python_version < '3.11'", is
+# judged against the Python Pyodide runs, which its version names: 314.0.7 is
+# Python 3.14.
+_PYTHON_MARKER = re.compile(
+    r"\s*python_version\s*(<=|>=|<|>|==|!=)\s*'(\d+)\.(\d+)'\s*"
+)
 
 
 def main() -> int:
@@ -57,7 +63,7 @@ def main() -> int:
         OUT.mkdir()
         wheel = OUT / built.name
         shutil.copyfile(built, wheel)
-    requires, extras = _requirements(wheel, version)
+    requires, extras = _requirements(wheel, version, _pyodide_python())
     fetching = [r for r in requires if _name(r) in FETCHING_ONLY]
     requires = [r for r in requires if _name(r) not in FETCHING_ONLY]
     (OUT / "wheel.json").write_text(
@@ -83,8 +89,20 @@ def main() -> int:
     return 0
 
 
-def _requirements(wheel: Path, version: str) -> tuple[list[str], dict[str, list[str]]]:
-    """The wheel's base requirements, and each extra's, from its METADATA."""
+def _pyodide_python() -> tuple[int, int]:
+    """The Python the pinned Pyodide runs: its version 314.0.7 is 3.14."""
+    pinned = json.loads((JS / "package.json").read_text(encoding="utf-8"))
+    major = pinned["dependencies"]["pyodide"].split(".")[0]
+    if not re.fullmatch(r"3\d{2}", major):
+        raise SystemExit(f"a Pyodide version this script cannot read: {major}")
+    return 3, int(major[1:])
+
+
+def _requirements(
+    wheel: Path, version: str, python: tuple[int, int]
+) -> tuple[list[str], dict[str, list[str]]]:
+    """The wheel's base requirements, and each extra's, from its METADATA:
+    those for another Python than Pyodide's are left out."""
     with zipfile.ZipFile(wheel) as archive:
         metadata = archive.read(f"sluicer-{version}.dist-info/METADATA").decode()
     requires: list[str] = []
@@ -94,6 +112,20 @@ def _requirements(wheel: Path, version: str) -> tuple[list[str], dict[str, list[
             continue
         requirement, _, marker = line.removeprefix("Requires-Dist: ").partition(";")
         extra = re.fullmatch(r"\s*extra == '([\w-]+)'\s*", marker)
+        pythons = _PYTHON_MARKER.fullmatch(marker)
+        if pythons:
+            wanted = (int(pythons[2]), int(pythons[3]))
+            holds = {
+                "<": python < wanted,
+                "<=": python <= wanted,
+                ">": python > wanted,
+                ">=": python >= wanted,
+                "==": python == wanted,
+                "!=": python != wanted,
+            }
+            if holds[pythons[1]]:
+                requires.append(requirement.strip())
+            continue
         if marker and not extra:
             raise SystemExit(f"a marker this script cannot read: {line}")
         if extra:
