@@ -22,6 +22,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the HTTP API read `SLUICER_PROXY`.
 
 ### Changed
+- **Upgrading.** Fetching through a proxy now needs `SLUICER_PROXY` or
+  `--proxy`: `HTTPS_PROXY` and `HTTP_PROXY` are no longer read (see Fixed).
+  A challenge page and a 402 Payment Required are now errors where the page
+  used to be returned: `fetch()` raises `SiteRefused` or `PaymentRequired`,
+  and the MCP server and the HTTP API answer the new codes `refused_by_site`
+  and `payment_required`.
 - The README is half as long and leads with one thing: extractors that fail
   loudly when a site changes, with the redesign demo at the top. It keeps the
   quick start, one benchmark table and a "When not to use Sluicer" section;
@@ -33,8 +39,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   writes every part the label writes, alike; dots are read day first, slashes
   month first, and with a UTC offset on both the answer is read in the
   label's (`bench/PREREG.md`). It changes five outcomes on the news
-  scoreboard and trafilatura's set, all from wrong to hit, when they are next
-  regenerated.
+  scoreboard and trafilatura's set, all from wrong to hit; this release's
+  scoreboards are scored by it.
 - Every sentence a scoreboard's generator writes about its results is
   counted from them. `bench/run.py` wrote "Sluicer gives none where the page
   states none" beside a table in which it invented 42 authors and 8 dates,
@@ -42,8 +48,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   scoreboard's error classes, the news scoreboard's "most of the authors",
   trafilatura's set's "nearly every snippet", the extruct page's "raises on
   none" and "for the same reasons", and the served scoreboard's capture
-  scores were written once by hand and printed on every run. The scoreboards
-  show it when they are next regenerated.
+  scores were written once by hand and printed on every run. This release's
+  scoreboards are the first written this way.
 - `sluicer --help` lists the commands in four sections -- Read a page, Whole
   sites, Extractors, Servers -- instead of one alphabetical list.
 - The suite runs in a random order (pytest-randomly, now a development
@@ -69,7 +75,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
   are found by one search in C, and the `<meta>` tags are scanned once a page
   instead of once for each reader and summary question that reads them.
 
-- The sdist is 0.72 MB, from 1.99 MB. It leaves out `uv.lock`, which pins the
+- The sdist is 0.78 MB, from 1.98 MB. It leaves out `uv.lock`, which pins the
   development environment, the CI workflows, and the pictures under
   `docs/assets`, which PyPI shows from the repository because the README names
   them by absolute address. It still carries the source, the tests and all they
