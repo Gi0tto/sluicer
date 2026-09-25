@@ -210,4 +210,19 @@ uv run bench/gate.py --require    # fails if Sluicer does worse than bench/floor
 uv run bench/gate.py --raise      # the floors follow the numbers up, never down
 ```
 
+`bench/floors-pages.json` holds every page's outcome the floors were written
+from. A number below its floor fails the gate when the paired comparison of
+today's outcomes with those calls it worse, or when it is past the floor by
+more than its tolerance (0.010 for a rate or an F1, 1% of what it is counted
+over for a count); otherwise it is held within noise, and the gate says so.
 A floor is lowered only with `--allow-regression`, in a commit that says why.
+
+## How sure a number is
+
+Every hit rate and share right when answering a scoreboard prints carries
+its 95% Wilson score interval, `0.727 (0.68–0.77)`, the bounds rounded
+outwards. Every difference between Sluicer and another tool, or between a
+page as served and as WCXB kept it, is a paired bootstrap over the pages
+(over the sites for SWDE), 10,000 resamples from seed 20260924, and is called
+better, worse or inconclusive by where its interval lies. `stats.py` computes
+both, as [`PREREG.md`](PREREG.md) fixed them before either was computed.
