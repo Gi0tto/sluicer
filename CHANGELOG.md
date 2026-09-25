@@ -377,6 +377,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A hand-written listing whose rows selector cannot be read on one page --
+  an XPath that selects a comment there, as `//li | //comment()` does -- fails
+  that page's listing check, exit 3, with why. It escaped as a traceback:
+  `sluicer run` and `heal` stopped with exit 1, and the other pages went
+  unread.
 - The records' documentation says what a JSON-LD number becomes: the text
   the page wrote, `"41.90"` and not `41.9`, as every value in a record is
   text (`Field`, the getting-started guide). It always was, on purpose, and

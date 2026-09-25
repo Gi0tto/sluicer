@@ -345,7 +345,14 @@ def _replayed(
                 fields[f.name] = value
         return [], fields, said
     where = f"rows at {written.rows}"
-    members = page.select(written.rows)
+    try:
+        members = page.select(written.rows)
+    except SelectorError as why:
+        # Read on an empty page when written, a selector can still fail on
+        # one page -- an XPath that selects a comment there -- and the page
+        # fails, as one without the rows does; the rest are still read.
+        said.append((None, Check("listing", where, str(why), False)))
+        return [], {}, said
     elements = [one for one in members if _element_of(one) is not None]
     if not members or len(elements) != len(members):
         got = (

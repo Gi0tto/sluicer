@@ -187,6 +187,30 @@ def test_a_redesign_that_breaks_the_selectors_fails_and_gives_no_rows():
     assert check.expected == "rows at li.product"
 
 
+def test_a_rows_selector_a_page_cannot_answer_fails_that_page():
+    """An XPath of rows that selects a comment on one page cannot be read
+    there: that page fails its listing check, and neither a run nor a heal
+    stops on a traceback."""
+    rows = "xpath://li[@class='product'] | //comment()[contains(., 'rows')]"
+    extractor = compile_extractor(
+        [page("shop_v1.html"), page("shop_v1_page2.html")], select=BOOK, rows=rows
+    )
+    html, url = page("shop_v1.html")
+    commented = html.replace(b"<ol", b"<!-- rows --><ol", 1)
+
+    run = run_extractor(extractor, commented, url)
+
+    assert not run.ok
+    assert failed(run) == ["listing"]
+    [check] = [c for c in run.checks if not c.ok]
+    assert check.expected == f"rows at {rows}"
+    assert "comment" in check.got
+    assert run.rows == []
+    healed, changes = heal(extractor, [(commented, url)])
+    assert [(c.kind, c.before) for c in changes] == [("broken", rows)]
+    assert healed.written == extractor.written
+
+
 def test_a_page_with_the_rows_but_none_in_them_fails():
     run = run_extractor(books(), *page("shop_empty.html"))
 
