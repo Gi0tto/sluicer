@@ -16,6 +16,7 @@ Options:
   --help     Show this message and exit.
 
 Read a page:
+  fetch     Fetch a URL and print the page, as the ladder brought it back.
   extract   Read the structured data a URL, a file or stdin declares.
   inspect   Show, for a person, what a page declares and where each answer came from.
   markdown  Print the main content of a URL, a file or stdin as markdown.
@@ -308,6 +309,43 @@ Options:
                               without asking its site at all.  [x>=0]
   --at DATE                   Read a URL as the Wayback Machine captured it nearest to
                               DATE (2025, 2025-06, 2025-06-01), not from its site.
+  --help                      Show this message and exit.
+```
+
+## `sluicer fetch`
+
+```text
+Usage: sluicer fetch [OPTIONS] URL
+
+  Fetch a URL and print the page, as the ladder brought it back.
+
+  The HTML goes to stdout, or to --output, and what it cost -- each climb, where the
+  page landed, its status and rung -- to stderr; with --json, all of it is one object on
+  stdout. The input compile, extract and the rest can then read from a file, the same
+  bytes every time. Exits 0 with a page, whatever its status, and 2 when none could be
+  fetched.
+
+Options:
+  -o, --output FILE           Write the page to this file rather than to stdout.
+  --json                      Print one JSON object: the page, where it landed, its
+                              status, rung, climbs and headers.
+  --stealth                   Allow the stealth rung, which does not announce itself.
+  --no-robots                 Fetch even where the site's robots.txt says no.
+  --cache DIR                 Keep fetched pages in DIR, and ask the site with their
+                              ETag or Last-Modified whether a page changed before
+                              fetching it again.
+  --max-age SECONDS           With --cache, give a page kept for less than SECONDS back
+                              without asking its site at all.  [x>=0]
+  --at DATE                   Read the URL as the Wayback Machine captured it nearest to
+                              DATE.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
   --help                      Show this message and exit.
 ```
 
