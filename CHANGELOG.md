@@ -58,6 +58,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   same: the extractors, the runs and the heals there, SWDE's development half
   answer for answer, and the drift benchmark's results.
 
+- `extract()` is 25-41% faster on the benchmark corpora, with the same
+  answers byte for byte: the microdata reader stops at once on a page with no
+  item, links are resolved only for the relations read, an address's spaces
+  are found by one search in C, and the `<meta>` tags are scanned once a page
+  instead of once for each reader and summary question that reads them.
+
 ### Fixed
 - The scoreboards say which pages Sluicer's rules were made on. Five of the
   six, and the drift benchmark, had rules written, measured on their pages and
@@ -238,6 +244,74 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the browser rung already did, and like it tries once within thirty seconds
   instead of scrapling's three tries.
 
+- A page declaring thousands of products costs what its size does. Three
+  parts of `extract()` grew with the square of a listing: the summary asked,
+  for each product, which one the page was about; the merge walked every
+  record for each item it folded; and each place written counted all its
+  element's siblings again. 4,000 products in JSON-LD, microdata and RDFa
+  took 5.0 seconds and take 0.28; 16,000 in microdata alone, a 2 MB page,
+  0.38. The answers are the same, byte for byte, on the benchmark pages.
+- A GTIN holding a superscript or circled digit -- which `str.isdigit` takes
+  and `int` refuses -- no longer makes `extract()` raise; it has no normalised
+  value. A GTIN or an amount written in another script's decimal digits,
+  fullwidth or Arabic-Indic, is normalised in ASCII digits, as a date already
+  was, and so is a date's offset.
+- A summary answer read from JSON-LD keeps an address's query:
+  `?id=1&region=us&section=a` was `?id=1®ion=us§ion=a`, the old entity
+  names HTML lets go without a semicolon read even before a letter. They are
+  now read as an attribute's are, which is how a browser keeps them in an
+  `href`; `&amp;`, `&#39;` and the rest are read as before. No answer on the
+  benchmark pages changed.
+- A JSON-LD node that holds a `@graph` and properties of its own -- a Product
+  carrying the page's other nodes -- is read as a node too, after the nodes in
+  its graph. Only its graph was read, and the Product was lost. On the
+  benchmark pages, two product pages gain the Brand that wraps their
+  Products; no summary answer changed.
+- JSON-LD with JavaScript comments, `//` or `/* */`, is read: it was
+  skipped, though extruct reads it, so `sluicer.compat.extruct` did worse than
+  extruct. Comments are dropped outside strings only, and a trailing comma is
+  now mended outside strings only too: `"Pad, ]"` was read as `"Pad]"`. On
+  the benchmark pages, two of WCXB's development pages gain six records; no
+  summary answer changed.
+- `normalise.amount("12 50")` is None: every space and apostrophe was dropped,
+  so it was 1250. Digits grouped by a space or an apostrophe must now be
+  grouped in thousands, as those grouped by a point or a comma already were.
+  No answer on the benchmark pages reads differently; of the 259,520
+  distinct values SWDE labels, 163 phone numbers, `202 244 2044`, no longer
+  read as amounts.
+- An RFC 2822 date needs its year in four digits: `email.utils` read
+  `Tue, 03 Jun 25 10:00:00 GMT` as 2025 by a rule of its own, and a
+  three-digit year as the first millennium's. Such a date now has no
+  normalised value.
+- A twelve-hour clock is read with its half of the day: `Jun 16, 2025, 10:00
+  PM` was normalised to 10:00, the morning, since `email.utils` took "PM" for
+  a zone it did not know, and `Dec 1, 2024 11:30 PM EST` lost its zone too.
+  An hour no such clock shows, `13:05 PM`, is not read. A trailing `UTC` with
+  no offset before it is now the offset `+00:00`: it was read and dropped. On
+  the benchmark pages, seven dates on four pages that end in `UTC` gain their
+  offset.
+- A breadcrumb item whose `position` is `NaN` or an infinity is placed where
+  it was written: a NaN compares false with everything, and the crumbs came
+  out in no order.
+- A JSON-LD price JSON wrote with an exponent, `1.5e3`, is the summary's
+  price and normalises to `1500`: the summary counted two numbers in it and
+  refused it, and `amount()` could not read it.
+- An inline SVG's or MathML's `<title>` is no longer the summary's title on a
+  page with no head title, nor weighed as the page's title between a headline
+  and a name: libxml2 has no namespaces, and an icon's "Close menu" was the
+  page's title.
+- A page lxml takes for a fragment -- no head, and neither `<html>` nor a
+  doctype at its start, as a page a PHP warning is printed before -- is parsed as
+  a whole document. `lxml.html.fromstring` renamed its `<body>` to a `<div>`,
+  so every place on it went through an element the page never had,
+  `/html/div[1]/title[1]` for `/html/body/title[1]`; an extractor could not
+  find a path on such a page at all. On the benchmark pages, three evaldata
+  pages' title place changes so; no value changes.
+- A page's newlines are read as the HTML standard reads them, CR LF and a
+  lone CR as LF, before lxml parses it. lxml 6 did so and lxml 5.3, the
+  declared floor, did not, so a description or a review kept its CR LF on one
+  and not the other: on the benchmark pages, 13 of the 55 pages whose answer
+  depended on the lxml version no longer do. No answer on lxml 6 changed.
 
 ## 0.7.0 - 2026-09-24
 

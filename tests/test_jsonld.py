@@ -79,6 +79,60 @@ def test_a_trailing_comma_does_not_lose_the_block():
     ]
 
 
+def test_a_block_with_javascript_comments_is_still_read():
+    """extruct strips them, and pages write them; strings keep their slashes."""
+    body = (
+        '{"@type": "Product", // the product\n'
+        ' "name": "Pad // not a comment /* nor this */",'
+        ' /* its address */ "url": "https://shop.example/p", // last\n}'
+    )
+
+    assert _one(body) == [
+        {
+            "@type": "Product",
+            "name": "Pad // not a comment /* nor this */",
+            "url": "https://shop.example/p",
+        }
+    ]
+
+
+def test_a_comment_left_open_ends_the_block_and_never_the_reading():
+    assert _one('{"@type": "Product", "name": "Pad"} /* left open') == [
+        {"@type": "Product", "name": "Pad"}
+    ]
+
+
+def test_mending_a_trailing_comma_leaves_the_text_of_strings_alone():
+    """``,\\s*]`` inside a string is text: "Pad, ]" was mended into "Pad]"."""
+    body = (
+        '{"@type": "Product", "name": "Pad, ]", "description": "A, }",'
+        ' "q": "say \\", }", "sku": ["A", "B",],}'
+    )
+
+    assert _one(body) == [
+        {
+            "@type": "Product",
+            "name": "Pad, ]",
+            "description": "A, }",
+            "q": 'say ", }',
+            "sku": ["A", "B"],
+        }
+    ]
+
+
+def test_the_extruct_layer_reads_a_commented_block_as_extruct_does():
+    from sluicer.compat.extruct.jsonld import JsonLdExtractor
+
+    html = (
+        '<script type="application/ld+json">{"@type": "Product", // the product\n'
+        ' "name": "Pad", "price": 41.90}</script>'
+    )
+
+    assert JsonLdExtractor().extract(html) == [
+        {"@type": "Product", "name": "Pad", "price": 41.9}
+    ]
+
+
 def test_not_a_number_is_not_a_value():
     from sluicer import extract
 
@@ -133,3 +187,50 @@ def test_a_block_can_be_read_with_its_numbers_as_json_reads_them():
     assert (parsed["price"], parsed["count"]) == (41.9, 3)
     assert parsed["ratio"] != parsed["ratio"]  # NaN, as json.loads reads it
     assert _parse('{"a": 1,}', as_written=False) == {"a": 1}
+
+
+def test_a_node_holding_a_graph_beside_its_own_properties_is_a_node_too():
+    """A shop writes its Product with the page's other nodes in its ``@graph``.
+
+    Flattened into the graph alone, the Product itself was never read, and a
+    product page had no price.
+    """
+    from sluicer import extract
+
+    block = (
+        '{"@context": "https://schema.org", "@type": "Product", "name": "Pad",'
+        ' "offers": {"@type": "Offer", "price": "41.90", "priceCurrency": "EUR"},'
+        ' "@graph": [{"@type": "BreadcrumbList", "itemListElement": ['
+        '{"@type": "ListItem", "position": 1, "name": "Brakes"}]}]}'
+    )
+    html = (
+        f'<html><head><script type="application/ld+json">{block}</script></head></html>'
+    )
+
+    found = read_jsonld(load(html))
+    result = extract(html)
+
+    assert [item["@type"] for item in found] == ["BreadcrumbList", "Product"]
+    assert "@graph" not in found[1]
+    assert found[0].where == "/html/head/script[1]#/@graph/0"
+    assert found[1].where == "/html/head/script[1]#"
+    assert result.summary["title"].value == "Pad"
+    assert result.summary["price"].value == "41.90"
+    assert result.summary["breadcrumb"].value == "Brakes"
+
+
+def test_a_graph_s_own_identifier_or_context_is_no_node():
+    assert _one(
+        '{"@context": "https://schema.org", "@id": "https://shop.example/#graph",'
+        ' "@graph": [{"@type": "Product", "name": "Pad"}]}'
+    ) == [{"@type": "Product", "name": "Pad"}]
+
+
+def test_a_node_holding_a_graph_comes_after_the_nodes_in_it():
+    """One shop's Brand holds its Products: the Products keep their places."""
+    found = _one(
+        '{"@type": "Brand", "name": "Only", "@graph": ['
+        '{"@type": "Product", "name": "Shirt"}, {"@type": "Product", "name": "Top"}]}'
+    )
+
+    assert [item["name"] for item in found] == ["Shirt", "Top", "Only"]

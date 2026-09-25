@@ -37,14 +37,29 @@ def meta_tags(doc: Document) -> Iterator[tuple[list[str], str, str]]:
 
     An empty or whitespace-only ``content`` is not a value and never leaves
     here, so no caller has to remember to drop it.
+
+    The page is scanned once, whichever reader asks first, and each caller is
+    given its own ``keys``: OpenGraph, the Twitter card and HTML's names each
+    scanned it again, and OpenGraph twice.
     """
+    scanned: list[tuple[tuple[str, ...], str, str]] | None = doc.memo.get(_SCAN)
+    if scanned is None:
+        scanned = doc.memo[_SCAN] = list(_scan(doc))
+    for keys, name, content in scanned:
+        yield list(keys), name, content
+
+
+_SCAN = "meta_tags"
+
+
+def _scan(doc: Document) -> Iterator[tuple[tuple[str, ...], str, str]]:
     for meta in doc.tree.xpath("//meta[@property or @name]"):
         content = (meta.get("content") or "").strip()
         if not content:
             continue
         name = meta.get("name") or ""
         terms = (meta.get("property") or "").lower().split()
-        keys = [*terms, name.strip().lower()] if name.strip() else terms
+        keys = (*terms, name.strip().lower()) if name.strip() else tuple(terms)
         yield keys, name, content
 
 
