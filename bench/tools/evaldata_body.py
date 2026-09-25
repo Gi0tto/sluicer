@@ -50,19 +50,29 @@ def main(pages_path: str, out_path: str) -> None:
         "trafilatura text": lambda html, url: trafilatura.extract(html, url=url),
     }
     totals = {name: {"tp": 0, "fp": 0, "fn": 0, "tn": 0} for name in outputs}
+    # Each page's own counts too: several snippets sit on one page, so an
+    # interval is bootstrapped over pages, not over snippets (bench/PREREG.md).
+    per_page: dict[str, dict[str, list[int]]] = {}
     for page in pages:
         html = gzip.decompress((root / page["path"]).read_bytes())
         for name, produce in outputs.items():
             text = _norm(produce(html, page["url"]) or "")
             found = sum(1 for snippet in page["with"] if _norm(snippet) in text)
             leaked = sum(1 for snippet in page["without"] if _norm(snippet) in text)
-            counts = totals[name]
-            counts["tp"] += found
-            counts["fp"] += leaked
-            counts["fn"] += len(page["with"]) - found
-            counts["tn"] += len(page["without"]) - leaked
+            row = [
+                found,
+                leaked,
+                len(page["with"]) - found,
+                len(page["without"]) - leaked,
+            ]
+            per_page.setdefault(page["id"], {})[name] = row
+            for key, value in zip(("tp", "fp", "fn", "tn"), row, strict=True):
+                totals[name][key] += value
     Path(out_path).write_text(
-        json.dumps({"pages": len(pages), "outputs": totals}, indent=1) + "\n",
+        json.dumps(
+            {"pages": len(pages), "outputs": totals, "per_page": per_page}, indent=1
+        )
+        + "\n",
         encoding="utf-8",
     )
     print(f"main text of {len(pages)} pages, {len(outputs)} ways")

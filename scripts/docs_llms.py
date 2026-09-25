@@ -29,7 +29,12 @@ Entry = tuple[str, str, str]
 START = "Start"
 """The section of the pages the nav lists outside any section."""
 
-_NAV_LINE = re.compile(r"^(?P<indent> *)- (?P<title>[^:]+):(?: (?P<path>\S+\.md))?$")
+# A title as YAML writes it plain, or in double quotes where it holds a colon:
+# "Conformance: JSON-LD in HTML".
+_NAV_LINE = re.compile(
+    r'^(?P<indent> *)- (?:"(?P<quoted>[^"\\]*)"|(?P<title>[^:"]+)):'
+    r"(?: (?P<path>\S+\.md))?$"
+)
 _LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
 
 
@@ -53,7 +58,8 @@ def nav_of(mkdocs_yml: str) -> list[Entry]:
         found = _NAV_LINE.match(line)
         if not found:
             raise ValueError(f"a nav line this reader does not know: {line!r}")
-        title, path = found["title"], found["path"]
+        title = found["quoted"] if found["quoted"] is not None else found["title"]
+        path = found["path"]
         top = found["indent"] if top is None else top
         if found["indent"] == top:
             if path is None:

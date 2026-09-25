@@ -1,7 +1,8 @@
 """Sluicer's summary over the test split, from the checkout under test.
 
 Run by ``bench/run.py`` in an environment holding this checkout, installed
-editable, and nothing else. Only the ``extract`` call is timed.
+editable, and nothing else. Only the ``extract`` call is timed, here and by
+``bench/timing.py``, which times the same function.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import sluicer
 
@@ -21,6 +23,11 @@ FIELDS = {"title": "title", "author": "author", "date": "published"}
 _INTERPRETER = {"pip", "setuptools", "wheel"}
 
 
+def extract(html: bytes, url: str | None) -> Any:
+    """The call a scoreboard scores and ``bench/timing.py`` times."""
+    return sluicer.extract(html, url=url).summary
+
+
 def main(pages_path: str, out_path: str) -> None:
     root = Path(pages_path).parent
     pages = json.loads(Path(pages_path).read_text(encoding="utf-8"))
@@ -28,7 +35,7 @@ def main(pages_path: str, out_path: str) -> None:
     for page in pages:
         html = gzip.decompress((root / page["path"]).read_bytes())
         started = time.perf_counter()
-        summary = sluicer.extract(html, url=page["url"]).summary
+        summary = extract(html, page["url"])
         seconds += time.perf_counter() - started
         row = {"id": page["id"]}
         for field, question in FIELDS.items():

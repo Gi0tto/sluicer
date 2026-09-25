@@ -6,9 +6,11 @@ and replayed on a later one. An oracle that does not use the extractor's
 code judges the result. Losses come first.
 
 Regenerated on 2026-09-25 from commit
-`6c75306` (sluicer 0.7.1, Scrapling 0.4.15) with
-`uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`, in
-6 seconds from the cache.
+`a8ca1b1` (sluicer 0.7.1, Scrapling 0.4.15) with
+`uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`. It
+prints no seconds: its run time is mostly reading the archive's
+captures ([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md),
+"How a second is measured").
 
 !!! warning "Read this before the numbers"
     This is 44 pairs on 25 sites,
@@ -20,7 +22,7 @@ Regenerated on 2026-09-25 from commit
 
 No pair failed silently.
 
-**www-imdb-com-chart-top-long**, heal partly right. Read by hand: a real redesign. In 2023 IMDb replaced the 250-row table with a list that serves 25 rows and loads the rest by script. heal moved both links of each film, the poster link and the title link, to their new places. That works only since this benchmark's fix for links that gained ?ref_=chttp_t_1. heal reported the titles and the poster images as vanished rather than guess. The new title text carries the rank, '1. The Shawshank Redemption', and the poster's alt text names an actor, 'Tim Robbins in The Shawshank Redemption (1994)', so none of the old values is seen again. A person would call the title moved; heal needs an old value to prove it. The oracle: drift, the listing's container is gone. The checks that failed: `summary: the summary answers url -> no answer`; `listing: the listing at html>body>div[2]>div.redesign>div[1]>div.pagecontent[3]>div>div[1]>div.article>span.ab_widget>div.seen-collection>div.article>div.lister>table.chart>tbody.lister-list -> 3 places that match div, where there were 4`.
+**www-imdb-com-chart-top-long**, heal partly right. Read by hand: a real redesign. In 2023 IMDb replaced the 250-row table with a list that serves 25 rows and loads the rest by script. heal moved both links of each film, the poster link and the title link, to their new places. That works only since this benchmark's fix for links that gained ?ref_=chttp_t_1. heal reported the titles and the poster images as vanished rather than guess. The new title text carries the rank, '1. The Shawshank Redemption', and the poster's alt text names an actor, 'Tim Robbins in The Shawshank Redemption (1994)', so none of the old values is seen again. A person would call the title moved; heal needs an old value to prove it. The oracle: drift, the listing's container is gone. The checks that failed: `summary: the summary answers url -> no answer`; `listing: the listing at html>body>div[2]>div.redesign>div[1]>div.pagecontent[3]>div>div[1]>div.article>span.ab_widget>div.seen-collection>div.article>div.lister>table.chart>tbody.lister-list -> not found`.
 
 **sourceforge-net-directory-long**, heal partly right. Read by hand: a real redesign, reached through a redirect to the Windows directory, which is what a scraper asking for the address reads. heal moved each project's name, its link and its description to their new places, all right on the four projects both pages list. The icon went to the new icon, which some projects lack, since they show a default icon kept in another field; half the matched projects have none. The icon's alt text, 'Apache OpenOffice Icon', and the whole card's text, which carried the weekly downloads, are found nowhere and reported vanished. Before this benchmark's tie-break fix, heal put the name on the icon's alt text too. The oracle: drift, the listing's container is gone. The checks that failed: `type: a declared MobileSoftwareApplication -> none`; `listing: the listing at html>body>div[3]>article.content-wrapper>section[1]>section[1]>section>div.browse>section>ul.projects -> not found`.
 
@@ -118,7 +120,7 @@ questions and are not ranked.
 | slashdot-org-short | 11-14 / 10 | same | passed | survived | nothing to match | no A item is still on B |
 | slashdot-org-long | 11-14 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
 | www-npr-org-sections-news-short | 21-22 / 22 | same | passed | survived | nothing to match | no A item is still on B |
-| www-npr-org-sections-news-long | 21-22 / 0 | drift: div.item-image&gt;div.imagewrap&gt;a@href is in 0% of rows | failed: listing | failed loudly | nothing to match | no A item is still on B |
+| www-npr-org-sections-news-long | 21-22 / 21 | drift: div.item-image&gt;div.imagewrap&gt;a@href is in 0% of rows | failed: field | failed loudly | nothing to match | no A item is still on B |
 | weworkremotely-com-categories-remote-programming-long | 90 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match (1 items) | no A item is still on B |
 | metacpan-org-recent-short | 61 / 60 | same | passed | survived | nothing to match (1 items) | wrong |
 | metacpan-org-recent-long | 61 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
@@ -127,7 +129,7 @@ questions and are not ranked.
 | sourceforge-net-directory-short | 25 / 25 | same | passed | survived | right (23 items) | right |
 | sourceforge-net-directory-long | 25 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | partly right (4 items) | wrong |
 | pinboard-in-popular-short | 100 / 100 | same | passed | survived | nothing to match | no A item is still on B |
-| pinboard-in-popular-long | 100 / 0 | drift: no div.bookmark rows in the container | failed: listing | failed loudly | nothing to match | no A item is still on B |
+| pinboard-in-popular-long | 100 / 0 | drift: no div.bookmark rows in the container | failed: rows | failed loudly | nothing to match | no A item is still on B |
 | www-theverge-com-tech-short | 12 / 13 | same | passed | survived | nothing to match (1 items) | right |
 | www-theverge-com-tech-long | 12 / 0 | drift: the listing's container is gone | failed: listing | failed loudly | nothing to match | no A item is still on B |
 | techcrunch-com-category-startups-long | 20 / 0 | drift: the listing's container is gone | failed: listing, type | failed loudly | nothing to match | no A item is still on B |

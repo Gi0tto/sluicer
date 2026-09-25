@@ -32,7 +32,6 @@ import re
 import subprocess
 import sys
 import tarfile
-import time
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -44,11 +43,17 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import sluicer  # noqa: E402 -- the checkout's own, whatever is installed
 
+sys.path.insert(0, str(HERE))
+
+import stats  # noqa: E402
+import zyte  # noqa: E402
+
 REPOSITORY = "scrapinghub/product-extraction-benchmark"
-COMMIT = "cba97d7a8d42aeefd4021bc15d482f297faceaa3"
+# Pinned in bench/zyte.py, which reads the same checkout page by page.
+COMMIT = zyte.COMMIT
 ARCHIVE = f"https://codeload.github.com/{REPOSITORY}/tar.gz/{COMMIT}"
 CACHE = HERE / "cache" / "products"
-BENCH = CACHE / f"product-extraction-benchmark-{COMMIT}"
+BENCH = zyte.BENCH
 SCOREBOARD = ROOT / "docs" / "scoreboard-products.md"
 
 # Availability values that mean a buyer cannot have it now. Everything else a
@@ -77,16 +82,16 @@ def availability(value: str | None) -> str:
     return "InStock"
 
 
-def predict(bench: Path) -> tuple[dict[str, dict[str, str]], float, set[str]]:
-    """Sluicer's answer for every page, keyed as the ground truth is, the
-    seconds it took, and the pages that declare a price Sluicer could not read
-    as a decimal."""
+def predict(bench: Path) -> tuple[dict[str, dict[str, str]], set[str]]:
+    """Sluicer's answer for every page, keyed as the ground truth is, and the
+    pages that declare a price Sluicer could not read as a decimal. It is not
+    timed: ``bench/PREREG.md`` measures a second only with every tool of a
+    table in one run, and Zyte's and Diffbot's were measured by Zyte in 2021."""
     truth = json.loads(
         (bench / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
     )
     predictions: dict[str, dict[str, str]] = {}
     unread: set[str] = set()
-    started = time.perf_counter()
     for page_id, labels in truth.items():
         html = gzip.decompress(
             (bench / "dataset" / "html" / f"{page_id}.html.gz").read_bytes()
@@ -105,7 +110,7 @@ def predict(bench: Path) -> tuple[dict[str, dict[str, str]], float, set[str]]:
         answer["availability"] = availability(declared.value if declared else None)
         answer[answer["availability"]] = answer["availability"]
         predictions[page_id] = answer
-    return predictions, time.perf_counter() - started, unread
+    return predictions, unread
 
 
 def evaluate(bench: Path) -> dict[str, Any]:
@@ -240,9 +245,48 @@ def _errors(
     ]
 
 
+def _comparisons(labels: dict[str, str], systems: list[str]) -> list[str]:
+    """Sluicer's F1 minus every other system's, paired page by page."""
+    evaluate = zyte.evaluator(BENCH / "evaluate.py")
+    truth = json.loads(
+        (BENCH / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
+    )
+    predicted = {
+        system: json.loads(
+            (BENCH / "dataset" / "output" / f"{system}.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        for system in systems
+    }
+    lines = [
+        "| attribute | Sluicer against | F1 difference (95% interval) | verdict |",
+        "|---|---|---|---|",
+    ]
+    count = 0
+    for attribute in zyte.ATTRIBUTES:
+        ours = zyte.counts(truth, predicted["sluicer"], attribute, evaluate)
+        for system in systems[1:]:
+            theirs = zyte.counts(truth, predicted[system], attribute, evaluate)
+            found = zyte.compare(ours, theirs, evaluate)
+            count += 1
+            lines.append(
+                f"| {attribute} | {labels[system]} | {stats.difference(found)} "
+                f"| {found.verdict} |"
+            )
+    return [
+        *lines,
+        "",
+        "The interval is the 95% percentile interval of 10,000 resamples of the",
+        "pages (`bench/stats.py`, seed 20260924): **better** when it is above",
+        "zero, **worse** when below, **inconclusive** when it holds zero. These",
+        f"are {count} comparisons, made with no correction for making many, so",
+        "read them as a table, not one at a time.",
+    ]
+
+
 def publish(
     metrics: dict[str, Any],
-    seconds: float,
     truth: dict[str, Any],
     predictions: dict[str, Any],
     unread: set[str],
@@ -278,7 +322,7 @@ def publish(
         "",
         f"Regenerated on {datetime.date.today().isoformat()} from commit "
         f"`{commit}` by `uv run bench/products.py`, against the benchmark at "
-        f"`{COMMIT[:12]}`. Sluicer read the {pages} pages in {seconds:.1f} s.",
+        f"`{COMMIT[:12]}`.",
         "",
         '!!! warning "Sluicer\'s rules were made on these pages"',
         "    Rules were written, measured on these pages and kept because the",
@@ -309,7 +353,11 @@ def publish(
     lines += [
         "",
         "The ± is the evaluator's bootstrap standard deviation over 1,000",
-        "resamples of the pages.",
+        "resamples of the pages (seed 42), kept as Zyte's evaluator prints it.",
+        "Beside it, Sluicer against each system, by the same evaluator's",
+        "matching and F1, the pages resampled together:",
+        "",
+        *_comparisons(labels, systems),
         "",
         "## Reading the errors",
         "",
@@ -330,7 +378,7 @@ def publish(
 
 def main() -> None:
     bench = ensure()
-    predictions, seconds, unread = predict(bench)
+    predictions, unread = predict(bench)
     output = bench / "dataset" / "output" / "sluicer.json"
     output.write_text(
         json.dumps(predictions, indent=4, sort_keys=True) + "\n", encoding="utf-8"
@@ -339,7 +387,7 @@ def main() -> None:
     truth = json.loads(
         (bench / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
     )
-    publish(metrics, seconds, truth, predictions, unread)
+    publish(metrics, truth, predictions, unread)
     for attribute in ("price", "sku", "availability"):
         row = "  ".join(
             f"{system} {metrics[system][attribute]['f1']:.3f}"

@@ -13,6 +13,8 @@ uv run bench/run.py --tools sluicer    # rerun one tool, reuse the others' resul
 
 It needs `uv` and, for metascraper, Node with `npm`. The first run downloads
 the corpus, about 150 MB; after that it runs offline, in about two minutes.
+The page prints its seconds from `bench/timing.py`'s record of the same
+commit, and stops if there is none: run `uv run bench/timing.py wcxb` first.
 
 ## What is measured
 
@@ -51,8 +53,8 @@ given, inventions included.
 ## How each tool runs
 
 Each in an environment of its own, holding only what it needs, pinned with its
-dependencies, given the same bytes and the page's address. Only the extraction
-call is timed.
+dependencies, given the same bytes and the page's address. Their seconds are
+measured apart, by `timing.py` (below).
 
 | tool | environment | call |
 |---|---|---|
@@ -199,6 +201,27 @@ held-out test here: Sluicer's rules were made while the pages of the other
 scoreboards and of the drift benchmark were read ([`PREREG.md`](PREREG.md)
 says which).
 
+## Conformance: JSON-LD in HTML
+
+[`docs/conformance-jsonld.md`](../docs/conformance-jsonld.md) runs the 50
+tests of the W3C JSON-LD 1.1 test suite's `html-manifest.jsonld` against
+Sluicer's JSON-LD reader, `sluicer.compat.extruct` and extruct.
+
+```bash
+uv run bench/w3c_jsonld.py
+```
+
+`w3c_jsonld.py` downloads the suite (`w3c/json-ld-api`, W3C Software and
+Document License) at one pinned commit into `bench/cache/w3c-jsonld/`. Each
+reader answers every page (`tools/jsonld_w3c_read.py`); PyLD, pinned in
+`requirements/pyld.txt`, processes each answer with the test's options, and
+the result is compared with the expected one by the suite's own rules
+(`tools/jsonld_w3c_score.py`). PyLD reading the pages itself checks the
+harness. A reader takes no option and reports no base, so tests that name a
+script by fragment, want the first script alone, or set a `<base href>` fail
+for every reader; the page counts them apart and lists every failure with its
+reason.
+
 ## Before a release: the floors
 
 [`PREREG.md`](PREREG.md) says what every scoreboard fixes before it is run:
@@ -210,4 +233,39 @@ uv run bench/gate.py --require    # fails if Sluicer does worse than bench/floor
 uv run bench/gate.py --raise      # the floors follow the numbers up, never down
 ```
 
+`bench/floors-pages.json` holds every page's outcome the floors were written
+from. A number below its floor fails the gate when the paired comparison of
+today's outcomes with those calls it worse, or when it is past the floor by
+more than its tolerance (0.010 for a rate or an F1, 1% of what it is counted
+over for a count); otherwise it is held within noise, and the gate says so.
 A floor is lowered only with `--allow-regression`, in a commit that says why.
+
+## How a second is measured
+
+```bash
+uv run bench/timing.py              # every table, then docs/speed.md
+uv run bench/timing.py wcxb         # one table: wcxb, news or extruct
+```
+
+`timing.py` times every tool of a table in one run on one machine: five
+rounds, every tool once per round in an order turned by one place each round,
+each a fresh process in the tool's own environment that reads every page once
+untimed, then times one pass of the extraction call its scoreboard scores
+(`tools/timing_worker.py`, `metascraper/run.js --timing`). It records the
+median, the fastest and slowest passes, the peak resident size, what each
+environment installs, and the machine, into `bench/cache/timing/`, and writes
+[`docs/speed.md`](../docs/speed.md). A scoreboard prints seconds only from that
+record, and refuses one of another commit, another version, a tree with
+uncommitted changes, or a tool timed apart from the rest; so time on a clean
+checkout, then regenerate the scoreboards at the same commit. SWDE and the
+drift benchmark print no seconds.
+
+## How sure a number is
+
+Every hit rate and share right when answering a scoreboard prints carries
+its 95% Wilson score interval, `0.727 (0.68–0.77)`, the bounds rounded
+outwards. Every difference between Sluicer and another tool, or between a
+page as served and as WCXB kept it, is a paired bootstrap over the pages
+(over the sites for SWDE), 10,000 resamples from seed 20260924, and is called
+better, worse or inconclusive by where its interval lies. `stats.py` computes
+both, as [`PREREG.md`](PREREG.md) fixed them before either was computed.

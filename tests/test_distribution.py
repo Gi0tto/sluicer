@@ -508,6 +508,14 @@ def test_the_docs_nav_reader_refuses_a_line_it_does_not_know():
         hook.nav_of("nav:\n  - Home: index.md\n  - Blog: https://example.com/\n")
 
 
+def test_the_docs_nav_reader_reads_a_title_quoted_for_its_colon():
+    """The bench's conformance page is titled "Conformance: JSON-LD in HTML",
+    which YAML quotes for its colon, and the reader stopped at it."""
+    hook = _hook()
+    nav = 'nav:\n  - Measured:\n      - "Conformance: JSON-LD in HTML": c.md\n'
+    assert hook.nav_of(nav) == [("Measured", "Conformance: JSON-LD in HTML", "c.md")]
+
+
 CONTEXT7_FIELDS = {
     "$schema",
     "projectTitle",

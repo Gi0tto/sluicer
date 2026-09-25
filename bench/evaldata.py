@@ -39,6 +39,7 @@ from typing import Any
 
 import run as board
 import score
+import stats
 
 REPOSITORY = "adbar/trafilatura"
 COMMIT = "c852cae9708a59f04521b19395d8ed49771a5c78"
@@ -156,6 +157,22 @@ def publish() -> None:
     print(f"wrote {SCOREBOARD.relative_to(ROOT)}")
 
 
+def _snippet_rates(sums: list[float]) -> dict[str, float]:
+    """Precision, recall and F1 of summed (tp, fp, fn), as _body_table has
+    always computed them: 0 over nothing."""
+    tp, fp, fn = sums
+    precision = stats.ratio(tp, tp + fp)
+    recall = stats.ratio(tp, tp + fn)
+    f1 = stats.ratio(2 * precision * recall, precision + recall)
+    return {"precision": precision, "recall": recall, "F1": f1}
+
+
+def _snippet_columns(body: dict[str, Any], output: str) -> list[list[int]]:
+    """One output's (tp, fp, fn), page by page, the pages in id order."""
+    rows = [body["per_page"][page][output] for page in sorted(body["per_page"])]
+    return [[row[i] for row in rows] for i in range(3)]
+
+
 def _body_table(body: dict[str, Any]) -> list[str]:
     lines = [
         "| output | snippets found | snippets kept out | precision | recall | F1 |",
@@ -163,16 +180,47 @@ def _body_table(body: dict[str, Any]) -> list[str]:
     ]
     for name, counts in body["outputs"].items():
         tp, fp, fn, tn = (counts[k] for k in ("tp", "fp", "fn", "tn"))
-        precision = tp / (tp + fp) if tp + fp else 0.0
-        recall = tp / (tp + fn) if tp + fn else 0.0
-        f1 = (
-            2 * precision * recall / (precision + recall) if precision + recall else 0.0
-        )
+        columns = _snippet_columns(body, name)
+        cells = []
+        for rate in ("precision", "recall", "F1"):
+            value, low, high = stats.interval(
+                columns, lambda s, rate=rate: _snippet_rates(s)[rate]
+            )
+            cells.append(stats.bounded(value, low, high))
         lines.append(
-            f"| {name} | {tp}/{tp + fn} | {tn}/{tn + fp} | {precision:.3f} | "
-            f"{recall:.3f} | {f1:.3f} |"
+            f"| {name} | {tp}/{tp + fn} | {tn}/{tn + fp} | " + " | ".join(cells) + " |"
         )
     return lines
+
+
+REFERENCE = "trafilatura text"
+
+
+def _body_comparisons(body: dict[str, Any]) -> list[str]:
+    """Each of Sluicer's outputs against trafilatura's text, paired by page."""
+    theirs = _snippet_columns(body, REFERENCE)
+    lines = [
+        "| output | against | rate | difference (95% interval) | verdict |",
+        "|---|---|---|---|---|",
+    ]
+    count = 0
+    for name in body["outputs"]:
+        if name == REFERENCE:
+            continue
+        ours = _snippet_columns(body, name)
+        for rate in ("precision", "recall", "F1"):
+            found = stats.compare(
+                [*ours, *theirs],
+                lambda s, rate=rate: (
+                    _snippet_rates(s[:3])[rate] - _snippet_rates(s[3:])[rate]
+                ),
+            )
+            count += 1
+            lines.append(
+                f"| {name} | {REFERENCE} | {rate} | {stats.difference(found)} "
+                f"| {found.verdict} |"
+            )
+    return [*lines, "", *board.many(count)]
 
 
 def _found(body: dict[str, Any], output: str) -> str:
@@ -188,10 +236,7 @@ def _document(labelled, pages, runs, per_page, body) -> str:
     }
     today = datetime.date.today().isoformat()
     commit = board._git("rev-parse", "--short", "HEAD")
-    changed = board._git(
-        "status", "--porcelain", "--", ".", ":!docs/scoreboard-evaldata.md"
-    )
-    dirty = " (with uncommitted changes)" if changed else ""
+    dirty = " (with uncommitted changes)" if board.changed() else ""
     lines = [
         "# Scoreboard, trafilatura's evaluation set",
         "",
@@ -223,6 +268,11 @@ def _document(labelled, pages, runs, per_page, body) -> str:
         "",
         *board._full_table(runs, per_page, pages),
         "",
+        "Each rate carries its 95% Wilson score interval, the bounds rounded",
+        "outwards to two places. Sluicer against each other tool:",
+        "",
+        *board.comparison_table(runs, board.comparisons(per_page)),
+        "",
         "## The main text",
         "",
         "`sluicer.markdown` is trafilatura's extraction, written as markdown with",
@@ -239,6 +289,13 @@ def _document(labelled, pages, runs, per_page, body) -> str:
         "scores itself.",
         "",
         *_body_table(body),
+        "",
+        "Several snippets sit on one page, so each interval here is the 95%",
+        "percentile interval of 10,000 resamples of the pages, not a Wilson",
+        "interval over snippets. Each of Sluicer's outputs against trafilatura's",
+        "text, the pages resampled together:",
+        "",
+        *_body_comparisons(body),
         "",
     ]
     return "\n".join(lines)

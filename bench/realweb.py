@@ -60,6 +60,7 @@ sys.path.insert(0, str(HERE))
 import corpus  # noqa: E402
 import run as board  # noqa: E402
 import score  # noqa: E402
+import stats  # noqa: E402
 
 CACHE = corpus.CACHE / "realweb"
 MANIFEST = HERE / "realweb-manifest.json"
@@ -912,9 +913,9 @@ def _side_by_side(runs: dict[str, Any], per_page: dict[str, Any], pages: Any) ->
             labelled = s["hit"] + s["wrong"] + s["silent"]
             lines.append(
                 f"| {name} | {field} | {labelled} "
-                f"| {score.hit_rate(w):.3f} | **{score.hit_rate(s):.3f}** "
-                f"| {score.right_when_answering(w):.3f} "
-                f"| **{score.right_when_answering(s):.3f}** "
+                f"| {score.rate(w, 'hit')} | **{score.rate(s, 'hit')}** "
+                f"| {score.rate(w, 'right')} "
+                f"| **{score.rate(s, 'right')}** "
                 f"| {w['wrong']} | {s['wrong']} "
                 f"| {w['invention']} | {s['invention']} |"
             )
@@ -972,8 +973,42 @@ def _answered_from(runs: dict[str, Any], per_page: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _plainly(runs: dict[str, Any], per_page: dict[str, Any], pages: Any) -> list[str]:
-    """Who leads each field on served pages, and where Sluicer stands."""
+def verdicts(per_page: dict[str, Any]) -> dict[str, dict[tuple[str, str, str], Any]]:
+    """The paired comparisons this page makes: Sluicer against every other
+    tool as served, and every tool served against itself on WCXB's copy."""
+    served = board.comparisons(per_page["served"])
+    against_copy = {
+        (tool, field, measure): score.paired(
+            per_page["served"][tool], per_page["stripped"][tool], field, measure
+        )
+        for tool in per_page["served"]
+        if tool in per_page["stripped"]
+        for field in score.FIELDS
+        for measure in board.MEASURES
+    }
+    return {"tools": served, "sides": against_copy}
+
+
+def _sides_table(runs: dict[str, Any], found: dict[tuple[str, str, str], Any]):
+    lines = [
+        "| tool | field | rate | served minus stripped (95% interval) | verdict |",
+        "|---|---|---|---|---|",
+    ]
+    for (tool, field, measure), comparison in found.items():
+        lines.append(
+            f"| {board._name(runs['served'][tool])} | {field} "
+            f"| {board.MEASURES[measure]} | {stats.difference(comparison)} "
+            f"| {comparison.verdict} |"
+        )
+    return lines
+
+
+def _plainly(
+    runs: dict[str, Any], per_page: dict[str, Any], pages: Any, found: dict[str, Any]
+) -> list[str]:
+    """Where Sluicer stands on each field as served, as the paired
+    comparisons call it: it ranked the tools by their printed rates, and
+    called a rate a page above another's a place ahead."""
     lines = []
     for field in score.FIELDS:
         counts = {
@@ -985,40 +1020,26 @@ def _plainly(runs: dict[str, Any], per_page: dict[str, Any], pages: Any) -> list
         )
         before = score.tally(per_page["stripped"]["sluicer"], pages)[field]
         mine = counts["sluicer"]
-        # Rates are compared as printed, so a tie on the page is a tie here.
-        rate = {tool: round(score.hit_rate(counts[tool]), 3) for tool in counts}
-        ahead = sorted(
-            (tool for tool in counts if rate[tool] > rate["sluicer"]),
-            key=lambda tool: -rate[tool],
-        )
-        level = [t for t in counts if t != "sluicer" and rate[t] == rate["sluicer"]]
-        if ahead:
-            verdict = (
-                f"Sluicer is {_ordinal(len(ahead) + 1)} of {len(counts)}, behind "
-                + ", ".join(f"{tool} {rate[tool]:.3f}" for tool in ahead)
-            )
-        else:
-            verdict = "Sluicer has the highest hit rate"
-        if level:
-            verdict += ", level with " + ", ".join(level)
+        hit = board._called(found["tools"], field, "hit")
+        right = board._called(found["tools"], field, "right")
+        copy = found["sides"].get(("sluicer", field, "hit"))
         lines.append(
             f"- **{field.capitalize()}.** Hit rate served "
             f"{score.hit_rate(mine):.3f}, against {score.hit_rate(before):.3f} "
-            f"on the WCXB copy of the same pages. {verdict}. Right when "
-            "answering: "
+            "on the WCXB copy of the same pages"
+            + (f" ({copy.verdict})" if copy else "")
+            + (f"; Sluicer {hit}" if hit else "")
+            + ". Right when answering: "
             + ", ".join(
                 f"{tool} {score.right_when_answering(counts[tool]):.3f}"
                 for tool in by_right
             )
+            + (f"; Sluicer {right}" if right else "")
             + ". Inventions: "
             + ", ".join(f"{tool} {counts[tool]['invention']}" for tool in by_right)
             + "."
         )
     return lines
-
-
-def _ordinal(place: int) -> str:
-    return {1: "first", 2: "second", 3: "third", 4: "fourth"}.get(place, str(place))
 
 
 def _non_utf8(manifest: dict[str, Any]) -> int:
@@ -1065,12 +1086,10 @@ def publish(manifest: dict[str, Any]) -> None:
 
 
 def _document(manifest, everything, pages, runs, per_page, sources) -> str:
+    found = verdicts(per_page)
     today = datetime.date.today().isoformat()
     commit = board._git("rev-parse", "--short", "HEAD")
-    changed = board._git(
-        "status", "--porcelain", "--", ".", ":!docs/scoreboard-served.md"
-    )
-    dirty = " (with uncommitted changes)" if changed else ""
+    dirty = " (with uncommitted changes)" if board.changed() else ""
     n = len(pages)
     labelled = {
         field: sum(1 for page in pages.values() if score.as_text(page[field]))
@@ -1117,9 +1136,11 @@ def _document(manifest, everything, pages, runs, per_page, sources) -> str:
         "",
         *_side_by_side(runs, per_page, pages),
         "",
-        "In plain words, as served:",
+        "Each rate carries its 95% Wilson score interval, the bounds rounded",
+        "outwards to two places. In plain words, as served, with every",
+        "difference called by the paired comparisons below:",
         "",
-        *_plainly(runs, per_page, pages),
+        *_plainly(runs, per_page, pages, found),
         "",
         "One caution about inventions on served pages. WCXB's annotators labelled",
         "what a reader sees, and left a label empty where the visible page states",
@@ -1136,6 +1157,19 @@ def _document(manifest, everything, pages, runs, per_page, sources) -> str:
         "## Where Sluicer's served answers came from",
         "",
         *_answered_from(runs, per_page),
+        "",
+        "## How sure, and what differs",
+        "",
+        "Sluicer against each other tool, on the pages as served:",
+        "",
+        *board.comparison_table(runs["served"], found["tools"]),
+        "",
+        "Every tool on the pages as served against the same pages as WCXB kept",
+        "them, the served rate minus the stripped one:",
+        "",
+        *_sides_table(runs, found["sides"]),
+        "",
+        *board.many(len(found["tools"]) + len(found["sides"])),
         "",
         "## Where Sluicer loses, as served",
         "",

@@ -230,6 +230,29 @@ Dates are the day the work landed. Anything not listed here did not happen.
   bound. `compile_extractor` takes `select` and `rows`. A configuration file
   cannot set `select` or `rows`, as it cannot set `want`: each names one
   extractor's fields.
+- `bench/stats.py`: how sure a scoreboard's number is, and how a difference
+  is called, as `bench/PREREG.md` fixed them before any was computed: the 95%
+  Wilson score interval of a rate, printed with its bounds rounded outwards,
+  and a paired bootstrap over pages -- 10,000 samples drawn by
+  `random.Random(20260924).choices`, every comparison from the seed again --
+  whose percentile interval calls a difference better, worse or
+  inconclusive. Its tests hold it to Wilson intervals published for known
+  counts (Newcombe 1998) and to the bootstrap written out the slow way.
+- `bench/timing.py` and `docs/speed.md`, speed and weight: every tool of a
+  table timed in one run on one machine, five rounds whose order turns, each
+  a fresh process in the tool's own environment that reads every page once
+  untimed and times one pass of the call its scoreboard scores; the median
+  with the fastest and slowest pass, seconds per page, pages per second, peak
+  memory, install size and packages, and the machine, as PREREG's "How a
+  second is measured" fixes it. Three tables: WCXB's and the news pages'
+  four tools, and extruct beside `sluicer.compat.extruct`.
+- `docs/conformance-jsonld.md`: the W3C JSON-LD 1.1 test suite's 50 tests of
+  JSON-LD in HTML, run against Sluicer's JSON-LD reader,
+  `sluicer.compat.extruct` and extruct by `bench/w3c_jsonld.py`. The suite is
+  downloaded at a pinned commit, never vendored; each reader's answer is
+  processed by PyLD with the test's options and compared by the suite's own
+  rules, and PyLD reading the pages itself checks the harness. Every failure
+  is listed with its reason, the rules fixed in `bench/PREREG.md` first.
 
 ### Changed
 - `cssselect` (1.2 or later) joins the base install, for the CSS selectors:
@@ -294,6 +317,38 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is what Pyodide pays (medians, Python 3.14, Apple M4).
   `scripts/cldr_calendar.py --check`, run in CI, fails when the committed file
   is not exactly what the pinned CLDR release gives.
+- The WCXB and news scoreboards and `docs/extruct.md` print seconds only from
+  `bench/timing.py`'s record, and refuse one that is not all one run of the
+  commit they name, on a clean tree, of the versions they score. Each had
+  printed the seconds each tool's harness summed on its own run: commit
+  `b8f525e` re-timed Sluicer alone and printed its time beside the others'
+  older ones. The products scoreboard and the drift page print no seconds.
+  The scoreboards' generators no longer count one another's pages as
+  uncommitted changes, so all can be regenerated at one commit.
+- Every scoreboard prints how sure its numbers are and calls a difference
+  only as the paired comparison does. The title, author and date scoreboards
+  print each hit rate and share right when answering with its Wilson
+  interval, and a table of Sluicer against each other tool on both rates,
+  every row a difference, its interval and a verdict; the pages as served add
+  every tool served against WCXB's copy of the same pages. Products compare
+  F1s by Zyte's own matching and formula (`bench/zyte.py` imports them from
+  its `evaluate.py`), beside Zyte's ±. SWDE and trafilatura's main-text
+  snippets bootstrap over sites and over pages, since their trials are not
+  independent. The sentences that ranked tools by their printed rates --
+  "Sluicer's hit rate is below another tool's on...", "Sluicer is second of
+  4, behind..." -- now say ahead, behind or not told apart where the
+  verdicts do: on the pages as served, "fourth of 4, behind trafilatura
+  0.855, metascraper 0.811, newspaper4k 0.786" on dates is now behind
+  trafilatura and not told apart from metascraper and newspaper4k.
+- `bench/gate.py` fails on a drop the paired comparison of today's outcomes
+  with the baseline's calls worse, or one past the floor's tolerance, and
+  reports a floor missed within both as held within noise, as PREREG's "What
+  counts as worse" writes it; `bench/floors-pages.json` is the baseline.
+  `--raise` wrote it from 0.7.1's results and raised four floors: trafilatura's
+  set's date (0.584 to 0.585, 0.791 to 0.793) and SWDE's silent wrong answers
+  (2,921 to 2,346 and 8,797 to 7,715 as ceilings).
+- SWDE's scoreboard prints no seconds, as PREREG's "How a second is measured"
+  says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
 - A crawl's `headers=` and `cookies=`, and `--header` and `--cookie` on
