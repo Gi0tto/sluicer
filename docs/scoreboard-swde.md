@@ -16,8 +16,8 @@ Sluicer, [Scrapling](https://github.com/D4Vinci/Scrapling)'s adaptive
 selectors, which promise to find an element again when a page changes,
 are asked the same thing, as [the drift benchmark](drift.md) asks them.
 
-Regenerated on 2026-09-24 from commit `d006702` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
-archive checked against its SHA-256. Sluicer took 761 s of CPU to learn and run its 80 extractors, Scrapling 1660 s.
+Regenerated on 2026-09-25 from commit `6ee2d03` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
+archive checked against its SHA-256. Sluicer took 462 s of CPU to learn and run its 80 extractors, Scrapling 1660 s.
 
 !!! warning "Read this before the numbers"
     These pages declare almost nothing, so every value here is learnt from
@@ -34,12 +34,12 @@ precision and recall pool every page.
 
 | system | mean F1 | precision | recall |
 |---|---|---|---|
-| **sluicer 0.7.0** | 0.849 | 0.972 | 0.849 |
+| **sluicer 0.7.1** | 0.849 | 0.972 | 0.849 |
 | Scrapling 0.4.15, adaptive | 0.671 | 0.864 | 0.710 |
 
 | system | wrong answers | of them flagged by the run | not learnt (site-attributes) |
 |---|---|---|---|
-| **sluicer 0.7.0** | 12,059 | 341 (3%) | 20 of 320 |
+| **sluicer 0.7.1** | 12,059 | 1,998 (17%) | 20 of 320 |
 | Scrapling 0.4.15, adaptive | 56,058 | no checks | 63 of 320 |
 
 A wrong answer is a value that is not the page's, or a value where the
@@ -53,10 +53,14 @@ did not is silent. Scrapling returns what it finds and has no check.
 The sites were split before any full result was read (commit
 `fc72378`): in each vertical, in alphabetical order, they alternate
 between development and held-out. Sluicer's rules are made reading the
-development sites only; the held-out ones are only scored. One
-exception: all ten camera sites were read while the benchmark was being
-built, before the split, so the held-out camera sites are not a clean
-test.
+development sites only, so the development half measures Sluicer on
+pages it was fitted to; the held-out ones are only scored, and are the
+one held-out test of all the scoreboards. Their numbers have been read
+at the releases and once to see whether a rule made on the development
+half held before it was kept; [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md) lists each
+reading. One exception: all ten camera sites were read while the
+benchmark was being built, before the split, so the held-out camera
+sites are not a clean test.
 
 | half | site-attributes | sluicer F1 | Scrapling F1 |
 |---|---|---|---|
@@ -121,7 +125,7 @@ test.
 example was on the first, and could not learn a value that shares its
 element with its label.
 
-## Reading the errors
+## Reading the errors, by hand, at 0.7.0
 
 The wrong answers were read by hand on the development sites only, looking
 for rules Sluicer had wrong rather than for rules that would fit these
