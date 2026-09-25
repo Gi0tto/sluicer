@@ -391,9 +391,12 @@ a line, is read too. A soft 404, the site's HTML where a sitemap was expected,
 is reported as not a sitemap.
 
 Every bound is stated: at most 50 sitemap files per map and 50,000 addresses,
-the protocol's own limit for one file, and a sitemap listing more says so. The
-answer's `truncated` is true whenever a bound -- the limit, the number of
-sitemaps, the time -- stopped the map before the sitemaps were read out.
+the protocol's own limit for one file, and a sitemap listing more says so; a
+sitemap named again and again is asked for once. `sluicer map --time-budget
+SECONDS` (`time_budget=`) asks for no further sitemap once the time is spent;
+none by default, and a minute for the MCP tool. The answer's `truncated` is
+true whenever a bound -- the limit, the number of sitemaps, the time --
+stopped the map before the sitemaps were read out.
 
 ## For an agent
 

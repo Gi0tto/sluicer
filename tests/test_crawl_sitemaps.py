@@ -684,3 +684,58 @@ def test_a_sitemap_robots_txt_names_on_another_host_is_not_sent_the_login(
     assert not any(
         "authorization" in r.headers or "cookie" in r.headers for r in seen.requests
     )
+
+
+def test_a_sitemap_named_again_and_again_is_queued_once(monkeypatch):
+    """Measured on 0.8.0: fifty indexes each naming the next and itself
+    20,000 times took 12.4 s to map, every repeat queued and taken off the
+    front of a list one at a time."""
+    from sluicer.crawl.web import Web
+    from sluicer.fetch.http_rung import Response
+    from sluicer.fetch.result import Fetched
+
+    base = "https://example.com"
+    repeats = 20_000
+
+    def index(n):
+        named = [f"{base}/s{n + 1}.xml"] + [f"{base}/s{n}.xml"] * repeats
+        return (
+            f"<sitemapindex {NS}>"
+            + "".join(f"<sitemap><loc>{loc}</loc></sitemap>" for loc in named)
+            + "</sitemapindex>"
+        ).encode()
+
+    bodies = {f"{base}/s{n}.xml": index(n) for n in range(20)}
+    asked = []
+
+    def get(url):
+        asked.append(url)
+        return Response(url, 200, "application/xml", bodies.get(url, b""), {})
+
+    def start(url):
+        return Fetched(
+            url=url, html="<html><body>home</body></html>", status=200, rung="http"
+        )
+
+    web = Web(
+        rungs=(("http", start),),
+        read=lambda url: f"Sitemap: {base}/s0.xml\n",
+        get=get,
+    )
+    from sluicer.crawl import sitemaps
+
+    normalised = []
+    real = sitemaps.normalise
+    monkeypatch.setattr(
+        sitemaps, "normalise", lambda url: normalised.append(url) or real(url)
+    )
+
+    mapped = map_site(
+        f"{base}/", max_sitemaps=20, web=web, sleep=lambda s: None, min_delay=0
+    )
+
+    # Two addresses an index, each once, the start and robots.txt's sitemap:
+    # not 20,001 an index.
+    assert len(normalised) < 100
+    assert asked == [f"{base}/s{n}.xml" for n in range(20)]
+    assert mapped.truncated

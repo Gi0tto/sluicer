@@ -549,6 +549,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   server and `sluicer serve` refuse a `SLUICER_PROXY` they cannot use when
   they start, exit 2 and one line, where the first tool that fetched answered
   `internal_error` and logged the traceback.
+- A map queues each sitemap once, however often its indexes name it, and
+  reads a repeated address once: fifty indexes each naming the next and
+  itself 20,000 times took 10.7 s to map, every repeat queued, taken off the
+  front of a list and normalised, and 1.7 s now on the same machine.
+- `sluicer map --time-budget SECONDS` stops asking for sitemaps once the time
+  is spent, as `map_site(time_budget=)` and the MCP tool already did; the
+  command line had no bound but the fifty sitemaps, each after the site's
+  delay of up to a minute.
 
 ## 0.7.1 - 2026-09-25
 

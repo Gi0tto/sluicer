@@ -320,6 +320,18 @@ def test_map_plain_is_one_address_a_line_for_batch(fake):
     assert "cut short by a bound" in result.stderr
 
 
+def test_map_stops_asking_for_sitemaps_once_its_time_budget_is_spent(fake):
+    """A map read up to fifty sitemaps, each after the site's delay of up to a
+    minute, with nothing on the command line to stop it sooner."""
+    fake.pages[f"{ROOT}/sitemap.xml"] = SITEMAP
+
+    result = invoke("map", f"{ROOT}/", "--time-budget", "0")
+
+    assert result.exit_code == 0, result.stderr
+    assert "cut short by a bound" in result.stderr
+    assert f"{ROOT}/sitemap.xml" not in [url for url, _, _ in fake.requests]
+
+
 def test_map_without_a_sitemap_falls_back_and_says_so(fake):
     result = invoke("map", f"{ROOT}/")
 

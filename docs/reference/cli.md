@@ -476,6 +476,9 @@ Options:
   --plain / --no-plain        One address a line, for `sluicer batch -`.
   --format [json|csv]         json: the map as one object; csv: a row per address (url,
                               lastmod, sitemap).  [default: json]
+  --time-budget SECONDS       Ask for no further sitemap once this many seconds have
+                              passed; the map is then cut short. None by default.
+                              [x>=0]
   --proxy URL                 Fetch through this proxy (http://host:port,
                               socks5h://host:port); the environment's HTTPS_PROXY is
                               never used. Same as SLUICER_PROXY.

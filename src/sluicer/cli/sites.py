@@ -58,8 +58,17 @@ from sluicer.fetch.rungs import FetchExtraMissing
     show_default=True,
     help="json: the map as one object; csv: a row per address (url, lastmod, sitemap).",
 )
+@click.option(
+    "--time-budget",
+    type=click.FloatRange(min=0),
+    metavar="SECONDS",
+    help="Ask for no further sitemap once this many seconds have passed; the "
+    "map is then cut short. None by default.",
+)
 @_with_proxy
-def map_command(url: str, limit: int, plain: bool, output_format: str) -> None:
+def map_command(
+    url: str, limit: int, plain: bool, output_format: str, time_budget: float | None
+) -> None:
     """List a site's addresses, from its sitemaps or its start page's links.
 
     Each sitemap is asked politely, through robots.txt and after the site's
@@ -68,7 +77,7 @@ def map_command(url: str, limit: int, plain: bool, output_format: str) -> None:
     if plain and output_format != "json":
         raise click.UsageError("--plain is one address a line; --format is another")
     try:
-        found = map_site(url, limit=limit, **_sent())
+        found = map_site(url, limit=limit, time_budget=time_budget, **_sent())
     except (
         FetchExtraMissing,
         RobotsRefused,
