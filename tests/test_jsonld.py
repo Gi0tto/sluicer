@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+import pytest
 from hypothesis import given, strategies as st
 
 from sluicer.declared.jsonld import _parse, _without_closing, read_jsonld
@@ -609,6 +610,62 @@ def test_schema_is_schema_org_s_prefix_only_where_the_context_leaves_it_so():
     ):
         record = _record(block)
         assert (record.type, list(record.fields)) == ("Product", ["name"]), block
+
+
+@pytest.mark.parametrize(
+    "context",
+    [
+        {"schema": "http://schema.org"},
+        {"schema": "https://schema.org"},
+        {"schema": {"@id": "http://schema.org/"}},
+        {"schema": {"@id": "https://schema.org/", "@type": "@id"}},
+        ["https://schema.org", {"schema": {"@id": "http://schema.org/"}}],
+        {"@vocab": "http://schema.org/", "schema": "http://schema.org"},
+        {"s": "http://www.schema.org/#"},
+    ],
+)
+def test_a_word_defined_as_schema_org_s_namespace_is_schema_org_s_prefix(context):
+    """Found by the second review: a term whose address is schema.org's
+    namespace, but written without the ``/`` or ``@prefix`` JSON-LD 1.1 asks of
+    a prefix, left ``schema:Product`` as written, and the page lost its type,
+    title and price. PyLD reads it as an address whose scheme is ``schema``
+    (1.1) or as ``http://schema.orgProduct`` (1.0): neither is anything a
+    reader goes by, and a page that writes it means schema.org's."""
+    import json
+
+    word = "s" if "s" in context else "schema"
+    block = {
+        "@context": context,
+        "@type": f"{word}:Product",
+        f"{word}:name": "Brake pad",
+        f"{word}:offers": {
+            "@type": f"{word}:Offer",
+            f"{word}:price": "41.90",
+            f"{word}:priceCurrency": "EUR",
+        },
+    }
+
+    from sluicer import extract
+
+    found = extract(_page(json.dumps(block)))
+
+    record = found.records[0]
+    assert (record.type, list(record.fields)) == ("Product", ["name", "offers"])
+    summary = {key: field.value for key, field in found.summary.items()}
+    assert (summary["type"], summary["title"], summary["price"]) == (
+        "Product",
+        "Brake pad",
+        "41.90",
+    )
+
+
+def test_a_term_defined_through_schema_org_s_namespace_is_schema_org_s_word():
+    record = _record(
+        '{"@context": {"s": "http://schema.org", "title": "s:name"},'
+        ' "@type": "s:Product", "title": "T"}'
+    )
+
+    assert (record.type, list(record.fields)) == ("Product", ["name"])
 
 
 # --- a block's wrapper -----------------------------------------------------------

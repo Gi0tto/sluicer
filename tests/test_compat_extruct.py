@@ -610,6 +610,32 @@ def test_dublin_core_is_the_names_under_a_dublin_core_prefix():
     ]
 
 
+@pytest.mark.parametrize("name", ["{},", "{a}b", "{", "{}", "{a", "{}uri"])
+def test_an_attribute_named_with_braces_is_copied_as_extruct_copies_it(name):
+    # lxml reads a key of the form "{ns}local" as a namespaced name when it is
+    # looked up, so copying an element's attributes by key raised KeyError or
+    # ValueError on these; extruct copies them pair by pair.
+    html = (
+        f'<html><head><meta name="DC.title" content="x" {name}="y">'
+        f'<link rel="DC.source" {name}="z" href="/s"></head></html>'
+    )
+
+    assert DublinCoreExtractor().extract(html)[0]["elements"] == [
+        {
+            "name": "DC.title",
+            "content": "x",
+            name: "y",
+            "URI": "http://purl.org/dc/elements/1.1/title",
+        },
+        {
+            "rel": "DC.source",
+            name: "z",
+            "href": "/s",
+            "URI": "http://purl.org/dc/elements/1.1/source",
+        },
+    ]
+
+
 def test_names_that_are_not_dublin_core_are_not_filed_as_it():
     # The documented difference: extruct files every one of these.
     html = (
