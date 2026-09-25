@@ -1,0 +1,22 @@
+{"products": [
+  {"id": 7001, "title": "Brake pad set, front", "handle": "brake-pad-set-front",
+   "body_html": "<p>Ceramic pads for <strong>quiet</strong> braking.</p>",
+   "published_at": "2026-05-02T10:00:00+02:00", "created_at": "2026-05-01T09:00:00+02:00",
+   "updated_at": "2026-09-01T12:30:00+02:00", "vendor": "Acme Parts", "product_type": "Brakes",
+   "tags": ["brakes", "ceramic"],
+   "variants": [
+     {"id": 1, "title": "Default Title", "option1": "Default Title", "sku": "BP-100",
+      "available": true, "price": "49.90", "compare_at_price": "59.90", "grams": 900}
+   ],
+   "images": [{"id": 11, "src": "https://cdn.shop.example/files/bp-100.jpg", "width": 800, "height": 800}],
+   "options": [{"name": "Title", "position": 1, "values": ["Default Title"]}]},
+  {"id": 7002, "title": "Wiper blade", "handle": "wiper-blade",
+   "body_html": "", "published_at": "2026-06-10T08:00:00+02:00",
+   "created_at": "2026-06-09T08:00:00+02:00", "updated_at": "2026-06-10T08:00:00+02:00",
+   "vendor": "Acme Parts", "product_type": "Wipers", "tags": [],
+   "variants": [
+     {"id": 2, "title": "450 mm", "sku": "WB-450", "available": false, "price": "12.00", "compare_at_price": null},
+     {"id": 3, "title": "600 mm", "sku": "WB-600", "available": true, "price": "15.50", "compare_at_price": null}
+   ],
+   "images": [], "options": [{"name": "Length", "position": 1, "values": ["450 mm", "600 mm"]}]}
+]}

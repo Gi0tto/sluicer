@@ -55,6 +55,7 @@ from sluicer.crawl.table import (
     site_url_row,
     write_csv,
 )
+from sluicer.crawl.templates import TEMPLATES, shopify_products, sitemap_pages
 from sluicer.declared.microformats import MicroformatsExtraMissing
 from sluicer.declared.readers import READERS
 from sluicer.diff import compare
@@ -1776,6 +1777,12 @@ def _with_many_options(command: click.decorators.FC) -> click.decorators.FC:
 @click.option(
     "--any-site", is_flag=True, help="Follow links that leave URL's site too."
 )
+@click.option(
+    "--template",
+    type=click.Choice(TEMPLATES),
+    help="A ready crawl: sitemap reads the pages URL's sitemaps list; shopify "
+    "reads a Shopify shop's /products.json, a line per product.",
+)
 @_with_many_options
 @_with_proxy
 def crawl_command(
@@ -1785,6 +1792,7 @@ def crawl_command(
     include: tuple[str, ...],
     exclude: tuple[str, ...],
     any_site: bool,
+    template: str | None,
     out: str | None,
     output_format: str,
     resume: bool,
@@ -1798,29 +1806,99 @@ def crawl_command(
 
     Breadth first, on URL's site unless --any-site, every page through
     robots.txt and one request at a time with the site's delay between. Run
-    twice, it takes the same pages in the same order.
+    twice, it takes the same pages in the same order. --template sitemap
+    reads the pages the site's sitemaps list instead, --include and
+    --exclude choosing among them; --template shopify reads a Shopify shop's
+    products from its /products.json, --max-pages of them at 250 a page.
     """
     table = output_format == "csv"
+    if template is not None:
+        _refuse_unused(template, include=include, induce=induce, respect=respect)
     _check_out(out, resume, table)
+    state = None if table else out
+    total: int | None = max_pages
+    label = "Crawling"
     try:
-        pages = crawl_site(
-            url,
-            max_pages,
-            max_depth,
-            same_site=not any_site,
-            include=include,
-            exclude=exclude,
-            state=None if table else out,
-            induce=induce,
-            respect_tdm="tdm" in respect,
-            min_delay=delay,
-            retries=retries,
-            concurrency=jobs,
-            **_sent(),
-        )
-    except (FetchExtraMissing, ValueError) as failure:
+        if template == "shopify":
+            total, label = None, "Reading products"
+            pages = shopify_products(
+                url,
+                max_pages,
+                state=state,
+                min_delay=delay,
+                retries=retries,
+                **_sent(),
+            )
+        elif template == "sitemap":
+            label = "Reading"
+            pages = sitemap_pages(
+                url,
+                max_pages,
+                include=include,
+                exclude=exclude,
+                state=state,
+                induce=induce,
+                respect_tdm="tdm" in respect,
+                min_delay=delay,
+                retries=retries,
+                concurrency=jobs,
+                **_sent(),
+            )
+        else:
+            pages = crawl_site(
+                url,
+                max_pages,
+                max_depth,
+                same_site=not any_site,
+                include=include,
+                exclude=exclude,
+                state=state,
+                induce=induce,
+                respect_tdm="tdm" in respect,
+                min_delay=delay,
+                retries=retries,
+                concurrency=jobs,
+                **_sent(),
+            )
+    except (
+        FetchExtraMissing,
+        ValueError,
+        RobotsRefused,
+        AddressRefused,
+        FetchFailed,
+        ResponseTooLarge,
+    ) as failure:
         _fail(str(failure), failure)
-    _report(pages, out, table, total=max_pages, label="Crawling")
+    _report(pages, out, table, total=total, label=label)
+
+
+def _refuse_unused(template: str, **given: tuple[str, ...] | bool) -> None:
+    """Refuse, before anything is asked, an option ``template`` would not use:
+    ignored, it would read as obeyed."""
+    context = click.get_current_context()
+    unused = {
+        "max_depth": "--max-depth",
+        "any_site": "--any-site",
+    }
+    if template == "shopify":
+        unused |= {
+            "include": "--include",
+            "exclude": "--exclude",
+            "induce": "--induce",
+            "respect": "--respect",
+        }
+    for name, option in unused.items():
+        source = context.get_parameter_source(name)
+        if source is not None and source.name not in ("DEFAULT", "DEFAULT_MAP"):
+            raise click.UsageError(
+                f"{option} does not apply to --template {template}: "
+                + (
+                    "a sitemap lists the pages, no link is followed"
+                    if name in ("max_depth", "any_site")
+                    else "a shop's products are read from its products.json, "
+                    "not from pages"
+                )
+            )
 
 
 @main.command("feed")

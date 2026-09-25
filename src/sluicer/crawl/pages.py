@@ -23,7 +23,7 @@ from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, Any, TypeVar
 from urllib.parse import urlsplit
 
 from sluicer.api import Extraction, extract
@@ -616,29 +616,15 @@ class _Visitor:
     def visit(self, task: Task) -> Page:
         """Take ``task``, asking again, a bounded number of times and each time
         later, while what came back may be different later."""
-        retries: list[Retry] = []
-        while True:
-            page = self._take(task)
-            why = _worth_asking_again(page)
-            if why is None:
-                self.polite.failing(task.url, failed=False)
-                break
-            if len(retries) >= self.retries:
-                self.polite.failing(task.url, failed=bool(self.retries))
-                break
-            after = self.polite.backoff(task.url, len(retries) + 1)
-            if after is None or self.polite.refused_for(task.url) > 0:
-                break
-            ended = self.polite.last_ended(task.url)
-            if (
-                self.deadline is not None
-                and ended is not None
-                and ended + after > self.deadline
-            ):
-                break
-            retries.append(Retry(why, after))
-            self.polite.wait(task.url, after)
-        return replace(page, retries=tuple(retries)) if retries else page
+        page, retries = asking_again(
+            self.polite,
+            task.url,
+            self.retries,
+            self.deadline,
+            lambda: self._take(task),
+            _worth_asking_again,
+        )
+        return replace(page, retries=retries) if retries else page
 
     def _take(self, task: Task) -> Page:
         """One try at ``task``: its robots.txt, its fetch, its reading."""
@@ -751,6 +737,46 @@ class _Visitor:
             canonical=canonical_of(doc, fetched.headers) if answered else None,
             links=tuple(links_on(doc, fetched.headers)) if answered else (),
         )
+
+
+_Try = TypeVar("_Try")
+
+
+def asking_again(
+    polite: Politeness,
+    url: str,
+    retries: int,
+    deadline: float | None,
+    take: Callable[[], _Try],
+    why: Callable[[_Try], str | None],
+) -> tuple[_Try, tuple[Retry, ...]]:
+    """``take()``, and again while ``why`` says what it came to may be
+    different later: at most ``retries`` more times, each after
+    ``polite.backoff``, never one that would start past ``deadline``. The
+    last try, and each retry made.
+
+    A site whose try failed through all its retries is noted as failing, so
+    its next pages are asked once until one of them is answered.
+    """
+    made: list[Retry] = []
+    while True:
+        answer = take()
+        reason = why(answer)
+        if reason is None:
+            polite.failing(url, failed=False)
+            break
+        if len(made) >= retries:
+            polite.failing(url, failed=bool(retries))
+            break
+        after = polite.backoff(url, len(made) + 1)
+        if after is None or polite.refused_for(url) > 0:
+            break
+        ended = polite.last_ended(url)
+        if deadline is not None and ended is not None and ended + after > deadline:
+            break
+        made.append(Retry(reason, after))
+        polite.wait(url, after)
+    return answer, tuple(made)
 
 
 def _worth_asking_again(page: Page) -> str | None:

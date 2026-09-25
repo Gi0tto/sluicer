@@ -45,6 +45,12 @@ def fake(monkeypatch):
     monkeypatch.setattr("sluicer.cli.crawl_site", wrap(library.crawl))
     monkeypatch.setattr("sluicer.cli.extract_many", wrap(library.extract_many))
     monkeypatch.setattr("sluicer.cli.map_site", wrap(library.map_site))
+    from sluicer.crawl import templates
+
+    monkeypatch.setattr("sluicer.cli.sitemap_pages", wrap(templates.sitemap_pages))
+    monkeypatch.setattr(
+        "sluicer.cli.shopify_products", wrap(templates.shopify_products)
+    )
     return web
 
 
@@ -427,3 +433,64 @@ def test_what_is_not_a_terminal_sees_no_bar(fake):
 
     assert "Crawling" not in result.stderr
     assert "\r" not in result.stderr
+
+
+# -- templates -------------------------------------------------------------------
+
+
+def test_a_sitemap_template_reads_what_the_sitemaps_list(fake):
+    fake.pages[f"{ROOT}/sitemap.xml"] = SITEMAP
+
+    result = invoke("crawl", f"{ROOT}/", "--template", "sitemap")
+
+    assert result.exit_code == 0, result.stderr
+    assert [line["url"] for line in lines(result.stdout)] == [f"{ROOT}/a", f"{ROOT}/b"]
+
+
+def test_a_shopify_template_writes_a_product_a_line(fake):
+    import json as j
+
+    products = [
+        {"title": "Pad", "handle": "pad", "variants": [{"price": "9.00"}]},
+        {"title": "Disc", "handle": "disc", "variants": [{"price": "19.00"}]},
+    ]
+    fake.pages[f"{ROOT}/products.json?limit=250&page=1"] = j.dumps(
+        {"products": products}
+    )
+
+    result = invoke("crawl", f"{ROOT}/", "--template", "shopify", "--format", "csv")
+
+    assert result.exit_code == 0, result.stderr
+    got = rows(result.stdout)
+    assert [row["url"] for row in got] == [
+        f"{ROOT}/products/pad",
+        f"{ROOT}/products/disc",
+    ]
+    assert [row["summary.price"] for row in got] == ["9.00", "19.00"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--template", "sitemap", "--max-depth", "1"],
+        ["--template", "sitemap", "--any-site"],
+        ["--template", "shopify", "--include", "x"],
+        ["--template", "shopify", "--induce"],
+        ["--template", "shopify", "--respect", "tdm"],
+    ],
+)
+def test_an_option_a_template_does_not_use_is_refused_not_ignored(fake, extra):
+    result = invoke("crawl", f"{ROOT}/", *extra)
+
+    assert result.exit_code == 2
+    assert "--template" in result.stderr
+    assert fake.requests == []
+
+
+def test_a_site_the_sitemap_template_cannot_map_exits_two(fake):
+    fake.pages[f"{ROOT}/robots.txt"] = (503, "busy", {})
+
+    result = invoke("crawl", f"{ROOT}/", "--template", "sitemap", "--retries", "0")
+
+    assert result.exit_code == 2
+    assert "503" in result.stderr
