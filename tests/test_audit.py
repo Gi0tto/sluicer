@@ -428,6 +428,38 @@ def test_canonicals_that_disagree_or_are_relative_are_named():
     assert codes == ["canonicals-disagree", "canonical-relative"]
 
 
+def test_a_canonical_in_the_body_is_not_the_page_s():
+    """Found by review: the audit read ``<link rel=canonical>`` anywhere, and
+    ``extract`` reads the head only, since Google does: a comment in the body
+    naming another host made the audit warn of two canonicals that ``links``
+    never saw, and a page whose only canonical sat in the body passed."""
+    body = '<link rel="canonical" href="https://elsewhere.example/p">'
+    both = COMPLETE_HEAD.replace("<body>", "<body>" + body)
+    only = COMPLETE_HEAD.replace(
+        '<link rel="canonical" href="https://example.com/pads">', ""
+    ).replace("<body>", "<body>" + body)
+
+    assert audit(both).page == []
+    assert [f.code for f in audit(only).page] == ["missing-canonical"]
+    assert extract(both).links["canonical"] == "https://example.com/pads"
+    assert "canonical" not in extract(only).links
+
+
+def test_a_relative_canonical_naming_the_same_address_does_not_disagree():
+    """As ``links`` reads them: resolved, ``/pads`` on the page at
+    https://example.com/ is the head's other canonical, not a second one."""
+    head = COMPLETE_HEAD.replace(
+        "</head>", '<link rel="canonical" href="/pads"></head>'
+    )
+
+    codes = [f.code for f in audit(head, url="https://example.com/pads").page]
+
+    assert codes == ["canonical-relative"]
+    assert extract(head, url="https://example.com/pads").links["canonical"] == (
+        "https://example.com/pads"
+    )
+
+
 def test_an_image_under_another_opengraph_key_counts():
     head = COMPLETE_HEAD.replace(
         'property="og:image"', 'property="og:image:secure_url"'

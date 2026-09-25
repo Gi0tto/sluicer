@@ -64,6 +64,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   are found by one search in C, and the `<meta>` tags are scanned once a page
   instead of once for each reader and summary question that reads them.
 
+- The sdist is 0.72 MB, from 1.99 MB. It leaves out `uv.lock`, which pins the
+  development environment, the CI workflows, and the pictures under
+  `docs/assets`, which PyPI shows from the repository because the README names
+  them by absolute address. It still carries the source, the tests and all they
+  read, and the suite passes from it unpacked; the wheel is unchanged.
+
 ### Fixed
 - The scoreboards say which pages Sluicer's rules were made on. Five of the
   six, and the drift benchmark, had rules written, measured on their pages and
@@ -312,6 +318,57 @@ Dates are the day the work landed. Anything not listed here did not happen.
   declared floor, did not, so a description or a review kept its CR LF on one
   and not the other: on the benchmark pages, 13 of the 55 pages whose answer
   depended on the lxml version no longer do. No answer on lxml 6 changed.
+
+- `induce` costs in step with the page. Telling rows from sections compared
+  every repeated group with every other one, measuring each group's members
+  again for each comparison, so a 363 KB page of two thousand small lists took
+  35 seconds, and a table of two thousand rows seven. Each group is now
+  credited to the elements above it once: the first page takes 73 ms. The
+  records and the ranking are the same on the 3,948 pages of the benchmark
+  corpora. `induce` runs on pages nobody vouches for, through the MCP server's
+  `extract_declared` and the HTTP API, and a call that times out still runs to
+  its end on its worker: this was also a way to hold a worker for minutes.
+- Gathering a parent's children into groups compared each child with every
+  group of its kind begun before it, so two thousand children that share three
+  parts and differ in a fourth made two million comparisons. Past sixteen
+  groups of one kind, a child is now compared only with the groups whose first
+  members share one of its rarest paths, which is where any match must be, and
+  with at most 64 of those; on the benchmark corpora no child needed more than
+  nine, and the groups are the same.
+- Reading a CSS module's class (`Card_title__a1B2c` is `Card_title`) used a
+  pattern that tried every `__` in a class and scanned to its end from each:
+  a 90 KB class took seven seconds, on every row it sat on, in `induce` and
+  in `compile`. The name and hash are now counted, the same answer in
+  milliseconds.
+- A part of an induced row carried the whole path down to it, copied at each
+  level and hashed again to number it, so every wrapper around a row cost
+  every part below it once more: forty thousand parts under two thousand
+  wrappers took 1.4 seconds to name, and take 0.1.
+- Listings nested inside listings cost the square of their depth: each
+  member's worth was read off all the text and links below it, again for
+  every member around it, and `induce` walked every group's rows in full
+  before trying the next, even a group with nothing in it to name. A 93 KB
+  page of them took seven seconds, and twenty with no text in it. Each
+  element is now measured once from its children's measures, and a group is
+  passed over when no part of it carries a fact, found the same way: both
+  pages take 0.1 seconds, with the same records.
+- Two slots of an induced row could share a name, and one value overwrote the
+  other: two `<span class="tag">` are numbered `span.tag1` and `span.tag2`,
+  and a card's own `<span class="tag1">` is `span.tag1` too. The class the
+  page wrote keeps its name and the numbers of the slot that would clash are
+  written after a `#`: `span.tag#1`, `span.tag#2`. What still clashes, a tag
+  such as `a@href` that libxml2 keeps as written, takes `~2`. Names that do not
+  clash are as they were; on the benchmark corpora two pages' first groups
+  are renamed, where `div.col-12` named both the second of three `div.col-1`
+  and a `div.col-12`, and no page's `induce` output changes.
+
+- `audit` read `<link rel=canonical>` anywhere on the page, while `extract`
+  reads the head only, as Google does: a canonical a comment put in the body
+  made the audit warn `canonicals-disagree` about an address `links` never
+  saw, and a page whose only canonical was in the body passed. The audit now
+  reads the canonicals `links` reads, and two that resolve to one address, as
+  `/pads` and `https://example.com/pads` on that site, are one canonical there
+  too; the relative one is still `canonical-relative`.
 
 ## 0.7.0 - 2026-09-24
 
