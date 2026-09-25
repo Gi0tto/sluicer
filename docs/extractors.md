@@ -54,7 +54,9 @@ that drifted (with `failed`, the checks it broke) and for a heal that lost data
   learnt from two pages or more, also the shape of the answer: `41.90` is `NP`,
   `£51.77` is `NPS`.
 - **The listing the pages repeat**, unless a page declares its own subject -- a
-  product page, an article -- or always with `--listing`: where it sits (`html>body>div.page>ol.row`), what one
+  product page, an article; a thing declared on one of the listing's rows,
+  as a quote in microdata is, is a row and not the page's subject -- or
+  always with `--listing`: where it sits (`html>body>div.page>ol.row`), what one
   row looks like (`li.product`), how many rows each page had, and for every
   field its share of empty rows, the one shape its values shared if they did,
   and a few sample values.
@@ -111,7 +113,13 @@ page of another site fails with the listing not found.
 **A page with no listing is read the same way.** When no one repeated group
 holds every example -- a product page that declares nothing -- or with
 `--no-listing`, the examples are the page's own values, each learnt where it
-sits:
+sits. With `--listing`, no group holding them is an error: read as the page's
+own values, they would be the first row's, on every page. A row's columns
+are what a reader sees -- each part's text, an image's alt text, the address
+a link or an image points to -- so a value only a `<meta>` in the row
+declares, quotes.toscrape.com's `<meta itemprop="keywords" content=...>`, is
+no column; point at the tags' links, or read the declaration with
+`extract()`:
 
 ```bash
 sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
@@ -127,6 +135,21 @@ sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
   each is still there, reads as it did (a price that reads as an amount on the
   learnt pages must still read as one: "Add to basket" fails the `reads`
   check), and keeps its shape when five pages or more taught it one.
+- A field whose place the pages given contradict is read after its label: the
+  place holds nothing on one of them, or a value that does not read as the
+  example does, or another page puts it right after a label the example's
+  own page gives another of its values -- a PEP's header has a
+  Discussions-To row on PEP 257 and not on PEP 8, so PEP 8's type is PEP
+  257's status, after `Status:`. A label the example's page does not say
+  moves nothing: "Directors:" on one film and "Director:" on another is one
+  field. The label is the text every page
+  says once right before the value, `Type:`; a colon in an element of its
+  own, `Type<span class="colon">:</span>`, is the label's. Where the pages
+  label the place differently and no such label is found, `compile` refuses
+  the example with a message: read by its place, the field would be another
+  field on a page it was learnt from. `heal` does not keep or move a field to
+  such a place either: it reads it after a label, or leaves the move to a
+  person.
 - A field read by its place also learns its label, when every page given puts
   the same one right before it, once: text that ends with a colon, or is in a
   `<th>`, `<dt>` or `<label>`. A page that still says the label, once or

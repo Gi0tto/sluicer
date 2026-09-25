@@ -6,12 +6,14 @@ not drift is never failed.
 """
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 
 from sluicer.extractor import (
     Extractor,
+    NothingToLearn,
     compile_extractor,
     heal,
     run_extractor,
@@ -901,6 +903,257 @@ def test_heal_reads_a_row_that_moved_after_its_label():
     assert run.fields == {"sku": "BP-5"}
 
 
+def _pep(number, title, *rows):
+    """A PEP's page as peps.python.org writes it: its header is a definition
+    list whose labels carry their colon in an element of its own,
+    ``<dt>Status<span class="colon">:</span></dt>``, and whose rows are the
+    PEP's own -- PEP 257 has a Discussions-To row PEPs 8 and 20 do not, which
+    moves every row after it one place down."""
+    header = "".join(
+        f'<dt class="field-{side}">{label}<span class="colon">:</span></dt>'
+        f'<dd class="field-{side}">{value}</dd>'
+        for n, (label, value) in enumerate(rows)
+        for side in ["odd" if n % 2 == 0 else "even"]
+    )
+    return (
+        f"<html lang='en'><head><title>PEP {number} \u2013 {title}</title></head><body>"
+        "<section id='pep-page-section'><header><ul class='breadcrumbs'>"
+        f"<li><a href='../'>PEP Index</a></li><li>PEP {number}</li></ul></header>"
+        f"<main><section id='pep-content'><h1 class='page-title'>PEP {number} \u2013 "
+        f"{title}</h1><dl class='rfc2822 field-list simple'>{header}</dl>"
+        f"<section id='abstract'><h2>Abstract</h2><p>PEP {number}'s abstract.</p>"
+        "</section></section></main></section></body></html>",
+        f"https://peps.python.org/pep-{number:04d}/",
+    )
+
+
+def _state(word):
+    return f"<abbr title='what {word} means'>{word}</abbr>"
+
+
+PEPS = [
+    _pep(
+        8,
+        "Style Guide for Python Code",
+        ("Author", "Guido van Rossum"),
+        ("Status", _state("Active")),
+        ("Type", _state("Process")),
+        ("Created", "05-Jul-2001"),
+        ("Post-History", "05-Jul-2001, 01-Aug-2013"),
+    ),
+    _pep(
+        20,
+        "The Zen of Python",
+        ("Author", "Tim Peters"),
+        ("Status", _state("Active")),
+        ("Type", _state("Informational")),
+        ("Created", "19-Aug-2004"),
+        ("Post-History", "22-Aug-2004"),
+    ),
+    _pep(
+        257,
+        "Docstring Conventions",
+        ("Author", "David Goodger, Guido van Rossum"),
+        ("Discussions-To", "<a href='https://mail.example/doc-sig'>Doc-SIG list</a>"),
+        ("Status", _state("Active")),
+        ("Type", _state("Informational")),
+        ("Created", "29-May-2001"),
+        ("Post-History", "13-Jun-2001"),
+    ),
+]
+PEP_WANT = {"status": "Active", "type": "Process", "created": "05-Jul-2001"}
+
+
+def test_a_header_whose_rows_differ_between_pages_is_read_by_its_labels():
+    """Learnt from PEPs 8, 20 and 257, the type and the date were read by
+    their place in the header, and PEP 257's extra row moved both: its type
+    came back "Active", its status, and its date "Informational", its type.
+    The colon in an element of its own hid every label, and a place the
+    learnt pages labelled differently was not held to be contradicted."""
+    learnt = compile_extractor(PEPS, listing=False, want=PEP_WANT)
+    assert [(f.name, f.anchor and f.anchor.label) for f in learnt.fields] == [
+        ("status", "Status:"),
+        ("type", "Type:"),
+        ("created", "Created:"),
+    ]
+    expected = [
+        {"status": "Active", "type": "Process", "created": "05-Jul-2001"},
+        {"status": "Active", "type": "Informational", "created": "19-Aug-2004"},
+        {"status": "Active", "type": "Informational", "created": "29-May-2001"},
+    ]
+    for (html, url), fields in zip(PEPS, expected, strict=True):
+        run = run_extractor(learnt, html, url)
+        assert run.ok, failed(run)
+        assert run.fields == fields
+    later = _pep(
+        484,
+        "Type Hints",
+        ("Author", "Guido van Rossum, Jukka Lehtosalo"),
+        ("Discussions-To", "Python-Dev list"),
+        ("Status", _state("Final")),
+        ("Type", _state("Standards Track")),
+        ("Topic", "Typing"),
+        ("Created", "29-Sep-2014"),
+        ("Python-Version", "3.5"),
+    )
+    run = run_extractor(learnt, *later)
+    assert run.ok, failed(run)
+    assert run.fields == {
+        "status": "Final",
+        "type": "Standards Track",
+        "created": "29-Sep-2014",
+    }
+
+
+def _swapped():
+    """The second of ``SPECS`` with its SKU's row before its price's."""
+    return _specs("ATE", "39.00", "BP-2", "2 kg", ("brand", "sku", "price", "weight"))
+
+
+def _unheaded(page):
+    """``page`` with no SKU in its heading, so the table's label is the only
+    text before the SKU on every page."""
+    html, url = page
+    return re.sub(r"<h1>[^<]*</h1>", "<h1>Pads</h1>", html), url
+
+
+def test_a_place_the_pages_label_differently_is_read_after_its_own_label():
+    """The pages given agree on nothing but the place: the second puts its
+    price where the first put its SKU, under its own label. Read by the
+    place, the SKU was the second page's price, with no check to fail."""
+    first, swapped = _unheaded(SPECS[0]), _unheaded(_swapped())
+    learnt = compile_extractor([first, swapped], listing=False, want={"sku": "BP-1"})
+    [sku] = learnt.fields
+    assert sku.anchor is not None and sku.anchor.label == "SKU"
+    assert "at " in learnt.notes[0] and "'39.00' after 'Price'" in learnt.notes[0]
+    assert run_extractor(learnt, *swapped).fields == {"sku": "BP-2"}
+
+
+def test_a_place_labelled_differently_with_no_label_to_read_after_is_refused():
+    """Where no label stands before the value once on every page, the place is
+    all there is, and it holds another field on one of the pages given: that
+    is no field to write."""
+    aside = "<aside><table><tr><th>SKU</th><td>other</td></tr></table></aside>"
+    doubled = [
+        (html.replace("</main>", f"</main>{aside}"), url)
+        for html, url in (_unheaded(SPECS[0]), _unheaded(_swapped()))
+    ]
+    with pytest.raises(NothingToLearn) as refused:
+        compile_extractor(doubled, listing=False, want={"sku": "BP-1"})
+    assert str(refused.value).startswith(
+        "no one place on these pages holds sku='BP-1': at html>body>main>"
+    )
+    assert "'39.00' after 'Price'" in str(refused.value)
+
+
+def test_a_label_said_two_ways_before_one_place_is_no_other_field():
+    """MSN's film pages say "Directors:" on one film and "Director:" on
+    another, before the same place: neither page says the other's label, so
+    the place is no other field of either, and stays the director's."""
+    pages = [
+        _boxes(("Directors:", "Byron Howard, Nathan Greno"), ("Genre:", "Family")),
+        _boxes(("Director:", "Goro Miyazaki"), ("Genre:", "Animation")),
+    ]
+    learnt = compile_extractor(
+        pages, listing=False, want={"director": "Byron Howard, Nathan Greno"}
+    )
+    [director] = learnt.fields
+    assert director.anchor is None
+    assert run_extractor(learnt, *pages[1]).fields == {"director": "Goro Miyazaki"}
+
+
+# The PEP extractor 0.7.1 wrote, as the registry kept it: every field by its
+# place in the header.
+PEP_BY_PLACE = {
+    "format": 1,
+    "sluicer": "0.7.1",
+    "learnt_from": [url for _, url in PEPS],
+    "summary": {},
+    "types": [],
+    "listing": None,
+    "fields": [
+        {
+            "name": name,
+            "path": f"html>body>section>main>section>dl.field-list>{place}",
+            "shape": None,
+            "reads": None,
+            "samples": samples,
+        }
+        for name, place, samples in (
+            ("status", "dd.field-even[1]>abbr", ["Active"]),
+            ("type", "dd.field-odd[2]>abbr", ["Process", "Informational", "Active"]),
+            (
+                "created",
+                "dd.field-even[2]",
+                ["05-Jul-2001", "19-Aug-2004", "Informational"],
+            ),
+        )
+    ],
+}
+
+
+def test_heal_reads_a_place_its_pages_label_differently_after_its_label():
+    """Healed on the pages it was learnt from, the extractor kept the type and
+    the date where they were, since each place still held a value on every
+    page: PEP 257's type, there, is its status. The status's place holds
+    nothing on PEP 257 and a value on the others, and is kept: a run on PEP
+    257 fails, and says so."""
+    learnt = Extractor.from_json(json.dumps(PEP_BY_PLACE))
+    healed, changes = heal(learnt, PEPS)
+    assert [(c.kind, c.before, c.after) for c in changes if c.before in PEP_WANT] == [
+        ("moved", "type", "after 'Type:'"),
+        ("moved", "created", "after 'Created:'"),
+    ]
+    assert run_extractor(healed, *PEPS[0]).ok
+    run = run_extractor(healed, *PEPS[2])
+    assert failed(run) == ["field"]
+    assert run.fields == {"type": "Informational", "created": "29-May-2001"}
+
+
+def _boxes(first, second, aside=""):
+    """A product page whose two facts are boxes of their own, each a label
+    and its value, in an order the product decides."""
+    box = "<div class='{}'><label>{}</label> <span>{}</span></div>"
+    return (
+        f"<html><body><main><h1>Pads</h1>{box.format('a', *first)}"
+        f"{box.format('b', *second)}</main>{aside}</body></html>",
+        f"https://shop.example/p/{first[1]}",
+    )
+
+
+def test_heal_never_moves_a_field_to_a_place_its_pages_label_differently():
+    """The SKU's old place is gone, and its old value is now in the first box
+    of one page, where the other page puts its price: moved there, the SKU
+    was that page's price. After its label it is right; with no label said
+    once on every page, the move is left to a person."""
+    learnt = compile_extractor(
+        [("<html><body><main><p class='sku'>BP-0</p></main></body></html>", None)],
+        listing=False,
+        want={"sku": "BP-0"},
+    )
+    pages = [
+        _boxes(("SKU", "BP-0"), ("Price", "41.90")),
+        _boxes(("Price", "39.00"), ("SKU", "BP-2")),
+    ]
+    healed, changes = heal(learnt, pages)
+    assert [(c.kind, c.before, c.after) for c in changes if c.before == "sku"] == [
+        ("moved", "sku", "after 'SKU'")
+    ]
+    assert run_extractor(healed, *pages[1]).fields == {"sku": "BP-2"}
+    aside = "<aside><label>SKU</label> <span>other</span></aside>"
+    doubled = [
+        _boxes(*page, aside=aside)
+        for page in (
+            (("SKU", "BP-0"), ("Price", "41.90")),
+            (("Price", "39.00"), ("SKU", "BP-2")),
+        )
+    ]
+    _healed, changes = heal(learnt, doubled)
+    assert [(c.kind, c.before) for c in changes if c.before == "sku"] == [
+        ("ambiguous", "sku")
+    ]
+
+
 def _sections(*boxes):
     """A page of boxes of one kind, each a heading and a list of products."""
     html = "".join(
@@ -1383,3 +1636,99 @@ def test_a_row_s_class_a_path_cannot_write_is_left_out_of_its_kind():
     assert learnt.listing.member == "li.item"
     assert Extractor.from_json(learnt.to_json()) == learnt
     assert run_extractor(learnt, *page(8)).ok
+
+
+QUOTES = [
+    (
+        "The world as we have created it is a process of our thinking.",
+        "Albert Einstein",
+        ("change", "deep-thoughts", "thinking", "world"),
+    ),
+    (
+        "It is our choices, Harry, that show what we truly are.",
+        "J.K. Rowling",
+        ("abilities", "choices"),
+    ),
+    (
+        "There are only two ways to live your life.",
+        "Albert Einstein",
+        ("inspirational", "life", "live", "miracle", "miracles"),
+    ),
+    (
+        "The person, be it gentleman or lady, who has not pleasure in a good novel.",
+        "Jane Austen",
+        ("aliteracy", "books", "classic", "humor"),
+    ),
+    ("Imperfection is beauty, madness is genius.", "Marilyn Monroe", ("be-yourself",)),
+]
+
+
+def _quotes(page, declared=None):
+    """A page of quotes.toscrape.com, as it writes one: each quote a
+    ``div.quote``, declared a CreativeWork in microdata, with its tags
+    visible as links and declared again in a ``<meta itemprop=keywords>``.
+    ``declared`` is how many of the quotes keep their microdata; all by
+    default."""
+    rows = []
+    for n, (text, author, tags) in enumerate(QUOTES[page:] + QUOTES[:page]):
+        item = (
+            ' itemscope itemtype="http://schema.org/CreativeWork"'
+            if declared is None or n < declared
+            else ""
+        )
+        links = "".join(f'<a class="tag" href="/tag/{t}/">{t}</a>' for t in tags)
+        rows.append(
+            f'<div class="quote"{item}><span class="text" itemprop="text">{text}'
+            f'</span><span>by <small class="author" itemprop="author">{author}'
+            f'</small> <a href="/author/{n}">(about)</a></span><div class="tags">'
+            f'Tags: <meta class="keywords" itemprop="keywords" '
+            f'content="{",".join(tags)}"> {links}</div></div>'
+        )
+    return (
+        "<html lang='en'><head><title>Quotes to Scrape</title></head><body>"
+        "<div class='container'><div class='row header-box'><div class='col-md-8'>"
+        "<h1><a href='/'>Quotes to Scrape</a></h1></div><div class='col-md-4'>"
+        "<p><a href='/login'>Login</a></p></div></div><div class='row'>"
+        f"<div class='col-md-8'>{''.join(rows)}</div></div></div></body></html>",
+        f"https://quotes.example/page/{page + 1}/",
+    )
+
+
+def test_a_page_whose_every_row_declares_itself_learns_its_listing():
+    """The registry thought quotes.toscrape.com's microdata made compile read
+    the page as one quote. It does not: a type declared on every row is a
+    listing's, and no row is the page's subject."""
+    learnt = compile_extractor([_quotes(0), _quotes(1)])
+    assert learnt.listing is not None
+    assert learnt.listing.member == "div.quote"
+
+
+def test_a_row_that_alone_declares_itself_is_not_the_page_s_subject():
+    """Only the first quote kept its microdata: it answered the summary's
+    type, and compile read the page as that one quote and learnt no listing.
+    A thing declared on one of the page's rows is a row."""
+    pages = [_quotes(0, declared=1), _quotes(1, declared=1)]
+    learnt = compile_extractor(pages)
+    assert learnt.listing is not None
+    assert learnt.listing.member == "div.quote"
+    run = run_extractor(learnt, *_quotes(2, declared=1))
+    assert run.ok, failed(run)
+    assert len(run.rows) == len(QUOTES)
+
+
+def test_a_listing_asked_for_that_no_group_holds_is_refused_not_one_row():
+    """With --listing, the tags as the ``<meta>`` declares them -- no column of
+    a row, which holds what a reader sees -- sent the examples to the page's
+    own values: the first quote's text, read after "Login", and its
+    keywords. A listing asked for and not found is an error."""
+    want = {"text": QUOTES[0][0], "tags": ",".join(QUOTES[0][2])}
+    with pytest.raises(NothingToLearn) as refused:
+        compile_extractor([_quotes(0), _quotes(1)], listing=True, want=want)
+    assert str(refused.value) == (
+        "no repeated group on these pages holds tags='change,deep-thoughts,"
+        "thinking,world'"
+    )
+    by_links = {"text": QUOTES[0][0], "tag": "change"}
+    learnt = compile_extractor([_quotes(0), _quotes(1)], listing=True, want=by_links)
+    assert learnt.listing is not None and not learnt.fields
+    assert [f.path for f in learnt.listing.fields] == ["span.text", "div.tags>a.tag1"]

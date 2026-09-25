@@ -8,6 +8,7 @@ response alone does not belong in this file.
 from __future__ import annotations
 
 import re
+from html import unescape
 
 TEXT_FLOOR = 200
 """Characters of visible text below which a page has told us almost nothing."""
@@ -26,8 +27,18 @@ or a shop page carrying Cloudflare's bot-detection script, is not one.
 
 # A title that is the challenge itself, compared whole: "Just a moment: the
 # minister answers" is a headline, "Just a moment..." is a waiting room.
+# "Client Challenge" is Fastly's, which PyPI answers a client without
+# JavaScript with; "Making sure you're not a bot!" is Anubis's; "One moment,
+# please..." a waiting room that posts a form and reloads, met on four sites.
 _CHALLENGE_TITLES = frozenset(
-    {"just a moment", "attention required! | cloudflare", "ddos-guard"}
+    {
+        "just a moment",
+        "attention required! | cloudflare",
+        "ddos-guard",
+        "client challenge",
+        "making sure you're not a bot!",
+        "one moment, please",
+    }
 )
 _CHALLENGE_TITLE_PREFIXES = ("checking your browser",)
 
@@ -41,6 +52,14 @@ _CHALLENGE_MARKERS = (
     "checking your browser",
     "__cf_chl",
     "enable javascript and cookies to continue",
+    # Fastly's challenge serves its scripts and styles from this path, Imperva
+    # its own from /_Incapsula_Resource, HUMAN draws its puzzle into
+    # #px-captcha, and Anubis hands its proof of work over in a script of
+    # this id; a page that names them in its text is past the text ceiling.
+    "/_fs-ch-",
+    "/_incapsula_resource",
+    "px-captcha",
+    "anubis_challenge",
 )
 
 _TITLE_OPENS = re.compile(r"(?i)<title\b")
@@ -111,7 +130,7 @@ def _challenge(html: str, text: str, found_records: bool) -> str | None:
     """
     title = page_title(html)
     if title is not None:
-        said = " ".join(title.split()).lower().rstrip(".\u2026 ")
+        said = " ".join(unescape(title).split()).lower().rstrip(".\u2026 ")
         if said in _CHALLENGE_TITLES or said.startswith(_CHALLENGE_TITLE_PREFIXES):
             return said
     if found_records or len(text) >= CHALLENGE_TEXT_CEILING:
