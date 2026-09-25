@@ -16,6 +16,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   NOTICE and LICENSES/, and in `THIRD-PARTY.txt` the licence text of every
   Python package installed in it, lxml's bundled libxml2 and libxslt among
   them; the build stops when a package installed no licence file.
+- The repository is an Agent Plugin: `plugin.json` and `mcp.json` at its root,
+  in the Agent Plugins 1.0 format that VS Code, GitHub Copilot, Cursor and
+  Codex load, with the skill from `skills/` and the server started as
+  `uvx --with "sluicer[mcp]==VERSION" sluicer mcp`. A test holds both files
+  to the standard's closed fields, to `.claude-plugin/plugin.json` and to
+  `server.json`'s command. Codex 0.157.0 installed it from a local copy, and
+  Claude Code still loads its own plugin beside it.
 
 ### Fixed
 - The image's wheel was built without NOTICE and LICENSES/, since the

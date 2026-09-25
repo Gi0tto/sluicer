@@ -11,6 +11,7 @@ check nobody has seen fail is a check nobody knows works.
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import subprocess
 import sys
@@ -208,3 +209,78 @@ def test_the_release_tests_each_image_before_it_pushes_it():
     manifest = _job("release.yml", "image-index")
     assert "needs: image" in manifest
     assert "docker buildx imagetools create" in manifest
+
+
+# -- Agent Plugins: plugin.json and mcp.json at the root ---------------------
+
+AGENT_PLUGINS = "https://agent-plugins.org/schemas/1.0.0/"
+"""The published release. 1.1.0 is a working draft, and a client that does
+not know the version a manifest names must refuse the plugin (§5.2): VS Code,
+Cursor and Codex document 1.0.0."""
+
+
+def _json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_the_agent_plugin_manifest_keeps_to_the_closed_schema():
+    manifest = _json(ROOT / "plugin.json")
+    allowed = {
+        "$schema",
+        "name",
+        "version",
+        "description",
+        "author",
+        "homepage",
+        "repository",
+        "license",
+        "keywords",
+        "extensions",
+    }
+    assert set(manifest) <= allowed, set(manifest) - allowed
+    assert manifest["$schema"] == AGENT_PLUGINS + "plugin.schema.json"
+    assert re.fullmatch(
+        r"(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?", manifest["name"]
+    )
+    assert set(manifest["author"]) <= {"name", "email", "url"}
+    assert all(isinstance(manifest[key], str) for key in ("repository", "license"))
+
+
+def test_the_agent_plugin_says_what_the_claude_plugin_says():
+    """Two manifests for one plugin: the root one for the clients that load
+    the standard, .claude-plugin/ for Claude Code. They name one version,
+    licence and description, and the description counts the tools the server
+    registers, as a test above holds the Claude plugin's to."""
+    root = _json(ROOT / "plugin.json")
+    claude = _json(ROOT / ".claude-plugin" / "plugin.json")
+    assert root["version"] == claude["version"] == sluicer.__version__
+    for key in ("name", "description", "license", "keywords", "repository"):
+        assert root[key] == claude[key], key
+    assert root["author"] == claude["author"]
+
+
+def test_the_agent_plugin_starts_the_server_the_registry_lists():
+    """mcp.json's command is server.json's, at the same version: a bare token
+    with no ${PLUGIN_ROOT}, which Cursor does not expand, and nothing a client
+    of the standard would refuse."""
+    config = _json(ROOT / "mcp.json")
+    assert set(config) == {"$schema", "mcpServers"}
+    # §10.1: mcp.json names the version plugin.json names, or MCP is off.
+    assert config["$schema"] == AGENT_PLUGINS + "mcp.schema.json"
+    [(name, server)] = config["mcpServers"].items()
+    assert name == "sluicer"
+    assert set(server) <= {"type", "command", "args", "env", "cwd"}
+    assert server["type"] == "stdio" and server["command"] == "uvx"
+    assert "${" not in json.dumps(server)
+    [package] = _json(ROOT / "server.json")["packages"]
+    # uvx's arguments, the package, then the package's: `uvx --with
+    # "sluicer[mcp]==VERSION" sluicer mcp`.
+    registry = [
+        part for a in package["runtimeArguments"] for part in (a["name"], a["value"])
+    ]
+    registry += [
+        package["identifier"],
+        *(a["value"] for a in package["packageArguments"]),
+    ]
+    assert server["args"] == registry
+    assert server["args"][1] == f"sluicer[mcp]=={sluicer.__version__}"

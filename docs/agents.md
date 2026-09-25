@@ -75,6 +75,28 @@ mkdir -p ~/.agents/skills && cp -r /tmp/sluicer/skills/sluicer ~/.agents/skills/
 Verified end to end on 2026-09-24 with codex-cli 0.144.4: Codex called
 `extract_declared` and answered a page's price with its source and place.
 
+## As an Agent Plugin
+
+The repository is also a plugin in the open
+[Agent Plugins](https://agent-plugins.org) 1.0 format: `plugin.json` and
+`mcp.json` at its root, and the skill in `skills/`. VS Code, GitHub Copilot,
+Cursor and Codex load that format, and each gets the server, started as
+`uvx --with "sluicer[mcp]==VERSION" sluicer mcp` at the plugin's own version,
+and the skill. It needs uv on the `PATH`, as the commands above do.
+
+- **Codex**: `codex plugin marketplace add Gi0tto/sluicer`, then
+  `codex plugin add sluicer@sluicer`.
+- **VS Code**: run **Chat: Install Plugin From Source** and give it
+  `https://github.com/Gi0tto/sluicer`.
+- **Cursor**: copy the repository into `~/.cursor/plugins/local/sluicer`
+  and reload the window.
+
+Run on 2026-09-25 from a local copy of the repository, not from GitHub:
+codex-cli 0.157.0 installed the plugin at its version and registered the
+server with that command, and Claude Code 2.1.282, given the same folder,
+still loaded its own plugin from `.claude-plugin/`, server and skill. The
+official schemas pass both files. VS Code and Cursor were not run.
+
 ## Other clients
 
 Gemini CLI was run here; the others are written from each client's own
