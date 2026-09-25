@@ -60,8 +60,8 @@ def crawled(monkeypatch):
         asked.append(kwargs)
         return Crawl(lambda crawl: iter(()))
 
-    monkeypatch.setattr(cli, "crawl_site", recorder)
-    monkeypatch.setattr(cli, "extract_many", recorder)
+    monkeypatch.setattr("sluicer.cli.sites.crawl_site", recorder)
+    monkeypatch.setattr("sluicer.cli.sites.extract_many", recorder)
     return asked
 
 
@@ -183,8 +183,7 @@ def test_a_command_s_table_wins_over_the_top_level(here, crawled):
 def test_a_crawl_s_limits_come_from_its_table(here, monkeypatch):
     seen: list[tuple] = []
     monkeypatch.setattr(
-        cli,
-        "crawl_site",
+        "sluicer.cli.sites.crawl_site",
         lambda *args, **kwargs: seen.append(args) or Crawl(lambda crawl: iter(())),
     )
     _write(here / "sluicer.toml", "[crawl]\nmax-pages = 7\nmax-depth = 1\n")

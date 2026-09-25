@@ -311,7 +311,7 @@ def test_sluicer_crawl_takes_respect_on_the_command_line(monkeypatch):
         seen.update(kwargs)
         raise ValueError("stop here")
 
-    monkeypatch.setattr("sluicer.cli.crawl_site", crawl_site)
+    monkeypatch.setattr("sluicer.cli.sites.crawl_site", crawl_site)
     CliRunner().invoke(main, ["crawl", f"{ROOT}/", "--respect", "tdm"])
     assert seen["respect_tdm"] is True
 

@@ -1188,8 +1188,8 @@ def test_a_crawl_and_a_batch_send_them_with_every_request(monkeypatch):
         seen.update(kwargs)
         return Crawl(lambda run: iter(()))
 
-    monkeypatch.setattr("sluicer.cli.crawl_site", recording)
-    monkeypatch.setattr("sluicer.cli.extract_many", recording)
+    monkeypatch.setattr("sluicer.cli.sites.crawl_site", recording)
+    monkeypatch.setattr("sluicer.cli.sites.extract_many", recording)
 
     for command in (["crawl", "https://example.com/"], ["batch", "-"]):
         seen.clear()
