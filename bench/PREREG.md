@@ -143,3 +143,91 @@ lowered only with `--allow-regression`, in a commit that says why.
 Planned, not yet done: a paired bootstrap over pages, with a fixed seed, so
 that a difference between two versions or two tools is called better, worse
 or inconclusive by a rule written here rather than by eye.
+
+## The state of declared data: fixed before a WARC was read
+
+Fixed on 2026-09-25, before any WARC file of the sample was downloaded and
+before `bench/declared_report.py` was written. `docs/state-of-declared-data.md`
+counts what pages declare about themselves on a sample of Common Crawl; this
+says which sample, what a page is, and what is counted, so that nothing is
+chosen after the counts are seen. A change to any of it is made in its own
+commit, which says whether it was made after the counts were read.
+
+**The crawl.** The first crawl listed in
+<https://index.commoncrawl.org/collinfo.json> on 2026-09-25 whose
+`warc.paths.gz` is published on `data.commoncrawl.org`: `CC-MAIN-2026-39`
+(4 to 17 September 2026), the listing's `last-modified` 19 September 2026. The
+listing is pinned by its SHA-256 in `bench/declared-manifest.json`.
+
+**The files.** Four WARC files, chosen from the listing by position alone,
+before any is opened: with the listing's N lines in the order it gives them,
+the lines at 0-based index ⌊(2k+1)·N/8⌋ for k = 0, 1, 2, 3, the middle of
+each quarter. Each is pinned by its path, size and SHA-256 in the manifest,
+and the script stops if a file no longer hashes to its pin. They are
+downloaded from `https://data.commoncrawl.org/` one after the other, never two
+at once, with a pause of ten seconds between files, retrying with backoff on
+503 and 5xx, under a User-Agent that names Sluicer and its repository.
+
+**A page.** A WARC `response` record whose HTTP status is 200 and which
+`sluicer.warc.read_warc` reads as HTML (its `Content-Type`, else Common
+Crawl's `WARC-Identified-Payload-Type`, else how its body starts). Every other
+record is counted by the reason it was left out, never silently dropped. A
+record Common Crawl truncated (`WARC-Truncated`) is a page, as the crawler
+kept it, and how many were truncated is reported.
+
+**The reading.** Each page is read once, as `sluicer.extract` reads it, with
+the headers it was served with, `microformats=True`, `induce=False` and
+`visible=False`, by the Sluicer of this checkout; the last commit that touched
+`src/`, and the versions of lxml, libxml2 and mf2py, are written into the
+counts. Nothing is sampled within a file: every page is read.
+
+**What is counted, per page.**
+
+1. Which of Sluicer's readers found something (`Extraction.sources`): JSON-LD,
+   microdata, microformats, RDFa (Lite, without OpenGraph's tags), Dublin
+   Core, OpenGraph, the Twitter card, HTML's own meta names; and the pages
+   with any of the first four, the vocabularies about things.
+2. The schema.org types of the records (top 25, by pages declaring them). For
+   JSON-LD also every typed node in every block as written, nested ones
+   included, before references are resolved (top 20, by nodes).
+3. Merging: pages with records from two or more of the vocabularies about
+   things, and of those, the pages where one record holds fields from two or
+   more of them.
+4. Conflicts (`Extraction.conflicts`), per summary question: of the pages the
+   summary answers it on, how many declare another answer that means
+   something else; and which two readers disagree, most often.
+5. JSON-LD blocks (`<script type="application/ld+json">`, not empty): how many
+   are JSON as `json.loads` reads it by default, NaN and Infinity refused;
+   how many more read as written once a raw control character inside a
+   string is allowed; how many more Sluicer's lenient reader
+   (`sluicer.declared.jsonld._parse`) recovers; how many are lost.
+6. Normalisation: for the summary's `published`, `modified`, prices,
+   `currency` and `gtin`, how many answers `Extraction.normalised` reads; for
+   a GTIN, whether it has a GTIN's shape (8, 12, 13 or 14 digits once spaces
+   and hyphens are dropped) and whether its check digit is right; the ten
+   commonest shapes of the dates and prices that were not read (every digit
+   written 9, every letter a).
+7. `links`: a canonical, a canonical conflict, a canonical that is the page's
+   own address exactly, `hreflang` alternates and `x-default`.
+8. `rights`: `<meta name="robots">` and its directives, a crawler named in
+   its place, `X-Robots-Tag`, TDMRep's `tdm-reservation` and `tdm-policy` in
+   the page and in the headers, `rel=license`.
+
+The sample itself is described by its pages, distinct hosts, top-level
+domains and truncated records.
+
+**Intervals.** Every rate is given with its 95% Wilson score interval, over
+pages. Common Crawl takes many pages from one host, so pages are not
+independent and the intervals are narrower than the sample's real
+uncertainty; the report says so, and gives for the vocabularies the share of
+hosts too (a host counts when any of its pages declares it).
+
+**The comparison.** Only with what Web Data Commons publishes for the same
+measure, from its latest extraction, the October 2024 Common Crawl
+(`CC-MAIN-2024-42`), as its statistics page
+<https://webdatacommons.org/structureddata/2024-12/stats/stats.html> gives it
+on 2026-09-25: the share of parsed HTML pages with any triples, the pages per
+format (embedded JSON-LD, microdata, RDFa, microformats' hCard), and the
+JSON-LD classes by entities. WDC reads with Any23, full RDFa and
+microformats1, on a crawl two years older; the report puts these beside
+Sluicer's numbers, never inside them.
