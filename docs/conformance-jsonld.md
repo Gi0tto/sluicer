@@ -9,7 +9,7 @@ interface and extruct itself read every page; each answer, as the reader
 gives it, is processed by PyLD, a JSON-LD processor, with the test's
 options, and compared with the suite's expected result by the suite's
 own rules.
-Regenerated on 2026-09-25 from commit `a8ca1b1` by
+Regenerated on 2026-09-25 from commit `a462ab3` by
 `uv run bench/w3c_jsonld.py`, against the suite at `ffdb326121ea`; the
 rules are in [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md).
 
@@ -31,7 +31,7 @@ share. PyLD reading every page itself is the check that the harness
 scores a processor as the suite does: it passes 49 of
 50.
 
-| reads the page | all expand (21) | compact (4) | flatten (5) | toRdf (20) | negative tests |
+| reads the page | all | expand (21) | compact (4) | flatten (5) | toRdf (20) | negative tests |
 |---|---|---|---|---|---|---|
 | PyLD 3.3.0 | 0.980 (0.89–1.00) | 21/21 | 4/4 | 4/5 | 20/20 | 15/15 |
 | Sluicer's JSON-LD reader 0.7.1 | 0.480 (0.34–0.62) | 11/21 | 1/4 | 2/5 | 10/20 | 7/15 |
