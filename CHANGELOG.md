@@ -5,6 +5,25 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Added
+- `bench/rdfa_conformance.py` and `docs/scoreboard-rdfa.md`: Sluicer's two
+  RDFa readers and extruct's against the W3C RDFa test suite, as rdfa.info
+  runs it, from `rdfa/rdfa.github.io` at a pinned commit (W3C Test Suite
+  License and W3C 3-clause BSD License), downloaded into `bench/cache/rdfa/`
+  and never committed. Every test written for HTML5 is run under each RDFa
+  1.1 set it is listed in, 237 runs; each answer is read into a graph and
+  asked the test's own SPARQL query by rdflib, in an environment of its own
+  (`bench/requirements/rdflib.txt`) that no install of Sluicer needs. On RDFa
+  1.1's 170 tests `sluicer.compat.extruct` passes 137 and extruct 132, which
+  raises on five documents that write `about="[]"` or `resource="[]"`;
+  `extract()`'s reader, which reads RDFa Lite into records that name no
+  subject, passes 7, and 21 of the 162 runs that name a subject when the
+  names are set aside. The scoreboard files each test under a feature and
+  says, for every test the reader fails, which part of RDFa it leaves out on
+  purpose.
+
+## 0.7.1
+
+### Added
 - `docs/stability.md`: what is stable before 1.0 (`extract()` and
   `Extraction`, the summary's questions, the extractor file and its exit
   codes, the MCP tools and their documented fields), what is experimental
