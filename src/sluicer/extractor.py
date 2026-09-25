@@ -547,7 +547,10 @@ def compile_extractor(
 
     Raises:
         NothingToLearn: the pages declare nothing and repeat nothing, or no
-            repeated group holds every example in ``want``.
+            repeated group holds every example in ``want``, or a page's own
+            value is in a place the pages given put different labels before,
+            and no label they all say once stands before it: read by its
+            place, it would be another field on one of them.
         ValueError: ``want`` with ``listing=False``, or a name that is empty.
     """
     if not pages:
@@ -1057,24 +1060,36 @@ def _learn_fields(
     attribute of one that is, on the first page that has it; every page is
     then read at that place. When the other pages given contradict the place
     -- it holds nothing on one, or a value that does not read as the example
-    does -- or no element holds the example alone, the field is read after
-    the label every page puts before it, when there is one.
+    does, or it stands after another label there -- or no element holds the
+    example alone, the field is read after the label every page puts before
+    it, when there is one.
 
     Raises:
         NothingToLearn: an example is on none of the pages, which names it,
-            and why no listing held it either.
+            and why no listing held it either; or its place stands after
+            another label on one of them, and no label every page says once
+            is before it.
     """
     notes: list[str] = []
     fields = []
     for name, example in want.items():
         found = next((p for doc in docs if (p := _places(doc, example))), None)
         path = found[0] if found else ""
-        against = _contradicted(docs, path, example) if found else None
+        otherwise = _labelled_otherwise(docs, path, example) if found else None
+        against = (_contradicted(docs, path, example) if found else None) or otherwise
         anchored = _anchor_for(docs, example) if found is None or against else None
         if found is None and anchored is None:
             also = f", and {no_listing}" if no_listing is not None else ""
             raise NothingToLearn(
                 f"no element on these pages holds {name}={example!r}{also}"
+            )
+        if otherwise is not None and anchored is None:
+            # Read by its place, the field would be another field on a page
+            # it was learnt from, and pass there.
+            raise NothingToLearn(
+                f"no one place on these pages holds {name}={example!r}: at "
+                f"{path} the pages given also held {otherwise}, and no label "
+                "every page says once stands before it"
             )
         anchor = None
         label = None
@@ -1241,6 +1256,52 @@ def _contradicted(docs: list[Document], path: str, example: str) -> str | None:
     return None
 
 
+def _labelled_otherwise(
+    docs: list[Document], path: str, example: str | None = None
+) -> str | None:
+    """What a page given holds at ``path`` under a label the page of
+    ``example`` -- or the first page, without one -- gives another of its
+    values, or None when there is none. The place is then another field on
+    that page, however well its value reads: a PEP's header has a row more
+    on some PEPs, and the place of PEP 8's type holds PEP 257's status,
+    "Active", after "Status:", which PEP 8 says before its own status.
+
+    A label its own page does not say is no other field of it: MSN's film
+    pages say "Directors:" on one film and "Director:" on another, before
+    the same place. Only a text written as a label counts (``_a_label``):
+    the text before a value is often something else the template says."""
+    where, _, attribute = path.partition("@")
+    if len(docs) < 2 or attribute:
+        return None
+    same = _says(example or "")
+    said: list[tuple[str, str, list[tuple[str, HtmlElement]]]] = []
+    for doc in docs:
+        element, _found = _find(doc, where)
+        if element is None:
+            continue
+        nodes = _text_nodes(doc)
+        first = _first_text_in(nodes, element)
+        if first and _a_label(*nodes[first - 1]):
+            said.append((nodes[first - 1][0], _value_at(doc, path) or "", nodes))
+    own = next(
+        (
+            (label, nodes)
+            for label, value, nodes in said
+            if example is None or same(value)
+        ),
+        None,
+    )
+    if own is None:
+        return None
+    own_label, own_nodes = own
+    for label, value, _nodes in said:
+        if not _same_label(label, own_label) and any(
+            _same_label(text, label) for text, _ in own_nodes
+        ):
+            return f"{value!r} after {label!r}"
+    return None
+
+
 # What learning and healing work out once per page and read many times, for
 # each example and each field: the groups the page repeats, furniture too, and
 # its text nodes. Kept while the page is, since a Document never changes.
@@ -1296,7 +1357,27 @@ def _read_text_nodes(doc: Document) -> list[tuple[str, HtmlElement]]:
             and (text := " ".join((element.tail or "").split()))
         ):
             nodes.append((text, parent))
-    return nodes
+    return _colons_joined(nodes)
+
+
+_COLONS = (":", "\uff1a")
+
+
+def _colons_joined(
+    nodes: list[tuple[str, HtmlElement]],
+) -> list[tuple[str, HtmlElement]]:
+    """``nodes``, where a colon that is a node of its own ends the text before
+    it: ``<dt>Status<span class="colon">:</span></dt>`` is the label
+    ``Status:``, as a reader sees it, not ``Status`` and ``:``. Apart, the
+    text before every value of a PEP's header was ``:``, which no page says
+    once, so no field of it could be read by its label."""
+    joined: list[tuple[str, HtmlElement]] = []
+    for text, owner in nodes:
+        if text in _COLONS and joined and not joined[-1][0].endswith(_COLONS):
+            joined[-1] = (joined[-1][0] + text, joined[-1][1])
+        else:
+            joined.append((text, owner))
+    return joined
 
 
 @dataclass(frozen=True)
@@ -2134,11 +2215,9 @@ def _heal_fields(
     """
     kept: list[PageField] = []
     changes: list[Change] = []
-    texts = (
-        [_text_nodes(doc) for doc in docs]
-        if any(f.anchor or f.label for f in old)
-        else []
-    )
+    # Every field needs them: one read by its place is held to the labels
+    # its pages put before it.
+    texts = [_text_nodes(doc) for doc in docs] if old else []
     for f in old:
         read = _READERS[f.reads] if f.reads else None
         if f.anchor is not None:
@@ -2149,14 +2228,9 @@ def _heal_fields(
             if values and (read is None or all(read(v) for v in values)):
                 kept.append(_relearnt(f, f.path, values, f.anchor))
                 continue
-            again = next(
-                (a for sample in f.samples if (a := _anchor_for(docs, sample))), None
-            )
-            if again is not None:
-                anchor, where = again
-                found = [v for nodes in texts if (v := _value_after(nodes, anchor)[0])]
-                changes.append(Change("moved", f.name, f"after {anchor.label!r}"))
-                kept.append(_relearnt(f, where, found, anchor))
+            if (again := _after_a_label(f, docs, texts)) is not None:
+                changes.append(again[0])
+                kept.append(again[1])
                 continue
         else:
             values = [v for doc in docs if (v := _value_at(doc, f.path))]
@@ -2164,12 +2238,21 @@ def _heal_fields(
                 _label_moved(f, doc, nodes)
                 for doc, nodes in zip(docs, texts, strict=True)
             )
+            # Pages that put another label before the place each: on one of
+            # them it is another field, and a label, when there is one, says
+            # where this one is.
+            split = _labelled_otherwise(docs, f.path) is not None
             if (
                 values
                 and not moved_away
+                and not split
                 and (read is None or all(read(v) for v in values))
             ):
                 kept.append(_relearnt(f, f.path, values, label=f.label))
+                continue
+            if split and (again := _after_a_label(f, docs, texts)) is not None:
+                changes.append(again[0])
+                kept.append(again[1])
                 continue
             if moved_away and f.label is not None:
                 # The place holds another row's value, and the label every
@@ -2194,6 +2277,16 @@ def _heal_fields(
             continue
         moved = claimed[0]
         read_there = [_value_at(doc, moved) for doc in docs]
+        if _labelled_otherwise(docs, moved) is not None:
+            # The new place is another field on one of the pages: read after
+            # a label, or left to a person.
+            again = _after_a_label(f, docs, texts)
+            if again is None:
+                changes.append(Change("ambiguous", f.name, moved))
+            else:
+                changes.append(again[0])
+                kept.append(again[1])
+            continue
         if any(
             [_value_at(doc, other) for doc in docs] != read_there
             for other in claimed[1:]
@@ -2204,6 +2297,21 @@ def _heal_fields(
         changes.append(Change("moved", f.name, moved))
         kept.append(_relearnt(f, moved, found, label=_label_before(docs, moved)))
     return tuple(kept), changes
+
+
+def _after_a_label(
+    f: PageField, docs: list[Document], texts: list[list[tuple[str, HtmlElement]]]
+) -> tuple[Change, PageField] | None:
+    """``f`` moved to the label that now stands before one of its old values
+    on every page, or None when there is none."""
+    again = next((a for sample in f.samples if (a := _anchor_for(docs, sample))), None)
+    if again is None:
+        return None
+    anchor, where = again
+    found = [v for nodes in texts if (v := _value_after(nodes, anchor)[0])]
+    return Change("moved", f.name, f"after {anchor.label!r}"), _relearnt(
+        f, where, found, anchor
+    )
 
 
 def _relearnt(

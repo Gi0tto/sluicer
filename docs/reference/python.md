@@ -336,7 +336,7 @@ Learn an extractor from pages of one template.
 
 **Raises**
 
-- `NothingToLearn`: the pages declare nothing and repeat nothing, or no repeated group holds every example in ``want``.
+- `NothingToLearn`: the pages declare nothing and repeat nothing, or no repeated group holds every example in ``want``, or a page's own value is in a place the pages given put different labels before, and no label they all say once stands before it: read by its place, it would be another field on one of them.
 - `ValueError`: ``want`` with ``listing=False``, or a name that is empty.
 
 ### `sluicer.extractor.run_extractor`

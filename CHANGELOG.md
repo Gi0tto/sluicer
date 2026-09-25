@@ -156,6 +156,25 @@ Dates are the day the work landed. Anything not listed here did not happen.
   sends none of the caller's headers or cookies.
 
 ### Fixed
+- A page field no longer reads another field on a page it was learnt from.
+  Learnt from PEPs 8, 20 and 257 with `--want status=Active type=Process
+  created=05-Jul-2001`, the type and the date were read by their place in the
+  header, and PEP 257's extra Discussions-To row moved both: its type came
+  back "Active", its status, and its date "Informational", its type, with
+  every check passing. Two causes. A label written with its colon in an
+  element of its own, `Status<span class="colon">:</span>`, was two texts,
+  `Status` and `:`, and the text before every value was `:`, said many times
+  on a page, so no label was found; the colon is now the label's. And a place
+  one page given puts after a label another gives one of its own values was
+  not held to be contradicted; it now is, and the field is read after its
+  own label, or refused with a message where there is none. On SWDE, 902
+  wrong answers become right and 879 right ones flagged misses; mean F1
+  0.849 to 0.850. The drift benchmark is unchanged: no silent failure, no
+  false alarm. `heal` keeps no field at such a
+  place and moves none to one. On the six PEPs of the registry's entry, the
+  three fields are read right on every page. An extractor learnt before whose
+  label was a colon standing alone, said once on every page, no longer finds
+  it and fails its runs until it is compiled again.
 - Without scrapling, 0.7.x could not fetch even over plain HTTP: `fetch()`
   imported scrapling's browsers before it built the HTTP rung, and raised
   `FetchExtraMissing`.
