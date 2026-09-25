@@ -7,7 +7,7 @@ scorer, on the same pages as their servers sent them, scripts intact,
 fetched from web archives. Every page is scored twice, once as served
 and once as WCXB kept it, so the difference between the two columns is
 the difference the scripts make, and nothing else.
-Regenerated on 2026-09-25 from commit `9a91e64` by
+Regenerated on 2026-09-25 from commit `c83ba2d` by
 `uv run bench/realweb.py`, from the captures pinned in
 [`bench/realweb-manifest.json`](https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).
 
@@ -67,24 +67,26 @@ The same 360 pages, stripped (WCXB's copy) and served (the archive's):
 
 | tool | field | labelled pages | hit rate, stripped | hit rate, served | right when answering, stripped | right when answering, served | wrong, stripped | wrong, served | inventions, stripped | inventions, served |
 |---|---|---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.1 | title | 360 | 0.714 | **0.708** | 0.714 | **0.708** | 103 | 105 | 0 | 0 |
-| sluicer 0.7.1 | author | 129 | 0.450 | **0.690** | 0.644 | **0.636** | 9 | 7 | 23 | 44 |
-| sluicer 0.7.1 | date | 159 | 0.585 | **0.780** | 0.939 | **0.734** | 1 | 9 | 5 | 36 |
-| trafilatura 2.2.0 | title | 360 | 0.756 | **0.756** | 0.756 | **0.756** | 88 | 88 | 0 | 0 |
-| trafilatura 2.2.0 | author | 129 | 0.736 | **0.860** | 0.583 | **0.575** | 13 | 11 | 55 | 71 |
-| trafilatura 2.2.0 | date | 159 | 0.849 | **0.855** | 0.403 | **0.393** | 23 | 23 | 177 | 187 |
-| metascraper 5.58.1 | title | 360 | 0.667 | **0.667** | 0.667 | **0.667** | 120 | 120 | 0 | 0 |
-| metascraper 5.58.1 | author | 129 | 0.744 | **0.845** | 0.508 | **0.482** | 22 | 16 | 71 | 101 |
-| metascraper 5.58.1 | date | 159 | 0.704 | **0.811** | 0.574 | **0.573** | 18 | 16 | 65 | 80 |
-| newspaper4k 0.9.6 | title | 360 | 0.775 | **0.767** | 0.775 | **0.767** | 81 | 84 | 0 | 0 |
-| newspaper4k 0.9.6 | author | 129 | 0.457 | **0.705** | 0.578 | **0.569** | 13 | 12 | 30 | 57 |
-| newspaper4k 0.9.6 | date | 159 | 0.623 | **0.786** | 0.656 | **0.658** | 8 | 11 | 44 | 54 |
+| sluicer 0.7.1 | title | 360 | 0.714 (0.66–0.76) | **0.708 (0.65–0.76)** | 0.714 (0.66–0.76) | **0.708 (0.65–0.76)** | 103 | 105 | 0 | 0 |
+| sluicer 0.7.1 | author | 129 | 0.450 (0.36–0.54) | **0.690 (0.60–0.77)** | 0.644 (0.54–0.74) | **0.636 (0.55–0.72)** | 9 | 7 | 23 | 44 |
+| sluicer 0.7.1 | date | 159 | 0.585 (0.50–0.66) | **0.780 (0.70–0.84)** | 0.939 (0.87–0.98) | **0.734 (0.66–0.80)** | 1 | 9 | 5 | 36 |
+| trafilatura 2.2.0 | title | 360 | 0.756 (0.70–0.80) | **0.756 (0.70–0.80)** | 0.756 (0.70–0.80) | **0.756 (0.70–0.80)** | 88 | 88 | 0 | 0 |
+| trafilatura 2.2.0 | author | 129 | 0.736 (0.65–0.81) | **0.860 (0.79–0.91)** | 0.583 (0.50–0.66) | **0.575 (0.50–0.65)** | 13 | 11 | 55 | 71 |
+| trafilatura 2.2.0 | date | 159 | 0.849 (0.78–0.90) | **0.855 (0.79–0.91)** | 0.403 (0.35–0.46) | **0.393 (0.34–0.45)** | 23 | 23 | 177 | 187 |
+| metascraper 5.58.1 | title | 360 | 0.667 (0.61–0.72) | **0.667 (0.61–0.72)** | 0.667 (0.61–0.72) | **0.667 (0.61–0.72)** | 120 | 120 | 0 | 0 |
+| metascraper 5.58.1 | author | 129 | 0.744 (0.66–0.82) | **0.845 (0.77–0.90)** | 0.508 (0.43–0.58) | **0.482 (0.41–0.55)** | 22 | 16 | 71 | 101 |
+| metascraper 5.58.1 | date | 159 | 0.704 (0.62–0.77) | **0.811 (0.74–0.87)** | 0.574 (0.50–0.65) | **0.573 (0.50–0.64)** | 18 | 16 | 65 | 80 |
+| newspaper4k 0.9.6 | title | 360 | 0.775 (0.72–0.82) | **0.767 (0.72–0.81)** | 0.775 (0.72–0.82) | **0.767 (0.72–0.81)** | 81 | 84 | 0 | 0 |
+| newspaper4k 0.9.6 | author | 129 | 0.457 (0.37–0.55) | **0.705 (0.62–0.78)** | 0.578 (0.48–0.67) | **0.569 (0.49–0.65)** | 13 | 12 | 30 | 57 |
+| newspaper4k 0.9.6 | date | 159 | 0.623 (0.54–0.70) | **0.786 (0.71–0.85)** | 0.656 (0.57–0.73) | **0.658 (0.58–0.73)** | 8 | 11 | 44 | 54 |
 
-In plain words, as served:
+Each rate carries its 95% Wilson score interval, the bounds rounded
+outwards to two places. In plain words, as served, with every
+difference called by the paired comparisons below:
 
-- **Title.** Hit rate served 0.708, against 0.714 on the WCXB copy of the same pages. Sluicer is third of 4, behind newspaper4k 0.767, trafilatura 0.756. Right when answering: newspaper4k 0.767, trafilatura 0.756, sluicer 0.708, metascraper 0.667. Inventions: newspaper4k 0, trafilatura 0, sluicer 0, metascraper 0.
-- **Author.** Hit rate served 0.690, against 0.450 on the WCXB copy of the same pages. Sluicer is fourth of 4, behind trafilatura 0.860, metascraper 0.845, newspaper4k 0.705. Right when answering: sluicer 0.636, trafilatura 0.575, newspaper4k 0.569, metascraper 0.482. Inventions: sluicer 44, trafilatura 71, newspaper4k 57, metascraper 101.
-- **Date.** Hit rate served 0.780, against 0.585 on the WCXB copy of the same pages. Sluicer is fourth of 4, behind trafilatura 0.855, metascraper 0.811, newspaper4k 0.786. Right when answering: sluicer 0.734, newspaper4k 0.658, metascraper 0.573, trafilatura 0.393. Inventions: sluicer 36, newspaper4k 54, metascraper 80, trafilatura 187.
+- **Title.** Hit rate served 0.708, against 0.714 on the WCXB copy of the same pages (inconclusive); Sluicer behind newspaper4k and not told apart from trafilatura and metascraper. Right when answering: newspaper4k 0.767, trafilatura 0.756, sluicer 0.708, metascraper 0.667; Sluicer behind newspaper4k and not told apart from trafilatura and metascraper. Inventions: newspaper4k 0, trafilatura 0, sluicer 0, metascraper 0.
+- **Author.** Hit rate served 0.690, against 0.450 on the WCXB copy of the same pages (better); Sluicer behind trafilatura and metascraper and not told apart from newspaper4k. Right when answering: sluicer 0.636, trafilatura 0.575, newspaper4k 0.569, metascraper 0.482; Sluicer ahead of trafilatura, metascraper and newspaper4k. Inventions: sluicer 44, trafilatura 71, newspaper4k 57, metascraper 101.
+- **Date.** Hit rate served 0.780, against 0.585 on the WCXB copy of the same pages (better); Sluicer behind trafilatura and not told apart from metascraper and newspaper4k. Right when answering: sluicer 0.734, newspaper4k 0.658, metascraper 0.573, trafilatura 0.393; Sluicer ahead of trafilatura, metascraper and newspaper4k. Inventions: sluicer 36, newspaper4k 54, metascraper 80, trafilatura 187.
 
 One caution about inventions on served pages. WCXB's annotators labelled
 what a reader sees, and left a label empty where the visible page states
@@ -127,6 +129,79 @@ Out of 360 pages, as Sluicer's readers see them.
 | date | microdata | 10 | 9 | 1 | 0 |
 | date | html | 6 | 5 | 0 | 1 |
 
+## How sure, and what differs
+
+Sluicer against each other tool, on the pages as served:
+
+| Sluicer against | field | rate | difference (95% interval) | verdict |
+|---|---|---|---|---|
+| trafilatura 2.2.0 | title | hit rate | -0.047 (-0.095 to +0.003) | inconclusive |
+| trafilatura 2.2.0 | title | right when answering | -0.047 (-0.095 to +0.003) | inconclusive |
+| trafilatura 2.2.0 | author | hit rate | -0.171 (-0.241 to -0.103) | worse |
+| trafilatura 2.2.0 | author | right when answering | +0.061 (+0.005 to +0.117) | better |
+| trafilatura 2.2.0 | date | hit rate | -0.075 (-0.140 to -0.012) | worse |
+| trafilatura 2.2.0 | date | right when answering | +0.341 (+0.283 to +0.399) | better |
+| metascraper 5.58.1 | title | hit rate | +0.042 (0.000 to +0.084) | inconclusive |
+| metascraper 5.58.1 | title | right when answering | +0.042 (0.000 to +0.084) | inconclusive |
+| metascraper 5.58.1 | author | hit rate | -0.155 (-0.227 to -0.087) | worse |
+| metascraper 5.58.1 | author | right when answering | +0.153 (+0.101 to +0.210) | better |
+| metascraper 5.58.1 | date | hit rate | -0.031 (-0.080 to +0.014) | inconclusive |
+| metascraper 5.58.1 | date | right when answering | +0.160 (+0.113 to +0.211) | better |
+| newspaper4k 0.9.6 | title | hit rate | -0.058 (-0.109 to -0.008) | worse |
+| newspaper4k 0.9.6 | title | right when answering | -0.058 (-0.109 to -0.008) | worse |
+| newspaper4k 0.9.6 | author | hit rate | -0.016 (-0.055 to +0.023) | inconclusive |
+| newspaper4k 0.9.6 | author | right when answering | +0.067 (+0.025 to +0.112) | better |
+| newspaper4k 0.9.6 | date | hit rate | -0.006 (-0.040 to +0.026) | inconclusive |
+| newspaper4k 0.9.6 | date | right when answering | +0.076 (+0.039 to +0.116) | better |
+
+The difference is the first side's rate minus the second's, over the
+same pages. Its interval is the 95% percentile interval of 10,000
+resamples of the pages, drawn together for both sides (`bench/stats.py`,
+seed 20260924): **better** when the interval is above zero, **worse**
+when it is below, **inconclusive** when it holds zero. These are
+18 comparisons, made with no correction for making many: where two
+sides did not differ at all, about one in twenty would still be called
+better or worse, so read the verdicts as a table, not one at a time.
+
+Every tool on the pages as served against the same pages as WCXB kept
+them, the served rate minus the stripped one:
+
+| tool | field | rate | served minus stripped (95% interval) | verdict |
+|---|---|---|---|---|
+| sluicer 0.7.1 | title | hit rate | -0.006 (-0.045 to +0.034) | inconclusive |
+| sluicer 0.7.1 | title | right when answering | -0.006 (-0.045 to +0.034) | inconclusive |
+| sluicer 0.7.1 | author | hit rate | +0.240 (+0.168 to +0.317) | better |
+| sluicer 0.7.1 | author | right when answering | -0.009 (-0.080 to +0.064) | inconclusive |
+| sluicer 0.7.1 | date | hit rate | +0.195 (+0.125 to +0.268) | better |
+| sluicer 0.7.1 | date | right when answering | -0.206 (-0.273 to -0.142) | worse |
+| trafilatura 2.2.0 | title | hit rate | 0.000 (-0.012 to +0.012) | inconclusive |
+| trafilatura 2.2.0 | title | right when answering | 0.000 (-0.012 to +0.012) | inconclusive |
+| trafilatura 2.2.0 | author | hit rate | +0.124 (+0.065 to +0.187) | better |
+| trafilatura 2.2.0 | author | right when answering | -0.008 (-0.047 to +0.031) | inconclusive |
+| trafilatura 2.2.0 | date | hit rate | +0.006 (-0.031 to +0.044) | inconclusive |
+| trafilatura 2.2.0 | date | right when answering | -0.010 (-0.029 to +0.009) | inconclusive |
+| metascraper 5.58.1 | title | hit rate | 0.000 (-0.012 to +0.012) | inconclusive |
+| metascraper 5.58.1 | title | right when answering | 0.000 (-0.012 to +0.012) | inconclusive |
+| metascraper 5.58.1 | author | hit rate | +0.101 (+0.032 to +0.170) | better |
+| metascraper 5.58.1 | author | right when answering | -0.026 (-0.070 to +0.020) | inconclusive |
+| metascraper 5.58.1 | date | hit rate | +0.107 (+0.040 to +0.174) | better |
+| metascraper 5.58.1 | date | right when answering | -0.001 (-0.046 to +0.044) | inconclusive |
+| newspaper4k 0.9.6 | title | hit rate | -0.008 (-0.023 to +0.006) | inconclusive |
+| newspaper4k 0.9.6 | title | right when answering | -0.008 (-0.023 to +0.006) | inconclusive |
+| newspaper4k 0.9.6 | author | hit rate | +0.248 (+0.174 to +0.326) | better |
+| newspaper4k 0.9.6 | author | right when answering | -0.010 (-0.082 to +0.061) | inconclusive |
+| newspaper4k 0.9.6 | date | hit rate | +0.164 (+0.093 to +0.235) | better |
+| newspaper4k 0.9.6 | date | right when answering | +0.002 (-0.049 to +0.054) | inconclusive |
+
+The difference is the first side's rate minus the second's, over the
+same pages. Its interval is the 95% percentile interval of 10,000
+resamples of the pages, drawn together for both sides (`bench/stats.py`,
+seed 20260924): **better** when the interval is above zero, **worse**
+when it is below, **inconclusive** when it holds zero. These are
+42 comparisons, made with no correction for making many: where two
+sides did not differ at all, about one in twenty would still be called
+better or worse, so read the verdicts as a table, not one at a time.
+
 ## Where Sluicer loses, as served
 
 - **Author.** Sluicer misses 40 labelled pages, and on 27 of them another tool finds the author.
@@ -139,35 +214,35 @@ The 360 pages as served:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.1 | title | 255 | 105 | 0 | 0 | 0 | 0.708 | 0.708 |
-| sluicer 0.7.1 | author | 89 | 7 | 33 | 187 | 44 | 0.690 | 0.636 |
-| sluicer 0.7.1 | date | 124 | 9 | 26 | 165 | 36 | 0.780 | 0.734 |
-| trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 | 0.756 |
-| trafilatura 2.2.0 | author | 111 | 11 | 7 | 160 | 71 | 0.860 | 0.575 |
-| trafilatura 2.2.0 | date | 136 | 23 | 0 | 14 | 187 | 0.855 | 0.393 |
-| metascraper 5.58.1 | title | 240 | 120 | 0 | 0 | 0 | 0.667 | 0.667 |
-| metascraper 5.58.1 | author | 109 | 16 | 4 | 130 | 101 | 0.845 | 0.482 |
-| metascraper 5.58.1 | date | 129 | 16 | 14 | 121 | 80 | 0.811 | 0.573 |
-| newspaper4k 0.9.6 | title | 276 | 84 | 0 | 0 | 0 | 0.767 | 0.767 |
-| newspaper4k 0.9.6 | author | 91 | 12 | 26 | 174 | 57 | 0.705 | 0.569 |
-| newspaper4k 0.9.6 | date | 125 | 11 | 23 | 147 | 54 | 0.786 | 0.658 |
+| sluicer 0.7.1 | title | 255 | 105 | 0 | 0 | 0 | 0.708 (0.65–0.76) | 0.708 (0.65–0.76) |
+| sluicer 0.7.1 | author | 89 | 7 | 33 | 187 | 44 | 0.690 (0.60–0.77) | 0.636 (0.55–0.72) |
+| sluicer 0.7.1 | date | 124 | 9 | 26 | 165 | 36 | 0.780 (0.70–0.84) | 0.734 (0.66–0.80) |
+| trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 (0.70–0.80) | 0.756 (0.70–0.80) |
+| trafilatura 2.2.0 | author | 111 | 11 | 7 | 160 | 71 | 0.860 (0.79–0.91) | 0.575 (0.50–0.65) |
+| trafilatura 2.2.0 | date | 136 | 23 | 0 | 14 | 187 | 0.855 (0.79–0.91) | 0.393 (0.34–0.45) |
+| metascraper 5.58.1 | title | 240 | 120 | 0 | 0 | 0 | 0.667 (0.61–0.72) | 0.667 (0.61–0.72) |
+| metascraper 5.58.1 | author | 109 | 16 | 4 | 130 | 101 | 0.845 (0.77–0.90) | 0.482 (0.41–0.55) |
+| metascraper 5.58.1 | date | 129 | 16 | 14 | 121 | 80 | 0.811 (0.74–0.87) | 0.573 (0.50–0.64) |
+| newspaper4k 0.9.6 | title | 276 | 84 | 0 | 0 | 0 | 0.767 (0.72–0.81) | 0.767 (0.72–0.81) |
+| newspaper4k 0.9.6 | author | 91 | 12 | 26 | 174 | 57 | 0.705 (0.62–0.78) | 0.569 (0.49–0.65) |
+| newspaper4k 0.9.6 | date | 125 | 11 | 23 | 147 | 54 | 0.786 (0.71–0.85) | 0.658 (0.58–0.73) |
 
 The same 360 pages as WCXB kept them:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.1 | title | 257 | 103 | 0 | 0 | 0 | 0.714 | 0.714 |
-| sluicer 0.7.1 | author | 58 | 9 | 62 | 208 | 23 | 0.450 | 0.644 |
-| sluicer 0.7.1 | date | 93 | 1 | 65 | 196 | 5 | 0.585 | 0.939 |
-| trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 | 0.756 |
-| trafilatura 2.2.0 | author | 95 | 13 | 21 | 176 | 55 | 0.736 | 0.583 |
-| trafilatura 2.2.0 | date | 135 | 23 | 1 | 24 | 177 | 0.849 | 0.403 |
-| metascraper 5.58.1 | title | 240 | 120 | 0 | 0 | 0 | 0.667 | 0.667 |
-| metascraper 5.58.1 | author | 96 | 22 | 11 | 160 | 71 | 0.744 | 0.508 |
-| metascraper 5.58.1 | date | 112 | 18 | 29 | 136 | 65 | 0.704 | 0.574 |
-| newspaper4k 0.9.6 | title | 279 | 81 | 0 | 0 | 0 | 0.775 | 0.775 |
-| newspaper4k 0.9.6 | author | 59 | 13 | 57 | 201 | 30 | 0.457 | 0.578 |
-| newspaper4k 0.9.6 | date | 99 | 8 | 52 | 157 | 44 | 0.623 | 0.656 |
+| sluicer 0.7.1 | title | 257 | 103 | 0 | 0 | 0 | 0.714 (0.66–0.76) | 0.714 (0.66–0.76) |
+| sluicer 0.7.1 | author | 58 | 9 | 62 | 208 | 23 | 0.450 (0.36–0.54) | 0.644 (0.54–0.74) |
+| sluicer 0.7.1 | date | 93 | 1 | 65 | 196 | 5 | 0.585 (0.50–0.66) | 0.939 (0.87–0.98) |
+| trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 (0.70–0.80) | 0.756 (0.70–0.80) |
+| trafilatura 2.2.0 | author | 95 | 13 | 21 | 176 | 55 | 0.736 (0.65–0.81) | 0.583 (0.50–0.66) |
+| trafilatura 2.2.0 | date | 135 | 23 | 1 | 24 | 177 | 0.849 (0.78–0.90) | 0.403 (0.35–0.46) |
+| metascraper 5.58.1 | title | 240 | 120 | 0 | 0 | 0 | 0.667 (0.61–0.72) | 0.667 (0.61–0.72) |
+| metascraper 5.58.1 | author | 96 | 22 | 11 | 160 | 71 | 0.744 (0.66–0.82) | 0.508 (0.43–0.58) |
+| metascraper 5.58.1 | date | 112 | 18 | 29 | 136 | 65 | 0.704 (0.62–0.77) | 0.574 (0.50–0.65) |
+| newspaper4k 0.9.6 | title | 279 | 81 | 0 | 0 | 0 | 0.775 (0.72–0.82) | 0.775 (0.72–0.82) |
+| newspaper4k 0.9.6 | author | 59 | 13 | 57 | 201 | 30 | 0.457 (0.37–0.55) | 0.578 (0.48–0.67) |
+| newspaper4k 0.9.6 | date | 99 | 8 | 52 | 157 | 44 | 0.623 (0.54–0.70) | 0.656 (0.57–0.73) |
 
 ## How a capture is chosen and matched
 
