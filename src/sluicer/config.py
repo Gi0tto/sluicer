@@ -13,8 +13,11 @@ options are spelt, without their dashes::
     delay = 2.0
     max-pages = 500
 
-A key at the top applies to every command that takes that option; a table
-named after a command applies to that command, over the top. The command line
+A key at the top applies to every command that takes that option with that
+value -- ``format = "jsonl"`` is crawl's and batch's, and map, which writes
+json or csv, keeps its own -- and a value no command taking it accepts is
+refused; a table named after a command applies to that command, over the
+top. The command line
 wins over the environment, the environment over the file, and the file over
 the built-in defaults: the file's values become click's ``default_map``, which
 click consults only after the command line and an option's variable, and a
@@ -26,8 +29,9 @@ turn on can be turned off for one run (``--no-json``, ``--robots``), and
 Which file: ``--config FILE``, else the file ``SLUICER_CONFIG`` names (empty,
 none), else the first ``sluicer.toml``, or ``pyproject.toml`` with a
 ``[tool.sluicer]`` table, in the working directory or above it. A file found
-that way must be the user's own and writable by no one else, since a proxy or
-a header in it would be sent on their behalf; a file named is read as named.
+that way may be a repository's the user cloned, so it may not set what is
+sent, to whom, through what or where it is kept (``NAMED_ONLY``), and it must
+be the user's own and writable by no one else; a file named is read as named.
 
 A file is read whole before anything runs, and anything in it that cannot be
 used is an error naming the file and the key: an unknown key (with the
@@ -117,6 +121,19 @@ PER_RUN = {
 }
 """Options a file may not set, and why: each belongs to one run."""
 
+NAMED_ONLY = {
+    "proxy": "every request would go through it",
+    "header": "it would be sent to every site fetched",
+    "cookie": "it would be sent to every site fetched",
+    "cache": "the pages fetched would be kept, and read back, where it says",
+    "host": "it decides who can reach sluicer serve",
+    "no-robots": "it decides whether robots.txt is obeyed on your behalf",
+}
+"""Keys only a file the user named may set, and why: a file found by
+searching the directories may be a repository's the user cloned, and what is
+sent, to whom and through what, where pages are kept, who reaches the server
+and whether robots.txt is obeyed are the user's to say."""
+
 SECRET = frozenset({"proxy", "header", "cookie"})
 """Keys whose values no message repeats: a password, a token, a session."""
 
@@ -147,9 +164,14 @@ _META = "sluicer.config"
 
 class ConfigError(click.ClickException):
     """A configuration file that cannot be used as it is. Exits 2, as every
-    input Sluicer could not read does."""
+    input Sluicer could not read does. ``what`` is what is wrong with a
+    value, without the file and the key, where one was refused."""
 
     exit_code = 2
+
+    def __init__(self, message: str, what: str = "") -> None:
+        super().__init__(message)
+        self.what = what
 
 
 def key_of(param: click.Parameter) -> str | None:
@@ -196,10 +218,14 @@ class ConfiguredGroup(click.Group):
         ignored = ctx.params.pop("no_config", False)
         found = None if ignored else _find(named)
         if found is not None:
-            path, from_pyproject = found
+            path, from_pyproject, searched = found
             ctx.meta[_META] = path
             ctx.default_map = defaults(
-                _read(path, from_pyproject), path, self.commands, from_pyproject
+                _read(path, from_pyproject),
+                path,
+                self.commands,
+                from_pyproject,
+                searched=searched,
             )
         return super().invoke(ctx)
 
@@ -243,8 +269,9 @@ def _said_if_robots_off(ctx: click.Context, param: click.Parameter, value: Any) 
     return value
 
 
-def _find(named: str | None) -> tuple[Path, bool] | None:
-    """The file to read, and whether it is a pyproject.toml, or None."""
+def _find(named: str | None) -> tuple[Path, bool, bool] | None:
+    """The file to read, whether it is a pyproject.toml and whether it was
+    found by searching, or None."""
     if named is None:
         named = os.environ.get(CONFIG_ENV)
         if named is not None and not named.strip():
@@ -253,7 +280,7 @@ def _find(named: str | None) -> tuple[Path, bool] | None:
         path = Path(named).expanduser()
         if not path.is_file():
             raise ConfigError(f"{path}: no such configuration file")
-        return path, path.name == PYPROJECT
+        return path, path.name == PYPROJECT, False
     here = Path.cwd()
     for directory in (here, *here.parents):
         own = directory / FILE_NAME
@@ -270,7 +297,7 @@ def _find(named: str | None) -> tuple[Path, bool] | None:
             )
         if found:
             _check_owner(found[0][0])
-            return found[0]
+            return (*found[0], True)
     return None
 
 
@@ -292,7 +319,7 @@ def _check_owner(path: Path) -> None:
     status = path.stat()
     if status.st_uid != os.getuid():
         why = "belongs to another user"
-    elif status.st_mode & 0o022:
+    elif status.st_mode & 0o022 or _listed_writers(path):
         why = "others can write it"
     else:
         return
@@ -301,6 +328,63 @@ def _check_owner(path: Path) -> None:
         f"behalf: make it yours alone (chmod go-w), name it with --config, or "
         f"run with --no-config."
     )
+
+
+# macOS's access lists, <sys/acl.h>: what an entry may allow that changes a
+# file -- writing, appending, deleting it, and changing its list or its owner.
+_ACL_TYPE_EXTENDED = 0x100
+_ACL_FIRST_ENTRY, _ACL_NEXT_ENTRY = 0, -1
+_ACL_EXTENDED_ALLOW = 1
+_ACL_CHANGES = (1 << 2, 1 << 4, 1 << 5, 1 << 12, 1 << 13)
+
+
+def _listed_writers(path: Path) -> bool:
+    """Whether an access list on ``path`` allows anyone to change it.
+
+    macOS keeps access lists beside the mode bits, which do not show them:
+    ``chmod +a "everyone allow write"`` leaves a file ``-rw-------``. Linux's
+    lists show in the group bits, which the mode check reads. Where the list
+    cannot be asked for, there is taken to be none, as on a system with no
+    owners.
+    """
+    if sys.platform != "darwin":
+        return False
+    import ctypes
+    import ctypes.util
+
+    try:
+        libc = ctypes.CDLL(ctypes.util.find_library("c"))
+        get_file, get_entry = libc.acl_get_file, libc.acl_get_entry
+        get_tag, get_permset = libc.acl_get_tag_type, libc.acl_get_permset
+        get_perm, free = libc.acl_get_perm_np, libc.acl_free
+    except (OSError, AttributeError):
+        return False
+    get_file.restype = ctypes.c_void_p
+    get_file.argtypes = [ctypes.c_char_p, ctypes.c_int]
+    get_entry.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+    get_tag.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    get_permset.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    get_perm.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    free.argtypes = [ctypes.c_void_p]
+    acl = get_file(os.fsencode(path), _ACL_TYPE_EXTENDED)
+    if not acl:
+        return False
+    try:
+        entry, tag, perms = ctypes.c_void_p(), ctypes.c_int(), ctypes.c_void_p()
+        which = _ACL_FIRST_ENTRY
+        while get_entry(acl, which, ctypes.byref(entry)) == 0:
+            which = _ACL_NEXT_ENTRY
+            if get_tag(entry, ctypes.byref(tag)) != 0:
+                continue
+            if tag.value != _ACL_EXTENDED_ALLOW:
+                continue
+            if get_permset(entry, ctypes.byref(perms)) != 0:
+                continue
+            if any(get_perm(perms, change) == 1 for change in _ACL_CHANGES):
+                return True
+        return False
+    finally:
+        free(acl)
 
 
 def _read(path: Path, from_pyproject: bool) -> dict[str, Any]:
@@ -339,9 +423,13 @@ def defaults(
     path: Path,
     commands: Mapping[str, click.Command],
     from_pyproject: bool = False,
+    *,
+    searched: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Click's ``default_map`` from a file's ``data``: for each command, its
     parameters' defaults, the file's top-level keys under its own table's.
+    ``searched``, a file found by searching the directories rather than
+    named, may set none of ``NAMED_ONLY``.
 
     Raises:
         ConfigError: a key or a value in ``data`` cannot be used; the message
@@ -356,7 +444,7 @@ def defaults(
     top = {k: v for k, v in data.items() if not isinstance(v, dict)}
     tables = {k: v for k, v in data.items() if isinstance(v, dict)}
     for key in top:
-        _allowed(key, known, path, f"{prefix}{key}" if prefix else key)
+        _allowed(key, known, path, f"{prefix}{key}" if prefix else key, searched)
     for name, table in tables.items():
         if name not in commands:
             nearest = _nearest(name, commands)
@@ -370,27 +458,65 @@ def defaults(
                 raise ConfigError(
                     f"{path}: {where} is a table, and a command's options are values"
                 )
-            _allowed(key, known, path, where)
+            _allowed(key, known, path, where, searched)
             if key not in options[name]:
                 raise ConfigError(f"{path}: {where}: {name} does not take {key}")
     answer: dict[str, dict[str, Any]] = {}
+    # A key at the top is for the commands that take it with its value: map's
+    # format is "json" or "csv" and crawl's "jsonl" or "csv", so format =
+    # "jsonl" is crawl's and batch's, and no reason for every command to
+    # stop. Only a value no command that takes the key takes is refused.
+    refused: dict[str, list[tuple[str, ConfigError]]] = {}
+    taken: set[str] = set()
     for name in commands:
-        chosen = {k: (v, k) for k, v in top.items() if k in options[name]}
-        chosen.update(
-            {k: (v, f"[{prefix}{name}] {k}") for k, v in tables.get(name, {}).items()}
-        )
-        answer[name] = {
-            param.name: _value(key, value, param, path, where)
-            for key, (value, where) in chosen.items()
-            if (param := options[name][key]).name is not None
-            and not (key in ENVIRONMENT and ENVIRONMENT[key]() in os.environ)
-        }
+        own = tables.get(name, {})
+        answer[name] = {}
+        for key, value in top.items():
+            param = options[name].get(key)
+            if param is None or param.name is None or key in own or _in_env(key):
+                continue
+            try:
+                answer[name][param.name] = _value(
+                    key, value, param, path, f"{prefix}{key}"
+                )
+            except ConfigError as refusal:
+                refused.setdefault(key, []).append((name, refusal))
+            else:
+                taken.add(key)
+        for key, value in own.items():
+            param = options[name][key]
+            if param.name is None or _in_env(key):
+                continue
+            where = f"[{prefix}{name}] {key}"
+            answer[name][param.name] = _value(key, value, param, path, where)
+    for key, refusals in refused.items():
+        if key not in taken:
+            names = ", ".join(name for name, _ in refusals)
+            first, said = refusals[0]
+            raise ConfigError(
+                f"{path}: {prefix}{key} is refused by every command that takes it "
+                f"({names}); {first} says it {said.what}"
+            )
     return answer
 
 
-def _allowed(key: str, known: set[str], path: Path, where: str) -> None:
-    if key in SETTABLE:
+def _in_env(key: str) -> bool:
+    """Whether the variable that also sets ``key`` is set, and wins."""
+    return key in ENVIRONMENT and ENVIRONMENT[key]() in os.environ
+
+
+def _allowed(
+    key: str, known: set[str], path: Path, where: str, searched: bool = False
+) -> None:
+    if key in SETTABLE and not (searched and key in NAMED_ONLY):
         return
+    if key in NAMED_ONLY:
+        raise ConfigError(
+            f"{path}: {where} can be set only in a file you name, and this one "
+            f"was found by searching the directories, as a repository's you "
+            f"cloned would be: {NAMED_ONLY[key]}. If it is yours, name it with "
+            f"--config or {CONFIG_ENV}; else run with --no-config."
+        )
     if key in PER_RUN:
         raise ConfigError(
             f"{path}: {where} cannot be set in a file: {PER_RUN[key]}. Give "
@@ -410,7 +536,7 @@ def _value(key: str, value: Any, param: click.Parameter, path: Path, where: str)
     """``value`` as the option takes it, checked; a secret's never shown."""
 
     def wrong(what: str) -> ConfigError:
-        return ConfigError(f"{path}: {where} {what}")
+        return ConfigError(f"{path}: {where} {what}", what)
 
     assert isinstance(param, click.Option)
     if param.is_flag:

@@ -119,9 +119,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   workflow names, failing the step on a broken rule (or, with `fail-on`, on a
   warning, or never), each error an annotation with its rule, a summary table,
   and the counts and a JSON-lines report as outputs. Its inputs reach the
-  script through the environment only. `docs/github-action.md` says how to
-  use it; `.github/workflows/github-action.yml` runs it on pages its job
-  serves on the runner's loopback.
+  script through the environment only, and each page is handed to `sluicer
+  audit` after `--`, so one named like an option is a page.
+  `docs/github-action.md` says how to use it;
+  `.github/workflows/github-action.yml` runs it on pages its job serves on
+  the runner's loopback.
 - `sluicer-skill-VERSION.zip` on each release: `skills/sluicer` with the
   folder at the zip's root, the shape claude.ai's skill upload takes and what
   unzipping into `~/.agents/skills/` wants, the same bytes from the same tree.
@@ -172,17 +174,26 @@ Dates are the day the work landed. Anything not listed here did not happen.
   names; `--no-config`, or `SLUICER_CONFIG` empty, reads none. Its keys are
   the options' own names -- `proxy`, `header`, `cookie`, `cache`, `max-age`,
   `no-robots`, `respect`, `delay`, `json`, `max-pages` and the rest -- at the
-  top for every command that takes one, and in a command's own table over
-  that. The command line wins, then `SLUICER_PROXY` and `SLUICER_MCP_TOOLS`,
-  then the file, then the built-in defaults; each flag a file may turn on has
+  top for every command that takes one with that value, and in a command's
+  own table over that: `format = "jsonl"` at the top is `crawl`'s and
+  `batch`'s, and `map`, which writes `json` or `csv`, keeps its own, where a
+  value no command taking the key accepts is refused, naming them. The
+  command line wins, then `SLUICER_PROXY` and `SLUICER_MCP_TOOLS`, then the
+  file, then the built-in defaults; each flag a file may turn on has
   its opposite for one run (`--no-json`, `--robots`). A file is refused
   before anything runs, naming the file and the key, for an unknown key (with
   the nearest known), a key its command does not take, a value of the wrong
   type, or an option that belongs to one run (`--out`, `--stealth`,
   `serve --allow-unauthenticated` among them); no message repeats a proxy,
-  header or cookie value. A file found by searching must be the user's and
-  writable by no one else. `no-robots = true` from a file is said on stderr
-  on every run. `docs/configuration.md` says all of it.
+  header or cookie value. A file found by searching may be a repository's
+  the user cloned, so it may not set `proxy`, `header`, `cookie`, `cache`,
+  `host` or `no-robots`: only a file named by `--config` or `SLUICER_CONFIG`
+  says what is sent, to whom, through what, where pages are kept, who
+  reaches `serve` and whether robots.txt is obeyed, and a found file that
+  tries is refused, naming the key. It must also be the user's and writable
+  by no one else, through its mode or a macOS access list, which the mode
+  does not show. `no-robots = true` from a file is said on stderr on every
+  run. `docs/configuration.md` and `SECURITY.md` say all of it.
 - `tomli>=1.0.3` on Python 3.10 only, to read that file: 3.10 has no
   `tomllib`. MIT, pure Python, no dependencies; 1.0.3 is the first that
   raises its own error for an impossible date, measured, and the floors job
@@ -455,6 +466,32 @@ Dates are the day the work landed. Anything not listed here did not happen.
   that page's listing check, exit 3, with why. It escaped as a traceback:
   `sluicer run` and `heal` stopped with exit 1, and the other pages went
   unread.
+- The check a sitemap or a feed passes before libxml2 reads it finds a
+  declared entity or document type in every encoding libxml2 reads: UTF-16
+  without a byte order mark and UTF-32, which libxml2 tells from the bytes of
+  `<?` or `<`, were searched as they were, mostly zero bytes, and handed to
+  the parser unchecked. The parser leaves entities unexpanded and the readers
+  refuse a document type at the root, so nothing expanded; the check is there
+  not to rely on that.
+- The RDFa reader reads each element's `vocab` and `prefix` once. Every
+  property read every `prefix` attribute of every element around it again,
+  so 8,000 prefixes over 8,000 properties (478 KB) took 8 seconds, 26 on
+  the reviewer's machine; 0.03 now. A prefix is looked up element by
+  element, nearest first, as before, so nothing is copied into each one.
+- An llms.txt heading line is read in time proportional to it. The pattern
+  that read one took the text lazily and then spaces, marks and spaces to the
+  end, so a line ending in anything else was tried at every split of it: "#
+  a", 2,000 spaces and a "b" took 5.7 seconds, 4,000 a minute, in every
+  `sluicer audit` and `audit_page` that reads the site's files. It is read
+  by hand now, as the pattern read it (a test holds the two equal); 400 KB
+  of such a line takes under a hundredth of a second.
+- A JSON-LD block that went on past a closing `-->` or `]]>` -- the mark,
+  whitespace, then anything else -- is read in time proportional to it. The
+  pattern that took the wrapper off had two runs of whitespace side by side
+  before the end of the text, which backtracked against each other: `-->`,
+  40,000 spaces and a letter took 7.4 seconds in `extract()` and every
+  command and tool that reads JSON-LD, on any page. The wrapper is now taken
+  off from the end, as the pattern took it off (a test holds the two equal).
 - The records' documentation says what a JSON-LD number becomes: the text
   the page wrote, `"41.90"` and not `41.9`, as every value in a record is
   text (`Field`, the getting-started guide). It always was, on purpose, and
@@ -469,7 +506,24 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the product's title, and `ex:foo` stayed a word no one could read. A word
   the context says nothing about is kept as written, as before: only
   schema.org's context is known, nothing is fetched, and a definition naming
-  no address is not followed. The audit names them the same way. Over the
+  no address is not followed. A context's `@vocab` is read as JSON-LD 1.1
+  and PyLD read it, through the prefixes and terms of the contexts around
+  it and never its own: `{"@vocab": "ex:", "ex": ...}` names `ex:name`.
+  schema.org's namespace is schema.org's however it is written, with a
+  fragment's `#` too (`"@vocab": "http://schema.org/#"`), and `schema:` is
+  schema.org's prefix unless the context defines `schema` as a word of its
+  own. The audit names them the same way. Two words
+  of one object that name one property -- `price` and `schema:price` under
+  schema.org's context -- give the value of the one written as the name
+  itself, wherever the object lists it, as 0.7.1 and every reader that goes
+  by the key read it; failing that, the first written. A value's place
+  points at the key the page wrote, `#/offers/schema:price`, never at the
+  name the record gives it. Naming costs what the block's contexts cost:
+  each is read once, as a layer over those around it holding only what it
+  defines, never a copy of them, so a graph of 6,000 nodes each with a
+  context of its own under 6,000 terms is named in a tenth of a second, and
+  a word is looked up through at most 32 contexts, one declared past them
+  not being read. Over the
   3,976 cached corpus pages the summary, `normalised` and conflicts are
   unchanged; records change on 5 pages, each a word of another vocabulary now
   named by its address: Contao's `contao:` properties and `contao:Page` type
@@ -482,7 +536,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   tests e004, c004 and r004 showed it. A term a context defines as
   `{"@id": ...}` is no longer taken for a reference to a node, and a context
   is shared by the nodes it covers, never copied or paid for from the
-  reference budget. Over the 3,976 cached corpus pages, `extract()` and the
+  reference budget: the nodes of one graph that have no context of their own
+  share one list of the graphs' contexts, of which at most 32 are carried. Over the 3,976 cached corpus pages, `extract()` and the
   audit answer exactly as before; the reader's answer gains the context on
   624 of them.
 - `sluicer.compat.extruct` reads a JSON-LD block's text as extruct does:
@@ -495,7 +550,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   refusal, failed. Such a block is now skipped and the page's other blocks
   kept, as a block that is not JSON already was; a block whose first line is
   a comment, which extruct reads, is now read too. `sluicer.extract` still
-  forgives every one of them.
+  forgives every one of them. A comment ends where jstyleson 0.0.2 ends it,
+  a block comment at the first `/` after any `*` in it, so
+  `{"a": /* x * y / 1 */ 2}`, which extruct refuses, is refused too: over a
+  million random blocks of brackets, strings, slashes and stars the answer
+  is extruct's. A comment never closed is read once, to the end of the
+  block: 60 KB of `/*a` took 2.6 seconds.
 - A crawl's `headers=` and `cookies=`, and `--header` and `--cookie` on
   `crawl`, `batch` and `map`, reached no request: the crawl's web was built
   without them. They now go with every page, robots.txt and sitemap, to the

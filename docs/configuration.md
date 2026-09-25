@@ -25,7 +25,10 @@ visible = true
 ```
 
 A key at the top applies to every command that takes that option, and the
-others ignore it: `json` above is for `fetch`, `diff` and `audit`. A table
+others ignore it: `json` above is for `fetch`, `diff` and `audit`. A command
+whose option takes other values ignores it too: `format = "jsonl"` at the top
+is for `crawl` and `batch`, and `map`, which writes `json` or `csv`, keeps its
+own. A value that no command taking the key accepts is refused. A table
 named after a command is that command's own, and its keys win over the top's.
 A repeatable option is a list; a flag is `true` or `false`; `cache` is a
 directory, where `~` is your home and a relative path is taken from the file's
@@ -49,11 +52,17 @@ The first of these, and only one:
 `--no-config`, or `SLUICER_CONFIG` set and empty, reads no file at all: what a
 script that must behave the same on every machine wants.
 
-A file found by looking up the directories must be yours, and writable by you
-alone. A proxy or a header in it is sent on your behalf, so a `sluicer.toml`
-someone else can write, in a shared directory above yours, is refused, with
-what to do about it. A file you name with `--config` or `SLUICER_CONFIG` is
-read as you named it.
+A file found by looking up the directories may be one you did not write: a
+repository you cloned can carry a `sluicer.toml` or a `[tool.sluicer]` table,
+and it would be read from the moment you ran `sluicer` inside it. So such a
+file may not set `proxy`, `header`, `cookie`, `cache`, `host` or `no-robots`
+-- what is sent on your behalf, to whom and through what, where the pages you
+fetch are kept, who can reach `sluicer serve`, and whether robots.txt is
+obeyed. Only a file you name, with `--config` or `SLUICER_CONFIG`, sets
+those; one found that tries is refused, naming the key and what to do. It must
+also be yours, and writable by you alone: one someone else can write, in a
+shared directory above yours or through a macOS access list, is refused too. A
+file you name is read as you named it.
 
 ## What wins
 
@@ -78,12 +87,12 @@ header or a cookie.
 
 | key | for | what |
 |---|---|---|
-| `proxy` | every command that fetches | the proxy, as `--proxy` takes it; `SLUICER_PROXY` wins |
-| `header` | every command that fetches | a list of `"NAME: VALUE"`, as `-H` |
-| `cookie` | every command that fetches | a list of `"NAME=VALUE"`, as `--cookie` |
-| `cache` | `fetch`, `extract`, `inspect`, `markdown`, `diff`, `audit`, `feed` | the cache directory |
+| `proxy` | every command that fetches | the proxy, as `--proxy` takes it; `SLUICER_PROXY` wins; a file you name only |
+| `header` | every command that fetches | a list of `"NAME: VALUE"`, as `-H`; a file you name only |
+| `cookie` | every command that fetches | a list of `"NAME=VALUE"`, as `--cookie`; a file you name only |
+| `cache` | `fetch`, `extract`, `inspect`, `markdown`, `diff`, `audit`, `feed` | the cache directory; a file you name only |
 | `max-age` | the same | seconds a kept page is good for, with `cache` |
-| `no-robots` | the commands that take `--no-robots` | `true` fetches where robots.txt says no |
+| `no-robots` | the commands that take `--no-robots` | `true` fetches where robots.txt says no; a file you name only |
 | `respect` | the commands that take `--respect` | a list: `["tdm"]` |
 | `induce` | `extract`, `inspect`, `crawl`, `batch`, `warc` | a flag |
 | `microformats` | `extract`, `inspect`, `warc` | a flag |
@@ -97,7 +106,8 @@ header or a cookie.
 | `max-pages`, `max-depth`, `include`, `exclude` | `crawl` | as their options |
 | `limit` | `map` | as `--limit` |
 | `no-site` | `audit` | a flag |
-| `host`, `port`, `timeout` | `serve` | as their options |
+| `host` | `serve` | as `--host`; a file you name only |
+| `port`, `timeout` | `serve` | as their options |
 | `tools` | `mcp` | `"extract_declared,page_markdown"`; `SLUICER_MCP_TOOLS` wins |
 
 `no-robots = true` is said on stderr on every run it applies to, with the
@@ -113,7 +123,9 @@ is refused and says why.
 Nothing runs: the command exits 2 with the file and the key. An unknown key
 names the nearest known one (`dealy is not an option (did you mean delay?)`),
 a table that is not a command says so, a key the command does not take says
-which, and a value of the wrong type says what was expected. A file that is
+which, and a value of the wrong type says what was expected; a key at the top
+whose value every command taking it refuses names those commands and what the
+first of them says. A file that is
 not TOML gives the line and column. The values of `proxy`, `header` and
 `cookie` can be passwords, tokens or sessions, and no message repeats them:
 it names the key, and the entry by its number.

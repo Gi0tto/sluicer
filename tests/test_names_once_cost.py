@@ -52,7 +52,7 @@ def test_forty_thousand_authors_are_named_in_a_moment():
 
 
 def test_forty_thousand_rdfa_terms_are_resolved_in_a_moment():
-    from sluicer.declared.rdfa import _names
+    from sluicer.declared.rdfa import _names, _Scopes
 
     doc = load(
         "<div vocab='http://schema.org/'><span property='"
@@ -62,8 +62,8 @@ def test_forty_thousand_rdfa_terms_are_resolved_in_a_moment():
     (span,) = doc.tree.xpath("//span")
     declared = span.get("property")
 
-    assert _seconds(lambda: _names(span, declared)) < 1
-    assert len(_names(span, declared)) == _MANY
+    assert _seconds(lambda: _names(span, declared, _Scopes())) < 1
+    assert len(_names(span, declared, _Scopes())) == _MANY
 
 
 def test_forty_thousand_user_agent_lines_are_read_in_a_moment():

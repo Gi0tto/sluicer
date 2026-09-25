@@ -87,12 +87,13 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     fields, each of which gets the value, because that is what the page said.
     """
     left = [max(_PAGE_FLOOR, 10 * len(doc.html))]
+    scopes = _Scopes()
     found: list[dict[str, Any]] = []
     for subject in doc.tree.xpath("//*[@typeof]"):
         is_a_property = subject.get("property") is not None
         if is_a_property and _nearest_subject(subject) is not None:
             continue
-        item = _subject(doc, subject, 0, left)
+        item = _subject(doc, subject, 0, left, scopes)
         if item:
             found.append(item)
     return found
@@ -108,16 +109,16 @@ def _pay(left: list[int], cost: int) -> bool:
 
 
 def _subject(
-    doc: Document, subject: HtmlElement, depth: int, left: list[int]
+    doc: Document, subject: HtmlElement, depth: int, left: list[int], scopes: _Scopes
 ) -> Located:
     item: dict[str, Any] = {}
     props: dict[str, Place] = {}
-    types = _names(subject, subject.get("typeof"))
+    types = _names(subject, subject.get("typeof"), scopes)
     if types and _pay(left, sum(len(name) for name in types)):
         item["@type"] = types[0] if len(types) == 1 else types
     repeated: set[str] = set()
     for prop in _properties(subject):
-        names = _names(prop, prop.get("property"))
+        names = _names(prop, prop.get("property"), scopes)
         if not names:
             continue
         value: Any
@@ -125,7 +126,7 @@ def _subject(
             if depth >= _MAX_DEPTH:
                 continue
             before = left[0]
-            value = _subject(doc, prop, depth + 1, left)
+            value = _subject(doc, prop, depth + 1, left, scopes)
             if not any(not key.startswith("@") for key in value):
                 continue
             # Its first copy was paid for as it was read.
@@ -202,18 +203,19 @@ def _value(doc: Document, element: HtmlElement) -> str:
     return " ".join((text or "").split())
 
 
-def _names(element: HtmlElement, declared: str | None) -> list[str]:
+def _names(element: HtmlElement, declared: str | None, scopes: _Scopes) -> list[str]:
     """The names of a whitespace-separated list of terms, resolved in context.
 
     A term that resolves to nothing -- a CURIE whose prefix nobody declared --
-    and an OpenGraph term are left out.
+    and an OpenGraph term are left out. ``scopes`` holds the contexts one
+    page's reading has found, read once each.
     """
-    vocab, prefixes = _context(element)
+    scope = scopes.at(element)
     # Once each, in order: a list asked for each term whether it held it, and
     # an attribute of forty thousand terms took four seconds.
     names: dict[str, None] = {}
     for token in (declared or "").split():
-        iri = _resolve(token, vocab, prefixes)
+        iri = _resolve(token, scope)
         if iri is None or iri.startswith(_OPENGRAPH):
             continue
         name = type_name(iri)
@@ -222,34 +224,69 @@ def _names(element: HtmlElement, declared: str | None) -> list[str]:
     return list(names)
 
 
-def _resolve(token: str, vocab: str | None, prefixes: dict[str, str]) -> str | None:
+def _resolve(token: str, scope: _Scope | None) -> str | None:
     if "://" in token:
         return token
     if ":" in token:
         prefix, _, reference = token.partition(":")
-        base = prefixes.get(prefix.lower())
+        base = _prefix(scope, prefix.lower())
         return base + reference if base is not None and reference else None
     # A bare term with no vocab in scope is read as written: pages write
     # typeof="Product" and mean schema.org by it.
+    vocab = scope.vocab if scope is not None else None
     return vocab + token if vocab else token
 
 
-def _context(element: HtmlElement) -> tuple[str | None, dict[str, str]]:
-    """The ``vocab`` and the prefix mappings in force at ``element``."""
-    vocab: str | None = None
-    vocab_found = False
-    prefixes: dict[str, str] = {}
-    node: HtmlElement | None = element
-    while node is not None:
-        if not vocab_found and node.get("vocab") is not None:
+class _Scope:
+    """What one element declares, ``vocab`` and ``prefix``, over what is in
+    force around it. The ``vocab`` in force is carried; a prefix is looked up
+    element by element, nearest first, so no element copies the prefixes of
+    those around it."""
+
+    def __init__(self, element: HtmlElement, outer: _Scope | None) -> None:
+        declared = element.get("vocab")
+        if declared is not None:
             # The nearest vocab decides, and an empty one means none at all.
-            vocab_found = True
-            vocab = node.get("vocab").strip() or None
-        tokens = (node.get("prefix") or "").split()
+            self.vocab: str | None = declared.strip() or None
+        else:
+            self.vocab = outer.vocab if outer is not None else None
+        self.prefixes: dict[str, str] = {}
+        tokens = (element.get("prefix") or "").split()
         for name, iri in zip(tokens[::2], tokens[1::2], strict=False):
             if name.endswith(":"):
-                prefixes.setdefault(name[:-1].lower(), iri)
-        node = node.getparent()
-    for name, iri in _INITIAL_CONTEXT.items():
-        prefixes.setdefault(name, iri)
-    return vocab, prefixes
+                self.prefixes.setdefault(name[:-1].lower(), iri)
+        self.outer = outer
+
+
+def _prefix(scope: _Scope | None, name: str) -> str | None:
+    """The address ``name`` stands for in ``scope``: the nearest element's
+    declaring it, then RDFa's initial context."""
+    while scope is not None:
+        found = scope.prefixes.get(name)
+        if found is not None:
+            return found
+        scope = scope.outer
+    return _INITIAL_CONTEXT.get(name)
+
+
+class _Scopes:
+    """The scope in force at each element one reading asks about, each read
+    once: asked of every property, every element around it was read again,
+    and a page of four thousand prefixes and properties took two seconds."""
+
+    def __init__(self) -> None:
+        self.found: dict[HtmlElement, _Scope | None] = {}
+
+    def at(self, element: HtmlElement) -> _Scope | None:
+        # The elements up to the first one already read, then down again.
+        chain: list[HtmlElement] = []
+        node: HtmlElement | None = element
+        while node is not None and node not in self.found:
+            chain.append(node)
+            node = node.getparent()
+        scope = self.found[node] if node is not None else None
+        for node in reversed(chain):
+            if node.get("vocab") is not None or node.get("prefix") is not None:
+                scope = _Scope(node, scope)
+            self.found[node] = scope
+        return self.found[element]

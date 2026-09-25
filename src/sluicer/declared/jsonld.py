@@ -80,7 +80,6 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
 
 
 _OPENING = re.compile(r"^\s*(?:(?://|/\*)\s*)?(?:<!\[CDATA\[|<!--)\s*(?:\*/)?")
-_CLOSING = re.compile(r"(?:(?://|/\*)\s*)?(?:\]\]>|-->)\s*(?:\*/)?\s*$")
 # A JSON string, read to its end or to the block's: what the two patterns
 # below look for inside one is text. Left open, it runs to the end, and so does
 # a comment, so no character is scanned twice whatever the block holds.
@@ -94,7 +93,7 @@ def _parse(raw: str) -> object | None:
     none to be had."""
     unwrapped = raw.lstrip("\ufeff")
     for _ in range(2):
-        unwrapped = _CLOSING.sub("", _OPENING.sub("", unwrapped))
+        unwrapped = _without_closing(_OPENING.sub("", unwrapped))
     # The cleaned spellings are tried only after the text as written fails, so
     # a block that is valid JSON is never rewritten.
     for candidate in dict.fromkeys((raw, unwrapped, _mended(unwrapped))):
@@ -110,6 +109,27 @@ def _parse(raw: str) -> object | None:
             continue
         return parsed
     return None
+
+
+def _without_closing(text: str) -> str:
+    """``text`` without the wrapper that may close it: ``]]>`` or ``-->``,
+    after ``//`` or ``/*`` if a comment holds it, before ``*/`` if one does,
+    and the whitespace around them to the end.
+
+    Read from the end. As a pattern -- the mark, then whitespace, an
+    optional ``*/`` and whitespace again -- a block that went on past its
+    mark made the two runs of whitespace backtrack against each other:
+    ``-->``, 40,000 spaces and a letter took seven seconds.
+    """
+    end = text.rstrip()
+    if end.endswith("*/"):
+        end = end[:-2].rstrip()
+    for mark in ("]]>", "-->"):
+        if end.endswith(mark):
+            before = end[: -len(mark)]
+            held = before.rstrip()
+            return held[:-2] if held.endswith(("//", "/*")) else before
+    return text
 
 
 def _mended(text: str) -> str:
@@ -145,12 +165,15 @@ def _flatten(parsed: object) -> list[tuple[dict[str, Any], tuple[str | int, ...]
     A node read out of a graph keeps the ``@context`` its terms were written
     in: the wrapper's, before any of its own. Without it ``ex:foo``, written
     under ``{"ex": "http://example.com/"}``, named nothing once unwrapped.
+    The nodes of one graph that have no context of their own share one; at
+    most ``_MAX_CONTEXTS`` of the graphs' contexts are carried, the
+    outermost, as no more are read (see ``Terms``).
     """
     found: list[tuple[dict[str, Any], tuple[str | int, ...]]] = []
     # A tuple is a node already read, waiting for its graph: JSON makes none.
     # Beside each value, the contexts of the graphs around it, outermost first.
-    pending: list[tuple[object, tuple[str | int, ...], tuple[object, ...]]] = [
-        (parsed, (), ())
+    pending: list[tuple[object, tuple[str | int, ...], list[object]]] = [
+        (parsed, (), [])
     ]
     while pending:
         value, steps, around = pending.pop()
@@ -166,27 +189,40 @@ def _flatten(parsed: object) -> list[tuple[dict[str, Any], tuple[str | int, ...]
                 own = {key: item for key, item in value.items() if key != "@graph"}
                 if any(not key.startswith("@") for key in own):
                     pending.append(((own,), steps, around))
-                inner = (*around, value["@context"]) if "@context" in value else around
+                inner = (
+                    _contexts(around, value["@context"])
+                    if "@context" in value
+                    else around
+                )
                 pending.append((value["@graph"], (*steps, "@graph"), inner))
             else:
                 found.append((_within(value, around), steps))
     return found
 
 
-def _within(node: dict[str, Any], around: tuple[object, ...]) -> dict[str, Any]:
+def _within(node: dict[str, Any], around: list[object]) -> dict[str, Any]:
     """``node`` holding the contexts of the graphs around it, then its own.
 
     One context is written as itself, several as the list JSON-LD reads in
-    order, a list among them spread into it."""
+    order, a list among them spread into it. A node with no context of its
+    own holds its graph's, the one list every such node of the graph shares:
+    built for each, a graph of a thousand nodes had a thousand lists, and
+    each was read afresh."""
     if not around:
         return node
-    declared = (*around, node["@context"]) if "@context" in node else around
-    contexts: list[object] = []
-    for context in declared:
-        contexts.extend(context if isinstance(context, list) else [context])
+    contexts = [*around, *_listed(node["@context"])] if "@context" in node else around
     held: dict[str, Any] = {"@context": contexts[0] if len(contexts) == 1 else contexts}
     held.update((key, item) for key, item in node.items() if key != "@context")
     return held
+
+
+def _contexts(around: list[object], declared: object) -> list[object]:
+    """The contexts inside a graph: those around it, then its own, spread."""
+    return [*around, *_listed(declared)][:_MAX_CONTEXTS]
+
+
+def _listed(declared: object) -> list[object]:
+    return declared if isinstance(declared, list) else [declared]
 
 
 def _own_id(node: dict[str, Any]) -> frozenset[str]:
@@ -325,8 +361,8 @@ def _size(value: Any) -> int:
 # --- the names a context gives ------------------------------------------------
 
 # schema.org's namespace, however a context writes it: without its slash too,
-# which one real page's ``@vocab`` leaves off.
-_SCHEMA_NAMESPACE = re.compile(r"(?i)https?://(?:www\.)?schema\.org/?")
+# which one real page's ``@vocab`` leaves off, or with a fragment's ``#``.
+_SCHEMA_NAMESPACE = re.compile(r"(?i)https?://(?:www\.)?schema\.org/?#?")
 # The addresses a block names schema.org's own context by.
 _SCHEMA_CONTEXT = re.compile(
     r"(?i)https?://(?:www\.)?schema\.org(?:/(?:docs/jsonldcontext\.jsonld?)?)?"
@@ -338,6 +374,10 @@ _NOT_IN_AN_IRI = re.compile(r'[\s<>"{}|\\^`]')
 _ABSOLUTE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 # What an address must end in for its word to be a prefix, in JSON-LD 1.1.
 _GEN_DELIMS = (":", "/", "?", "#", "[", "]", "@")
+# The most contexts one word is named through: real blocks nest two or three.
+# Each is a layer a word is looked up in, and a block of ten thousand contexts
+# listed or nested would make every word under them ten thousand lookups.
+_MAX_CONTEXTS = 32
 
 
 class Terms:
@@ -357,34 +397,64 @@ class Terms:
     and which of them are prefixes, as JSON-LD 1.1 reads them; and
     schema.org's own context, known by its address. A definition that names
     no address -- a keyword, a reversed property, ``null``, a word the context
-    does not define (one real page maps two words to ``"Text"``) -- leaves its
+    does not define (one real page maps two words to "Text") -- leaves its
     word as written, and so does a context elsewhere, whose words are not
     known here. Scoped contexts and ``@base`` are not read.
+
+    Each context read is a layer over the terms it was read in, holding what
+    it defines and nothing else: a context is never copied, so a thousand
+    nodes each with a context of their own cost their thousand contexts,
+    not a thousand copies of every term around them. Each context is read
+    once for the terms it is read in. A word is looked up layer by layer,
+    so at most ``_MAX_CONTEXTS`` are read, outermost first; one declared
+    past them is not read, and a ``null`` still clears them all.
     """
 
     def __init__(
         self,
         vocab: str | None = None,
-        iris: dict[str, str | None] | None = None,
-        prefixes: dict[str, str] | None = None,
+        iris: dict[str, str | _Undefined | None] | None = None,
+        prefixes: dict[str, str | None] | None = None,
+        outer: Terms | None = None,
     ) -> None:
         self.vocab = vocab
-        # A word's address, or None where its word stays as written.
+        # The words this layer's context defines: each one's address, None
+        # where its word stays as written, _UNDEFINED where it is left to the
+        # vocabulary as a word no context defines.
         self.iris = iris or {}
+        # The same words as prefixes: an address, or None where it is none.
         self.prefixes = prefixes or {}
+        self.outer = outer
+        self.depth: int = 0 if outer is None else outer.depth + 1
         # The terms inside each context declared under these, read once: one
-        # graph's thousand nodes share one context.
-        self._inside: dict[int, tuple[object, Terms]] = {}
+        # graph's thousand nodes share one context. A string is known by its
+        # text, anything else by itself.
+        self._inside: dict[object, tuple[object, Terms]] = {}
 
     def within(self, declared: object) -> Terms:
         """The terms in force inside a node whose ``@context`` is ``declared``."""
+        if not isinstance(declared, list):
+            return self._through(declared)
         held = self._inside.get(id(declared))
         if held is not None and held[0] is declared:
             return held[1]
         terms = self
-        for context in declared if isinstance(declared, list) else [declared]:
-            terms = terms._read(context)
+        for context in declared:
+            terms = terms._through(context)
         self._inside[id(declared)] = (declared, terms)
+        return terms
+
+    def _through(self, context: object) -> Terms:
+        """The terms in force inside one context, read once."""
+        key = context if isinstance(context, str) else id(context)
+        held = self._inside.get(key)
+        if held is not None and (held[0] is context or isinstance(context, str)):
+            return held[1]
+        if context is not None and self.depth >= _MAX_CONTEXTS:
+            terms = self
+        else:
+            terms = self._read(context)
+        self._inside[key] = (context, terms)
         return terms
 
     def name(self, word: str) -> str:
@@ -398,56 +468,105 @@ class Terms:
         iri = self._iri(word)
         if iri is None:
             return word
+        prefix, _, suffix = word.partition(":")
+        if iri is word and not suffix.startswith("//") and self._defines(prefix):
+            # ``schema:Product`` is schema.org's only where the context leaves
+            # ``schema`` alone: one it defines as no prefix makes it an
+            # address of its own, as JSON-LD reads it.
+            return word
         schema_org = _SCHEMA_ORG.fullmatch(iri)
         return schema_org.group(1) if schema_org else iri
+
+    def type(self, word: str) -> str | None:
+        """A declared type as records fold on it, or None for a blank one."""
+        token = word.strip()
+        return self.name(token) if token else None
 
     def _iri(self, word: str) -> str | None:
         """``word``'s address, or None where it has none to be named by. A
         word with a colon that no prefix expands is an address already."""
-        if word in self.iris:
-            return self.iris[word]
+        found = self._term(word)
+        if not isinstance(found, _Undefined):
+            return found
         prefix, colon, suffix = word.partition(":")
         if colon:
-            if prefix in self.prefixes and not suffix.startswith("//"):
-                return self.prefixes[prefix] + suffix
+            base = self._prefix(prefix)
+            if base is not None and not suffix.startswith("//"):
+                return base + suffix
             return None if prefix == "_" else word
         if self.vocab is None or self.vocab == _SCHEMA:
             return None
         return self.vocab + word
+
+    def _term(self, word: str) -> str | _Undefined | None:
+        """What the innermost layer defining ``word`` says it is."""
+        layer: Terms | None = self
+        while layer is not None:
+            if word in layer.iris:
+                return layer.iris[word]
+            layer = layer.outer
+        return _UNDEFINED
+
+    def _defines(self, word: str) -> bool:
+        """Whether a context in force defines ``word``, to anything."""
+        layer: Terms | None = self
+        while layer is not None:
+            if word in layer.iris:
+                return True
+            layer = layer.outer
+        return False
+
+    def _prefix(self, word: str) -> str | None:
+        """The address ``word`` expands as a prefix, or None if it is none."""
+        layer: Terms | None = self
+        while layer is not None:
+            if word in layer.prefixes:
+                return layer.prefixes[word]
+            layer = layer.outer
+        return None
 
     def _read(self, context: object) -> Terms:
         if context is None:
             return Terms()
         if isinstance(context, str):
             if _SCHEMA_CONTEXT.fullmatch(context.strip()):
-                return Terms(_SCHEMA, self.iris, {**self.prefixes, "schema": _SCHEMA})
+                return Terms(_SCHEMA, None, {"schema": _SCHEMA}, self)
             return self
         if not isinstance(context, dict):
             return self
-        iris = dict(self.iris)
-        prefixes = dict(self.prefixes)
+        # Every term the context names hides what outer contexts said of it,
+        # even one it leaves undefined.
+        iris: dict[str, str | _Undefined | None] = {}
+        prefixes: dict[str, str | None] = {}
         reading = _Reading(self)
         for term, definition in context.items():
             if not isinstance(term, str) or term.startswith("@"):
                 continue
-            iris.pop(term, None)
-            prefixes.pop(term, None)
+            iris[term] = _UNDEFINED
+            prefixes[term] = None
             reading.define(term, definition)
         for term, iri in reading.addresses().items():
             iris[term] = iri
             if reading.is_prefix(term, iri):
                 assert iri is not None
                 prefixes[term] = _SCHEMA if _SCHEMA_NAMESPACE.fullmatch(iri) else iri
-        # Where an undefined word's address would begin, JSON-LD 1.1's @vocab
-        # may itself be written through a prefix or a term.
+        # Where an undefined word's address would begin. JSON-LD 1.1 reads
+        # @vocab before the terms beside it, so it may be written through a
+        # prefix or a term of the contexts around, never of its own.
         vocab = self.vocab
         if "@vocab" in context:
             declared = context["@vocab"]
-            expanded = reading.expand(declared) if isinstance(declared, str) else None
-            vocab = expanded if isinstance(expanded, str) else None
+            vocab = self._iri(declared) if isinstance(declared, str) else None
             if vocab is not None and _SCHEMA_NAMESPACE.fullmatch(vocab):
                 vocab = _SCHEMA
-        return Terms(vocab, iris, prefixes)
+        return Terms(vocab, iris, prefixes, self)
+
+
+class _Undefined:
+    """What a layer holds for a word it leaves to the vocabulary."""
+
+
+_UNDEFINED = _Undefined()
 
 
 # How many rounds one context's terms are read in: a term defined through
@@ -542,9 +661,10 @@ class _Reading:
                 if self.is_prefix(prefix, base):
                     assert base is not None
                     return base + suffix
-            elif prefix in self.outer.prefixes:
-                return self.outer.prefixes[prefix] + suffix
+            elif (outer := self.outer._prefix(prefix)) is not None:
+                return outer + suffix
             return written if _ABSOLUTE.match(written) else None
         if written in self.targets:
             return self.read.get(written, _WAIT)
-        return self.outer.iris.get(written)
+        found = self.outer._term(written)
+        return None if isinstance(found, _Undefined) else found

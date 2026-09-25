@@ -382,6 +382,11 @@ AS_EXTRUCT_READS = [
     ('<!-- foo -->\n{"@type": "C"}', [{"@type": "C"}]),
     ('//<![CDATA[\n{"@type": "C"}\n//]]>\n', [{"@type": "C"}]),
     ('/*<![CDATA[*/{"@type": "C"}/*]]>*/', [{"@type": "C"}]),
+    # jstyleson ends a block comment at the first "/" after any "*" in it.
+    ('{"@type": "C", /*/ x */ "n": 2}', [{"@type": "C", "n": 2}]),
+    ('{"@type": "C", "n": /*/*1{ x/1}', [{"@type": "C", "n": 1}]),
+    ('{"@type": "C", "n": /* x * y / 1 */ 2}', None),
+    ('{"@type": "C", /* 2*3 x/y */ "n": 2}', None),
     # The W3C suite's tests e014 to e016: a comment around the text, one never
     # closed, one never opened.
     ('<!--\n{"@type": "C", "d": "<!-- -->"}\n-->', None),
@@ -412,6 +417,17 @@ def test_a_json_ld_block_is_read_as_extruct_reads_it(text, extruct_reads):
         *(extruct_reads or []),
         {"@type": "Kept"},
     ]
+
+
+def test_a_block_of_comments_never_closed_is_read_in_a_moment():
+    """Found by review: a block comment's pattern looked from every "/*" for
+    its end, and 60 KB of "/*a" never closed took 2.6 seconds."""
+    import time
+
+    for text in ("{" + "/*a" * 40_000, "{" + "//" * 40_000, '{"' + "a" * 80_000):
+        started = time.perf_counter()
+        JsonLdExtractor().extract(f'<script type="application/ld+json">{text}</script>')
+        assert time.perf_counter() - started < 1
 
 
 def test_a_json_ld_block_extruct_cannot_read_is_one_sluicer_reads():

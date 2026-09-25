@@ -739,3 +739,13 @@ def test_the_release_writes_the_catalog_entry_at_its_commit(tmp_path):
     )
     with pytest.raises(SystemExit, match="40"):
         build.main([str(tmp_path / "again"), "--commit", "v0.8.0"])
+
+
+def test_a_page_named_like_an_option_is_a_page_to_the_action(tmp_path):
+    """Found by security review: the page followed the options with no
+    ``--``, so a page named --help printed sluicer's help, which is no JSON,
+    and the action stopped with a traceback, auditing no page after it."""
+    done, outputs, _summary = _audit_action(tmp_path, urls=f"--help\n{CLEAN}")
+    assert "Traceback" not in done.stderr, done.stderr
+    assert outputs["pages"] == "2" and outputs["unreadable"] == "1"
+    assert outputs["warnings"] == "2"

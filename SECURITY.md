@@ -33,6 +33,17 @@ which a cookie belongs to a host, not a port. It is never written to disk: the
 page cache keys a page fetched with one by a digest of what was sent. The MCP
 server and the HTTP API take none.
 
+A configuration file (`sluicer.toml`, or `[tool.sluicer]` in
+`pyproject.toml`) is read by the command line only. One found by searching the
+directories above the one you run in may be a repository's you cloned, so it
+may not set a proxy, a header, a cookie, the cache directory, `serve`'s host
+or `no-robots`: those come only from a file you name with `--config` or
+`SLUICER_CONFIG`, and a file found that tries is refused before anything runs.
+A found file that another user owns or can write, through its mode or a macOS
+access list, is refused too. In 0.8's first form a cloned repository's
+`pyproject.toml` could set `proxy`, and a `--cookie` session given on the
+command line went through that proxy in plain HTTP.
+
 Since 0.8 the base install fetches over plain HTTP, with Python's own
 `http.client`, `ssl` and `socket`: no native HTTP library, and certificates
 verified against the system's store. Only http and https: an address or a

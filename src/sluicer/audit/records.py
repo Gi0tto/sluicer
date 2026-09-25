@@ -21,7 +21,7 @@ from sluicer.audit import google, values
 from sluicer.audit.report import FeatureVerdict, Finding, RecordAudit
 from sluicer.audit.schema_org import below
 from sluicer.declared.jsonld import Terms
-from sluicer.declared.merge import _scalar, _types
+from sluicer.declared.merge import _named, _scalar, _types
 
 AUDITED_READERS = ("jsonld", "microdata", "rdfa")
 """The readers whose items are records: the syntaxes Google reads for rich
@@ -77,12 +77,12 @@ def normalise(value: object, depth: int = 0, terms: Terms | None = None) -> Any:
     identifier = _scalar(value.get("@id"))
     if identifier is not None:
         out["@id"] = identifier
-    for key, item in value.items():
-        if key.startswith("@"):
-            continue
-        found = normalise(item, depth + 1, terms)
-        if found is not None:
-            out.setdefault(key if terms is None else terms.name(key), found)
+    for name, keys in _named(value, terms).items():
+        for key in keys:
+            found = normalise(value[key], depth + 1, terms)
+            if found is not None:
+                out.setdefault(name, found)
+                break
     return out or None
 
 
