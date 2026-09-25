@@ -8,7 +8,7 @@ by a rule fixed before any was downloaded. Each is read as
 `sluicer.extract` reads a page, with its provenance, and the conflicts
 between what one page declares twice are counted with the rest.
 
-Counted on 2026-09-25 by `bench/declared_report.py`, with Sluicer 0.8.0 at the last commit to `src/`, `fcf78f1` (lxml 6.1.3, libxml2 2.14.6, mf2py 2.0.2). Every number below is written by the script from its counts, `bench/declared-counts.json`,
+Counted on 2026-09-25 by `bench/declared_report.py`, with Sluicer 0.9.0 at the last commit to `src/`, `10211f3` (lxml 6.1.3, libxml2 2.14.6, mf2py 2.0.2). Every number below is written by the script from its counts, `bench/declared-counts.json`,
 except Web Data Commons', which are cited where they stand.
 
 !!! warning "A few WARC files are not the web"
@@ -45,7 +45,10 @@ successful answers. Left out, and counted by why:
 
 | left out | records |
 |---|---|
+| metadata record | 87,506 |
+| request record | 87,506 |
 | not HTML | 1,477 |
+| warcinfo record | 4 |
 
 Every page was read: none raised an error.
 
@@ -180,11 +183,12 @@ one series.
 
 ## Types
 
-The types of the records Sluicer reads from the vocabularies about
-things, by the pages declaring each: 1,196 distinct types, the
-twenty-five commonest. A schema.org type is written by its name
-whatever the page wrote (`http://schema.org/Product`, `schema:Product`);
-any other keeps its whole IRI, and microformats their class.
+The schema.org types of the records Sluicer reads from the
+vocabularies about things, by the pages declaring each:
+567 distinct types, the twenty-five commonest.
+A schema.org type is written by its name whatever the page wrote
+(`http://schema.org/Product`, `schema:Product`); another vocabulary's,
+which keeps its whole IRI, and microformats' classes are not counted.
 
 | type | pages | share of pages |
 |---|---|---|
@@ -193,29 +197,30 @@ any other keeps its whole IRI, and microformats their class.
 | `Organization` | 22,457 | 26.1% (25.8-26.4) |
 | `WebPage` | 19,302 | 22.4% (22.2-22.7) |
 | `ImageObject` | 13,581 | 15.8% (15.5-16.0) |
-| `h-entry` | 10,100 | 11.7% (11.5-12.0) |
 | `Person` | 10,040 | 11.7% (11.5-11.9) |
 | `Article` | 9,649 | 11.2% (11.0-11.4) |
 | `Product` | 8,748 | 10.2% (10.0-10.4) |
 | `CollectionPage` | 4,701 | 5.5% (5.3-5.6) |
 | `BlogPosting` | 4,015 | 4.7% (4.5-4.8) |
 | `NewsArticle` | 3,268 | 3.8% (3.7-3.9) |
-| `h-feed` | 3,123 | 3.6% (3.5-3.8) |
 | `LocalBusiness` | 3,030 | 3.5% (3.4-3.6) |
-| `h-full` | 2,640 | 3.1% (3.0-3.2) |
 | `CreativeWork` | 2,226 | 2.6% (2.5-2.7) |
 | `SiteNavigationElement` | 2,152 | 2.5% (2.4-2.6) |
 | `FAQPage` | 1,955 | 2.3% (2.2-2.4) |
 | `Blog` | 1,572 | 1.8% (1.7-1.9) |
 | `WPHeader` | 1,359 | 1.6% (1.5-1.7) |
-| `h-auto` | 1,255 | 1.5% (1.4-1.5) |
 | `ItemPage` | 1,219 | 1.4% (1.3-1.5) |
 | `ItemList` | 1,151 | 1.3% (1.3-1.4) |
-| `h-card` | 1,111 | 1.3% (1.2-1.4) |
 | `Event` | 955 | 1.1% (1.0-1.2) |
+| `NewsMediaOrganization` | 846 | 1.0% (0.9-1.1) |
+| `Place` | 817 | 0.9% (0.9-1.0) |
+| `WPFooter` | 787 | 0.9% (0.9-1.0) |
+| `VideoObject` | 581 | 0.7% (0.6-0.7) |
+| `ListItem` | 562 | 0.7% (0.6-0.7) |
 
-Every typed object in every JSON-LD block, nested ones included, as
-written and before references are resolved: 624,733 typed objects, the
+Every typed object in every JSON-LD block, nested ones included --
+not a context's term definitions, not a value's datatype -- as
+written and before references are resolved: 624,635 typed objects, the
 twenty commonest classes, beside the share of Web Data Commons' 9,689,931,985 JSON-LD entities
 of October 2024 (an entity of two types counts in both, here and there;
 WDC's is an RDF node, so two objects with one `@id` are one entity
@@ -253,6 +258,9 @@ Of the 59,380 pages declaring a thing, 27,213 (45.8% (45.4-46.2)) declare
 them in two or more of those vocabularies, and on 1,800 (6.6% (6.3-6.9) of those) one record
 holds fields from two or more: the fold added what the first
 vocabulary left out. A fold that added no field is not seen here.
+Microformats count here with every root, `h-full` and `h-auto`
+among them, as the first count had them; only What pages declare
+splits them.
 
 | folded from | pages |
 |---|---|

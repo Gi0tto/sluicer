@@ -3,7 +3,10 @@
  "truncated": 162,
  "failed": {},
  "left_out": {
-  "not HTML": 1477
+  "metadata record": 87506,
+  "request record": 87506,
+  "not HTML": 1477,
+  "warcinfo record": 4
  },
  "hosts": 77257,
  "top_level_domains": {
@@ -102,37 +105,37 @@
   }
  },
  "types": {
-  "distinct": 1196,
+  "distinct": 567,
   "pages": {
    "BreadcrumbList": 33453,
    "WebSite": 27512,
    "Organization": 22457,
    "WebPage": 19302,
    "ImageObject": 13581,
-   "h-entry": 10100,
    "Person": 10040,
    "Article": 9649,
    "Product": 8748,
    "CollectionPage": 4701,
    "BlogPosting": 4015,
    "NewsArticle": 3268,
-   "h-feed": 3123,
    "LocalBusiness": 3030,
-   "h-full": 2640,
    "CreativeWork": 2226,
    "SiteNavigationElement": 2152,
    "FAQPage": 1955,
    "Blog": 1572,
    "WPHeader": 1359,
-   "h-auto": 1255,
    "ItemPage": 1219,
    "ItemList": 1151,
-   "h-card": 1111,
-   "Event": 955
+   "Event": 955,
+   "NewsMediaOrganization": 846,
+   "Place": 817,
+   "WPFooter": 787,
+   "VideoObject": 581,
+   "ListItem": 562
   }
  },
  "jsonld_nodes": {
-  "typed": 624733,
+  "typed": 624635,
   "classes": {
    "ListItem": 111342,
    "ImageObject": 61808,
@@ -356,11 +359,13 @@
    "0": 106,
    "1": 22
   },
+  "tdm_reservation_pages": 128,
   "tdm_policy": 6,
   "http_tdm_reservation": {
    "0": 105,
    "1": 8
   },
+  "http_tdm_reservation_pages": 113,
   "http_tdm_policy": 5,
   "license": 685
  },
@@ -368,35 +373,47 @@
   {
    "pages": 21782,
    "left_out": {
-    "not HTML": 366
+    "metadata record": 22148,
+    "request record": 22148,
+    "not HTML": 366,
+    "warcinfo record": 1
    },
    "failed": {}
   },
   {
    "pages": 21535,
    "left_out": {
-    "not HTML": 383
+    "metadata record": 21918,
+    "request record": 21918,
+    "not HTML": 383,
+    "warcinfo record": 1
    },
    "failed": {}
   },
   {
    "pages": 21491,
    "left_out": {
-    "not HTML": 348
+    "metadata record": 21839,
+    "request record": 21839,
+    "not HTML": 348,
+    "warcinfo record": 1
    },
    "failed": {}
   },
   {
    "pages": 21221,
    "left_out": {
-    "not HTML": 380
+    "metadata record": 21601,
+    "request record": 21601,
+    "not HTML": 380,
+    "warcinfo record": 1
    },
    "failed": {}
   }
  ],
  "sluicer": {
-  "src": "fcf78f1",
-  "version": "0.8.0",
+  "src": "10211f3",
+  "version": "0.9.0",
   "lxml": "6.1.3",
   "libxml2": "2.14.6",
   "mf2py": "2.0.2",
