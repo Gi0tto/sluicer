@@ -437,3 +437,23 @@ def test_every_key_is_an_option_of_some_command_and_documented():
         assert f"`{key}`" in text, key
     for key in config.PER_RUN:
         assert key in taken, key
+
+
+def test_a_crawl_s_retries_jobs_and_format_come_from_the_file(here, crawled):
+    _write(here / "sluicer.toml", '[crawl]\nretries = 0\njobs = 8\nformat = "csv"\n')
+
+    result = _run("crawl", URL)
+
+    assert crawled[0]["retries"] == 0 and crawled[0]["concurrency"] == 8
+    assert result.stdout.startswith("url,ok,depth,")
+
+
+def test_a_template_is_one_run_s_and_not_a_file_s(here, crawled):
+    _write(here / "sluicer.toml", '[crawl]\ntemplate = "sitemap"\n')
+
+    result = _run("crawl", URL)
+
+    assert result.exit_code == 2 and crawled == []
+    assert "template cannot be set in a file: it changes what one crawl" in (
+        result.stderr
+    )

@@ -92,6 +92,8 @@ header or a cookie.
 | `json` | `fetch`, `diff`, `audit` | a flag: print JSON |
 | `plain` | `map` | a flag: one address a line |
 | `delay` | `crawl`, `batch` | the least seconds between two requests to one site |
+| `retries`, `jobs` | `crawl`, `batch` | as their options |
+| `format` | `crawl`, `batch`, `map` | `"csv"`, or the command's own default (`"jsonl"`, `"json"`) |
 | `max-pages`, `max-depth`, `include`, `exclude` | `crawl` | as their options |
 | `limit` | `map` | as `--limit` |
 | `no-site` | `audit` | a flag |
@@ -103,7 +105,7 @@ file that says so: a default nobody sees on the command line is one to
 repeat. Some options cannot be set in a file, because each belongs to one run:
 `-o`/`--output` and `--out`, `--resume`, `--url`, `--at`, `--want`,
 `--listing`, `--force`, `--stealth` (the stealth rung is asked for page by
-page), `--any-site` and `serve --allow-unauthenticated`. A file that sets one
+page), `--any-site`, `crawl --template` and `serve --allow-unauthenticated`. A file that sets one
 is refused and says why.
 
 ## When the file is wrong
