@@ -459,16 +459,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   part is "Bosch Aerotwin AR601S" is no drift of names learnt as letters,
   and an extractor 0.7.1 wrote passes it as 0.7.1 did. One odd value among
   three still passes. The drift pairs and SWDE answer exactly as before.
-- A thing declared deep inside one of a page's repeated blocks is the page's
-  subject again, not a row's: only a thing declared on a row or at most two
-  levels inside it is one of the listing's items. Two pages of the products
-  corpus stack their layout in alike tables, the product declared five
-  levels inside one of them; 0.8.0 took it for a row, learnt the tables as
-  the page's listing, 1,452 and 1,618 columns of site furniture, and replayed
-  them with ok=True, where 0.7.1 learnt no listing. Over the products corpus
-  and the test fixtures (152 pages) compile now learns what 0.7.1 learnt on
-  every page, and quotes.toscrape.com, whose quote is declared on its row,
-  keeps its listing. The drift pairs and SWDE never ask this (a listing is
+- A thing declared on one of a page's repeated rows, or at most two levels
+  inside it, is one of the listing's items; one declared deeper inside a
+  repeated block is the page's subject, as in 0.7.1. Two pages of the
+  products corpus stack their layout in alike tables, the product declared
+  five levels inside one of them: taken for a row, it would have the tables
+  learnt as the page's listing, 1,452 and 1,618 columns of site furniture,
+  replayed with ok=True, where 0.7.1 learns no listing. Over the products
+  corpus and the test fixtures (152 pages) compile learns what 0.7.1 learnt
+  on every page, and quotes.toscrape.com, whose quote is declared on its
+  row, keeps its listing. The drift pairs and SWDE never ask this (a listing is
   asked for, or examples choose it), and are unchanged.
 - A page field learnt by its place is read after its label instead when
   another page given puts another labelled value there and says the
@@ -483,11 +483,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A column of a hand-written listing that fewer than half the learnt rows
   carried -- a sale badge on three rows in ten -- fails a page none of whose
   rows carries it when that is under a 1% chance (`written.BY_CHANCE`): from
-  13 rows for that badge, and 0.08% for twenty. 0.8.0 checked such a column's
-  presence nowhere, as a learnt listing does not, so a redesign that broke
-  its selector passed every page with exit 0; and `heal` reported it `kept`
-  when no new row carried it. `heal` now reports it `broken` when the new
-  pages' rows together make that as unlikely. Ten rows without the badge
+  13 rows for that badge, and 0.08% for twenty. A learnt listing checks such
+  a column's presence nowhere; checked nowhere, a redesign that broke its
+  selector would pass every page with exit 0. `heal` reports it `broken`,
+  not `kept`, when the new pages' rows together make that as unlikely. Ten rows without the badge
   (2.8%) still pass, and a page of twenty on which truly nothing is on sale
   fails as a redesign would. The rows of one page are not what a badge comes
   by, though: a column a page it was learnt from carried in no row holds no
@@ -508,19 +507,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   (`"alike_on_a_page": true`), and that check is not made; a file without
   them, 0.7.1's among them, keeps every check.
 - A hand-written field is taken for an address, with no shape or reading to
-  hold it to, only when its values are read from an `href` or a `src`. 0.8.0
-  decided from the selector's text, and `.//a[@href]` -- the links that have
-  an href, read as their text -- ended like an address: a title that turned
-  into a number passed with exit 0. `(.//a/@href)[1]` is now an address, as
-  it always read one.
+  hold it to, only when its values are read from an `href` or a `src`, not
+  by how its selector's text ends: `.//a[@href]` -- the links that have an
+  href, read as their text -- ends like an address and is text, held to its
+  shape and reading, so a title that turns into a number fails; and
+  `(.//a/@href)[1]` is an address, as it reads one.
 - CSS's `::text` and `::attr()` are read as parsel, Scrapy's selectors,
   reads them, as the selector language says. After a space, `div.price
   ::text` is every text node inside the element -- `Price:`, `12` and `EUR`
-  -- and `h1 ::text` the heading's text; 0.8.0 read the text of the elements
-  inside it, `12` alone, and nothing for `h1 ::text`. `ol ::attr(class)`
-  reads the `ol`'s own class too. Text nodes come in the page's order, so
-  `div.x::text` on a `div.x` inside another reads `A`, `B`, `C` where it
-  read `A`, `C`, `B`.
+  -- not the text of the elements inside it, `12` alone, and `h1 ::text` is
+  the heading's text, not nothing. `ol ::attr(class)` reads the `ol`'s own
+  class too. Text nodes come in the page's order, so `div.x::text` on a
+  `div.x` inside another reads `A`, `B`, `C`, not `A`, `C`, `B`.
 - `sluicer compile` refuses a field named twice, `--select x=h1 --select
   x=h2` or `--want x=a --want x=b`, exit 2, as an extractor file with two
   fields of one name is refused. The last one was kept and the first dropped
