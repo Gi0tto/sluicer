@@ -53,7 +53,7 @@ from sluicer.fetch import (
     SiteRefused,
     fetch,
 )
-from sluicer.fetch.address import _resolve, why_not_public
+from sluicer.fetch.address import _resolve, shown, why_not_public
 from sluicer.fetch.identity import RobotsUnreachable, outgoing, robots_refusal
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
 
@@ -281,7 +281,9 @@ def crawl(
     """
     first = normalise(start)
     if first is None:
-        raise ValueError(f"{start!r} is not an http(s) address a crawl can start at")
+        raise ValueError(
+            shown(f"{start!r} is not an http(s) address a crawl can start at")
+        )
     frontier = _Frontier(
         first, max_pages, max_depth, same_site, _patterns(include), _patterns(exclude)
     )
@@ -378,7 +380,8 @@ def extract_many(
     addresses given, and not to one a redirect's target, read in its own
     turn, is on.
     """
-    given = [normalise(address) or address.strip() for address in urls]
+    # One a crawl cannot take is answered as given, a password in it hidden.
+    given = [normalise(address) or shown(address.strip()) for address in urls]
     return _extract_listed(
         given,
         given,

@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from sluicer import __version__
+from sluicer.fetch.address import shown
 
 PRODUCT_TOKEN = "Sluicer"
 """The name a robots.txt group is matched against, and nothing else.
@@ -147,9 +148,9 @@ class RobotsUnreachable(Exception):
     """
 
     def __init__(self, url: str, detail: str) -> None:
-        super().__init__(f"could not read the robots.txt for {url}: {detail}")
-        self.url = url
-        self.detail = detail
+        super().__init__(shown(f"could not read the robots.txt for {url}: {detail}"))
+        self.url = shown(url)
+        self.detail = shown(detail)
 
 
 def robots_url_for(url: str) -> str:

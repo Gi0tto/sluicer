@@ -22,7 +22,33 @@ import ipaddress
 import re
 import socket
 from collections.abc import Callable, Iterable
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
+
+# An address's user and password, up to the last "@" before its path: a
+# user alone is kept, as it is no secret.
+_PASSWORD = re.compile(
+    r"(?P<user>\b[A-Za-z][A-Za-z0-9+.-]*://[^\s/?#@:'\"<>]*):[^\s/?#'\"<>]*@"
+)
+
+
+def shown(text: str) -> str:
+    """``text`` as a message may carry it: every address's password is ``***``.
+
+    A password in an address (``https://user:password@host/``) is sent to the
+    host it names, and never repeated: not in an error, an answer, a log line
+    or a file. ``https://user:***@host/`` still says which login was used.
+    """
+    return _PASSWORD.sub(r"\g<user>:***@", text) if "@" in text else text
+
+
+def without_credentials(url: str) -> str:
+    """``url`` without the user and password it may carry, for a request
+    that is not the page's own: a site's robots.txt, llms.txt and TDMRep file,
+    and the archive, which captures pages as anyone reads them."""
+    parts = urlsplit(url)
+    if "@" not in parts.netloc:
+        return url
+    return urlunsplit(parts._replace(netloc=parts.netloc.rpartition("@")[2]))
 
 
 class AddressRefused(Exception):
@@ -30,13 +56,13 @@ class AddressRefused(Exception):
     it is not on the web at all, which no caller is given.
 
     ``url`` is the address refused -- the one asked for, or the one a redirect
-    ended on -- and ``reason`` says why.
+    ended on, its password hidden (``shown``) -- and ``reason`` says why.
     """
 
     def __init__(self, url: str, reason: str) -> None:
-        super().__init__(f"{url} is not fetched: {reason}")
-        self.url = url
-        self.reason = reason
+        super().__init__(shown(f"{url} is not fetched: {reason}"))
+        self.url = shown(url)
+        self.reason = shown(reason)
 
 
 def _resolve(host: str) -> Iterable[str]:

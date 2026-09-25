@@ -388,6 +388,41 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- `--visible` reads a page whose boxes nest deep in step with its size.
+  Each date asked every box round it whether it was hidden and whether it
+  sat in a link, a `<time>` had its whole text read, every `<time>` inside
+  it included, and a "By" line read the whole text of the boxes round it to
+  learn it was longer than a byline: a chain of 2,000 nested `<time>`, as
+  deep as the parser nests, took 1.3 s for 30 KB, and 1 MiB of such chains
+  46 s; 2 MiB of nested "By" lines took 10.4 s. Each box is asked once now,
+  a `<time>` holding more than a dozen elements is a container, as an
+  element named as a date's already was, and a line's box is read only as
+  far as its 80 characters: 1.1 s for each page, and the answers are the
+  same on all 3,988 cached corpus pages, none of whose 11,062 `<time>`
+  holds more than seven elements. Also in 0.7.1. Found while checking the
+  second security review's item on author candidates, whose one XPath
+  query per candidate is asked of three at most and grows with the page.
+- A password in an address (`https://user:password@host/page`) is sent to
+  the origin it names and never repeated. Every exception a fetch raises and
+  its `url`, `Fetched.url` and its climbs, `fetch_page`'s and every tool's
+  answer over MCP and the HTTP API (`url` on success, `message` and `url` on
+  failure), the command line's messages, a batch's lines and the cache's
+  entries write it `user:***`, as a proxy's password already was; the cache
+  still keeps two logins' pages apart, by a digest of the whole address. Each
+  repeated it, also in 0.7.1 (the second security review's `userinfo.py`).
+  `--at` also put the whole address in the path of its request to the
+  Wayback Machine, also in 0.7.1: the archive is asked for the page without
+  it now, as are a site's `llms.txt` and TDMRep file read from a page's
+  address.
+- The page cache (`--cache`, `Cache`) keeps each page in a file only its
+  user can read (0600), in a directory it makes 0700, whatever the umask.
+  Under the usual umask they were 0644 and 0755, also in 0.7.1, so a page
+  fetched behind a login with `--header` or `--cookie` was readable by anyone
+  on the machine (the second security review's `cache_creds.py`). A cache
+  directory that exists already keeps its mode: it is the user's, and may be
+  shared on purpose. Each entry is written under a name of its own before it
+  is moved into place, so two writers of one page no longer share a partial
+  file. Windows has no such modes.
 - A JSON-LD word a context defines as schema.org's namespace is schema.org's
   prefix however the address is written: `{"schema": "http://schema.org"}`,
   with no `/` to end in, and `{"schema": {"@id": "http://schema.org/"}}`,
@@ -807,10 +842,18 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says. `tests/live/guard_check.py` tries thirteen routes, these among them.
 - `sluicer serve` closes a connection that has not sent a request's line and
   headers within ten seconds of opening, or of its last answer
-  (`HEAD_SECONDS`). uvicorn times a connection out only between two
-  requests: 64 connections that sent nothing held every one it serves at
-  once, and every later request, `/health` included, was answered 503 for as
-  long as they stayed. `tests/live/mcp_http_check.py` holds 64 open.
+  (`HEAD_SECONDS`), and a request that arrives with all 64 places taken
+  closes the connections that have waited longest for a request until there
+  is room for it. uvicorn times a connection out only between two requests,
+  and counts one that has sent nothing toward its 64: 64 connections that
+  sent nothing held every one it serves at once, and every later request,
+  `/health` included, was answered 503 for as long as they stayed; closed at
+  ten seconds and each opened again at once, they kept 60 probes of 60 over
+  a minute at 503. Now 64, 128 or 256 such connections leave 60 of 60
+  answered 200, and it answers 503 only when 63 connections are inside a
+  request. Connections that send nothing never close each other.
+  `tests/live/mcp_http_check.py` holds 64 open, each opened again when
+  closed.
 - A CSV cell is judged as a spreadsheet may read it: behind the spaces,
   line breaks and no-break spaces it may trim, with a fullwidth `＝` or `＋`
   as the sign it looks like, and with a number made of ASCII digits. Only

@@ -803,59 +803,163 @@ def uvicorn_run(monkeypatch):
     return ran
 
 
+class _Loop:
+    """The little of an event loop uvicorn's h11 protocol asks for: timers,
+    callbacks run when the test says, and tasks recorded, never run."""
+
+    def __init__(self):
+        self.timers = []
+        self.soon = []
+        self.apps = []
+
+    def call_later(self, seconds, callback):
+        timer = types.SimpleNamespace(
+            seconds=seconds, callback=callback, cancelled=False
+        )
+        timer.cancel = lambda: setattr(timer, "cancelled", True)
+        self.timers.append(timer)
+        return timer
+
+    def call_soon(self, callback, *args):
+        self.soon.append(lambda: callback(*args))
+
+    def create_task(self, coroutine, **options):
+        # The app a request was handed to: the server's, or uvicorn's 503.
+        self.apps.append(coroutine.cr_frame.f_locals["app"])
+        coroutine.close()
+        return _Task()
+
+    def run_soon(self):
+        while self.soon:
+            self.soon.pop(0)()
+
+
+class _Task:
+    """A task uvicorn keeps in its set of running ones; it never ends."""
+
+    def add_done_callback(self, done):
+        pass
+
+
+class _Transport:
+    """A socket's transport as the protocol sees it. Closing it loses the
+    connection on the loop's next turn, as asyncio's does."""
+
+    def __init__(self, loop):
+        self.loop = loop
+        self.protocol = None
+        self.closed = False
+
+    def get_extra_info(self, name, default=None):
+        return ("127.0.0.1", 1234) if name in ("peername", "sockname") else None
+
+    def is_closing(self):
+        return self.closed
+
+    def close(self):
+        if not self.closed:
+            self.closed = True
+            self.loop.call_soon(self.protocol.connection_lost, None)
+
+    def pause_reading(self):
+        pass
+
+    def resume_reading(self):
+        pass
+
+    def write(self, data):
+        pass
+
+
+def _connections(limit=None):
+    """A way to open connections to serve's protocol, all sharing one server."""
+    pytest.importorskip("uvicorn")
+    from uvicorn.config import Config
+    from uvicorn.server import ServerState
+
+    config = Config(
+        app=lambda scope, receive, send: None,
+        lifespan="off",
+        limit_concurrency=limit,
+        log_config=None,
+    )
+    config.load()
+    loop = _Loop()
+    state = ServerState()
+    protocol_class = http_api._head_timed()
+
+    def connect():
+        protocol = protocol_class(config, state, {}, _loop=loop)
+        transport = _Transport(loop)
+        transport.protocol = protocol
+        protocol.connection_made(transport)
+        return protocol
+
+    return loop, connect
+
+
+_HEAD = b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
+
+
 def test_a_connection_that_sends_no_request_is_closed_in_time():
     """Measured on 0.8.0: 64 connections that sent nothing held every one
     uvicorn serves at once, and every later request, /health included, was
     answered 503 for as long as they stayed; uvicorn times a connection out
     only between two requests."""
-    pytest.importorskip("uvicorn")
-    from uvicorn.config import Config
-    from uvicorn.server import ServerState
+    loop, connect = _connections()
 
-    closed = []
-
-    class Loop:
-        def __init__(self):
-            self.timers = []
-
-        def call_later(self, seconds, callback):
-            timer = types.SimpleNamespace(
-                seconds=seconds, callback=callback, cancelled=False
-            )
-            timer.cancel = lambda: setattr(timer, "cancelled", True)
-            self.timers.append(timer)
-            return timer
-
-    class Transport:
-        def get_extra_info(self, name, default=None):
-            return ("127.0.0.1", 1234) if name in ("peername", "sockname") else None
-
-        def is_closing(self):
-            return bool(closed)
-
-        def close(self):
-            closed.append(True)
-
-        def pause_reading(self):
-            pass
-
-        def resume_reading(self):
-            pass
-
-        def write(self, data):
-            pass
-
-    config = Config(app=lambda scope, receive, send: None, lifespan="off")
-    config.load()
-    loop = Loop()
-    protocol = http_api._head_timed()(config, ServerState(), {}, _loop=loop)
-
-    protocol.connection_made(Transport())
+    protocol = connect()
     (timer,) = loop.timers
     assert timer.seconds == http_api.HEAD_SECONDS
     timer.callback()
 
-    assert closed == [True]
+    assert protocol.transport.closed
+
+
+def test_connections_that_sent_nothing_make_room_for_a_request():
+    """Measured on 0.8.0 (the review's churn.py): 64 connections that sent
+    nothing, each opened again the moment it was closed at HEAD_SECONDS, had
+    /health answered 503 on 60 probes of 60 over a minute. uvicorn counts a
+    connection that has sent nothing toward ``limit_concurrency``, so closing
+    them in time only made room for the next one."""
+    from uvicorn.protocols.http.flow_control import service_unavailable
+
+    loop, connect = _connections(limit=4)
+    idle = [connect() for _ in range(5)]
+    asking = connect()
+    loop.run_soon()
+    # Connections that send nothing never close each other: opened again
+    # the moment they were, they would keep the server doing nothing else.
+    assert not any(protocol.transport.closed for protocol in [*idle, asking])
+
+    asking.data_received(_HEAD)
+    loop.run_soon()
+
+    (app,) = loop.apps
+    assert app is not service_unavailable
+    # Those that waited longest are closed, as many as there must be.
+    closed = [protocol.transport.closed for protocol in idle]
+    assert closed == [True, True, True, False, False]
+
+
+def test_a_connection_inside_a_request_is_never_closed_to_make_room():
+    """Only a connection waiting for a request's head is closed for another:
+    when every one is in a request, the server is busy, and says 503."""
+    from uvicorn.protocols.http.flow_control import service_unavailable
+
+    loop, connect = _connections(limit=3)
+    busy = []
+    for _ in range(2):
+        busy.append(connect())
+        busy[-1].data_received(_HEAD)
+    loop.run_soon()
+
+    late = connect()
+    loop.run_soon()
+    late.data_received(_HEAD)
+
+    assert not any(protocol.transport.closed for protocol in busy)
+    assert loop.apps[-1] is service_unavailable
 
 
 def test_serve_refuses_to_listen_beyond_loopback_without_a_token(

@@ -918,6 +918,72 @@ def test_an_address_with_a_user_and_password_sends_them_as_basic(monkeypatch):
     assert seen.requests[0].headers["authorization"] == "Basic bWU6cEBzcw=="
 
 
+def test_a_password_in_the_address_is_sent_and_never_repeated(
+    monkeypatch, plain_ladder
+):
+    """Measured on 0.8.0 (the second security review's userinfo.py): the
+    page fetched from ``http://alice:PW123@...`` came back with that address
+    as its ``url``, password and all, for every answer and file to repeat."""
+    seen = fake_http(monkeypatch, [NOTHING, PAGE])
+
+    landed = fetch("https://me:secret@example.com/p", resolve=public)
+
+    assert seen.requests[1].headers["authorization"] == "Basic bWU6c2VjcmV0"
+    assert landed.url == "https://me:***@example.com/p"
+
+
+@pytest.mark.parametrize(
+    ("address", "options", "raised"),
+    [
+        # Not an address at all: its port is not a number.
+        ("https://me:secret@example.com:99999/p", {}, "FetchFailed"),
+        # A private address, refused before it is asked.
+        ("http://me:secret@127.0.0.1/p", {"allow_private": False}, "AddressRefused"),
+        # A connection refused, on every rung.
+        ("http://me:secret@127.0.0.1:9/p", {}, "FetchFailed"),
+    ],
+)
+def test_a_password_in_the_address_is_never_repeated_by_a_failure(
+    monkeypatch, plain_ladder, address, options, raised
+):
+    """Measured on 0.8.0: ``Could not fetch http://alice:PW123@127.0.0.1:9/page:
+    could not read the robots.txt for http://alice:PW123@...``, which the MCP
+    server and the HTTP API hand on as the answer's message and ``url``."""
+    with pytest.raises(Exception) as failed:
+        fetch(address, **options)
+
+    assert type(failed.value).__name__ == raised
+    assert "secret" not in str(failed.value)
+    assert "me:***@" in str(failed.value)
+    assert "secret" not in failed.value.url
+
+
+def test_a_robots_refusal_never_repeats_the_password(monkeypatch, plain_ladder):
+    from sluicer.fetch.ladder import RobotsRefused
+
+    fake_http(monkeypatch, [(200, b"User-agent: *\nDisallow: /\n", {})])
+
+    with pytest.raises(RobotsRefused) as refused:
+        fetch("https://me:secret@example.com/p", resolve=public)
+
+    assert "secret" not in str(refused.value) and "secret" not in refused.value.url
+
+
+def test_a_message_names_an_address_with_its_password_hidden():
+    from sluicer.fetch.result import shown
+
+    assert shown("Could not fetch http://me:p%40ss@h.example:8/p?q=a@b: no") == (
+        "Could not fetch http://me:***@h.example:8/p?q=a@b: no"
+    )
+    assert shown("'https://me:a:b@c@[::1]:8443/'") == "'https://me:***@[::1]:8443/'"
+    # A user alone is no secret, and an address without one is left as it is.
+    assert shown("socks5://me@proxy.example") == "socks5://me@proxy.example"
+    assert shown("http://h.example:8080/@me:x") == "http://h.example:8080/@me:x"
+    assert shown("http://a:1@x.example and https://b:2@y.example") == (
+        "http://a:***@x.example and https://b:***@y.example"
+    )
+
+
 LOGIN = {"headers": {"Authorization": "Bearer t"}, "cookies": {"session": "1"}}
 NOTHING = (404, b"", {})
 

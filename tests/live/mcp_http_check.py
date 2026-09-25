@@ -286,29 +286,49 @@ def main() -> int:
                 )
         print(f"mcp over http: {len(refusals)} refusals of the door, each its status")
 
-        # As many connections as the server holds, none sending a byte: they
-        # are closed once HEAD_SECONDS pass, and the server answers again.
+        # As many connections as the server holds, none sending a byte, each
+        # opened again the moment the server closes it: a request is still
+        # answered at once, and each is closed once HEAD_SECONDS pass.
         from sluicer.http_api import HEAD_SECONDS, MAX_CONNECTIONS
 
-        idle = [
-            socket.create_connection(("127.0.0.1", a)) for _ in range(MAX_CONNECTIONS)
+        until = time.monotonic() + HEAD_SECONDS + 3
+        opened = [0]
+
+        def hold() -> None:
+            while time.monotonic() < until:
+                with (
+                    contextlib.suppress(OSError),
+                    socket.create_connection(("127.0.0.1", a)) as sock,
+                ):
+                    opened[0] += 1
+                    sock.settimeout(until - time.monotonic() + 1)
+                    sock.recv(1)
+
+        holders = [
+            threading.Thread(target=hold, daemon=True) for _ in range(MAX_CONNECTIONS)
         ]
-        try:
-            time.sleep(0.5)
-            held = _status(a, "/health")
-            time.sleep(HEAD_SECONDS + 1.5)
-            freed = _status(a, "/health")
-        finally:
-            for sock in idle:
-                sock.close()
-        if freed != 200:
+        for holder in holders:
+            holder.start()
+        time.sleep(0.5)
+        held = [_status(a, "/health")]
+        time.sleep(HEAD_SECONDS + 1)
+        held.append(_status(a, "/health"))
+        for holder in holders:
+            holder.join()
+        if held != [200, 200]:
             failures.append(
-                f"{MAX_CONNECTIONS} idle connections held the server: /health "
-                f"answered {held}, then {freed} after {HEAD_SECONDS:g} s"
+                f"{MAX_CONNECTIONS} connections that sent nothing held the server: "
+                f"/health answered {held[0]}, then {held[1]} after "
+                f"{HEAD_SECONDS:g} s"
+            )
+        if opened[0] <= MAX_CONNECTIONS:
+            failures.append(
+                f"{MAX_CONNECTIONS} connections that sent nothing were not closed "
+                f"within {HEAD_SECONDS:g} s: {opened[0]} opened"
             )
         print(
-            f"mcp over http: {MAX_CONNECTIONS} idle connections answered {held}, "
-            f"closed within {HEAD_SECONDS:g} s"
+            f"mcp over http: {MAX_CONNECTIONS} connections that sent nothing, "
+            f"{opened[0]} opened in {HEAD_SECONDS + 3:g} s: /health {held}"
         )
     finally:
         for process in servers:

@@ -132,3 +132,12 @@ def test_fetch_is_listed_with_the_commands_that_read_a_page():
     from sluicer.cli import SECTIONS
 
     assert SECTIONS["Read a page"][0] == "fetch"
+
+
+def test_fetch_never_repeats_a_password_it_was_handed():
+    """Every message the command line fails with goes through one door, and
+    no password in an address passes it."""
+    ran = CliRunner().invoke(main, ["fetch", "ftp://me:secret@files.example/p"])
+
+    assert ran.exit_code == 2
+    assert "secret" not in ran.output and "me:***@" in ran.output
