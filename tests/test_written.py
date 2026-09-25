@@ -334,6 +334,35 @@ def test_a_price_slot_that_now_holds_a_button_fails_its_reading_and_shape():
     assert set(failed(run)) == {"reads", "shape", "values"}
 
 
+def _three_rows(price) -> bytes:
+    """shop_v1.html cut to its first three books, the n-th priced ``price(n)``."""
+    html = page("shop_v1.html")[0].decode()
+    rows = re.findall(r'<li class="product">.*?</li>', html)
+    for n, row in enumerate(rows, 1):
+        kept = re.sub(r'(<span class="price">)[^<]*', rf"\g<1>{price(n)}", row)
+        html = html.replace(row, kept if n <= 3 else "")
+    return html.encode()
+
+
+def test_a_short_page_whose_prices_all_say_call_fails_learnt_or_written():
+    """Under five rows a column's reading and shape went unchecked: three
+    rows whose price said "Call" passed a price learnt as an amount. A short
+    page is held to one value at least reading and shaped as learnt."""
+    learnt = compile_extractor(
+        [page("shop_v1.html"), page("shop_v1_page2.html")],
+        want={"price": "£51.77", "title": "A Light in the Attic"},
+    )
+    short = _three_rows(lambda n: "Call")
+    one_odd = _three_rows(lambda n: "Call" if n == 1 else f"£{n}.50")
+
+    for extractor in (books(), learnt):
+        run = run_extractor(extractor, short, "https://shop.example/")
+        assert not run.ok
+        assert set(failed(run)) == {"reads", "shape"}
+        odd = run_extractor(extractor, one_odd, "https://shop.example/")
+        assert odd.ok, failed(odd)
+
+
 def test_the_checks_a_written_listing_gets_are_the_ones_a_learnt_one_gets():
     """The same drift, the same checks: a learnt and a written extractor of
     one listing fail a price slot that holds a button with the same words."""

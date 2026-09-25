@@ -203,7 +203,8 @@ to match and says so.
 
 **The thresholds are fixed.** 20% of rows may lack a required field, half a
 field's values must keep its shape, and a shape needs five values to be learnt
-or checked. Editing the JSON changes what was learnt, not the thresholds.
+or to be held to that half; a page with fewer values is held to one at least.
+Editing the JSON changes what was learnt, not the thresholds.
 
 **Two free-text columns can swap unnoticed** on a page the extractor was not
 learnt from: a title and a brand keep their shapes, and neither reads as an

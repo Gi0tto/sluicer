@@ -256,8 +256,8 @@ li.product` and three selectors fails the redesign with `listing` -- no
 | `listing` | the listing is no longer where it was, or two places now match where one did -- a sponsored strip of the same kind inserted before it -- or, where the path counts places, `section.box[2]`, the second box no longer begins with the heading it began with on every learnt page while another box does, or, where the heading is not learnt or is on no box, there are more or fewer boxes than on every learnt page: a box inserted before the second makes another box the second |
 | `rows` | there are no rows, or on a listing of five members or more, more of them are empty shells than the learnt pages had, plus 20% -- skeletons waiting for a script |
 | `field` | a field every learnt row had is missing from more than 20% of rows, or a field most learnt rows had is missing from every row; a page field is not found, or its label now stands before something else |
-| `shape` | fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket" -- or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
-| `reads` | a field every learnt value of which read as an amount or a date (see `sluicer.normalise`) reads so in fewer than half its values: a price column that now holds dates keeps its shape, and not its reading |
+| `shape` | fewer than half of a field's values keep the characters it was learnt with -- a price slot that now says "Add to basket" -- or, on a page with fewer than five values of it, none does; or a structured summary answer changed shape; `42` still fits a price learnt as `41.90` |
+| `reads` | a field every learnt value of which read as an amount or a date (see `sluicer.normalise`) reads so in fewer than half its values, or in none of fewer than five: a price column that now holds dates keeps its shape, and not its reading |
 | `values` | on a page of five rows or more, a field that held different values in every row now says the same thing in all of them: a page of placeholders, "Loading" |
 | `summary` | a summary question every learnt page answered goes unanswered |
 | `type` | a declared record type every learnt page carried is gone |
@@ -350,7 +350,8 @@ moved: span.stock -> span.availability (2 of 2 learnt values found there; the ne
   markup and every value at once -- a different page altogether -- is reported
   as fields vanished and new, not as moves.
 - The thresholds (20% missing for a required field, half the values keeping
-  their shape, five values before a shape is learnt or checked) are fixed.
+  their shape, five values before a shape is learnt or held to half) are
+  fixed.
 - Two text fields of the same shape that swap values on a page the extractor was
   not learnt from pass the shape checks; the `reads` check catches the swap
   when one side read as an amount or a date, and the `values` check when one

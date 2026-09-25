@@ -2304,7 +2304,11 @@ def _check_rows(
             checks.append(
                 Check("field", f"{f.name} in some rows", f"in {share:.0%}", share > 0)
             )
-        if f.reads and len(present) >= _SHAPE_EVIDENCE:
+        # Under five values a share says little, and one odd value is half of
+        # two: a short page is held to some value reading and shaped as
+        # learnt, three "Call" prices in three rows failing.
+        few = len(present) < _SHAPE_EVIDENCE
+        if f.reads and present:
             read = _READERS[f.reads]
             readable = sum(1 for v in present if read(v) is not None) / len(present)
             unread = next((v for v in present if read(v) is None), present[0])
@@ -2312,20 +2316,30 @@ def _check_rows(
                 Check(
                     "reads",
                     f"{f.name} to read as {'an' if f.reads == 'amount' else 'a'} "
-                    f"{f.reads} in at least {SHAPE_KEPT:.0%} of rows",
+                    f"{f.reads} "
+                    + (
+                        "in some row"
+                        if few
+                        else f"in at least {SHAPE_KEPT:.0%} of rows"
+                    ),
                     f"{readable:.0%}, e.g. {unread!r}",
-                    readable >= SHAPE_KEPT,
+                    readable > 0 if few else readable >= SHAPE_KEPT,
                 )
             )
-        if f.shape and len(present) >= _SHAPE_EVIDENCE:
+        if f.shape and present:
             kept_shape = sum(1 for v in present if _fits(v, f.shape)) / len(present)
             example = next((v for v in present if not _fits(v, f.shape)), present[0])
             checks.append(
                 Check(
                     "shape",
-                    f"{f.name} shaped {f.shape} in at least {SHAPE_KEPT:.0%} of rows",
+                    f"{f.name} shaped {f.shape} "
+                    + (
+                        "in some row"
+                        if few
+                        else f"in at least {SHAPE_KEPT:.0%} of rows"
+                    ),
                     f"{kept_shape:.0%}, e.g. {example!r}",
-                    kept_shape >= SHAPE_KEPT,
+                    kept_shape > 0 if few else kept_shape >= SHAPE_KEPT,
                 )
             )
         if len(f.samples) >= _VARIED and len(present) >= _SHAPE_EVIDENCE:
