@@ -5,6 +5,20 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Added
+- `sluicer` on npm: the Python package itself, run in Pyodide 314.0.7, for
+  Node 18 and later. `createSluicer()` installs the wheel the npm package
+  carries, built from the same commit as the Python release of the same
+  version, and hands `extract`, `compile`, `run` and `toMarkdown` to it; the
+  answers are `dataclasses.asdict` of the Python ones, and the tests hold them
+  to the native package's on 22 pages. Measured on an Apple M4 with Node
+  26.1.0: it packs to 378 KB beside pyodide's 6.5 MB, `createSluicer()` takes
+  1.30 s and downloads 2.25 MB (lxml and click, from jsDelivr) the first time,
+  1.14 s and nothing after, and a warm `extract()` of the brake-pads example
+  0.78 ms (`docs/javascript.md`, `js/scripts/measure.mjs`).
+
+## 0.7.1
+
+### Added
 - `docs/stability.md`: what is stable before 1.0 (`extract()` and
   `Extraction`, the summary's questions, the extractor file and its exit
   codes, the MCP tools and their documented fields), what is experimental
