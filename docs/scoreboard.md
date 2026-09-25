@@ -3,7 +3,7 @@
 How often Sluicer's `summary` gets a page's title, author and publication
 date right, measured beside the tools people use for the same job, on a
 public annotated corpus, with the losses in the same table as the wins.
-Regenerated on 2026-09-25 from commit `a8ca1b1` by
+Regenerated on 2026-09-25 from commit `f042855` by
 `uv run bench/run.py`; the method and every pin are in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -49,14 +49,14 @@ The 359 article, listing, collection and product pages:
 
 ## Speed and size
 
-Measured on 2026-09-25 by `uv run bench/timing.py wcxb` at commit `a8ca1b1`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+Measured on 2026-09-25 by `uv run bench/timing.py wcxb` at commit `f042855`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
 
 | tool | runtime | seconds per page | seconds for all 511 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
 |---|---|---|---|---|---|---|---|
-| sluicer 0.7.1 | Python 3.12.13 | 0.0023 | 1.18 (1.11–1.62) | 434 | 88.7 MiB | 19.4 MiB | 3 |
-| trafilatura 2.2.0 | Python 3.12.13 | 0.0316 | 16.13 (14.23–19.21) | 32 | 170.1 MiB | 58.2 MiB | 17 |
-| metascraper 5.58.1 | Node 26.1.0 | 0.0061 | 3.10 (2.83–6.33) | 165 | 718.0 MiB | 55.5 MiB | 125 |
-| newspaper4k 0.9.6 | Python 3.12.13 | 0.0696 | 35.57 (31.58–66.20) | 14 | 217.8 MiB | 39.4 MiB | 22 |
+| sluicer 0.7.1 | Python 3.12.13 | 0.0021 | 1.08 (1.02–1.12) | 474 | 90.2 MiB | 19.5 MiB | 5 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0290 | 14.83 (14.11–16.06) | 34 | 169.5 MiB | 58.2 MiB | 17 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0054 | 2.76 (2.55–3.16) | 185 | 718.8 MiB | 55.5 MiB | 125 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0602 | 30.77 (29.35–35.35) | 17 | 217.8 MiB | 39.4 MiB | 22 |
 
 How install size and memory are counted, and the other tables, are in
 [speed and weight](speed.md).
@@ -70,10 +70,11 @@ How install size and memory are counted, and the other tables, are in
 By the paired comparisons below, Sluicer's hit rate is behind another tool's on title, author and date: on title, ahead of metascraper, behind newspaper4k and not told apart from trafilatura; on author, behind trafilatura and metascraper and not told apart from newspaper4k; on date, behind trafilatura, metascraper and newspaper4k.
 
 The other tools also read bylines and dates from the visible text of
-the page, where no vocabulary declares them; Sluicer reads only what the
-page states in markup that means something, and answers nothing rather
-than guess from prose. That is a choice with a cost, and the gap above
-is the cost.
+the page, where no vocabulary declares them; Sluicer's summary holds
+only what the page states in markup that means something, and answers
+nothing rather than guess from prose. That is a choice with a cost, and
+the gap above is the cost. `--visible` guesses them when asked, apart
+from the summary: [what it adds](#what-visible-adds) is below.
 
 ## Where it wins
 
@@ -121,6 +122,60 @@ resamples of the pages, drawn together for both sides (`bench/stats.py`,
 seed 20260924): **better** when the interval is above zero, **worse**
 when it is below, **inconclusive** when it holds zero. These are
 18 comparisons, made with no correction for making many: where two
+sides did not differ at all, about one in twenty would still be called
+better or worse, so read the verdicts as a table, not one at a time.
+
+## What `--visible` adds
+
+`extract(..., visible=True)`, `--visible` on the command line, also
+guesses the title, byline and dates a page shows, and keeps each guess
+apart from the summary. Its rules were made on WCXB's development split
+only, which no scoreboard scores, so these pages are held out from them
+([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md)). *Declared* is the summary, as above;
+*declared then `--visible`* answers with the summary where it has an
+answer and with the guess where it has none, never in its place.
+
+| field | hit rate, declared | hit rate, declared then `--visible` | right when answering, declared | right when answering, declared then `--visible` | inventions, declared | silent miss made a hit | silent miss made wrong | inventions `--visible` added |
+|---|---|---|---|---|---|---|---|---|
+| title | 0.727 (0.68–0.77) | 0.727 (0.68–0.77) | 0.725 (0.68–0.77) | 0.725 (0.68–0.77) | 1 | 0 | 0 | 0 |
+| author | 0.532 (0.46–0.61) | 0.649 (0.57–0.72) | 0.654 (0.57–0.73) | 0.659 (0.58–0.73) | 42 | 22 | 2 | 8 |
+| date | 0.581 (0.52–0.64) | 0.717 (0.65–0.77) | 0.917 (0.86–0.95) | 0.823 (0.76–0.87) | 8 | 36 | 2 | 25 |
+
+`--visible` answered 95 questions the summary left unanswered: 58 right and 4 wrong where the page carries a label, and 33 invented where it carries none. Each rate carries its 95% Wilson score interval. Declared then `--visible` against the declared answers alone and against each other tool:
+
+| declared then `--visible`, against | field | rate | difference (95% interval) | verdict |
+|---|---|---|---|---|
+| sluicer 0.7.1, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.7.1, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.7.1, declared | author | hit rate | +0.117 (+0.072 to +0.165) | better |
+| sluicer 0.7.1, declared | author | right when answering | +0.006 (-0.025 to +0.037) | inconclusive |
+| sluicer 0.7.1, declared | date | hit rate | +0.136 (+0.095 to +0.179) | better |
+| sluicer 0.7.1, declared | date | right when answering | -0.094 (-0.137 to -0.055) | worse |
+| trafilatura 2.2.0 | title | hit rate | -0.018 (-0.052 to +0.016) | inconclusive |
+| trafilatura 2.2.0 | title | right when answering | -0.018 (-0.051 to +0.016) | inconclusive |
+| trafilatura 2.2.0 | author | hit rate | -0.101 (-0.171 to -0.032) | worse |
+| trafilatura 2.2.0 | author | right when answering | +0.109 (+0.053 to +0.166) | better |
+| trafilatura 2.2.0 | date | hit rate | -0.121 (-0.182 to -0.062) | worse |
+| trafilatura 2.2.0 | date | right when answering | +0.360 (+0.312 to +0.408) | better |
+| metascraper 5.58.1 | title | hit rate | +0.073 (+0.045 to +0.102) | better |
+| metascraper 5.58.1 | title | right when answering | +0.073 (+0.045 to +0.101) | better |
+| metascraper 5.58.1 | author | hit rate | -0.138 (-0.207 to -0.069) | worse |
+| metascraper 5.58.1 | author | right when answering | +0.164 (+0.111 to +0.220) | better |
+| metascraper 5.58.1 | date | hit rate | -0.008 (-0.058 to +0.043) | inconclusive |
+| metascraper 5.58.1 | date | right when answering | +0.197 (+0.148 to +0.248) | better |
+| newspaper4k 0.9.6 | title | hit rate | -0.041 (-0.073 to -0.009) | worse |
+| newspaper4k 0.9.6 | title | right when answering | -0.041 (-0.073 to -0.009) | worse |
+| newspaper4k 0.9.6 | author | hit rate | +0.117 (+0.057 to +0.179) | better |
+| newspaper4k 0.9.6 | author | right when answering | +0.061 (+0.0003 to +0.120) | better |
+| newspaper4k 0.9.6 | date | hit rate | +0.072 (+0.025 to +0.121) | better |
+| newspaper4k 0.9.6 | date | right when answering | +0.113 (+0.064 to +0.164) | better |
+
+The difference is the first side's rate minus the second's, over the
+same pages. Its interval is the 95% percentile interval of 10,000
+resamples of the pages, drawn together for both sides (`bench/stats.py`,
+seed 20260924): **better** when the interval is above zero, **worse**
+when it is below, **inconclusive** when it holds zero. These are
+24 comparisons, made with no correction for making many: where two
 sides did not differ at all, about one in twenty would still be called
 better or worse, so read the verdicts as a table, not one at a time.
 
@@ -181,6 +236,9 @@ The 359 article, listing, collection and product pages:
   answer is read in the label's. The rule is in `bench/PREREG.md`.
 - **Sluicer.** `extract(html, url=...).summary`, fields `title`, `author`,
   `published`, base install, from this checkout.
+- **Sluicer, declared then `--visible`.** The summary's answer, and where
+  it has none the guess of `extract(html, url=..., visible=True).visible`,
+  fields `title`, `author`, `published`, called after the timed call.
 - **trafilatura.** `extract_metadata(html, default_url=...)`.
 - **metascraper.** The `title`, `author` and `date` rules, given the HTML
   and the page's address, on Node v26.1.0.
