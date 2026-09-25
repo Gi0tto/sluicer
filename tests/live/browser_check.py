@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import contextlib
 import http.server
+import os
 import socket
 import socketserver
+import subprocess
 import sys
 import threading
 import time
@@ -108,6 +110,25 @@ def _judged_public() -> None:
         return judge(url, resolve)  # type: ignore[arg-type]
 
     address._judge = by_port  # type: ignore[assignment]
+
+
+def _chromium_launched() -> list[str]:
+    """The command lines of the browsers this process's Playwright started:
+    its driver is a child of this process, and the browser the driver's."""
+    table = subprocess.run(
+        ["ps", "-axo", "pid=,ppid=,command="],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    ).stdout
+    rows = []
+    for line in table.splitlines():
+        pid, ppid, command = [*line.strip().split(None, 2), "", "", ""][:3]
+        if pid.isdigit() and ppid.isdigit():
+            rows.append((int(pid), int(ppid), command))
+    drivers = {pid for pid, ppid, _ in rows if ppid == os.getpid()}
+    return [command for _, ppid, command in rows if ppid in drivers]
 
 
 def main() -> int:
@@ -209,13 +230,19 @@ def main() -> int:
     if HOST.launched != 1:
         failures.append(f"{HOST.launched} browsers were started for one process")
 
+    unsandboxed = [line for line in _chromium_launched() if "--no-sandbox" in line]
+    if unsandboxed:
+        failures.append(
+            f"Chromium was launched without its sandbox: {unsandboxed[0][:120]}"
+        )
+
     for failure in failures:
         print("FAIL:", failure)
     if not failures:
         print(
             "browser: headers and cookies to the site asked and no other, guarded "
             "and not; a remembered browser refused is forgotten; the proxy asked "
-            f"for; one browser, {each:.2f} s a page"
+            f"for; one browser, in its sandbox, {each:.2f} s a page"
         )
     return 1 if failures else 0
 

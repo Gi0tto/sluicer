@@ -70,6 +70,11 @@ CDP_ENV = "SLUICER_CDP_URL"
 """The address of a running Chromium to drive over the DevTools protocol,
 instead of launching one."""
 
+SANDBOX_ENV = "SLUICER_BROWSER_SANDBOX"
+"""``0`` (or ``off``, ``no``, ``false``) launches Chromium without its
+sandbox. It is on otherwise: Playwright's own default is off, and the browser
+renders pages sent by anyone."""
+
 BROWSER_TIMEOUT_MS = 30_000
 """How long the browser rung waits for one page, in Playwright's milliseconds.
 
@@ -209,12 +214,38 @@ def _open(playwright: Any) -> Any:
     """The browser: the one at ``SLUICER_CDP_URL``, or a Chromium launched.
 
     Launched with no proxy of its own, so neither the system's nor the
-    environment's is used; a page's context is given the one asked for.
+    environment's is used; a page's context is given the one asked for. And
+    in its sandbox, unless ``SLUICER_BROWSER_SANDBOX`` turns it off: Playwright
+    passes ``--no-sandbox`` by default, and a renderer that a page's code
+    breaks out of would then be this process's user. A sandbox that cannot
+    start -- a container whose seccomp profile refuses the namespaces it
+    needs, an Ubuntu that restricts them -- fails the launch with a message
+    that says so.
     """
     remote = os.environ.get(CDP_ENV, "").strip()
     if remote:
         return playwright.chromium.connect_over_cdp(remote)
-    return playwright.chromium.launch(args=["--no-proxy-server"])
+    sandboxed = os.environ.get(SANDBOX_ENV, "").strip().lower() not in {
+        "0",
+        "off",
+        "no",
+        "false",
+    }
+    try:
+        return playwright.chromium.launch(
+            args=["--no-proxy-server"], chromium_sandbox=sandboxed
+        )
+    except Exception as failure:
+        if sandboxed and "sandbox" in str(failure).lower():
+            raise RuntimeError(
+                "Chromium could not start its sandbox here. In a container, run "
+                "it with a seccomp profile that allows user namespaces (or "
+                "--cap-add SYS_ADMIN); on Ubuntu 23.10 and later, allow them "
+                "(sysctl kernel.apparmor_restrict_unprivileged_userns=0). Or set "
+                f"{SANDBOX_ENV}=0 to run the browser without it, the machine or "
+                f"the container then its only boundary. Chromium said: {failure}"
+            ) from failure
+        raise
 
 
 HOST = BrowserHost()

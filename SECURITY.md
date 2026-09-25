@@ -46,8 +46,16 @@ redirect to any other scheme -- `file://`, `gopher://`, `dict://` -- is refused
 before it is asked, whoever the caller is, and the client speaks nothing else.
 With the `browser` extra, a page plain HTTP brings back as an empty shell is
 rendered in Playwright's Chromium, which executes page JavaScript in its own
-process, in a new context per page. Treat fetching an untrusted URL with the
-same care you would treat opening it in your own browser. The `stealth` extra
+process, in a new context per page, in Chromium's sandbox. Playwright launches
+Chromium with `--no-sandbox` unless told otherwise, and until 0.8 it was not
+told. The sandbox needs unprivileged user namespaces: a container needs a
+seccomp profile that allows them (or `--cap-add SYS_ADMIN`), and Ubuntu 23.10
+and later lets only the programs AppArmor names have them
+(`sysctl kernel.apparmor_restrict_unprivileged_userns=0`). Where it cannot
+start, the browser rung fails and says so; `SLUICER_BROWSER_SANDBOX=0` runs
+the browser without it, the machine or the container then its only boundary.
+Treat fetching an untrusted URL with the same care you would treat opening it
+in your own browser. The `stealth` extra
 (scrapling's patched Chromium) runs only for one page a person asked for with
 `--stealth`, never for the MCP server, the HTTP API or a crawl.
 

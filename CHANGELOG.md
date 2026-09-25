@@ -562,6 +562,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the crawl, and 100,000 did so from the JSON parser. What nests deeper than
   a page's JSON-LD is read is left out, and JSON too deep to parse is not a
   products.json.
+- The browser rung launches Chromium in its sandbox. Playwright passes
+  `--no-sandbox` unless told otherwise, and the browser that renders any page
+  it is sent ran its renderers unsandboxed. A sandbox that cannot start --
+  Docker's default seccomp profile, an Ubuntu that restricts user namespaces
+  -- fails the launch with a message that says what to allow, or that
+  `SLUICER_BROWSER_SANDBOX=0` runs it without one; SECURITY.md and the
+  Dockerfile say what a container needs. `tests/live/browser_check.py` fails
+  when the browser it starts has `--no-sandbox`.
 
 ## 0.7.1 - 2026-09-25
 

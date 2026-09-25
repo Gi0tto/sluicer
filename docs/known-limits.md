@@ -418,6 +418,13 @@ parallel MCP calls -- wait in line, each for at most three minutes
 (`WAIT_SECONDS`), then fail. A browser elsewhere (`SLUICER_CDP_URL`) is driven
 the same way.
 
+**The browser needs its sandbox to start.** Chromium is launched in its
+sandbox, which needs unprivileged user namespaces: Docker's default seccomp
+profile refuses them, and Ubuntu 23.10 and later lets only the programs
+AppArmor names have them. There the browser rung fails, saying what to allow,
+and a page that needed it comes back from plain HTTP; `SLUICER_BROWSER_SANDBOX=0`
+runs Chromium without the sandbox, which is how Playwright runs it by default.
+
 **A caller's headers and cookies go to the origin asked.** Scheme, host and
 port, for the HTTP rung and for the headers a browser sends; a hop elsewhere
 is sent none. A cookie in the browser follows the browser's own rules, under

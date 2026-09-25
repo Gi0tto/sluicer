@@ -98,8 +98,12 @@ def test_the_browser_says_who_it_is_and_nothing_more(monkeypatch):
     assert host.contexts[0].closed
 
 
-def test_the_browser_is_launched_with_no_proxy_of_its_own(monkeypatch):
+def test_the_browser_is_launched_sandboxed_with_no_proxy_of_its_own(monkeypatch):
+    """Playwright launches Chromium with --no-sandbox unless told otherwise:
+    measured on 0.8.0, the browser that renders any page it is sent ran its
+    renderers with no sandbox."""
     monkeypatch.delenv("SLUICER_CDP_URL", raising=False)
+    monkeypatch.delenv("SLUICER_BROWSER_SANDBOX", raising=False)
     launched = {}
 
     def launch(**options):
@@ -110,7 +114,42 @@ def test_the_browser_is_launched_with_no_proxy_of_its_own(monkeypatch):
 
     playwright = types.SimpleNamespace(chromium=types.SimpleNamespace(launch=launch))
     assert _open(playwright) == "browser"
-    assert launched == {"args": ["--no-proxy-server"]}
+    assert launched == {"args": ["--no-proxy-server"], "chromium_sandbox": True}
+
+
+@pytest.mark.parametrize("off", ["0", "off", "no", "false"])
+def test_the_sandbox_is_turned_off_only_when_asked(monkeypatch, off):
+    monkeypatch.delenv("SLUICER_CDP_URL", raising=False)
+    monkeypatch.setenv("SLUICER_BROWSER_SANDBOX", off)
+    launched = {}
+
+    def launch(**options):
+        launched.update(options)
+        return "browser"
+
+    from sluicer.fetch.browser import _open
+
+    _open(types.SimpleNamespace(chromium=types.SimpleNamespace(launch=launch)))
+    assert launched["chromium_sandbox"] is False
+
+
+def test_a_sandbox_that_cannot_start_says_how_to_run_without_it(monkeypatch):
+    monkeypatch.delenv("SLUICER_CDP_URL", raising=False)
+    monkeypatch.delenv("SLUICER_BROWSER_SANDBOX", raising=False)
+
+    class Error(Exception):
+        pass
+
+    def launch(**options):
+        raise Error(
+            "BrowserType.launch: Target page, context or browser has been closed\n"
+            "[pid=1][err] No usable sandbox! Update your kernel"
+        )
+
+    from sluicer.fetch.browser import _open
+
+    with pytest.raises(RuntimeError, match="SLUICER_BROWSER_SANDBOX=0"):
+        _open(types.SimpleNamespace(chromium=types.SimpleNamespace(launch=launch)))
 
 
 def test_a_browser_elsewhere_is_driven_over_cdp(monkeypatch):
