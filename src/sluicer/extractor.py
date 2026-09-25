@@ -1385,8 +1385,11 @@ def _labelled_otherwise(
     "Active", after "Status:", which PEP 8 says before its own status.
 
     So is the place when that other page says the example's own label
-    somewhere else: PEP 257 puts its Discussions-To where PEP 8 puts its
-    status, and says "Status:" a row further down.
+    somewhere else among the labels before the place: PEP 257 puts its
+    Discussions-To where PEP 8 puts its status, and says "Status:" a row
+    further down. Said elsewhere on the page -- a crew table's "Director:"
+    below a film's "Directors:" -- the label is another list's, and says
+    nothing of the place (``_among``).
 
     A label its own page does not say, before a place whose page does not
     say the example's label elsewhere, is no other field: MSN's film pages
@@ -1397,7 +1400,7 @@ def _labelled_otherwise(
     if len(docs) < 2 or attribute:
         return None
     same = _says(example or "")
-    said: list[tuple[str, str, list[tuple[str, HtmlElement]]]] = []
+    said: list[tuple[str, HtmlElement, str, list[tuple[str, HtmlElement]]]] = []
     for doc in docs:
         element, _found = _find(doc, where)
         if element is None:
@@ -1405,26 +1408,55 @@ def _labelled_otherwise(
         nodes = _text_nodes(doc)
         first = _first_text_in(nodes, element)
         if first and _a_label(*nodes[first - 1]):
-            said.append((nodes[first - 1][0], _value_at(doc, path) or "", nodes))
+            text, owner = nodes[first - 1]
+            said.append((text, owner, _value_at(doc, path) or "", nodes))
     own = next(
         (
-            (label, nodes)
-            for label, value, nodes in said
+            (label, owner, nodes)
+            for label, owner, value, nodes in said
             if example is None or same(value)
         ),
         None,
     )
     if own is None:
         return None
-    own_label, own_nodes = own
-    for label, value, nodes in said:
+    own_label, own_owner, own_nodes = own
+    for label, owner, value, nodes in said:
         if _same_label(label, own_label):
             continue
-        if any(_same_label(text, label) for text, _ in own_nodes) or any(
-            _same_label(text, own_label) for text, _ in nodes
-        ):
+        if _among(own_nodes, label, own_owner) or _among(nodes, own_label, owner):
             return f"{value!r} after {label!r}"
     return None
+
+
+def _among(
+    nodes: list[tuple[str, HtmlElement]], label: str, before: HtmlElement
+) -> bool:
+    """Whether a page says ``label`` among the labels of the list whose label
+    ``before`` is: in an element beside it, or beside its parent, or at the
+    same steps from ``<html>`` down, as every row of a list of facts is."""
+    shared = _unnumbered_path(before)
+    parent = before.getparent()
+    grand = parent.getparent() if parent is not None else None
+    for text, owner in nodes:
+        if owner is before or not _same_label(text, label):
+            continue
+        up = owner.getparent()
+        if up is parent or (
+            owner.tag == before.tag
+            and up is not None
+            and grand is not None
+            and up.getparent() is grand
+        ):
+            return True
+        if _unnumbered_path(owner) == shared:
+            return True
+    return False
+
+
+def _unnumbered_path(element: HtmlElement) -> str:
+    """``path_of(element)`` without the numbers of its steps."""
+    return re.sub(r"\[\d+\]", "", path_of(element))
 
 
 # What learning and healing work out once per page and read many times, for

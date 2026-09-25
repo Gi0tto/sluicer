@@ -1102,6 +1102,51 @@ def test_a_label_said_two_ways_before_one_place_is_no_other_field():
     assert run_extractor(learnt, *pages[1]).fields == {"director": "Goro Miyazaki"}
 
 
+def _film(title, label, director, crew=()):
+    """A film's page: its facts one to a row, a label and a value, and on some
+    films a crew table further down whose rows are labelled too."""
+    table = "".join(f"<tr><th>Director:</th><td>{name}</td></tr>" for name in crew)
+    rows = "".join(
+        f"<div class='row'><span class='k'>{k}</span><span class='v'>{v}</span></div>"
+        for k, v in (("Genre:", "Drama"), (label, director), ("Year:", "1999"))
+    )
+    return (
+        f"<html><head><title>{title}</title></head><body><h1>{title}</h1>"
+        f"<div class='info'>{rows}</div><h2>Second unit</h2>"
+        + (f"<table class='crew'>{table}</table>" if crew else "")
+        + "<p>Some text about the film.</p></body></html>",
+        f"https://films.example/{title.lower()}",
+    )
+
+
+@pytest.mark.parametrize("crew", [("Carl Diaz",), ("Carl Diaz", "Hal Ng")])
+def test_the_own_label_said_outside_the_facts_is_no_other_field(crew):
+    """Beta labels its director "Directors:", and its crew table, elsewhere,
+    says "Director:" before its second unit's director. The example's own
+    label said anywhere on beta was taken for the place being another field:
+    with the crew's label said once, the director was read after it, "Carl
+    Diaz" on beta and the crew's name on every later page, each run passing;
+    said twice, the director was refused, where by its place it is right. A
+    label counts when it is said among the labels before the place."""
+    pages = [
+        _film("Alpha", "Director:", "Jane Roe"),
+        _film("Beta", "Directors:", "Ann Lee, Bo Kim", crew),
+        _film("Gamma", "Director:", "Dan Moe"),
+    ]
+    learnt = compile_extractor(pages, listing=False, want={"director": "Jane Roe"})
+    [director] = learnt.fields
+    assert director.anchor is None
+    later = _film("Delta", "Directors:", "Eve Ash, Fay Oh", ("Gus Po",))
+    for page, name in zip(
+        [*pages, later],
+        ["Jane Roe", "Ann Lee, Bo Kim", "Dan Moe", "Eve Ash, Fay Oh"],
+        strict=True,
+    ):
+        run = run_extractor(learnt, *page)
+        assert run.ok, failed(run)
+        assert run.fields == {"director": name}
+
+
 # The PEP extractor 0.7.1 wrote, as the registry kept it: every field by its
 # place in the header.
 PEP_BY_PLACE = {

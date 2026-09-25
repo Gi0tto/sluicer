@@ -439,11 +439,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   asked for, or examples choose it), and are unchanged.
 - A page field learnt by its place is read after its label instead when
   another page given puts another labelled value there and says the
-  example's own label elsewhere: PEP 257 puts its Discussions-To where PEP 8
-  puts its status, and says "Status:" a row further down. With every value
-  plain text nothing contradicted the place, and PEP 257's status read
-  "Doc-SIG list" with the run passing; only a label the example's own page
-  says counted.
+  example's own label elsewhere among the same labels: PEP 257 puts its
+  Discussions-To where PEP 8 puts its status, and says "Status:" a row
+  further down. With every value plain text nothing contradicted the place,
+  and PEP 257's status read "Doc-SIG list" with the run passing; only a
+  label the example's own page says counted. The label said outside that
+  list says nothing of the place: a film that labels its director
+  "Directors:" and has a crew table with its own "Director:" further down
+  keeps the director where the other films have it, as 0.7.1 learnt it.
 - A column of a hand-written listing that fewer than half the learnt rows
   carried -- a sale badge on three rows in ten -- fails a page none of whose
   rows carries it when that is under a 1% chance (`written.BY_CHANCE`): from

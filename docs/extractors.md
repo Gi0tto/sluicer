@@ -140,9 +140,12 @@ sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
   example does, or another page puts it right after a label the example's
   own page gives another of its values -- a PEP's header has a
   Discussions-To row on PEP 257 and not on PEP 8, so PEP 8's type is PEP
-  257's status, after `Status:`. A label the example's page does not say
-  moves nothing: "Directors:" on one film and "Director:" on another is one
-  field. The label is the text every page
+  257's status, after `Status:`; so does another page that says the
+  example's own label further down the same list, as PEP 257 says `Status:`.
+  A label the example's page does not say moves nothing: "Directors:" on one
+  film and "Director:" on another is one field, and so does the label said
+  outside the list, a crew table's `Director:` below the film's facts. The
+  label is the text every page
   says once right before the value, `Type:`; a colon in an element of its
   own, `Type<span class="colon">:</span>`, is the label's. Where the pages
   label the place differently and no such label is found, `compile` refuses
