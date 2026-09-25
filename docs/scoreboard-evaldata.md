@@ -3,7 +3,7 @@
 The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on the pages trafilatura evaluates itself
 on, 990 saved with their scripts, 851 of them annotated for their metadata, and the main text beside them.
-Regenerated on 2026-09-25 from commit `f042855` by
+Regenerated on 2026-09-25 from commit `f03681e` by
 `uv run bench/evaldata.py`, against trafilatura at `c852cae9708a`; the
 method is in [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -29,16 +29,16 @@ Hit rate is hits over the pages that carry a label (845 titles, 538 authors, 728
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.7.1 | 0.776 (0.74–0.81) | 0.468 (0.42–0.52) | 0.585 (0.54–0.63) | 97 | 39 |
+| sluicer 0.8.0 | 0.776 (0.74–0.81) | 0.468 (0.42–0.52) | 0.585 (0.54–0.63) | 97 | 39 |
 | trafilatura 2.2.0 | 0.738 (0.70–0.77) | 0.669 (0.62–0.71) | 0.865 (0.83–0.89) | 122 | 121 |
 | metascraper 5.58.1 | 0.699 (0.66–0.73) | 0.662 (0.62–0.71) | 0.663 (0.62–0.70) | 153 | 62 |
 | newspaper4k 0.9.6 | 0.756 (0.72–0.79) | 0.507 (0.46–0.55) | 0.668 (0.63–0.71) | 106 | 49 |
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.1 | title | 656 | 189 | 0 | 0 | 6 | 0.776 (0.74–0.81) | 0.771 (0.74–0.80) |
-| sluicer 0.7.1 | author | 252 | 47 | 239 | 216 | 97 | 0.468 (0.42–0.52) | 0.636 (0.58–0.69) |
-| sluicer 0.7.1 | date | 426 | 72 | 230 | 84 | 39 | 0.585 (0.54–0.63) | 0.793 (0.75–0.83) |
+| sluicer 0.8.0 | title | 656 | 189 | 0 | 0 | 6 | 0.776 (0.74–0.81) | 0.771 (0.74–0.80) |
+| sluicer 0.8.0 | author | 252 | 47 | 239 | 216 | 97 | 0.468 (0.42–0.52) | 0.636 (0.58–0.69) |
+| sluicer 0.8.0 | date | 426 | 72 | 230 | 84 | 39 | 0.585 (0.54–0.63) | 0.793 (0.75–0.83) |
 | trafilatura 2.2.0 | title | 624 | 221 | 0 | 0 | 6 | 0.738 (0.70–0.77) | 0.733 (0.70–0.77) |
 | trafilatura 2.2.0 | author | 360 | 74 | 104 | 191 | 122 | 0.669 (0.62–0.71) | 0.647 (0.60–0.69) |
 | trafilatura 2.2.0 | date | 630 | 97 | 1 | 2 | 121 | 0.865 (0.83–0.89) | 0.743 (0.71–0.78) |
@@ -102,12 +102,12 @@ answer and with the guess where it has none, never in its place.
 
 | declared then `--visible`, against | field | rate | difference (95% interval) | verdict |
 |---|---|---|---|---|
-| sluicer 0.7.1, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.7.1, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.7.1, declared | author | hit rate | +0.080 (+0.057 to +0.104) | better |
-| sluicer 0.7.1, declared | author | right when answering | +0.015 (-0.001 to +0.031) | inconclusive |
-| sluicer 0.7.1, declared | date | hit rate | +0.115 (+0.092 to +0.139) | better |
-| sluicer 0.7.1, declared | date | right when answering | +0.009 (-0.004 to +0.021) | inconclusive |
+| sluicer 0.8.0, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.8.0, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.8.0, declared | author | hit rate | +0.080 (+0.057 to +0.104) | better |
+| sluicer 0.8.0, declared | author | right when answering | +0.015 (-0.001 to +0.031) | inconclusive |
+| sluicer 0.8.0, declared | date | hit rate | +0.115 (+0.092 to +0.139) | better |
+| sluicer 0.8.0, declared | date | right when answering | +0.009 (-0.004 to +0.021) | inconclusive |
 | trafilatura 2.2.0 | title | hit rate | +0.038 (+0.012 to +0.064) | better |
 | trafilatura 2.2.0 | title | right when answering | +0.038 (+0.012 to +0.064) | better |
 | trafilatura 2.2.0 | author | hit rate | -0.121 (-0.158 to -0.082) | worse |
