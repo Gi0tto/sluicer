@@ -12,8 +12,8 @@ No rule on what a selector may say bounds that -- the costly selectors
 include ordinary CSS -- so the servers bound the time instead. The MCP tools
 (``sluicer mcp``, and ``sluicer serve`` over HTTP) evaluate a caller's
 selectors through ``isolated``: in a child process, killed at a deadline --
-the call's own budget when the HTTP door set one with ``until``, else
-``SECONDS`` -- and answered as the selector's fault. The command line and the
+the call's own budget when the HTTP door set one with ``until``, and never
+past ``SECONDS`` -- and answered as the selector's fault. The command line and the
 library evaluate selectors in the caller's own process, since whoever writes
 the selector is then the one who waits.
 """
@@ -32,10 +32,12 @@ from typing import Any, TypeVar
 
 __all__ = ["SECONDS", "TookTooLong", "isolated", "until"]
 
-SECONDS = 60.0
-"""How long a caller's selectors may run on the pages of one call, when no
-deadline was set: the pages are handed to them parsed, so this is evaluation,
-not fetching."""
+SECONDS = 30.0
+"""The most a caller's selectors may run on the pages of one call, whatever
+the call's own budget: the pages are handed to them parsed, so this is
+evaluation, not fetching, and far past what any honest selector takes. Held to
+the call's two-minute budget alone, four hostile selectors kept every reading
+worker of ``sluicer serve`` busy for all of it."""
 
 _DEADLINE: contextvars.ContextVar[float | None] = contextvars.ContextVar(
     "sluicer_isolated_deadline", default=None
@@ -88,12 +90,18 @@ def isolated(function: Callable[..., T], *args: Any) -> T:
         Exception: whatever ``function`` raised, raised here.
     """
     deadline = _DEADLINE.get()
-    seconds = SECONDS if deadline is None else deadline - time.monotonic()
+    seconds = SECONDS if deadline is None else min(SECONDS, deadline - time.monotonic())
     if seconds <= 0:
         raise TookTooLong(0)
     work = pickle.dumps(sys.path) + pickle.dumps((function, args))
+    # -I: no working directory or script folder on the path, no PYTHON*
+    # variables, no user site. With -c alone the working directory came first,
+    # and a pickle.py in the folder an agent started the server in -- a cloned
+    # repository -- ran before the parent's path was taken.
     child = subprocess.Popen(
-        [sys.executable, "-c", _CHILD], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        [sys.executable, "-I", "-c", _CHILD],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
     )
     try:
         answer, _ = child.communicate(work, timeout=seconds)

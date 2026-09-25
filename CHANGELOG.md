@@ -388,6 +388,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- The child process that evaluates an agent's selectors starts in Python's
+  isolated mode: with `-c` alone it put its working directory first on its
+  path, and a `pickle.py` in the folder `sluicer mcp` was started in ran when a
+  selector tool was called. Its evaluation stops at 30 seconds whatever the
+  call's budget, which let four hostile selectors hold `sluicer serve`'s
+  reading workers for two minutes. Found by the second security review.
 - A caller's selectors can no longer hold a server's workers. XPath lets one
   line cost the cube of a page's size -- `//p[count(//p[count(//p) > 0]) >
   0]` on a 9 KB page of 3,000 paragraphs runs for minutes -- and CSS's

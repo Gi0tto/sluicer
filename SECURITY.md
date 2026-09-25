@@ -150,8 +150,13 @@ reaches the parser.
 A selector an agent writes is a small program run on the server's CPU: XPath
 lets one line cost the square or the cube of a page's size, and so does
 ordinary CSS. The tools evaluate a caller's selectors in a process of their
-own, killed after 60 seconds (`sluicer.isolated.SECONDS`), or when the call's
-budget ends over HTTP, below; such a call is answered `bad_input`. The
+own, started with `python -I` so that nothing in the server's working
+directory is imported, and killed after 30 seconds
+(`sluicer.isolated.SECONDS`), or sooner when the call's budget over HTTP,
+below, ends first; such a call is answered `bad_input`. Four hostile selectors
+can still keep `sluicer serve`'s four reading workers busy for those 30
+seconds at a time: beyond loopback, put it behind a proxy that limits each
+client. The
 command line and the library evaluate selectors in their own process: run an
 extractor file only from someone you would let run code that long.
 
