@@ -231,3 +231,19 @@ format (embedded JSON-LD, microdata, RDFa, microformats' hCard), and the
 JSON-LD classes by entities. WDC reads with Any23, full RDFa and
 microformats1, on a crawl two years older; the report puts these beside
 Sluicer's numbers, never inside them.
+
+**Added after the counts were read** (2026-09-25, the one change so far). The
+first count found microformats on nearly a third of the pages, four times Web
+Data Commons' hCard, and among its commonest types `h-full` and `h-auto`:
+Tailwind's and Bootstrap's height classes, which microformats2's parsing
+rules take for roots, since any class of the form `h-` and letters is one.
+So the microformats count is split, and the pages with any vocabulary about
+things are counted again with microformats only where they are one of the
+thirteen vocabularies the microformats wiki lists as microformats2's
+(<https://microformats.org/wiki/microformats2#v2_vocabularies>, read on
+2026-09-25: `h-adr`, `h-card`, `h-entry`, `h-event`, `h-feed`, `h-geo`,
+`h-item`, `h-listing`, `h-product`, `h-recipe`, `h-resume`, `h-review`,
+`h-review-aggregate`). A page with microformats is counted as one with a
+record of one of those types, one whose records are all of other types, or
+one whose roots gave no field at all; and the commonest microformats types
+are listed. Nothing else changed, and the first count's other numbers stand.
