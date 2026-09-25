@@ -1153,24 +1153,48 @@ def _first_text_in(
 def _label_moved(
     f: PageField, doc: Document, nodes: list[tuple[str, HtmlElement]]
 ) -> str | None:
-    """What stands after ``f``'s label, when the page says the label once and
-    something other than the value at ``f``'s place follows it; None when the
-    label is right, or the page does not say it once, which says nothing."""
+    """What stands where ``f``'s label should, when the page still says the
+    label and it no longer stands right before the value at ``f``'s place;
+    None when it does, or the page does not say it, which says nothing: a
+    label renamed is not a row moved.
+
+    The label is the page's however often it is said -- a second "SKU" in
+    an aside is no reason to trust the place -- and with or without its
+    colon, in any case: "SKU:" is the label "SKU" was."""
     if f.label is None:
-        return None
-    at = [n for n, (text, _) in enumerate(nodes) if text == f.label]
-    if len(at) != 1:
         return None
     element, _found = _find(doc, f.path.partition("@")[0])
     if element is None:
         return None
-    if at[0] + 1 >= len(nodes):
-        return f"nothing after {f.label!r}"
-    text, owner = nodes[at[0] + 1]
-    if owner is element or any(up is element for up in owner.iterancestors()):
+    first = _first_text_in(nodes, element)
+    before = nodes[first - 1][0] if first else None
+    if before is not None and _same_label(before, f.label):
+        return None
+    at = [n for n, (text, _) in enumerate(nodes) if _same_label(text, f.label)]
+    if not at:
         return None
     held = _value_at(doc, f.path)
-    return f"{f.label!r} is now before {text!r}, and the place holds {held!r}"
+    if len(at) > 1:
+        return (
+            f"{f.label!r} is said {len(at)} times, never right before the place, "
+            f"which holds {held!r}"
+            + (f" after {before!r}" if before is not None else "")
+        )
+    said = nodes[at[0]][0]
+    if at[0] + 1 >= len(nodes):
+        return f"nothing after {said!r}"
+    return (
+        f"{said!r} is now before {nodes[at[0] + 1][0]!r}, and the place holds {held!r}"
+    )
+
+
+def _same_label(text: str, label: str) -> bool:
+    """Whether ``text`` is ``label``, its colon and its case aside."""
+    return _label_key(text) == _label_key(label)
+
+
+def _label_key(text: str) -> str:
+    return text.rstrip(":\uff1a").rstrip().casefold()
 
 
 def _contradicted(docs: list[Document], path: str, example: str) -> str | None:

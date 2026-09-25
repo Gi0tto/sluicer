@@ -829,9 +829,46 @@ def test_a_row_that_moved_under_another_label_fails():
     assert check.got == "'SKU' is now before 'BP-3', and the place holds '3 kg'"
 
 
+def test_a_row_that_moved_fails_whether_its_label_is_said_twice_or_rewritten():
+    """Rows swapped, and the label said a second time elsewhere on the page or
+    written "SKU:" rather than "SKU": the check asked only for a label said
+    once, exactly as learnt, and passed sku "3 kg". A label the page still
+    says, however often and with or without its colon, that no longer stands
+    right before the place has left it."""
+    learnt = compile_extractor(SPECS, listing=False, want={"sku": "BP-1"})
+    order = ("brand", "price", "weight", "sku")
+    html, url = _specs("Textar", "12.50", "BP-3", "3 kg", order)
+    aside = "<aside><table><tr><th>SKU</th><td>other</td></tr></table></aside>"
+    for page, got in (
+        (
+            html.replace("</main>", f"</main>{aside}"),
+            "'SKU' is said 2 times, never right before the place, "
+            "which holds '3 kg' after 'Weight'",
+        ),
+        (
+            html.replace("<th>SKU</th>", "<th>SKU:</th>"),
+            "'SKU:' is now before 'BP-3', and the place holds '3 kg'",
+        ),
+    ):
+        run = run_extractor(learnt, page, url)
+        assert not run.ok
+        assert failed(run) == ["field"]
+        [check] = [c for c in run.checks if not c.ok]
+        assert check.got == got
+    unmoved, _ = _specs("Textar", "12.50", "BP-3", "3 kg")
+    for page in (
+        unmoved.replace("<th>SKU</th>", "<th>SKU:</th>"),
+        unmoved.replace("<th>SKU</th>", "<th>sku</th>"),
+        unmoved.replace("</main>", f"</main>{aside}"),
+    ):
+        run = run_extractor(learnt, page, url)
+        assert run.ok, failed(run)
+        assert run.fields == {"sku": "BP-3"}
+
+
 def test_a_label_the_page_does_not_say_once_is_no_verdict():
-    """Renamed, or said twice, the label says nothing about the place: the
-    place is read, as it was learnt."""
+    """Renamed, the label says nothing about the place; said twice, once right
+    before it, it still stands there: the place is read, as it was learnt."""
     learnt = compile_extractor(SPECS, listing=False, want={"sku": "BP-1"})
     html, url = _specs("Textar", "12.50", "BP-3", "3 kg")
     for page in (

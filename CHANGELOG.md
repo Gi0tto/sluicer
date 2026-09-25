@@ -76,6 +76,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- A page field whose row moved fails however the page says its label. The
+  check asked for the label said once, exactly as learnt: rows swapped, and
+  a second "SKU" anywhere on the page, or the label written "SKU:", read the
+  weight, "3 kg", as the SKU and passed; with fewer than five pages learnt
+  no shape guarded it. A page that still says the label, once or more, its
+  colon and its case aside, and not right before the place now fails the
+  `field` check. A page that no longer says it is read at the place, as
+  before. Found by review.
 - `diff` reports a price JSON writes with an exponent as the number it is:
   `1500` before and `1.5e3` after, on a page that declares no currency, was
   `changed`, since the `e` left once the digits and points were taken away

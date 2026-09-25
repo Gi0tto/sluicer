@@ -124,11 +124,13 @@ sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
   check), and keeps its shape when five pages or more taught it one.
 - A field read by its place also learns its label, when every page given puts
   the same one right before it, once: text that ends with a colon, or is in a
-  `<th>`, `<dt>` or `<label>`. A page that says the label once, before
-  something else, has moved the row -- the weight where the SKU was -- and the
-  run fails rather than read the weight as the SKU. A page that does not say
-  the label, or says it twice, is read at the place, as learnt. Two pages at
-  least teach a label; one cannot tell its template's words from its own.
+  `<th>`, `<dt>` or `<label>`. A page that still says the label, once or
+  more, with or without its colon, in any case, and not right before the
+  place has moved the row -- the weight where the SKU was -- and the run
+  fails rather than read the weight as the SKU. A page that does not say the
+  label at all is read at the place, as learnt: a label renamed is not a row
+  moved. Two pages at least teach a label; one cannot tell its template's
+  words from its own.
 - `heal` keeps a field where its place still holds a value that reads as it
   did and its label still stands before it, reads it after its label when the
   label moved, moves it to where the new pages show one of its old values,
