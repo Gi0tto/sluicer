@@ -187,6 +187,23 @@ learnt from: a title and a brand keep their shapes, and neither reads as an
 amount or a date. A swap is caught when one side read as an amount or a date
 (the `reads` check), or became the same in every row (the `values` check).
 
+**A numbered listing can be swapped for a box that says nothing of it.** A
+listing at `section.box[2]` is held to the heading its box began with on the
+pages learnt, "Books", when no other box did. A page whose second box begins
+otherwise while another box begins "Books" has moved it, and fails; but a
+page where no box says "Books" is held only to the count of boxes, since a
+heading the template writes from the page -- another category's name -- says
+nothing about where the box went. The books' box replaced by a sponsored one,
+as many boxes as before, passes unless the rows' own checks fail.
+
+**A page field's row can move unnoticed under a renamed label.** A field read
+by its place is held to the label the learnt pages put right before it, but a
+page that no longer says that label at all is read at the place: a label
+renamed, "SKU" to "Art. no.", is not a row moved, and the two cannot be told
+apart. A page that renames the label and moves the row passes with the value
+now at the place, unless the field reads as an amount or a date, or five pages
+or more taught it a shape. "SKU" written "SKU:" or "sku" is the same label.
+
 **Extractors are measured on 44 pairs of captures from 25 sites.** The drift
 benchmark (docs/drift.md) shows no silent failure and no false alarm there, and
 that is a small sample: mostly news and link aggregators, no real shop, and
