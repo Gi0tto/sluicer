@@ -274,7 +274,9 @@ declared, not the records; call extract_declared on a page for those
 -- or, when it has nothing, {"ok": false, "error"} with the page's
 reason. stopped is "done", "max_pages" (links were left unfollowed)
 or "time_budget" (a minute passed). One request at a time, a second
-apart or the site's Crawl-delay, robots.txt obeyed. ok is false only
+apart or the site's Crawl-delay, robots.txt obeyed; a page asked again
+after a request that may succeed later says so in "retries". ok is
+false only
 when no page could be read, and error then says why. Past 75,000
 bytes the heaviest summary answers of any page go first, named in that
 page's summary_left_out, then the last pages, counted in
