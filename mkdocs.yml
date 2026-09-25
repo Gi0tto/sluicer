@@ -58,6 +58,7 @@ nav:
       - The field, measured: field-survey.md
   - Project:
       - Why Sluicer: why.md
+      - FAQ: faq.md
       - Known limits: known-limits.md
       - What is stable: stability.md
       - Design notes: design-notes.md
