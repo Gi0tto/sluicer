@@ -35,6 +35,7 @@ from sluicer.crawl.pages import (
     PageError,
     StateMismatch,
     _appending,
+    _check_retries,
     _cut_unfinished,
     _extract_listed,
     _lines,
@@ -209,8 +210,8 @@ def shopify_products(
     ``crawl``'s.
 
     Raises:
-        ValueError: ``url`` is not an http(s) address, or ``per_page`` is
-            not positive.
+        ValueError: ``url`` is not an http(s) address, ``per_page`` is not
+            positive, or ``retries`` is past ``MAX_RETRIES``.
         StateMismatch: ``state`` holds another shop's products, or not a
             crawl's output.
     """
@@ -219,6 +220,7 @@ def shopify_products(
         raise ValueError(f"{url!r} is not an http(s) address a crawl can start at")
     if per_page < 1:
         raise ValueError(f"per_page must be 1 or more, not {per_page}")
+    _check_retries(retries)
     _sendable(web, headers, cookies)
     parts = urlsplit(start)
     origin = f"{parts.scheme}://{parts.netloc}"

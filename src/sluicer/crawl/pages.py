@@ -31,6 +31,7 @@ from sluicer.crawl.schedule import (
     CONCURRENCY,
     DEFAULT_DELAY_SECONDS,
     MAX_DELAY_SECONDS,
+    MAX_RETRIES,
     RETRIES,
     Politeness,
     Queue,
@@ -532,6 +533,14 @@ def _reach(
     return polite, reached[0]
 
 
+def _check_retries(retries: int) -> None:
+    """Refuse, before anything is asked, retries a crawl does not make."""
+    if not 0 <= retries <= MAX_RETRIES:
+        raise ValueError(
+            f"retries must be 0 or more and at most {MAX_RETRIES}, not {retries}"
+        )
+
+
 def _sendable(
     web: Web | None,
     headers: Mapping[str, str] | None,
@@ -620,8 +629,7 @@ class _Visitor:
         retries: int = RETRIES,
         deadline: float | None = None,
     ) -> None:
-        if retries < 0:
-            raise ValueError(f"retries must be 0 or more, not {retries}")
+        _check_retries(retries)
         self.web = web
         self.polite = polite
         self.rungs = polite.paced(web.rungs)

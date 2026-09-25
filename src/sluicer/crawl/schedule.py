@@ -49,12 +49,23 @@ SLOWING_STATUSES = frozenset({429, 503})
 CONCURRENCY = 4
 """How many sites are asked at the same moment, never more than once each."""
 
+MAX_CONCURRENCY = 32
+"""The most sites a crawl asks at once: a thread each. A ``sluicer.toml`` in a
+directory above is read by every command below it, and one asking for a
+million started a thread for every site of a batch."""
+
 RETRIES = 2
 """How many times a crawl asks again for a page whose request may succeed
-later: one that did not answer -- a connection reset, a timeout, a name that
-did not resolve, a robots.txt that could not be read -- or answered 429 or a
-5xx. Never a 4xx but 429: a 404 or a 403 is the site's answer about the page,
-and asking again gets it again."""
+later: one that did not answer -- a connection refused or reset, a timeout,
+an answer cut short, a name the resolver could not look up for now, a
+robots.txt that could not be read -- or answered 429 or a 5xx. Never a 4xx
+but 429: a 404 or a 403 is the site's answer about the page, and asking
+again gets it again; nor a failure that asking again would meet again, a
+redirect loop or an encoding the fetch cannot read."""
+
+MAX_RETRIES = 10
+"""The most times a crawl asks again for one page; the tenth waits 1,024
+times the site's delay, or ``max_delay``."""
 
 LOOKAHEAD = 256
 """How far past the first unfinished task a free site may be served from.
@@ -437,6 +448,11 @@ class Schedule(Generic[_Result]):
     ) -> None:
         if concurrency < 1:
             raise ValueError("A schedule needs room for at least one request.")
+        if concurrency > MAX_CONCURRENCY:
+            raise ValueError(
+                f"A schedule asks at most {MAX_CONCURRENCY} sites at once, "
+                f"not {concurrency}."
+            )
         self.visit = visit
         self.politeness = politeness
         self.concurrency = concurrency

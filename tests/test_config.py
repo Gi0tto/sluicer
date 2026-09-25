@@ -447,6 +447,17 @@ def test_a_crawl_s_retries_jobs_and_format_come_from_the_file(here, crawled):
     assert result.stdout.startswith("url,ok,depth,")
 
 
+@pytest.mark.parametrize("setting", ["jobs = 1000000", "retries = 1000000"])
+def test_a_file_cannot_set_a_crawl_past_its_bounds(here, crawled, setting):
+    """A file in a directory above is read by every command run below it."""
+    _write(here / "sluicer.toml", f"[crawl]\n{setting}\n")
+
+    result = _run("crawl", URL)
+
+    assert result.exit_code == 2 and crawled == []
+    assert "is refused" in result.stderr
+
+
 def test_a_template_is_one_run_s_and_not_a_file_s(here, crawled):
     _write(here / "sluicer.toml", '[crawl]\ntemplate = "sitemap"\n')
 

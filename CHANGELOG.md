@@ -601,6 +601,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   IPv4-translated addresses (`::ffff:0:a.b.c.d`), judged by the IPv4 address
   they carry as a mapped one is, SRv6's segment identifiers (`5f00::/16`)
   and the deprecated site-local range (`fec0::/10`). Also in 0.7.1.
+- A crawl asks 32 sites at once at most (`MAX_CONCURRENCY`) and a page ten
+  more times at most (`MAX_RETRIES`), whether `--jobs` and `--retries`, the
+  library's `concurrency=` and `retries=`, or a `sluicer.toml` asks for more:
+  a file in a directory above is read by every command run below it, and one
+  asking for a million jobs started a thread for every site of a batch.
 
 ## 0.7.1 - 2026-09-25
 

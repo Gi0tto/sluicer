@@ -1171,6 +1171,14 @@ def test_a_page_is_asked_three_times_at_most_and_is_then_what_it_last_was():
     assert len(requests_of(fake, f"{ROOT}/c/1")) == 3
 
 
+def test_a_crawl_asks_a_page_again_no_more_than_its_bound():
+    from sluicer.crawl.schedule import MAX_RETRIES
+
+    fake = FakeWeb(shop())
+    with pytest.raises(ValueError, match=f"at most {MAX_RETRIES}"):
+        run(fake, retries=MAX_RETRIES + 1)
+
+
 def test_no_retries_asks_once():
     pages = shop()
     pages[f"{ROOT}/c/1"] = ConnectionError("connection reset")

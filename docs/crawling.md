@@ -61,7 +61,7 @@ a log, one line a page.
   `www.`, over http or https, with its port when that is not the default:
   `www.example.com` and `example.com` are usually the same machines, and
   pacing them apart would ask them twice as often. Several sites are asked at
-  once, four by default (`--jobs`, `concurrency=`), never more than once
+  once, four by default and 32 at most (`--jobs`, `concurrency=`), never more than once
   each. One at a time holds for
   the whole process, not only for one crawl: two crawls of one site, a map
   beside them, or an agent's parallel `extract_declared` calls wait for each
@@ -107,7 +107,8 @@ a log, one line a page.
   did not answer -- a connection refused or reset, a timeout, an answer cut
   short, a name the resolver could not look up for now, a `robots.txt`
   nobody could read -- or answered 429 or a 5xx is
-  asked again, twice at most by default (`--retries`, `retries=`; 0 asks
+  asked again, twice at most by default and ten at most at all (`--retries`,
+  `retries=`; 0 asks
   once): the first time twice the site's delay after the failed request
   ended, the second four times it, or the site's `Retry-After` when that is
   longer, never more than `max_delay` and never past the time budget. A 4xx
