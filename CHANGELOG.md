@@ -388,6 +388,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- The browser's guard proxy serves only the browser it was made for. It
+  listened on 127.0.0.1 with no credentials, so any process on the machine
+  could use it, and through it the caller's own proxy, whose credentials it
+  adds; each guard proxy now makes its own at random and answers 407 without
+  them. Found by the review of the guard proxy.
 - `--visible` chooses a page's text nodes in one pass. The XPath predicate it
   used, `string-length(normalize-space()) > 1`, cost libxml2 the square of a
   page's tail texts: 16,000 took 2.2 seconds, and four 3.6 MB pages held

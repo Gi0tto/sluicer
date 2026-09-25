@@ -1378,7 +1378,9 @@ def test_a_guarded_pages_context_goes_through_the_guard_proxy(monkeypatch):
     monkeypatch.setattr(
         "sluicer.fetch.browser_proxy.guard_proxy",
         lambda resolve, upstream: types.SimpleNamespace(
-            address=f"http://127.0.0.1:1/ via {upstream}"
+            address=f"http://127.0.0.1:1/ via {upstream}",
+            username="sluicer",
+            password="secret",
         ),
     )
     host = FakeHost({"https://example.com/p": "<p>hi</p>"})
@@ -1390,6 +1392,8 @@ def test_a_guarded_pages_context_goes_through_the_guard_proxy(monkeypatch):
 
     assert host.contexts[0].options["proxy"] == {
         "server": "http://127.0.0.1:1/ via socks5://p:1",
+        "username": "sluicer",
+        "password": "secret",
         "bypass": "<-loopback>",
     }
 
@@ -1572,3 +1576,45 @@ def test_a_redirect_the_callers_rule_refused_is_not_a_reason_to_climb():
         )
 
     assert browser.calls == []
+
+
+def _ask_guard_proxy(proxy, head: bytes) -> bytes:
+    import socket
+
+    host, port = proxy.address.removeprefix("http://").split(":")
+    with socket.create_connection((host, int(port)), timeout=5) as sock:
+        sock.sendall(head)
+        answer = b""
+        while chunk := sock.recv(4096):
+            answer += chunk
+    return answer
+
+
+def test_the_guard_proxy_serves_only_the_browser_it_was_made_for():
+    """Found by review: the guard proxy listened on 127.0.0.1 with no
+    credentials, so any process on the machine could use it -- and through it
+    the caller's own proxy, whose credentials it adds. Each guard proxy has
+    its own, which only the browser it serves is given."""
+    import base64
+
+    from sluicer.fetch.browser_proxy import GuardProxy
+
+    proxy = GuardProxy(resolve=lambda host: ["127.0.0.1"])
+    try:
+        ask = b"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n"
+        bare = _ask_guard_proxy(proxy, ask + b"\r\n")
+        wrong = _ask_guard_proxy(
+            proxy, ask + b"Proxy-Authorization: Basic c2x1aWNlcjp3cm9uZw==\r\n\r\n"
+        )
+        login = base64.b64encode(f"{proxy.username}:{proxy.password}".encode()).decode()
+        right = _ask_guard_proxy(
+            proxy, ask + f"Proxy-Authorization: Basic {login}\r\n\r\n".encode()
+        )
+    finally:
+        proxy.close()
+
+    assert bare.startswith(b"HTTP/1.1 407 ") and b"Proxy-Authenticate: Basic" in bare
+    assert wrong.startswith(b"HTTP/1.1 407 ")
+    # Past the door, the address is judged: 127.0.0.1 is refused.
+    assert right.startswith(b"HTTP/1.1 403 ")
+    assert len(proxy.password) >= 32

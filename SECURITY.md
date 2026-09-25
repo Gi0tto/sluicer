@@ -101,7 +101,11 @@ connection of a guarded page, the browser's own for it included, goes
 through a proxy Sluicer runs on this machine's loopback, which judges each
 host and port by the same rule and connects only to the addresses it
 checked; Chromium is told not to pass loopback by it, and WebRTC's UDP, which
-no proxy carries, is off. The browser then resolves no name itself, so a name
+no proxy carries, is off. The proxy asks every connection for credentials of
+its own, made at random when it starts and given only to the browser it
+serves: listening on loopback with none, any process on the machine could
+have used it, and through it the proxy the caller named, whose credentials it
+adds. The browser then resolves no name itself, so a name
 that answers differently the second time (DNS rebinding) reaches nothing new
 through it either. `tests/live/guard_check.py` has a real Chromium try
 thirteen routes to a private server -- six reach it without the guard -- and
