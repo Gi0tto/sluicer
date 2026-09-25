@@ -698,6 +698,7 @@ crawl(
     min_delay: float = 1.0,
     max_delay: float = 60.0,
     concurrency: int = 4,
+    retries: int = 2,
     time_budget: float | None = None,
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
@@ -724,10 +725,11 @@ per site, and hand back each page as its turn comes.
 - `state`: a JSON Lines file: pages it already holds are not fetched again, and every new page is appended as its turn comes.
 - `induce`: also read repeated rows from a page that declares nothing.
 - `respect_tdm`: give a page whose site reserves its text and data mining rights (TDMRep: its tdmrep.json, headers or meta tags) as a ``tdm_reserved`` error, never its data.
-- `min_delay`: the least seconds between two requests to one site.
-- `max_delay`: the longest robots.txt ``Crawl-delay`` waited for.
+- `min_delay`: the least seconds between two requests to one site; a site that takes longer to answer waits as long as it lately took.
+- `max_delay`: the longest robots.txt ``Crawl-delay`` waited for, and the longest wait a slow site or a retry is given.
 - `concurrency`: how many sites may be asked at once.
-- `time_budget`: seconds after which no further page is started.
+- `retries`: how many times a page is asked again when its request did not answer, or answered 429 or a 5xx, each after twice the wait before; 0 asks once.
+- `time_budget`: seconds after which no further page, or retry, is started.
 - `allow_private`: when false, refuse addresses off the public internet.
 - `resolve`: the name lookup ``allow_private`` decides with.
 - `max_bytes`: the most one page may weigh.
@@ -755,6 +757,7 @@ extract_many(
     min_delay: float = 1.0,
     max_delay: float = 60.0,
     concurrency: int = 4,
+    retries: int = 2,
     time_budget: float | None = None,
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,

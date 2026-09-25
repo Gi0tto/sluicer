@@ -304,7 +304,7 @@ jobs:
           from sluicer.mcp_server import build_server
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
-          assert tools == ['audit_page', 'compile_extractor', 'crawl_site', 'extract_declared', 'fetch_page', 'heal_extractor', 'map_site', 'page_markdown', 'read_feed', 'run_extractor', 'select_values'], tools
+          assert tools == ['audit_page', 'compile_extractor', 'crawl_site', 'extract_declared', 'extract_many', 'fetch_page', 'heal_extractor', 'map_site', 'page_markdown', 'read_feed', 'run_extractor', 'select_values'], tools
 
           # Registration is not use. The SDK's dispatch is where a future release
           # can break us while every import still resolves, so call a tool for real.
@@ -340,10 +340,14 @@ jobs:
           # The crawl tools' answers are the deepest schemas the server has, and
           # the SDK builds them at registration. Both answer here without a
           # request: a private address is refused before anything is asked.
-          for tool in ('map_site', 'crawl_site'):
-              refused = asyncio.run(server.call_tool(tool, {'url': 'http://127.0.0.1:9/'}))
+          for tool, asked in (
+              ('map_site', {'url': 'http://127.0.0.1:9/'}),
+              ('crawl_site', {'url': 'http://127.0.0.1:9/'}),
+              ('extract_many', {'urls': ['http://127.0.0.1:9/']}),
+          ):
+              refused = asyncio.run(server.call_tool(tool, asked))
               assert 'refused_address' in str(refused), tool + ': ' + str(refused)[:300]
-          print('mcp: eleven tools listed, and six of them answered through the SDK dispatch')
+          print('mcp: twelve tools listed, and seven of them answered through the SDK dispatch')
           "
       # Building a rung is not using it. Each fetching extra loads pages from
       # a local site here, and the site says what it saw: the browser
@@ -524,7 +528,7 @@ jobs:
           from sluicer.mcp_server import build_server
           server = build_server()
           tools = sorted(t.name for t in asyncio.run(server.list_tools()))
-          assert tools == ['audit_page', 'compile_extractor', 'crawl_site', 'extract_declared', 'fetch_page', 'heal_extractor', 'map_site', 'page_markdown', 'read_feed', 'run_extractor', 'select_values'], tools
+          assert tools == ['audit_page', 'compile_extractor', 'crawl_site', 'extract_declared', 'extract_many', 'fetch_page', 'heal_extractor', 'map_site', 'page_markdown', 'read_feed', 'run_extractor', 'select_values'], tools
           from starlette.testclient import TestClient
           from sluicer.http_api import build_app
           http = TestClient(build_app(), base_url='http://127.0.0.1')
@@ -551,7 +555,7 @@ jobs:
           docker run --rm -v "$PWD/page.html:/tmp/page.html:ro" sluicer:ci \
             sluicer extract /tmp/page.html | tee out.json
           grep -q '"Pad"' out.json
-      - name: A client lists its eleven tools over stdio, and the licences are in it
+      - name: A client lists its twelve tools over stdio, and the licences are in it
         # The check the release runs before it pushes an image, run on every
         # change, so a release is not the first to find it failing.
         run: |

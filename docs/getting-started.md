@@ -235,7 +235,7 @@ claude mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp    # Claude Code
 codex mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp     # Codex
 ```
 
-The agent then has eleven tools, every one of which only reads. Cursor, VS Code,
+The agent then has twelve tools, every one of which only reads. Cursor, VS Code,
 Gemini CLI, Claude Desktop, Zed and the agent frameworks are in
 [In your agent](agents.md); each tool and its parameters are in the
 [MCP reference](reference/mcp.md).

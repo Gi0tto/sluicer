@@ -81,6 +81,9 @@ SETTABLE = frozenset(
         "json",
         "plain",
         "delay",
+        "retries",
+        "jobs",
+        "format",
         "max-pages",
         "max-depth",
         "include",
@@ -108,6 +111,7 @@ PER_RUN = {
     "force": "it overrides one refusal, once",
     "stealth": "the stealth rung is asked for page by page, never by default",
     "any-site": "a crawl leaves the site it was given only when that run asks",
+    "template": "it changes what one crawl reads, and every crawl would read it so",
     "allow-unauthenticated": "a server with no token is asked for where it is "
     "seen, on the command line",
 }

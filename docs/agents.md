@@ -11,7 +11,7 @@ It needs [uv](https://docs.astral.sh/uv/) on the `PATH`; `uvx` fetches Sluicer
 and its `mcp` extra, which brings fetching and markdown, the first time.
 `sluicer-mcp`, after `uv pip install "sluicer[mcp]"`, is the same server.
 
-Every one of its eleven tools only reads -- the page it is given, or the web --
+Every one of its twelve tools only reads -- the page it is given, or the web --
 and says so in its MCP annotations (`readOnlyHint`, not `destructiveHint`), so
 a client that asks before a tool writes runs them without asking. Measured
 with Codex 0.144.4 on 2026-09-24: before the annotations, `codex exec`
@@ -254,7 +254,7 @@ and what the server refuses.
 Neither was run here; both are written from their documentation as it read on
 2026-09-25. What was run, against `sluicer serve`, is the `mcp` Python SDK's
 client and the TypeScript SDK's, which n8n's MCP nodes are built on: both
-listed the ten tools it had before `select_values` and called them.
+listed the ten tools it had before `select_values` and `extract_many` and called them.
 
 ## The documentation, for an agent
 

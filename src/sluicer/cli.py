@@ -19,6 +19,7 @@ Ctrl-C exits 130 with what it wrote intact, and ``--resume`` continues it.
 from __future__ import annotations
 
 import codecs
+import contextlib
 import functools
 import io
 import json
@@ -46,8 +47,16 @@ from sluicer.audit import (
 from sluicer.config import ConfiguredGroup
 from sluicer.crawl import Crawl, crawl as crawl_site, extract_many
 from sluicer.crawl.pages import MAX_DEPTH, MAX_PAGES
-from sluicer.crawl.schedule import DEFAULT_DELAY_SECONDS
+from sluicer.crawl.schedule import CONCURRENCY, DEFAULT_DELAY_SECONDS, RETRIES
 from sluicer.crawl.sitemaps import MAX_SITEMAP_URLS, map_site
+from sluicer.crawl.table import (
+    PAGE_COLUMNS,
+    SITE_URL_COLUMNS,
+    page_row,
+    site_url_row,
+    write_csv,
+)
+from sluicer.crawl.templates import TEMPLATES, shopify_products, sitemap_pages
 from sluicer.declared.microformats import MicroformatsExtraMissing
 from sluicer.declared.readers import READERS
 from sluicer.diff import compare
@@ -1457,7 +1466,7 @@ def serve(host: str, port: int, timeout: float, allow_unauthenticated: bool) -> 
 @click.option(
     "--tools",
     help="Register only these tools, comma-separated: "
-    "--tools extract_declared,page_markdown. All ten by default.",
+    "--tools extract_declared,page_markdown. All twelve by default.",
 )
 def mcp_command(tools: str | None) -> None:
     """Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
@@ -1779,13 +1788,23 @@ def _llms_lines(label: str, llms: LlmsTxt) -> list[str]:
 @click.option(
     "--plain", is_flag=True, help="One address a line, for `sluicer batch -`."
 )
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "csv"]),
+    default="json",
+    show_default=True,
+    help="json: the map as one object; csv: a row per address (url, lastmod, sitemap).",
+)
 @_with_proxy
-def map_command(url: str, limit: int, plain: bool) -> None:
+def map_command(url: str, limit: int, plain: bool, output_format: str) -> None:
     """List a site's addresses, from its sitemaps or its start page's links.
 
     Each sitemap is asked politely, through robots.txt and after the site's
     delay, and stderr says what became of each one.
     """
+    if plain and output_format != "json":
+        raise click.UsageError("--plain is one address a line; --format is another")
     try:
         found = map_site(url, limit=limit, **_sent())
     except (
@@ -1805,6 +1824,10 @@ def map_command(url: str, limit: int, plain: bool) -> None:
     if plain:
         for address in found.urls:
             click.echo(address.url)
+    elif output_format == "csv":
+        write = write_csv(sys.stdout, SITE_URL_COLUMNS)
+        for address in found.urls:
+            write(site_url_row(asdict(address)))
     else:
         click.echo(json.dumps(asdict(found), indent=2, ensure_ascii=False))
     if not found.urls:
@@ -1820,6 +1843,15 @@ _many_options = [
         "state --resume continues from.",
     ),
     click.option(
+        "--format",
+        "output_format",
+        type=click.Choice(["jsonl", "csv"]),
+        default="jsonl",
+        show_default=True,
+        help="jsonl: a JSON line per page; csv: a row per page, its summary "
+        "flattened into a column a question (docs/crawling.md says which).",
+    ),
+    click.option(
         "--resume",
         is_flag=True,
         help="Continue what --out already holds, fetching none of it again.",
@@ -1831,6 +1863,21 @@ _many_options = [
         show_default=True,
         help="The least seconds between two requests to one site; its "
         "robots.txt Crawl-delay wins when longer.",
+    ),
+    click.option(
+        "--retries",
+        type=click.IntRange(min=0),
+        default=RETRIES,
+        show_default=True,
+        help="Ask a page again this many times when it did not answer, or "
+        "answered 429 or a 5xx, each time twice as late; never a 4xx.",
+    ),
+    click.option(
+        "--jobs",
+        type=click.IntRange(min=1),
+        default=CONCURRENCY,
+        show_default=True,
+        help="How many sites are asked at once, each still one request at a time.",
     ),
     click.option(
         "--induce",
@@ -1884,6 +1931,12 @@ def _with_many_options(command: click.decorators.FC) -> click.decorators.FC:
 @click.option(
     "--any-site", is_flag=True, help="Follow links that leave URL's site too."
 )
+@click.option(
+    "--template",
+    type=click.Choice(TEMPLATES),
+    help="A ready crawl: sitemap reads the pages URL's sitemaps list; shopify "
+    "reads a Shopify shop's /products.json, a line per product.",
+)
 @_with_many_options
 @_with_proxy
 def crawl_command(
@@ -1893,9 +1946,13 @@ def crawl_command(
     include: tuple[str, ...],
     exclude: tuple[str, ...],
     any_site: bool,
+    template: str | None,
     out: str | None,
+    output_format: str,
     resume: bool,
     delay: float,
+    retries: int,
+    jobs: int,
     induce: bool,
     respect: tuple[str, ...],
 ) -> None:
@@ -1903,26 +1960,99 @@ def crawl_command(
 
     Breadth first, on URL's site unless --any-site, every page through
     robots.txt and one request at a time with the site's delay between. Run
-    twice, it takes the same pages in the same order.
+    twice, it takes the same pages in the same order. --template sitemap
+    reads the pages the site's sitemaps list instead, --include and
+    --exclude choosing among them; --template shopify reads a Shopify shop's
+    products from its /products.json, --max-pages of them at 250 a page.
     """
-    _check_out(out, resume)
+    table = output_format == "csv"
+    if template is not None:
+        _refuse_unused(template, include=include, induce=induce, respect=respect)
+    _check_out(out, resume, table)
+    state = None if table else out
+    total: int | None = max_pages
+    label = "Crawling"
     try:
-        pages = crawl_site(
-            url,
-            max_pages,
-            max_depth,
-            same_site=not any_site,
-            include=include,
-            exclude=exclude,
-            state=out,
-            induce=induce,
-            respect_tdm="tdm" in respect,
-            min_delay=delay,
-            **_sent(),
-        )
-    except (FetchExtraMissing, ValueError) as failure:
+        if template == "shopify":
+            total, label = None, "Reading products"
+            pages = shopify_products(
+                url,
+                max_pages,
+                state=state,
+                min_delay=delay,
+                retries=retries,
+                **_sent(),
+            )
+        elif template == "sitemap":
+            label = "Reading"
+            pages = sitemap_pages(
+                url,
+                max_pages,
+                include=include,
+                exclude=exclude,
+                state=state,
+                induce=induce,
+                respect_tdm="tdm" in respect,
+                min_delay=delay,
+                retries=retries,
+                concurrency=jobs,
+                **_sent(),
+            )
+        else:
+            pages = crawl_site(
+                url,
+                max_pages,
+                max_depth,
+                same_site=not any_site,
+                include=include,
+                exclude=exclude,
+                state=state,
+                induce=induce,
+                respect_tdm="tdm" in respect,
+                min_delay=delay,
+                retries=retries,
+                concurrency=jobs,
+                **_sent(),
+            )
+    except (
+        FetchExtraMissing,
+        ValueError,
+        RobotsRefused,
+        AddressRefused,
+        FetchFailed,
+        ResponseTooLarge,
+    ) as failure:
         _fail(str(failure), failure)
-    _report(pages, out)
+    _report(pages, out, table, total=total, label=label)
+
+
+def _refuse_unused(template: str, **given: tuple[str, ...] | bool) -> None:
+    """Refuse, before anything is asked, an option ``template`` would not use:
+    ignored, it would read as obeyed."""
+    context = click.get_current_context()
+    unused = {
+        "max_depth": "--max-depth",
+        "any_site": "--any-site",
+    }
+    if template == "shopify":
+        unused |= {
+            "include": "--include",
+            "exclude": "--exclude",
+            "induce": "--induce",
+            "respect": "--respect",
+        }
+    for name, option in unused.items():
+        source = context.get_parameter_source(name)
+        if source is not None and source.name not in ("DEFAULT", "DEFAULT_MAP"):
+            raise click.UsageError(
+                f"{option} does not apply to --template {template}: "
+                + (
+                    "a sitemap lists the pages, no link is followed"
+                    if name in ("max_depth", "any_site")
+                    else "a shop's products are read from its products.json, "
+                    "not from pages"
+                )
+            )
 
 
 @main.command("feed")
@@ -2039,8 +2169,11 @@ def warc_command(files: tuple[str, ...], induce: bool, microformats: bool) -> No
 def batch_command(
     urls_file: str,
     out: str | None,
+    output_format: str,
     resume: bool,
     delay: float,
+    retries: int,
+    jobs: int,
     induce: bool,
     respect: tuple[str, ...],
 ) -> None:
@@ -2051,7 +2184,8 @@ def batch_command(
     No link is followed. Several sites are asked at once, each one request at
     a time, and the pages come out in the order the file lists them.
     """
-    _check_out(out, resume)
+    table = output_format == "csv"
+    _check_out(out, resume, table)
     try:
         text = (
             sys.stdin.read()
@@ -2070,25 +2204,33 @@ def batch_command(
     try:
         pages = extract_many(
             listed,
-            state=out,
+            state=None if table else out,
             induce=induce,
             respect_tdm="tdm" in respect,
             min_delay=delay,
+            retries=retries,
+            concurrency=jobs,
             **_sent(),
         )
     except (FetchExtraMissing, ValueError) as failure:
         _fail(str(failure), failure)
-    _report(pages, out)
+    _report(pages, out, table, total=len(listed), label="Reading")
 
 
-def _check_out(out: str | None, resume: bool) -> None:
+def _check_out(out: str | None, resume: bool, table: bool = False) -> None:
     """Refuse to append to a file that holds pages unless asked to continue it.
 
     A crawl's file is hours of other people's servers' time; writing a second
-    crawl onto its end would make both unusable.
+    crawl onto its end would make both unusable. A table is not a state: it
+    holds no page's links, so there is nothing to continue from.
     """
     if resume and out is None:
         _fail("--resume needs --out: the file is what the crawl continues from.")
+    if resume and table:
+        _fail(
+            "--resume reads JSON Lines: a table holds no page's links to "
+            "continue from. Write --format jsonl, and turn it into a table after."
+        )
     if out is not None and not resume:
         path = Path(out)
         if path.is_file() and path.stat().st_size > 0:
@@ -2098,34 +2240,95 @@ def _check_out(out: str | None, resume: bool) -> None:
             )
 
 
-def _report(pages: Crawl, out: str | None) -> None:
+def _stderr_is_a_terminal() -> bool:
+    """Whether a person is watching stderr, who is shown a bar, not a log."""
+    try:
+        return sys.stderr.isatty()
+    except (AttributeError, ValueError):
+        return False
+
+
+def _report(
+    pages: Crawl,
+    out: str | None,
+    table: bool = False,
+    total: int | None = None,
+    label: str = "Crawling",
+) -> None:
     """Write each page as its turn comes, say how it went, and exit by it.
 
-    The verdict is the whole crawl's, pages resumed from the file included, so
-    a crawl finished in two runs exits as it would have in one.
+    Each page is a JSON line, or with ``table`` a row of ``PAGE_COLUMNS``, on
+    stdout or in ``out``. stderr says what became of each page, a line each,
+    or, to a terminal, on one bar of ``total`` pages. The verdict is the whole
+    crawl's, pages resumed from the file included, so a crawl finished in two
+    runs exits as it would have in one.
     """
     if pages.resumed:
         click.echo(f"Resuming after the {pages.resumed} pages {out} holds.", err=True)
     tally = _Tally()
     count = pages.resumed
+    watched = _stderr_is_a_terminal()
     try:
-        for page in pages:
-            count += 1
-            line = page.to_json()
-            if out is None:
-                click.echo(json.dumps(line, ensure_ascii=False))
-                tally.add(line)
-            said = page.error.code if page.error else f"{page.status} {page.rung}"
-            click.echo(f"{count:>5}  {said}  {page.url}", err=True)
+        with contextlib.ExitStack() as held:
+            write = None
+            if table:
+                sink = (
+                    held.enter_context(
+                        Path(out).open("w", encoding="utf-8", newline="")
+                    )
+                    if out is not None
+                    else sys.stdout
+                )
+                write = write_csv(sink, PAGE_COLUMNS)
+            bar = (
+                held.enter_context(
+                    click.progressbar(
+                        length=max(total or 0, count, 1),
+                        label=label,
+                        file=sys.stderr,
+                        show_pos=True,
+                        item_show_func=lambda said: said,
+                    )
+                )
+                if watched
+                else None
+            )
+            if bar is not None and count:
+                bar.update(count)
+            for page in pages:
+                count += 1
+                line = page.to_json()
+                if write is not None:
+                    write(page_row(line))
+                    tally.add(line)
+                elif out is None:
+                    click.echo(json.dumps(line, ensure_ascii=False))
+                    tally.add(line)
+                said = page.error.code if page.error else f"{page.status} {page.rung}"
+                if page.retries:
+                    said += f", asked {len(page.retries) + 1} times"
+                if bar is not None:
+                    if bar.length is not None and count > bar.length:
+                        bar.length = count
+                    bar.update(1, f"{said}  {page.url}")
+                else:
+                    click.echo(f"{count:>5}  {said}  {page.url}", err=True)
+            if bar is not None:
+                # A crawl that ran out of links ends short of its budget: the
+                # bar ends full at what it took.
+                bar.length = bar.pos = max(count, 1)
+                bar.render_progress()
     except KeyboardInterrupt:
-        kept = f"; {out} holds them, and --resume continues" if out else ""
+        kept = ""
+        if out is not None:
+            kept = f"; {out} holds them" + ("" if table else ", and --resume continues")
         click.echo(f"Stopped after {count} pages{kept}.", err=True)
         raise SystemExit(INTERRUPTED) from None
     except FetchExtraMissing as missing:
         _fail(str(missing), missing)
     except OSError as failure:
         _fail(f"Could not write {out}: {failure.strerror or failure}", failure)
-    if out is not None:
+    if out is not None and not table:
         with Path(out).open(encoding="utf-8") as written:
             for raw in written:
                 if raw.strip():

@@ -4,6 +4,8 @@ The commands build the real web; each test hands them a ``FakeWeb`` instead,
 by wrapping the library call the command makes, so nothing opens a socket.
 """
 
+import csv
+import io
 import json
 
 import pytest
@@ -43,6 +45,12 @@ def fake(monkeypatch):
     monkeypatch.setattr("sluicer.cli.crawl_site", wrap(library.crawl))
     monkeypatch.setattr("sluicer.cli.extract_many", wrap(library.extract_many))
     monkeypatch.setattr("sluicer.cli.map_site", wrap(library.map_site))
+    from sluicer.crawl import templates
+
+    monkeypatch.setattr("sluicer.cli.sitemap_pages", wrap(templates.sitemap_pages))
+    monkeypatch.setattr(
+        "sluicer.cli.shopify_products", wrap(templates.shopify_products)
+    )
     return web
 
 
@@ -196,6 +204,44 @@ def test_a_missing_extra_found_mid_crawl_says_so_too(monkeypatch):
     assert "needs playwright" in result.stderr
 
 
+def test_a_page_asked_again_says_so_on_stderr(fake):
+    fake.pages[f"{ROOT}/a"] = [ConnectionError("reset"), fake.pages[f"{ROOT}/a"]]
+
+    result = invoke("crawl", f"{ROOT}/")
+
+    assert result.exit_code == 0, result.stderr
+    assert f"    2  200 http, asked 2 times  {ROOT}/a" in result.stderr
+    assert lines(result.stdout)[1]["retries"][0]["after"] == 2.0
+
+
+def test_retries_zero_asks_every_page_once(fake):
+    fake.pages[f"{ROOT}/a"] = ConnectionError("reset")
+
+    result = invoke("crawl", f"{ROOT}/", "--retries", "0")
+
+    assert f"    2  fetch_failed  {ROOT}/a" in result.stderr
+    assert [r[0] for r in fake.requests].count(f"{ROOT}/a") == 1
+
+
+@pytest.mark.parametrize("command", ["crawl", "batch"])
+def test_jobs_is_how_many_sites_are_asked_at_once(monkeypatch, command):
+    asked = []
+
+    def record(*args, **kwargs):
+        asked.append(kwargs)
+        raise ValueError("stop here")
+
+    name = "crawl_site" if command == "crawl" else "extract_many"
+    monkeypatch.setattr(f"sluicer.cli.{name}", record)
+    source = f"{ROOT}/" if command == "crawl" else "-"
+
+    invoke(command, source, "--jobs", "7", stdin=f"{ROOT}/a\n")
+    invoke(command, source, stdin=f"{ROOT}/a\n")
+
+    assert [one["concurrency"] for one in asked] == [7, 4]
+    assert invoke(command, source, "--jobs", "0", stdin="x\n").exit_code == 2
+
+
 # -- batch -----------------------------------------------------------------------
 
 
@@ -307,3 +353,144 @@ def test_a_batch_without_an_extra_it_needs_says_how_to_install_it(monkeypatch):
 
     assert result.exit_code == 2
     assert "sluicer[browser]" in result.stderr
+
+
+# -- a table, and a bar --------------------------------------------------------------
+
+
+def rows(text):
+    return list(csv.DictReader(io.StringIO(text)))
+
+
+@pytest.mark.parametrize("command", ["crawl", "batch"])
+def test_format_csv_is_a_row_per_page_with_its_summary_flattened(fake, command):
+    source = f"{ROOT}/" if command == "crawl" else "-"
+
+    result = invoke(command, source, "--format", "csv", stdin=f"{ROOT}/\n{ROOT}/a\n")
+
+    assert result.exit_code == 0, result.stderr
+    from sluicer.crawl.table import PAGE_COLUMNS
+
+    assert result.stdout.splitlines()[0] == ",".join(PAGE_COLUMNS)
+    got = rows(result.stdout)
+    assert [row["url"] for row in got][:2] == [f"{ROOT}/", f"{ROOT}/a"]
+    assert got[0]["summary.title"] == "Home" and got[0]["types"] == "Product"
+    assert "pages:" in result.stderr
+
+
+def test_format_csv_to_a_file_writes_the_table_there(fake, tmp_path):
+    out = tmp_path / "pages.csv"
+
+    result = invoke("crawl", f"{ROOT}/", "--format", "csv", "-o", str(out))
+
+    assert result.exit_code == 0, result.stderr
+    assert result.stdout == ""
+    assert [row["url"] for row in rows(out.read_text(encoding="utf-8"))] == [
+        f"{ROOT}/",
+        f"{ROOT}/a",
+        f"{ROOT}/b",
+    ]
+    assert "3 pages: 3 read." in result.stderr
+
+
+def test_a_table_cannot_be_resumed(fake, tmp_path):
+    out = tmp_path / "pages.csv"
+
+    result = invoke("crawl", f"{ROOT}/", "--format", "csv", "-o", str(out), "--resume")
+
+    assert result.exit_code == 2
+    assert "--resume reads JSON Lines" in result.stderr
+    assert fake.requests == []
+
+
+def test_map_as_csv_is_a_row_per_address(fake):
+    fake.pages[f"{ROOT}/sitemap.xml"] = SITEMAP
+
+    result = invoke("map", f"{ROOT}/", "--format", "csv")
+
+    assert result.exit_code == 0, result.stderr
+    assert rows(result.stdout) == [
+        {"url": f"{ROOT}/a", "lastmod": "2026-09-01", "sitemap": f"{ROOT}/sitemap.xml"},
+        {"url": f"{ROOT}/b", "lastmod": "", "sitemap": f"{ROOT}/sitemap.xml"},
+    ]
+    assert invoke("map", f"{ROOT}/", "--format", "csv", "--plain").exit_code == 2
+
+
+def test_a_terminal_sees_a_bar_and_not_a_line_per_page(fake, monkeypatch):
+    monkeypatch.setattr("sluicer.cli._stderr_is_a_terminal", lambda: True)
+
+    result = invoke("crawl", f"{ROOT}/")
+
+    assert result.exit_code == 0, result.stderr
+    assert "200 http" not in result.stderr
+    assert "Crawling" in result.stderr
+    assert "3 pages: 3 read." in result.stderr
+    assert len(lines(result.stdout)) == 3
+
+
+def test_what_is_not_a_terminal_sees_no_bar(fake):
+    result = invoke("crawl", f"{ROOT}/")
+
+    assert "Crawling" not in result.stderr
+    assert "\r" not in result.stderr
+
+
+# -- templates -------------------------------------------------------------------
+
+
+def test_a_sitemap_template_reads_what_the_sitemaps_list(fake):
+    fake.pages[f"{ROOT}/sitemap.xml"] = SITEMAP
+
+    result = invoke("crawl", f"{ROOT}/", "--template", "sitemap")
+
+    assert result.exit_code == 0, result.stderr
+    assert [line["url"] for line in lines(result.stdout)] == [f"{ROOT}/a", f"{ROOT}/b"]
+
+
+def test_a_shopify_template_writes_a_product_a_line(fake):
+    import json as j
+
+    products = [
+        {"title": "Pad", "handle": "pad", "variants": [{"price": "9.00"}]},
+        {"title": "Disc", "handle": "disc", "variants": [{"price": "19.00"}]},
+    ]
+    fake.pages[f"{ROOT}/products.json?limit=250&page=1"] = j.dumps(
+        {"products": products}
+    )
+
+    result = invoke("crawl", f"{ROOT}/", "--template", "shopify", "--format", "csv")
+
+    assert result.exit_code == 0, result.stderr
+    got = rows(result.stdout)
+    assert [row["url"] for row in got] == [
+        f"{ROOT}/products/pad",
+        f"{ROOT}/products/disc",
+    ]
+    assert [row["summary.price"] for row in got] == ["9.00", "19.00"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--template", "sitemap", "--max-depth", "1"],
+        ["--template", "sitemap", "--any-site"],
+        ["--template", "shopify", "--include", "x"],
+        ["--template", "shopify", "--induce"],
+        ["--template", "shopify", "--respect", "tdm"],
+    ],
+)
+def test_an_option_a_template_does_not_use_is_refused_not_ignored(fake, extra):
+    result = invoke("crawl", f"{ROOT}/", *extra)
+
+    assert result.exit_code == 2
+    assert "--template" in result.stderr
+    assert fake.requests == []
+
+
+def test_a_site_the_sitemap_template_cannot_map_exits_two(fake):
+    fake.pages[f"{ROOT}/robots.txt"] = (503, "busy", {})
+
+    result = invoke("crawl", f"{ROOT}/", "--template", "sitemap", "--retries", "0")
+
+    assert result.exit_code == 2
+    assert "503" in result.stderr

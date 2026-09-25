@@ -324,7 +324,7 @@ def map_site(
             allow_private, resolve, max_bytes, headers=headers, cookies=cookies
         )
     )
-    polite = Politeness(web.read, min_delay, clock, sleep)
+    polite = Politeness(web.read, min_delay, clock, sleep, ceiling=max_delay)
     deadline = None if time_budget is None else clock() + time_budget
     site = site_of(start)
     try:

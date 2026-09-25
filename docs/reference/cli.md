@@ -107,11 +107,19 @@ Usage: sluicer batch [OPTIONS] URLS_FILE
 Options:
   -o, --out FILE              Write one JSON line per page here, not to stdout; the file
                               is the state --resume continues from.
+  --format [jsonl|csv]        jsonl: a JSON line per page; csv: a row per page, its
+                              summary flattened into a column a question
+                              (docs/crawling.md says which).  [default: jsonl]
   --resume                    Continue what --out already holds, fetching none of it
                               again.
   --delay FLOAT RANGE         The least seconds between two requests to one site; its
                               robots.txt Crawl-delay wins when longer.  [default: 1.0;
                               x>=0]
+  --retries INTEGER RANGE     Ask a page again this many times when it did not answer,
+                              or answered 429 or a 5xx, each time twice as late; never a
+                              4xx.  [default: 2; x>=0]
+  --jobs INTEGER RANGE        How many sites are asked at once, each still one request
+                              at a time.  [default: 4; x>=1]
   --induce / --no-induce      Also read the rows a page repeats when it declares nothing
                               about them.
   --respect [tdm]             Give a page whose rights are reserved as an error, not its
@@ -179,39 +187,52 @@ Usage: sluicer crawl [OPTIONS] URL
 
   Breadth first, on URL's site unless --any-site, every page through robots.txt and one
   request at a time with the site's delay between. Run twice, it takes the same pages in
-  the same order.
+  the same order. --template sitemap reads the pages the site's sitemaps list instead,
+  --include and --exclude choosing among them; --template shopify reads a Shopify shop's
+  products from its /products.json, --max-pages of them at 250 a page.
 
 Options:
-  --max-pages INTEGER RANGE   The most addresses taken, whatever becomes of them.
-                              [default: 100; x>=1]
-  --max-depth INTEGER RANGE   The most links from URL; 0 reads URL alone.  [default: 3;
-                              x>=0]
-  --include REGEX             Follow only links whose address this is found in;
-                              repeatable.
-  --exclude REGEX             Do not follow links whose address this is found in;
-                              repeatable.
-  --any-site                  Follow links that leave URL's site too.
-  -o, --out FILE              Write one JSON line per page here, not to stdout; the file
-                              is the state --resume continues from.
-  --resume                    Continue what --out already holds, fetching none of it
-                              again.
-  --delay FLOAT RANGE         The least seconds between two requests to one site; its
-                              robots.txt Crawl-delay wins when longer.  [default: 1.0;
-                              x>=0]
-  --induce / --no-induce      Also read the rows a page repeats when it declares nothing
-                              about them.
-  --respect [tdm]             Give a page whose rights are reserved as an error, not its
-                              data: tdm reads TDMRep's tdmrep.json, headers and meta
-                              tags.
-  --proxy URL                 Fetch through this proxy (http://host:port,
-                              socks5h://host:port); the environment's HTTPS_PROXY is
-                              never used. Same as SLUICER_PROXY.
-  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
-                              redirects to; again for more. Never User-Agent: Sluicer
-                              always says who it is.
-  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
-                              again for more.
-  --help                      Show this message and exit.
+  --max-pages INTEGER RANGE     The most addresses taken, whatever becomes of them.
+                                [default: 100; x>=1]
+  --max-depth INTEGER RANGE     The most links from URL; 0 reads URL alone.  [default:
+                                3; x>=0]
+  --include REGEX               Follow only links whose address this is found in;
+                                repeatable.
+  --exclude REGEX               Do not follow links whose address this is found in;
+                                repeatable.
+  --any-site                    Follow links that leave URL's site too.
+  --template [sitemap|shopify]  A ready crawl: sitemap reads the pages URL's sitemaps
+                                list; shopify reads a Shopify shop's /products.json, a
+                                line per product.
+  -o, --out FILE                Write one JSON line per page here, not to stdout; the
+                                file is the state --resume continues from.
+  --format [jsonl|csv]          jsonl: a JSON line per page; csv: a row per page, its
+                                summary flattened into a column a question
+                                (docs/crawling.md says which).  [default: jsonl]
+  --resume                      Continue what --out already holds, fetching none of it
+                                again.
+  --delay FLOAT RANGE           The least seconds between two requests to one site; its
+                                robots.txt Crawl-delay wins when longer.  [default: 1.0;
+                                x>=0]
+  --retries INTEGER RANGE       Ask a page again this many times when it did not answer,
+                                or answered 429 or a 5xx, each time twice as late; never
+                                a 4xx.  [default: 2; x>=0]
+  --jobs INTEGER RANGE          How many sites are asked at once, each still one request
+                                at a time.  [default: 4; x>=1]
+  --induce / --no-induce        Also read the rows a page repeats when it declares
+                                nothing about them.
+  --respect [tdm]               Give a page whose rights are reserved as an error, not
+                                its data: tdm reads TDMRep's tdmrep.json, headers and
+                                meta tags.
+  --proxy URL                   Fetch through this proxy (http://host:port,
+                                socks5h://host:port); the environment's HTTPS_PROXY is
+                                never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'    Send this header to the site asked, and to no other it
+                                redirects to; again for more. Never User-Agent: Sluicer
+                                always says who it is.
+  --cookie NAME=VALUE           Send this cookie to the site asked, as --header does;
+                                again for more.
+  --help                        Show this message and exit.
 ```
 
 ## `sluicer diff`
@@ -453,6 +474,8 @@ Usage: sluicer map [OPTIONS] URL
 Options:
   --limit INTEGER RANGE       The most addresses listed.  [default: 50000; x>=1]
   --plain / --no-plain        One address a line, for `sluicer batch -`.
+  --format [json|csv]         json: the map as one object; csv: a row per address (url,
+                              lastmod, sitemap).  [default: json]
   --proxy URL                 Fetch through this proxy (http://host:port,
                               socks5h://host:port); the environment's HTTPS_PROXY is
                               never used. Same as SLUICER_PROXY.
@@ -515,7 +538,7 @@ Usage: sluicer mcp [OPTIONS]
 
 Options:
   --tools TEXT  Register only these tools, comma-separated: --tools
-                extract_declared,page_markdown. All ten by default.
+                extract_declared,page_markdown. All twelve by default.
   --help        Show this message and exit.
 ```
 

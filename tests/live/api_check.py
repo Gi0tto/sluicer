@@ -310,6 +310,19 @@ def main() -> int:
         )
         if audited.get("ok") is not True or not audited.get("records"):
             check.failures.append(f"audit_page audited nothing: {audited}")
+        selected = check.expect(
+            "select_values",
+            call(
+                a,
+                "select_values",
+                {"html_or_url": PAGE, "selector": "h1::text"},
+                headers=auth,
+            ),
+            200,
+            tool="select_values",
+        )
+        if [v.get("value") for v in selected.get("values") or ()] != ["Brake pad set"]:
+            check.failures.append(f"select_values selected nothing: {selected}")
         v1 = (DRIFT / "shop_v1.html").read_text(encoding="utf-8")
         learnt = check.expect(
             "compile_extractor",
@@ -431,6 +444,14 @@ def main() -> int:
         )
         if not crawled.get("pages"):
             check.failures.append(f"crawl_site crawled nothing: {str(crawled)[:200]}")
+        many = check.expect(
+            "extract_many",
+            call(b, "extract_many", {"urls": [f"{site}/page"]}),
+            200,
+            tool="extract_many",
+        )
+        if not many.get("ok") or len(many.get("pages") or ()) != 1:
+            check.failures.append(f"extract_many read nothing: {str(many)[:200]}")
         feed = check.expect(
             "read_feed",
             call(b, "read_feed", {"url_or_text": FEED}),

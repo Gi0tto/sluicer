@@ -402,6 +402,14 @@ class MapAnswer(TypedDict, total=False):
     truncated: bool
 
 
+class RetryAnswer(TypedDict):
+    """One time a crawled page was asked again: what the request before came
+    to, and the seconds from its end to this one's start."""
+
+    reason: str
+    after: float
+
+
 class CrawledPage(TypedDict, total=False):
     """One page of a crawl: its summary and the types it declared, not its
     records, which ``extract_declared`` gives for any page worth reading whole.
@@ -419,7 +427,36 @@ class CrawledPage(TypedDict, total=False):
     sources: list[str]
     types: list[str]
     links: int
+    retries: list[RetryAnswer]
     error: PageError
+
+
+class ExtractedPage(TypedDict, total=False):
+    """One page of ``extract_many``: a crawled page's fields but where a crawl
+    found it, and its records when they were asked for and fit."""
+
+    ok: Required[bool]
+    url: str
+    landed: str | None
+    fetch: FetchRecord
+    canonical: str | None
+    summary: dict[str, SummaryAnswer]
+    summary_left_out: list[str]
+    records: list[RecordAnswer]
+    records_left_out: int
+    sources: list[str]
+    types: list[str]
+    links: int
+    retries: list[RetryAnswer]
+    error: PageError
+
+
+class ManyAnswer(TypedDict, total=False):
+    ok: Required[bool]
+    error: ErrorDetail
+    pages: list[ExtractedPage]
+    pages_left_out: int
+    stopped: Literal["done", "time_budget"]
 
 
 class CrawlAnswer(TypedDict, total=False):

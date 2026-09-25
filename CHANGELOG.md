@@ -106,6 +106,42 @@ Dates are the day the work landed. Anything not listed here did not happen.
   as its one setting. The release writes it pinned to the tagged commit and
   attaches it as `docker-mcp-registry-server.yaml`; the registry's own
   validator (`cmd/validate` at 49b643c) passes it. No pull request is opened.
+- A crawl asks a page again when it may answer later: a connection reset, a
+  timeout, a name that did not resolve, a robots.txt nobody could read, or an
+  answer of 429 or a 5xx. Twice by default (`--retries`, `retries=`), after
+  twice the site's delay and then four times it, or its `Retry-After` when
+  longer, never past `max_delay` or the time budget; never a 4xx but 429. A
+  site whose page failed through all its retries is asked once a page until
+  it answers. Each retry is in the page's line, `"retries": [{"reason",
+  "after"}]`, on stderr and in the MCP crawl answers.
+- A crawl's pace follows its sites: each request is timed, and a site that
+  has lately taken longer to answer than its delay waits that long before
+  the next request (each request's seconds averaged with the pace before,
+  as Scrapy's AutoThrottle keeps one request in flight), never more than
+  `max_delay` and never in place of the floor or the `Crawl-delay`.
+- `--jobs N` on `crawl` and `batch`: how many sites are asked at once (4),
+  each still one request at a time. Measured on eight local sites of five
+  pages at `--delay 0.5`: 6.2 s with 1, 3.3 s with 4, 2.7 s with 8.
+- `--format csv` on `crawl`, `batch` and `map`: a row per page, its columns
+  fixed and its summary flattened into `summary.<question>` columns
+  (docs/crawling.md lists them), or a row per address for `map`. A cell a
+  spreadsheet would run as a formula is written after a `'`. A table cannot
+  be resumed, and `--resume` says so. `sluicer.crawl.table` flattens a line.
+- On a terminal, `crawl` and `batch` show one progress bar on stderr instead
+  of a line a page; anywhere else, the line a page as before.
+- `sluicer crawl URL --template sitemap` reads the pages a site's sitemaps
+  list in one process, the delay kept between the map and the pages, with
+  `--include`, `--exclude` and `--max-pages`; `--template shopify` reads a
+  Shopify shop's products from `/products.json`, page by page and politely,
+  a line per product with a `Product` record of Shopify's fields (source
+  `shopify`, each with its JSON pointer) and a summary of them. From
+  Python, `sitemap_pages()` and `shopify_products()`. Tested on local
+  fixtures only.
+- The twelfth MCP tool, `extract_many(urls, records=false, induce,
+  respect_tdm)`: up to 25 addresses at each site's pace, within a minute,
+  each page's summary and types, and its records when asked, as far as the
+  75,000-byte bound allows, the heaviest pages' records left out first. The
+  HTTP API serves it at `/v1/tools/extract_many`.
 - A configuration file for the command line: `sluicer.toml`, or a
   `[tool.sluicer]` table in `pyproject.toml`, the nearest in the working
   directory or above it; or the file `SLUICER_CONFIG` or `--config FILE`
@@ -260,6 +296,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is not exactly what the pinned CLDR release gives.
 
 ### Fixed
+- A crawl's `headers=` and `cookies=`, and `--header` and `--cookie` on
+  `crawl`, `batch` and `map`, reached no request: the crawl's web was built
+  without them. They now go with every page, robots.txt and sitemap, to the
+  origin asked.
+- Within a crawl, a site's listing pages stay on plain HTTP after one of its
+  product pages needed the browser: the rung each part of the site (an
+  address's directory) needed is kept beside the site's. Measured on a local
+  shop, 3 of 7 listing pages were rendered in the browser, about 0.7 s each
+  against 2 ms; now none, with the same 30 document requests.
 - A page field no longer reads another field on a page it was learnt from.
   Learnt from PEPs 8, 20 and 257 with `--want status=Active type=Process
   created=05-Jul-2001`, the type and the date were read by their place in the

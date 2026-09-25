@@ -86,3 +86,56 @@ def test_a_full_schedule_waits_for_a_request_to_end_rather_than_spinning(
 
     assert len(done) == 6
     assert len(waits) < 20, f"{len(waits)} waits for six requests"
+
+
+def test_the_pace_follows_how_long_the_site_takes_averaged_with_before():
+    clock = Clock()
+    polite = Politeness(lambda url: None, min_delay=1.0, clock=clock, sleep=clock.sleep)
+
+    with polite.turn(f"{ROOT}/a"):
+        clock.now += 3.0
+    assert polite.pace(ROOT) == 3.0
+    with polite.turn(f"{ROOT}/b"):
+        clock.now += 1.0
+
+    assert polite.pace(ROOT) == 2.0
+    assert clock.slept == [3.0]
+    before = clock()
+    with polite.turn(f"{ROOT}/c"):
+        pass
+    assert clock() - before == 2.0
+
+
+def test_the_pace_is_never_more_than_the_ceiling():
+    clock = Clock()
+    polite = Politeness(
+        lambda url: None, min_delay=1.0, clock=clock, sleep=clock.sleep, ceiling=5.0
+    )
+
+    with polite.turn(f"{ROOT}/a"):
+        clock.now += 30.0
+
+    assert polite.pace(ROOT) == 5.0
+
+
+def test_a_redirect_hop_s_rest_is_not_taken_for_the_site_s_slowness():
+    clock = Clock()
+    polite = Politeness(lambda url: None, min_delay=4.0, clock=clock, sleep=clock.sleep)
+
+    with polite.turn(f"{ROOT}/a"):
+        clock.now += 0.5
+        assert polite.hop(f"{ROOT}/a", f"{ROOT}/b") is None
+        clock.now += 0.5
+
+    assert clock.slept == [4.0]
+    assert polite.pace(ROOT) == 0.5
+
+
+def test_a_request_whose_start_was_not_noted_is_not_timed():
+    clock = Clock()
+    polite = Politeness(lambda url: None, clock=clock, sleep=clock.sleep)
+
+    clock.now += 9.0
+    polite.ended(f"{ROOT}/a")
+
+    assert polite.pace(ROOT) == 0.0

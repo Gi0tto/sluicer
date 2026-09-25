@@ -1,7 +1,7 @@
 # The HTTP API
 
 `sluicer serve` answers the MCP server's tools over HTTP, one address per
-tool, so any language that can send a POST can use Sluicer. They are the eleven
+tool, so any language that can send a POST can use Sluicer. They are the twelve
 tools an agent gets, each in the [MCP reference](reference/mcp.md), with the
 same arguments, the same answers and the same output schemas, because it is
 built from them: an HTTP call goes through the MCP SDK's own `call_tool`, argument
@@ -120,7 +120,7 @@ described in the listing and in [Extractors](extractors.md).
 ## MCP over HTTP
 
 `/mcp` is the MCP SDK's own streamable HTTP transport over the same server:
-the same eleven tools, listed with the same descriptions, annotations and both
+the same twelve tools, listed with the same descriptions, annotations and both
 schemas, and each call answers what it answers over stdio, the bounds of each
 tool included. A call runs on the same workers as a `POST /v1/tools/{name}`,
 within the same `--timeout`. The token, the `Host` check and the refusal of
@@ -148,7 +148,7 @@ The address is `http://127.0.0.1:8000/mcp`, and the token, when there is one,
 goes in `Authorization: Bearer <token>`. Measured on 2026-09-25 against
 `sluicer serve`: the `mcp` Python SDK's client (2.2.0) in both of its modes,
 and the TypeScript SDK's (1.30.1), which n8n's MCP nodes are built on, list the
-ten tools it had before `select_values` and call `extract_declared`; the TypeScript client asks for the
+ten tools it had before `select_values` and `extract_many` and call `extract_declared`; the TypeScript client asks for the
 stream once, takes the 405 and goes on.
 
 ### n8n

@@ -15,6 +15,9 @@ sluicer map https://shop.example/                                  # its address
 sluicer map https://shop.example/ --plain | sluicer batch - -o pages.jsonl   # read each one
 sluicer crawl https://shop.example/ --max-pages 200 -o shop.jsonl  # follow its links instead
 sluicer crawl https://shop.example/ --max-pages 500 -o shop.jsonl --resume   # and continue later
+sluicer crawl https://shop.example/ --template sitemap -o pages.jsonl        # what its sitemaps list
+sluicer crawl https://shop.example/ --template shopify --format csv > products.csv   # a Shopify shop's products
+sluicer batch urls.txt --jobs 8 --format csv > pages.csv          # eight sites at once, as a table
 ```
 
 From Python:
@@ -35,10 +38,17 @@ print(run.stopped)  # "done", "max_pages" or "time_budget"
 
 for page in extract_many(["https://shop.example/p/1", "https://shop.example/p/2"]):
     ...
+
+from sluicer.crawl import shopify_products, sitemap_pages
+
+for product in shopify_products("https://shop.example/"):
+    print(product.url, product.extraction.summary["price"].value)
 ```
 
 A page that failed is an answer like any other: it comes back with its
-`error`, and the crawl goes on.
+`error`, and the crawl goes on. On a terminal, stderr shows one bar of the
+pages taken, the last one's status and address beside it; anywhere else,
+a log, one line a page.
 
 ## What polite means here
 
@@ -51,7 +61,8 @@ A page that failed is an answer like any other: it comes back with its
   `www.`, over http or https, with its port when that is not the default:
   `www.example.com` and `example.com` are usually the same machines, and
   pacing them apart would ask them twice as often. Several sites are asked at
-  once, four by default, never more than once each. One at a time holds for
+  once, four by default (`--jobs`, `concurrency=`), never more than once
+  each. One at a time holds for
   the whole process, not only for one crawl: two crawls of one site, a map
   beside them, or an agent's parallel `extract_declared` calls wait for each
   other (`sluicer.fetch.gate`). A single fetch -- `sluicer extract`, an MCP or
@@ -83,12 +94,47 @@ A page that failed is an answer like any other: it comes back with its
   without reading `Retry-After`; Crawlee reads it on a 429 only, and only when
   the crawler is set to pace the site (a `ThrottlingRequestManager`, or
   `sameDomainDelaySecs` in its JavaScript version).
+- **A slow site is asked as slowly.** A crawl times each request, and a
+  site's pace is how long it has lately taken to answer: each request's
+  seconds averaged with the pace before, as Scrapy's AutoThrottle does when
+  it keeps one request in flight. The next request waits the pace when it is
+  longer than the delay, never more than `max_delay`, and never instead of
+  the floor or the `Crawl-delay`: a site answering in 3 s is asked every
+  3 s, not every second. Measured on a local site with a 0.3 s delay: the
+  request after a page that took 2.0 s waited 1.01 s, the next 0.51 s, then
+  0.31 s. A redirect hop's rest is not counted as the site's slowness.
+- **Asked again, a few times and later each time.** A page whose request
+  did not answer -- a connection reset, a timeout, a name that did not
+  resolve, a `robots.txt` nobody could read -- or answered 429 or a 5xx is
+  asked again, twice at most by default (`--retries`, `retries=`; 0 asks
+  once): the first time twice the site's delay after the failed request
+  ended, the second four times it, or the site's `Retry-After` when that is
+  longer, never more than `max_delay` and never past the time budget. A 4xx
+  other than 429 is the site's answer about the page, and is never asked
+  again. A site whose page failed through all its retries is asked once a
+  page until one of its pages answers, so a site that is down costs its
+  retries once, not once a page. The page's line says each time in
+  `retries`, `[{"reason": "it answered 503", "after": 1.0}]`, and is what its
+  last request came to. Measured on a local site with a 0.5 s delay: a page
+  whose connection was reset was asked again 1.0 s later, and one that
+  answered 503 twice 1.0 s and then 2.0 s later; a 404 beside them was asked
+  once.
 - **Asked once, not twice.** A page that plain HTTP brought back as an empty
   shell is asked again of the browser, which is two requests for one page. So
   a site that needed the browser once starts its next pages there, for the
   rest of the process and at most a day, and each such page's first climb
   says so: a JS site's crawl asks each page once. A rung that merely failed
-  teaches nothing, and a remembered rung that fails is forgotten.
+  teaches nothing, and a remembered rung that fails is forgotten. Within a
+  crawl the memory is also kept for each part of the site -- an address's
+  directory, `/p/` for `/p/1` -- so a shop whose listings are plain HTML and
+  whose products a script draws keeps its listings on plain HTTP after its
+  first product needed the browser: a part whose page came back from plain
+  HTTP starts there, one that needed the browser starts at it, and one not
+  seen yet starts where the site's memory says. Measured on a local shop of 7
+  listings and 21 script-drawn products, crawled with the real browser: 30
+  document requests, as with the site's memory alone, and none of the
+  listings rendered in the browser, where three were before (0.7 s each,
+  against 2 ms over plain HTTP); with no memory at all, 50.
 - **One connection per site.** Plain HTTP keeps the connection a page came on,
   while the server keeps it open, and asks the site's next page on it: one
   handshake for a site's pages rather than one each. Measured on a local
@@ -129,6 +175,54 @@ ladder read the moment a page redirected to the other scheme, a rung it
 climbed to the moment the last came back, and a batch that began the moment
 the map before it ended. The five scrapeme.live products each came back as a
 `Product` with its price, read from its JSON-LD.
+
+## Several sites at once
+
+`--jobs N` on `batch` and `crawl` asks up to N sites at the same moment, each
+still one request at a time with its delay between: a crawl kept to its site
+asks one site whatever N is, so it matters to a batch and to `--any-site`.
+The pages come back in the order given either way. Measured on eight local
+sites of five pages each, with `--delay 0.5`: 6.2 s with `--jobs 1`, 3.3 s
+with 4, 2.7 s with 8, the order kept every time, never two requests in
+flight at one site, and no gap at a site shorter than 0.50 s.
+
+## Ready crawls
+
+`--template` names a crawl whose pages a site already lists.
+
+- **`sitemap`** reads every address the site's sitemaps list, in their
+  order, the way `sluicer map URL --plain | sluicer batch -` does, but in one
+  process: the map's last request and the first page's are one site's, and
+  wait its delay between (the pipe's second command starts as the first
+  ends, and knows nothing of it). `--include` and `--exclude` choose among
+  the addresses, and `--max-pages` bounds them; the run says it stopped at
+  `max_pages` when the sitemaps listed more. A site with no sitemap gives the
+  start page's links, as a map does. It resumes as a batch does.
+- **`shopify`** reads a Shopify shop's products from the file every Shopify
+  shop serves, `/products.json?limit=250&page=N`, from page 1 until a page is
+  short or `--max-pages` pages were asked: each page through `robots.txt`,
+  after the site's delay, and asked again as a page is. Each product is a line
+  of its own, at its page's address, `/products/<handle>`, with `found_on`
+  the products.json page. Its `records` hold one `Product` of the fields
+  Shopify wrote, as Shopify named them, `source` `shopify`, each with its
+  JSON pointer in that page (`/products/3/variants/0/price`); its `summary`
+  answers the title, the description as text, the first image, the
+  publication and update dates, the vendor as brand, the price -- or, when
+  the variants differ, `price_low` and `price_high` -- the regular price
+  (`compare_at_price`), the availability (in stock when any variant is) and,
+  for a product of one variant, its SKU. The file names no currency, so the
+  summary has none. A site that answers another status, or not a
+  products.json, is answered `bad_input`: not a Shopify shop, or one that
+  serves none. `--resume` asks the last page its file holds again and writes
+  none of that page's products twice; another shop's file is refused.
+  Measured on a local shop of 517 products with a `Crawl-delay` of 0.5: three
+  requests after `robots.txt`, a second apart (the default delay being the
+  longer), and 517 rows.
+
+An option a template does not use -- `--max-depth` and `--any-site`, and for
+`shopify` `--include`, `--exclude`, `--induce` and `--respect` -- is refused,
+not ignored. From Python, `sitemap_pages()` and `shopify_products()` in
+`sluicer.crawl` take `crawl`'s arguments.
 
 ## Rights a site reserves
 
@@ -235,6 +329,31 @@ that already holds pages is never appended to.
 
 A batch resumes the same way, skipping every address its file holds.
 
+## As a table
+
+`--format csv` on `crawl` and `batch` writes a row per page instead of a JSON
+line, to stdout or `--out`, for a spreadsheet. The columns are fixed, so every
+file has the same header, written before the first page is fetched:
+
+| columns | what they hold |
+|---|---|
+| `url`, `ok`, `depth`, `found_on`, `landed`, `status`, `rung`, `seconds`, `canonical` | the page, as its line says |
+| `climbs`, `retries`, `records`, `links` | how many its line lists |
+| `error`, `message` | its error's code and sentence, empty when it has none |
+| `sources`, `types` | the readers that found something and the types its records declared, each once, a space between |
+| `summary.title` ... `summary.breadcrumb` | each summary question, in `sluicer.summary.FIELDS`'s order: the answer's value alone |
+
+The summary's reader, key and place, and the records themselves, are in the
+JSON line and not in the table. True and false are `true` and `false`, and
+nothing is an empty cell. The pages are other people's, and a cell that
+begins with `=`, `+`, `-`, `@`, a tab or a carriage return would run as a
+formula in a spreadsheet: it is written after a `'`, as OWASP advises, unless
+it is a number. A table holds no page's links, so it cannot be resumed:
+`--resume` refuses it; crawl as JSON Lines and make the table after.
+`sluicer map --format csv` is a row per address: `url`, `lastmod`,
+`sitemap`. From Python, `sluicer.crawl.table.page_row()` flattens a page's
+line.
+
 ## Exit codes
 
 The single-page commands' three meanings, over the whole run, pages resumed
@@ -272,7 +391,7 @@ sitemaps, the time -- stopped the map before the sitemaps were read out.
 
 ## For an agent
 
-Two MCP tools, each small and on a clock, each answering with `ok` like the
+Three MCP tools, each small and on a clock, each answering with `ok` like the
 rest:
 
 - `map_site(url, limit=100)` -- up to 1,000 addresses from up to ten sitemaps,
@@ -285,8 +404,20 @@ rest:
   more than ten seconds between requests is answered `crawl_delay_too_long`
   rather than holding the agent a minute a page. `ok` is false only when no
   page could be read, and `error` then says why.
+- `extract_many(urls, records=false, induce, respect_tdm)` -- up to 25
+  addresses the agent already has, on one site or several, in the order
+  given, within a minute: each site one request at a time, several sites at
+  once, where a loop of `extract_declared` calls waits a second behind each
+  one and retries nothing. Each page comes back as `crawl_site`'s do, and with
+  its records when `records` is true. Measured on the 140 pages of the product
+  benchmark, a page's summary weighs 2.3 KB at the median and its records
+  4.2 KB more: 25 summaries fit the 75,000-byte bound an answer is held to,
+  25 pages' records do not, so past the bound the heaviest pages' records go
+  first, counted in `records_left_out`.
 
-Both refuse addresses off the public internet, every page and every sitemap,
+A page of any of them asked again says so in `retries`.
+
+All three refuse addresses off the public internet, every page and every sitemap,
 unless the server was started with `SLUICER_ALLOW_PRIVATE=1`. The minute stops
 the tool starting requests; a page already started finishes.
 

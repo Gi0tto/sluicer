@@ -83,7 +83,7 @@ on HTML handed in waited about 65 s behind them, its budget before 0.7.1. It
 only parses, so it waits at most for other calls that only parse.
 """
 
-PAGE_ARGUMENTS = ("html_or_url", "url", "url_or_text", "pages")
+PAGE_ARGUMENTS = ("html_or_url", "url", "url_or_text", "pages", "urls")
 """The arguments the tools take a page through, a URL or the page itself.
 
 A test holds every tool to naming its page with one of these.

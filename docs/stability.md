@@ -30,9 +30,10 @@ remove or rename one of them warns first.
   `sluicer heal` exits 3 when a field, a summary answer, a type or the listing
   was lost, or a selector a person wrote was broken; 2 is a page that could
   not be read. See [Extractors](extractors.md).
-- **The MCP tools.** The ten tool names -- `extract_declared`,
+- **The MCP tools.** The twelve tool names -- `extract_declared`,
   `page_markdown`, `fetch_page`, `compile_extractor`, `run_extractor`,
-  `heal_extractor`, `audit_page`, `read_feed`, `map_site`, `crawl_site` -- their
+  `heal_extractor`, `audit_page`, `read_feed`, `map_site`, `crawl_site`,
+  `extract_many`, `select_values` -- their
   parameters, and the answer fields the [MCP reference](reference/mcp.md)
   documents, `ok` and the error codes among them. Fields and error codes may
   be added, so an agent should ignore what it does not know; `ok` keeps its
