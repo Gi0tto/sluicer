@@ -1048,6 +1048,25 @@ def test_one_rung_that_may_answer_later_makes_the_failure_transient():
     assert failed.value.transient
 
 
+def test_a_robots_txt_that_answered_5xx_is_named_as_the_reason():
+    """RFC 9309 reads a robots.txt's 5xx as nothing allowed for now, and so
+    does the ladder, which asks a robots.txt without the caller's login: a
+    site that answers 500 to anyone not logged in has its logged-in pages
+    refused too. The message says it was the robots.txt, and why."""
+
+    def rung(url):
+        status = 500 if url.endswith("/robots.txt") else 200
+        return Fetched(url=url, html="<html>page</html>", status=status, rung="http")
+
+    with pytest.raises(FetchFailed) as failed:
+        fetch("https://example.com/p", rungs=[("http", rung)])
+
+    said = str(failed.value)
+    assert "robots.txt for https://example.com/p: it answered status 500" in said
+    assert "RFC 9309" in said and "without the caller's headers" in said
+    assert failed.value.transient
+
+
 def test_a_robots_txt_that_did_not_answer_is_transient():
     """Whatever the rung that read it raised: RFC 9309 counts every way of
     not reaching it as one event, and it may answer later."""

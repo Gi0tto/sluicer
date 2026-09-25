@@ -475,7 +475,10 @@ batch sends them to the origin of every address it is given, as `curl -H`
 sends them to every address, so a batch of several sites gives each site the
 same cookie; a redirect's target, read in its own turn, is sent none.
 robots.txt is always read without them, so its answer is the site's for
-every caller, and so is a sitemap on another origin. The archive (`--at`)
+every caller, and so is a sitemap on another origin. A site that answers its
+robots.txt with a 5xx to anyone not logged in has every page refused,
+logged-in ones too: RFC 9309 reads a 5xx as nothing allowed until it
+answers otherwise, and the failure says so. The archive (`--at`)
 and the stealth rung are sent none.
 
 **The cache serves single pages.** `--cache` is read by `extract`, `inspect`,

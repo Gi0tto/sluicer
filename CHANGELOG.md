@@ -789,6 +789,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   never asked a page again when the network flapped once, and the MCP tools
   said `retryable: false`. An aborted connection and a broken pipe already
   were, as the `ConnectionError`s Python raises for them.
+- The failure a robots.txt's 5xx ends a fetch with says what the 5xx means:
+  RFC 9309 reads it as nothing allowed until the robots.txt answers
+  otherwise, and the robots.txt was asked without the caller's headers and
+  cookies, so a site that answers 500 to anyone not logged in has its
+  logged-in pages refused. It said only that the robots.txt answered 500.
+  Nothing on such a site is fetched, as in 0.7.1.
 
 ## 0.7.1 - 2026-09-25
 
