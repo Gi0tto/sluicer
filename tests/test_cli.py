@@ -1230,7 +1230,9 @@ def _shop_extractor(tmp_path):
 
 
 @pytest.mark.parametrize("command", ["run", "heal"])
-@pytest.mark.parametrize(("status", "html"), [(503, ""), (404, "<p>Not found</p>")])
+@pytest.mark.parametrize(
+    ("status", "html"), [(503, ""), (404, "<p>Not found</p>")], ids=["503", "404"]
+)
 def test_run_and_heal_do_not_read_an_error_page_as_the_page(
     monkeypatch, tmp_path, command, status, html
 ):
