@@ -392,6 +392,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   process. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
+- `sluicer compile` refuses a field named twice, `--select x=h1 --select
+  x=h2` or `--want x=a --want x=b`, exit 2, as an extractor file with two
+  fields of one name is refused. The last one was kept and the first dropped
+  without a word.
 - `select_values` answers `bad_input` for a selector that selects a comment
   on the page it is asked of, and for one with a NUL or a control character,
   which lxml refuses with a `ValueError` of its own; both reached the agent as

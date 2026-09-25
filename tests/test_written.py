@@ -571,6 +571,8 @@ def test_heal_exits_three_and_writes_nothing_for_a_broken_selector(tmp_path):
         (["--rows", "li"], "--select"),
         (["--select", "t=h1", "--want", "t=x"], "--want"),
         (["--select", "t=h1", "--listing"], "--rows"),
+        (["--select", "t=h1", "--select", "t=h2"], "two fields named 't'"),
+        (["--want", "t=Brake", "--want", " t=pad"], "two fields named 't'"),
     ],
 )
 def test_compile_refuses_a_selector_it_cannot_read_naming_it(tmp_path, options, said):
