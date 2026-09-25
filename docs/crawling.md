@@ -354,7 +354,9 @@ JSON line and not in the table. True and false are `true` and `false`, and
 nothing is an empty cell. The pages are other people's, and a cell that
 begins with `=`, `+`, `-`, `@`, a tab or a carriage return would run as a
 formula in a spreadsheet: it is written after a `'`, as OWASP advises, unless
-it is a number. A table holds no page's links, so it cannot be resumed:
+it is a number of ASCII digits. It is judged behind the spaces, line breaks
+and no-break spaces a spreadsheet may trim, and with a fullwidth `＝` or `＋`
+read as the sign it looks like. A table holds no page's links, so it cannot be resumed:
 `--resume` refuses it; crawl as JSON Lines and make the table after.
 `sluicer map --format csv` is a row per address: `url`, `lastmod`,
 `sitemap`. From Python, `sluicer.crawl.table.page_row()` flattens a page's

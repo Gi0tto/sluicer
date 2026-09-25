@@ -591,6 +591,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   requests: 64 connections that sent nothing held every one it serves at
   once, and every later request, `/health` included, was answered 503 for as
   long as they stayed. `tests/live/mcp_http_check.py` holds 64 open.
+- A CSV cell is judged as a spreadsheet may read it: behind the spaces,
+  line breaks and no-break spaces it may trim, with a fullwidth `＝` or `＋`
+  as the sign it looks like, and with a number made of ASCII digits. Only
+  the first character was looked at, so ` =1+1`, `\n=1+1` and `＝1+1` were
+  written as they came.
 
 ## 0.7.1 - 2026-09-25
 
