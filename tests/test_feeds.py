@@ -371,3 +371,54 @@ def test_atom_content_that_is_text_or_empty_xhtml_is_its_text():
     first, second, third = read_feed(entry.encode()).items
     assert first.content == "<p>Hi</p>"
     assert second.content is None and third.content is None
+
+
+# Every encoding libxml2 tells from a document's first bytes and reads, a
+# byte order mark or none: a declared entity must be found in each before it
+# is parsed.
+_WIDE = {
+    "UTF-16 with its mark": lambda text: text.encode("utf-16"),
+    "UTF-16LE": lambda text: text.encode("utf-16-le"),
+    "UTF-16BE": lambda text: text.encode("utf-16-be"),
+    "UTF-32 with its mark": lambda text: text.encode("utf-32"),
+    "UTF-32LE": lambda text: text.encode("utf-32-le"),
+    "UTF-32BE": lambda text: text.encode("utf-32-be"),
+}
+
+
+@pytest.mark.parametrize("encode", _WIDE.values(), ids=list(_WIDE))
+def test_an_entity_is_found_in_every_encoding_libxml2_reads(encode, monkeypatch):
+    """Suspected by security review, and so: the check before the parser
+    decoded UTF-16 only by its byte order mark, and libxml2 reads UTF-16
+    without one, and UTF-32, from the bytes of "<?" or "<". The parser left
+    the entities unexpanded, but the check is there not to rely on it."""
+    import lxml.etree
+
+    from sluicer.safexml import as_text, declares_what_expands
+
+    def must_not_parse(*args, **kwargs):
+        raise AssertionError("the parser was handed a declared entity")
+
+    text = (
+        '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE rss [<!ENTITY a "a">'
+        '<!ENTITY b "&a;&a;">]><rss><channel><title>&b;</title></channel></rss>'
+    )
+    assert declares_what_expands(as_text(encode(text)))
+    monkeypatch.setattr(lxml.etree, "fromstring", must_not_parse)
+    assert read_feed(encode(text)) is None
+
+
+# The same, but for the big-endian ones without "<" as their first byte,
+# which the reader does not take for XML and so never parses.
+_READ = {name: encode for name, encode in _WIDE.items() if not name.endswith("BE")}
+
+
+@pytest.mark.parametrize("encode", _READ.values(), ids=list(_READ))
+def test_a_feed_in_every_encoding_libxml2_reads_is_read(encode):
+    """What the check decodes it only searches: the feed is parsed as sent."""
+    text = (
+        '<?xml version="1.0" encoding="UTF-16"?>'
+        "<rss><channel><title>Brake notes é</title></channel></rss>"
+    )
+    feed = read_feed(encode(text))
+    assert feed is not None and feed.title == "Brake notes é"

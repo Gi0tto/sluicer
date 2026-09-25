@@ -388,6 +388,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- The check a sitemap or a feed passes before libxml2 reads it finds a
+  declared entity or document type in every encoding libxml2 reads: UTF-16
+  without a byte order mark and UTF-32, which libxml2 tells from the bytes of
+  `<?` or `<`, were searched as they were, mostly zero bytes, and handed to
+  the parser unchecked. The parser leaves entities unexpanded and the readers
+  refuse a document type at the root, so nothing expanded; the check is there
+  not to rely on that.
 - The RDFa reader reads each element's `vocab` and `prefix` once. Every
   property read every `prefix` attribute of every element around it again,
   so 8,000 prefixes over 8,000 properties (478 KB) took 8 seconds, 26 on
