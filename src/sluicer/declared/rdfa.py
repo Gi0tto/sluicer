@@ -185,21 +185,39 @@ def _value(doc: Document, element: HtmlElement) -> str:
     text means; then ``resource``, then the element's own address attribute,
     because the value of a link is where it points and not the words on it;
     and only then the text. The two addresses are resolved against the page.
+
+    A ``rel`` or ``rev`` on the same element takes its addresses for itself:
+    in ``<a href rel="v:url" property="v:title">Home</a>`` the address is the
+    link's object and the title is the words, as RDFa Core's processing rules
+    have it. HTML+RDFa ignores the plain words HTML writes there, such as
+    ``nofollow``, on an element with a property, so only a ``rel`` or ``rev``
+    naming a term, a CURIE or an IRI, takes the addresses.
     """
     content: str | None = element.get("content")
     if content:
         return content.strip()
+    linked = _links(element)
     resource = trimmed(element.get("resource"))
-    if resource:
+    if resource and not linked:
         return absolute(doc, resource)
     attr = _VALUE_ATTRS.get(element.tag)
-    if attr is not None:
+    if attr is not None and (attr == "datetime" or not linked):
         declared: str | None = element.get(attr)
         found = (declared or "").strip() if attr == "datetime" else trimmed(declared)
         if found:
             return found if attr == "datetime" else absolute(doc, found)
     text: str | None = element.text_content()
     return " ".join((text or "").split())
+
+
+def _links(element: HtmlElement) -> bool:
+    """Whether ``element``'s ``rel`` or ``rev`` names a term: a CURIE or an IRI,
+    which is what carries a colon."""
+    return any(
+        ":" in token
+        for attr in ("rel", "rev")
+        for token in (element.get(attr) or "").split()
+    )
 
 
 def _names(element: HtmlElement, declared: str | None) -> list[str]:

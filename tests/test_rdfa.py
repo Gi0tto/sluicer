@@ -180,6 +180,33 @@ def test_a_time_declares_its_datetime_not_the_words_around_it():
     assert read_rdfa(doc)[0]["datePublished"] == "2026-09-22"
 
 
+def test_a_link_s_address_belongs_to_its_rel_and_its_words_to_its_property():
+    # data-vocabulary.org's breadcrumbs, and the W3C RDFa suite's test 0334:
+    # `rel` names what the address is, so `property` names the words, as RDFa
+    # Core's processing rules say. The title was the address.
+    doc = load(
+        '<span typeof="v:Breadcrumb">'
+        '<a href="https://shop.example/brakes" rel="v:url" property="v:title">'
+        "Brakes</a></span>"
+    )
+
+    (crumb,) = read_rdfa(doc)
+
+    assert crumb["http://rdf.data-vocabulary.org/#title"] == "Brakes"
+
+
+def test_a_rel_of_plain_html_words_leaves_the_address_to_the_property():
+    # HTML+RDFa ignores the words HTML writes in `rel` on an element that also
+    # carries a property: the W3C RDFa suite's test 0312.
+    doc = load(
+        '<div vocab="https://schema.org/" typeof="Person">'
+        '<a href="https://ada.example/" rel="nofollow noopener" property="url">'
+        "Ada</a></div>"
+    )
+
+    assert read_rdfa(doc)[0]["url"] == "https://ada.example/"
+
+
 def test_a_link_with_no_address_falls_back_to_its_text():
     doc = load('<div typeof="Product"><a property="name">Brake pad set</a></div>')
 

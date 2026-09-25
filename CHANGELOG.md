@@ -21,6 +21,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says, for every test the reader fails, which part of RDFa it leaves out on
   purpose.
 
+### Fixed
+- RDFa: a property on an element whose `rel` or `rev` names a term takes the
+  element's words, not its address, which is the link's: data-vocabulary.org's
+  breadcrumbs, `<a href="/" rel="v:url" property="v:title">Home</a>`, gave
+  the address as the title, on 10 of the 3,976 cached corpus pages, and now
+  give `Home`, as RDFa Core's processing rules and the W3C suite's test 0334
+  say.
+  A `rel` of HTML's own words, such as `nofollow`, still leaves the address
+  to the property, as HTML+RDFa says (test 0312). No summary changes.
+
 ## 0.7.1
 
 ### Added
