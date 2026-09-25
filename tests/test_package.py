@@ -36,6 +36,7 @@ def test_the_fetch_package_has_a_surface_of_its_own():
         "RungMemory",
         "STICKY",
         "SiteRefused",
+        "afetch",
         "fetch",
         "robots_reader_from",
     }

@@ -110,7 +110,9 @@ uv pip install "sluicer[browser,markdown,mcp]"
 `pip install` works the same way, and `uv tool install` gives you the command
 in an environment of its own. The base install, `uv pip install sluicer`, reads
 HTML you already have and fetches pages over plain HTTP, with `lxml`, `click`
-and `protego` (robots.txt) alone: the HTTP client is Python's own.
+and `protego` (robots.txt) alone, and `tomli` on Python 3.10 to read a
+[configuration file](https://gi0tto.github.io/sluicer/configuration/): the
+HTTP client is Python's own.
 
 <details>
 <summary>What each extra adds</summary>
@@ -253,7 +255,8 @@ scoreboards measured and the extractors working as the web changes.
 MIT, except two data files under their own licences: schema.org's type names
 (CC BY-SA 3.0) and CLDR's month and weekday names (Unicode License v3); the
 package's licence expression is `MIT AND CC-BY-SA-3.0 AND Unicode-3.0`. The base
-install needs `lxml` and `click`, both BSD-3-Clause. The extras pull a wider
+install needs `lxml`, `click` and `protego`, all BSD-3-Clause, and on Python
+3.10 `tomli`, MIT. The extras pull a wider
 tree that is not all permissive: `tld` is MPL-1.1, GPL-2.0-only or
 LGPL-2.1-or-later, `orjson` is MPL-2.0 alongside Apache-2.0 or MIT, and
 `certifi` is MPL-2.0. CI lists every licence in that tree and fails on one

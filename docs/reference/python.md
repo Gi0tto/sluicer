@@ -41,6 +41,27 @@ An ``Extraction``: the ``summary``, the ``records`` (a record with no field is n
 Why the order is what it is, and when induction runs, is in
 ``docs/design-notes.md``.
 
+### `sluicer.aextract`
+
+```python
+aextract(
+    html: str | bytes,
+    url: str | None = None,
+    induce: bool = False,
+    microformats: bool = False,
+    headers: Mapping[str, str] | None = None,
+    visible: bool = False,
+) -> Extraction
+```
+
+``extract``, awaited: the same arguments and the same ``Extraction``,
+read on a worker thread of the loop's default executor so that a large
+page does not hold the event loop while it is parsed.
+
+Nothing is fetched: ``html`` is the page, as for ``extract``. To fetch
+one from a coroutine, ``await sluicer.fetch.afetch(url)`` and hand its
+``html`` and ``headers`` here.
+
 ### `sluicer.Extraction`
 
 ```python
@@ -291,6 +312,37 @@ The ``Fetched`` page, with every climb, the final URL, and how long each rung to
 - `FetchFailed`: every rung failed, the URL is invalid, or its robots.txt could not be read.
 - `FetchExtraMissing`: ``stealth`` was asked for and the ``stealth`` extra is not installed.
 
+### `sluicer.fetch.afetch`
+
+```python
+afetch(
+    url: str,
+    rungs: Sequence[tuple[str, Rung]] | None = None,
+    obey_robots: bool = True,
+    stealth: bool = False,
+    robots_reader: Callable[[str], str | None] | None = None,
+    allow_private: bool = True,
+    resolve: Callable[[str], Iterable[str]] = _resolve,
+    max_bytes: int = 16777216,
+    proxy: str | None = None,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
+    memory: RungMemory | None = None,
+) -> Fetched
+```
+
+``sluicer.fetch.fetch``, awaited: the same arguments, the same page,
+the same exceptions, and the event loop free while it is fetched.
+
+It runs on a worker thread of the loop's default executor. With the
+default rungs, coroutines fetching one site wait for it on the loop, one
+after another, and the process's gate then spaces their requests exactly
+as it spaces threads': robots.txt read once, one request to a site at a
+time, a second after anyone's last. Injected ``rungs`` are the caller's
+to pace, as for ``fetch``. Cancelled while it waits for its site, it asks
+nothing; cancelled once its fetch began, it stops waiting, and the fetch
+ends on its thread.
+
 ### `sluicer.fetch.Fetched`
 
 ```python
@@ -330,13 +382,13 @@ Learn an extractor from pages of one template.
 **Arguments**
 
 - `pages`: the pages, each as ``(html, url)``.
-- `listing`: learn the listing the pages repeat. None, the default, learns one unless a page declares its own subject -- a product, an article -- whose page it is; True looks for one anyway.
+- `listing`: learn the listing the pages repeat. None, the default, learns one unless a page declares its own subject -- a product, an article -- whose page it is; a thing declared on one of the listing's rows is not. True looks for one anyway, and with ``want``, requires one.
 - `names`: what to call each page in ``learnt_from``; its address by default.
-- `want`: example values, by the name each is to have: ``{"price": "41.90", "title": "Brake pad set"}``. When a repeated group's rows hold every one, each in a column of its own -- the first such group, in page order -- they choose the listing and its columns, which are only the ones named. When no one group holds them all, or with ``listing=False``, they are the page's own values, a product page's price and title, each learnt where it sits on the page, the page's own place before its furniture and its listings. A value matches when it says the same with its spaces collapsed, or is the same amount.
+- `want`: example values, by the name each is to have: ``{"price": "41.90", "title": "Brake pad set"}``. When a repeated group's rows hold every one, each in a column of its own -- the first such group, in page order -- they choose the listing and its columns, which are only the ones named. When no one group holds them all, or with ``listing=False``, they are the page's own values, a product page's price and title, each learnt where it sits on the page, the page's own place before its furniture and its listings; with ``listing=True``, no group holding them is an error. A value matches when it says the same with its spaces collapsed, or is the same amount.
 
 **Raises**
 
-- `NothingToLearn`: the pages declare nothing and repeat nothing, or no repeated group holds every example in ``want``.
+- `NothingToLearn`: the pages declare nothing and repeat nothing; or no repeated group holds every example in ``want``, and a listing was asked for or an example is on no page; or a page's own value is in a place another page puts after a label the first gives another of its values, and no label they all say once stands before it: read by its place, it would be another field there.
 - `ValueError`: ``want`` with ``listing=False``, or a name that is empty.
 
 ### `sluicer.extractor.run_extractor`

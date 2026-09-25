@@ -83,7 +83,7 @@ what it is worth.
 
 **A date's month is read by its name in any language CLDR covers.**
 `normalised` reads a date's month by its name in any of the 430 languages and
-regions CLDR 48.2 covers at its modern level (`sluicer/calendar_names.py`,
+regions CLDR 48.2 covers at its modern level (`sluicer/calendar_names.json`,
 under the Unicode License v3, with its source), in the orders they write it:
 `10. Mai 2023`, `10 de mayo de 2023`, Hungarian's `2023. május 10.`, and the
 numbers with units of Chinese, Japanese and Korean, `2023年5月10日`. Five
@@ -170,6 +170,18 @@ rows is enough to fail a run.
 **One listing per extractor**, the page's most promising repeated group. A page
 with two listings that both matter needs two extractors, and there is no way yet
 to point compile at the second.
+
+**A listing's columns are what a reader sees.** Each part of a row gives
+its text, an image its alt text, a link or an image its address. A `<meta>`
+inside a row gives nothing, though its `content` is often the row's cleanest
+value -- quotes.toscrape.com declares each quote's tags there, as
+`change,deep-thoughts,thinking,world`. It is left out on purpose: such a
+`<meta>` is a declaration, microdata's `itemprop` or RDFa's `property`, and
+declared data is read by the declared readers, where `extract()` already
+gives it (the CreativeWork's `keywords`), never by induction, which never
+fills a gap in a declared record and marks what it finds `induced` (see
+design-notes.md, "When induction runs"). `--want` a value only a `<meta>`
+holds finds no listing; with `--listing`, that is an error.
 
 **Healing matches by values.** A field is moved only when its new place holds
 values it held before; a same-shaped field with new values is not a match, so a
@@ -414,7 +426,11 @@ than 1,500 characters of text. Until 0.3.0 any marker anywhere counted, and an
 article quoting "just a moment", or any page carrying Cloudflare's bot-detection
 script, bought a browser it did not need. A short challenge page that declares a
 record would now be missed; none has been seen. The reason string names the
-marker, so a mistake either way is visible.
+marker, so a mistake either way is visible. The words are the ones seen: Cloudflare's,
+DDoS-Guard's, and those the cached benchmark pages hold -- Fastly's "Client
+Challenge" (PyPI's), Imperva's `/_Incapsula_Resource`, HUMAN's `px-captcha`,
+Anubis's, and a "One moment, please..." waiting room -- found on 11 of 3,988
+pages, all of them interstitials. A vendor not among them is not recognised.
 
 **A legitimately empty body is treated as a failed rung.** A site that answers
 200 with nothing costs a climb. An empty robots.txt is the exception: it is a

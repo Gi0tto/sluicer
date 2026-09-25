@@ -142,6 +142,59 @@ Dates are the day the work landed. Anything not listed here did not happen.
   each page's summary and types, and its records when asked, as far as the
   75,000-byte bound allows, the heaviest pages' records left out first. The
   HTTP API serves it at `/v1/tools/extract_many`.
+- A configuration file for the command line: `sluicer.toml`, or a
+  `[tool.sluicer]` table in `pyproject.toml`, the nearest in the working
+  directory or above it; or the file `SLUICER_CONFIG` or `--config FILE`
+  names; `--no-config`, or `SLUICER_CONFIG` empty, reads none. Its keys are
+  the options' own names -- `proxy`, `header`, `cookie`, `cache`, `max-age`,
+  `no-robots`, `respect`, `delay`, `json`, `max-pages` and the rest -- at the
+  top for every command that takes one, and in a command's own table over
+  that. The command line wins, then `SLUICER_PROXY` and `SLUICER_MCP_TOOLS`,
+  then the file, then the built-in defaults; each flag a file may turn on has
+  its opposite for one run (`--no-json`, `--robots`). A file is refused
+  before anything runs, naming the file and the key, for an unknown key (with
+  the nearest known), a key its command does not take, a value of the wrong
+  type, or an option that belongs to one run (`--out`, `--stealth`,
+  `serve --allow-unauthenticated` among them); no message repeats a proxy,
+  header or cookie value. A file found by searching must be the user's and
+  writable by no one else. `no-robots = true` from a file is said on stderr
+  on every run. `docs/configuration.md` says all of it.
+- `tomli>=1.0.3` on Python 3.10 only, to read that file: 3.10 has no
+  `tomllib`. MIT, pure Python, no dependencies; 1.0.3 is the first that
+  raises its own error for an impossible date, measured, and the floors job
+  installs and asserts it.
+- Shell completion for bash (4.4 and later), zsh and fish, click's own:
+  `_SLUICER_COMPLETE=zsh_source sluicer` prints the script, and
+  `docs/getting-started.md` says where each shell wants it. The suite
+  generates the three scripts, has bash and zsh parse theirs where they are
+  installed, and completes a command and an option.
+- `sluicer.aextract` and `sluicer.fetch.afetch`: `extract` and `fetch` for a
+  caller on an event loop, the same parameters, answers and exceptions, run
+  on a worker thread of the loop's default executor so the loop keeps
+  running. Politeness is the gate's, as for threads: six `afetch` of one site
+  gathered at once read its robots.txt once and ask it one request at a
+  time, the gate's delay apart, and coroutines, threads and crawls of one
+  site wait for each other. Coroutines waiting for one site wait on the loop
+  and take a thread only in their turn: with two worker threads and five
+  fetches of one site queued, a sixth to another site starts at once. A
+  coroutine cancelled while it waits asks nothing. `asyncio` is imported only
+  when one is called. In `docs/getting-started.md` and the Python reference.
+- `packaging/homebrew/sluicer.rb` and `packaging/conda-forge/recipe/recipe.yaml`,
+  a Homebrew formula and a conda-forge recipe (the v1 format conda-forge asks
+  of new recipes) for the base install, prepared and not submitted.
+  `packaging/recipes.py` writes both from one `VERSION`, 0.8.0, and fills in
+  the sdist's checksum from PyPI once the release is there, or from
+  `--sdist PATH`; until then both carry a placeholder that says so.
+  `tests/test_recipes.py` holds them to the script and to pyproject's
+  dependencies, floors and licence. Checked on an sdist of this branch built
+  as 0.8.0: `brew install --build-from-source` and `brew test` pass, and
+  `brew style` and `brew audit --new --strict --online` pass on the same
+  formula pointed at 0.7.0 on PyPI (on the committed file they fail only on
+  the placeholder's address, which 0.8.0's publication replaces);
+  `rattler-build build` with its tests on Python 3.11 and 3.14, and
+  `conda-smithy recipe-lint --conda-forge`, pass. The formula installs
+  click's completions for bash, zsh and fish. Sluicer does not yet meet
+  homebrew-core's notability rules.
 
 ### Changed
 - Fetching needs no extra. The base install fetches over plain HTTP with the
@@ -190,6 +243,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The stealth rung is the only place scrapling is used, still opt-in and one
   page at a time, never in a crawl, and never remembered as a site's rung. It
   sends none of the caller's headers or cookies.
+- CLDR's month and weekday names are package data, `sluicer/calendar_names.json`
+  (48 KB, the one file under the Unicode License v3), no longer a Python
+  module of 2,731 lines; `sluicer.calendar_names` reads it at import and
+  gives the same `MONTHS` and `WEEKDAYS`, all 1,568 and 1,140 entries
+  compared. Importing it takes 1.0 ms with bytecode cached, as before
+  (0.95 ms), and 1.2 ms without, against 11 ms to compile the module, which
+  is what Pyodide pays (medians, Python 3.14, Apple M4).
+  `scripts/cldr_calendar.py --check`, run in CI, fails when the committed file
+  is not exactly what the pinned CLDR release gives.
 
 ### Fixed
 - A crawl's `headers=` and `cookies=`, and `--header` and `--cookie` on
@@ -201,6 +263,45 @@ Dates are the day the work landed. Anything not listed here did not happen.
   address's directory) needed is kept beside the site's. Measured on a local
   shop, 3 of 7 listing pages were rendered in the browser, about 0.7 s each
   against 2 ms; now none, with the same 30 document requests.
+- A page field no longer reads another field on a page it was learnt from.
+  Learnt from PEPs 8, 20 and 257 with `--want status=Active type=Process
+  created=05-Jul-2001`, the type and the date were read by their place in the
+  header, and PEP 257's extra Discussions-To row moved both: its type came
+  back "Active", its status, and its date "Informational", its type, with
+  every check passing. Two causes. A label written with its colon in an
+  element of its own, `Status<span class="colon">:</span>`, was two texts,
+  `Status` and `:`, and the text before every value was `:`, said many times
+  on a page, so no label was found; the colon is now the label's. And a place
+  one page given puts after a label another gives one of its own values was
+  not held to be contradicted; it now is, and the field is read after its
+  own label, or refused with a message where there is none. On SWDE, 902
+  wrong answers become right and 879 right ones flagged misses; mean F1
+  0.849 to 0.850. The drift benchmark is unchanged: no silent failure, no
+  false alarm. `heal` keeps no field at such a
+  place and moves none to one. On the six PEPs of the registry's entry, the
+  three fields are read right on every page. An extractor learnt before whose
+  label was a colon standing alone, said once on every page, no longer finds
+  it and fails its runs until it is compiled again.
+- `compile --listing --want ...` no longer learns the page's own values
+  when no repeated group holds every example: on quotes.toscrape.com, with
+  the tags as the row's `<meta itemprop="keywords">` declares them, which is
+  no column of a row, it learnt the first quote's text, read after "Login",
+  and passed every page reading one quote of ten. A listing asked for and
+  not found is now the error that names the example. Without `--listing`,
+  a thing declared on one of the listing's rows -- one quote of ten in
+  microdata -- is no longer the page's subject, and the listing is learnt;
+  a page whose every row is declared already learnt it, as it does on
+  quotes.toscrape.com, whose microdata the report blamed. A `<meta>` in a
+  row stays no column, and `docs/known-limits.md` says why.
+- PyPI's "Client Challenge" page, Fastly's answer to a client without
+  JavaScript (3 kB, status 200), is recognised as a challenge: the ladder
+  climbs past it, and a last rung that brings it back is the site refusing,
+  not a page. So are the other interstitials the cached benchmark pages hold
+  and nothing recognised: Imperva's (`/_Incapsula_Resource`), HUMAN's
+  (`px-captcha`), Anubis's ("Making sure you're not a bot!", its title now
+  read with its entities), and a "One moment, please..." waiting room met on
+  four sites. On the 3,988 cached pages, 11 are now challenges, and each is
+  one; `extract()` is unchanged on all of them.
 - Without scrapling, 0.7.x could not fetch even over plain HTTP: `fetch()`
   imported scrapling's browsers before it built the HTTP rung, and raised
   `FetchExtraMissing`.
