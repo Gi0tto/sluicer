@@ -75,9 +75,15 @@ field says `"source": "induced"`.
   site's links, up to 25 pages on its own site, and get each page's summary and
   the types it declared; `extract_declared` on a page gives its records.
   `include` and `exclude` are plain text an address must or must not contain.
-  Both take at most a minute, ask the site one request at a time, a second
-  apart or its `Crawl-delay`, and say `truncated` or `stopped` when a bound
-  cut them short.
+- `extract_many(urls, records=false, induce, respect_tdm)` -- read up to 25
+  addresses you already have, on one site or several, in the order given, and
+  get each page's summary and types, and its records with `records=true` as
+  far as the answer's bound allows. Use it instead of calling
+  `extract_declared` in a loop: each site is still asked one page at a time.
+  All three take at most a minute, ask a site one request at a time, a second
+  apart or its `Crawl-delay`, ask a page again when it did not answer or
+  answered 429 or a 5xx (saying so in `retries`), and say `truncated` or
+  `stopped` when a bound cut them short.
 
 Every answer carries `ok`: true exactly when it can be used as it is. When it
 is false, the answer says why: `error` with a `code` -- `refused_by_robots`,

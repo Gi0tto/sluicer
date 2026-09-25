@@ -213,7 +213,9 @@ def test_a_shop_read_to_a_file_resumes_where_it_stopped(tmp_path):
         products_url(3),
         products_url(4),
     ]
-    written = [json.loads(line)["url"] for line in out.read_text(encoding="utf-8").splitlines()]
+    written = [
+        json.loads(line)["url"] for line in out.read_text(encoding="utf-8").splitlines()
+    ]
     assert len(written) == len(set(written)) == 6
 
 

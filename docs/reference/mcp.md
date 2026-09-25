@@ -1,6 +1,6 @@
 # MCP tools
 
-The 10 tools the server lists to an agent, each with its
+The 11 tools the server lists to an agent, each with its
 description and parameters exactly as the agent receives them. Generated
 from the running server by `scripts/reference.py`; how to add the server to
 a client is in [In your agent](../agents.md).
@@ -287,6 +287,41 @@ pages_left_out.
 | `max_depth` | integer | `2` |
 | `include` | array or null | `None` |
 | `exclude` | array or null | `None` |
+| `respect_tdm` | boolean | `False` |
+
+Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
+
+## `extract_many`
+
+**Extract several pages**
+
+Read several pages' declared data, politely, in the order given.
+
+- `urls`: 1 to 25 http(s) addresses, on one site or several; one given twice is read once.
+- `records`: also return each page's records, not only its summary; the heaviest pages' records are left out first to keep the answer under 75,000 bytes, each counted in that page's records_left_out.
+- `induce`: also read repeated rows from a page that declares nothing about them; those fields say source "induced".
+- `respect_tdm`: give a page whose site reserves its text and data mining rights (TDMRep) as a tdm_reserved error, never its data.
+
+Returns {"ok", "pages", "stopped"}. Pages come in the order given,
+each {"ok", "url", "landed", "fetch", "canonical", "summary",
+"sources", "types", "links"}, and "records" when asked -- or, when it
+has nothing, {"ok": false, "error"} with the page's reason. A page
+asked again after a request that may succeed later says so in
+"retries". Each site is asked one request at a time, a second apart
+or its Crawl-delay, robots.txt obeyed; several sites at once. stopped
+is "done", or "time_budget" when a minute passed first and the pages
+after are left out. ok is false only when no page could be read, and
+error then says why. Past 75,000 bytes the heaviest pages' records go
+first, then the heaviest summary answers, named in summary_left_out,
+then the last pages, counted in pages_left_out. For many more
+addresses, or a whole site, the command line's sluicer batch has no
+such bounds.
+
+| parameter | type | default |
+|---|---|---|
+| `urls` | array | required |
+| `records` | boolean | `False` |
+| `induce` | boolean | `False` |
 | `respect_tdm` | boolean | `False` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.

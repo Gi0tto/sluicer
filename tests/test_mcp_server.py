@@ -65,10 +65,11 @@ TOOLS = {
     "read_feed",
     "map_site",
     "crawl_site",
+    "extract_many",
 }
 
 
-def test_the_server_registers_its_ten_tools(monkeypatch):
+def test_the_server_registers_its_eleven_tools(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
@@ -1192,6 +1193,7 @@ def _fake_site_library(monkeypatch, pages=None):
 
     monkeypatch.setattr("sluicer.crawl.map_site", wrap(library.map_site))
     monkeypatch.setattr("sluicer.crawl.crawl", wrap(library.crawl))
+    monkeypatch.setattr("sluicer.crawl.extract_many", wrap(library.extract_many))
     return fake, calls
 
 
@@ -1327,6 +1329,99 @@ def test_a_crawled_page_asked_again_says_so_failed_or_not(monkeypatch):
     assert "retries" not in got["https://example.com/"]
 
 
+def test_extract_many_reads_the_pages_given_in_their_order_within_its_bounds(
+    monkeypatch,
+):
+    registered = fake_mcp(monkeypatch)
+    fake, calls = _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import (
+        CRAWL_MAX_DELAY_SECONDS,
+        TIME_BUDGET_SECONDS,
+        build_server,
+    )
+
+    monkeypatch.delenv("SLUICER_ALLOW_PRIVATE", raising=False)
+    build_server()
+    given = ["https://example.com/a", "https://example.com/", "https://example.com/a"]
+    answer = registered["extract_many"](given)
+
+    assert answer["ok"] is True and answer["stopped"] == "done"
+    assert [p["url"] for p in answer["pages"]] == given[:2]
+    first = answer["pages"][0]
+    assert first["summary"]["title"]["value"] == "A" and first["types"] == ["Product"]
+    assert "records" not in first
+    assert calls[0]["max_delay"] == CRAWL_MAX_DELAY_SECONDS
+    assert calls[0]["time_budget"] == TIME_BUDGET_SECONDS
+    assert calls[0]["allow_private"] is False
+    assert fake.gaps("example.com") == [1.0, 1.0]
+
+
+def test_extract_many_gives_the_records_when_asked(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    answer = registered["extract_many"](["https://example.com/a"], records=True)
+
+    [page] = answer["pages"]
+    assert page["records"][0]["fields"]["name"]["value"] == "A"
+    assert page["types"] == ["Product"]
+
+
+def test_extract_many_asked_past_its_bounds_is_a_bad_input(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    fake, _ = _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import MANY_URLS, build_server
+
+    build_server()
+    too_many = [f"https://example.com/{n}" for n in range(MANY_URLS + 1)]
+
+    for answer in (
+        registered["extract_many"]([]),
+        registered["extract_many"](too_many),
+    ):
+        assert answer["ok"] is False and answer["error"]["code"] == "bad_input"
+    assert fake.requests == []
+
+
+def test_extract_many_leaves_the_heaviest_pages_records_out_first(monkeypatch):
+    from fake_site import page
+
+    registered = fake_mcp(monkeypatch)
+    heavy = '<script type="application/ld+json">{"@type":"Thing","name":"%s"}</script>'
+    pages = {
+        "https://example.com/big": page("Big", extra=heavy % ("x" * 80_000)),
+        "https://example.com/small": page("Small"),
+    }
+    _fake_site_library(monkeypatch, pages)
+    from sluicer.mcp_server import MOST_ANSWER_BYTES, _bytes_of, build_server
+
+    build_server()
+    answer = registered["extract_many"](
+        ["https://example.com/big", "https://example.com/small"], records=True
+    )
+
+    big, small = answer["pages"]
+    assert "records" not in big and big["records_left_out"] == 2
+    assert small["records"][0]["fields"]["name"]["value"] == "Small"
+    assert _bytes_of(answer) <= MOST_ANSWER_BYTES
+
+
+def test_extract_many_that_read_nothing_is_not_ok_and_says_why(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    pages = _shop()
+    pages["https://example.com/robots.txt"] = "User-agent: *\nDisallow: /\n"
+    _fake_site_library(monkeypatch, pages)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    answer = registered["extract_many"](["https://example.com/a"])
+
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "refused_by_robots"
+
+
 def test_the_crawl_tools_refuse_private_addresses_unless_told(monkeypatch):
     registered = fake_mcp(monkeypatch)
     fake, _ = _fake_site_library(monkeypatch, {})
@@ -1384,7 +1479,7 @@ def test_a_tool_that_leaves_a_parameter_unexplained_is_not_registered():
 
 def test_only_the_tools_asked_for_are_registered(monkeypatch):
     """Every tool registered costs an agent context whether it is called or
-    not; a client that wants two of the ten can have only those."""
+    not; a client that wants two of the eleven can have only those."""
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
@@ -1393,7 +1488,7 @@ def test_only_the_tools_asked_for_are_registered(monkeypatch):
     assert set(registered["__tool_options__"]) == {"extract_declared", "page_markdown"}
 
 
-def test_a_tool_asked_for_that_does_not_exist_is_named_with_the_ten_that_do(
+def test_a_tool_asked_for_that_does_not_exist_is_named_with_the_eleven_that_do(
     monkeypatch,
 ):
     fake_mcp(monkeypatch)
@@ -1433,7 +1528,7 @@ def test_the_server_reads_the_tools_asked_for_from_its_environment(monkeypatch):
 
 def test_a_tool_that_does_not_exist_stops_the_server_in_one_line(monkeypatch, capsys):
     """The documented message, and exit 2 as for any wrong option: a
-    traceback put the list of the ten under thirty lines of click's frames."""
+    traceback put the list of the tools under thirty lines of click's frames."""
     fake_mcp(monkeypatch)
     import sluicer.mcp_server as server_module
 

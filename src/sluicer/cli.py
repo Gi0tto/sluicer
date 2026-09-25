@@ -1312,7 +1312,7 @@ def serve(host: str, port: int, timeout: float, allow_unauthenticated: bool) -> 
 @click.option(
     "--tools",
     help="Register only these tools, comma-separated: "
-    "--tools extract_declared,page_markdown. All ten by default.",
+    "--tools extract_declared,page_markdown. All eleven by default.",
 )
 def mcp_command(tools: str | None) -> None:
     """Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.

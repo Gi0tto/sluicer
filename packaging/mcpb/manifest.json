@@ -69,6 +69,10 @@
     {
       "name": "crawl_site",
       "description": "A site's pages, following its links, each summarised."
+    },
+    {
+      "name": "extract_many",
+      "description": "Several pages' declared data, each site asked in turn."
     }
   ],
   "keywords": [
@@ -101,7 +105,7 @@
     "tools": {
       "type": "string",
       "title": "Tools to offer",
-      "description": "Comma-separated tool names, to offer only some of the ten, such as extract_declared,page_markdown. Empty offers all ten.",
+      "description": "Comma-separated tool names, to offer only some of the eleven, such as extract_declared,page_markdown. Empty offers all eleven.",
       "default": "",
       "required": false
     }

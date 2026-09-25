@@ -1,7 +1,7 @@
 # The HTTP API
 
 `sluicer serve` answers the MCP server's tools over HTTP, one address per
-tool, so any language that can send a POST can use Sluicer. They are the ten
+tool, so any language that can send a POST can use Sluicer. They are the eleven
 tools an agent gets, each in the [MCP reference](reference/mcp.md), with the
 same arguments, the same answers and the same output schemas, because it is
 built from them: an HTTP call goes through the MCP SDK's own `call_tool`, argument
@@ -120,7 +120,7 @@ described in the listing and in [Extractors](extractors.md).
 ## MCP over HTTP
 
 `/mcp` is the MCP SDK's own streamable HTTP transport over the same server:
-the same ten tools, listed with the same descriptions, annotations and both
+the same eleven tools, listed with the same descriptions, annotations and both
 schemas, and each call answers what it answers over stdio, the bounds of each
 tool included. A call runs on the same workers as a `POST /v1/tools/{name}`,
 within the same `--timeout`. The token, the `Host` check and the refusal of

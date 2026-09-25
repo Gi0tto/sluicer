@@ -416,6 +416,34 @@ class CrawledPage(TypedDict, total=False):
     error: PageError
 
 
+class ExtractedPage(TypedDict, total=False):
+    """One page of ``extract_many``: a crawled page's fields but where a crawl
+    found it, and its records when they were asked for and fit."""
+
+    ok: Required[bool]
+    url: str
+    landed: str | None
+    fetch: FetchRecord
+    canonical: str | None
+    summary: dict[str, SummaryAnswer]
+    summary_left_out: list[str]
+    records: list[RecordAnswer]
+    records_left_out: int
+    sources: list[str]
+    types: list[str]
+    links: int
+    retries: list[RetryAnswer]
+    error: PageError
+
+
+class ManyAnswer(TypedDict, total=False):
+    ok: Required[bool]
+    error: ErrorDetail
+    pages: list[ExtractedPage]
+    pages_left_out: int
+    stopped: Literal["done", "time_budget"]
+
+
 class CrawlAnswer(TypedDict, total=False):
     ok: Required[bool]
     error: ErrorDetail

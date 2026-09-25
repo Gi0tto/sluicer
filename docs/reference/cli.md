@@ -514,7 +514,7 @@ Usage: sluicer mcp [OPTIONS]
 
 Options:
   --tools TEXT  Register only these tools, comma-separated: --tools
-                extract_declared,page_markdown. All ten by default.
+                extract_declared,page_markdown. All eleven by default.
   --help        Show this message and exit.
 ```
 

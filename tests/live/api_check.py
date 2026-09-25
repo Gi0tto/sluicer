@@ -431,6 +431,14 @@ def main() -> int:
         )
         if not crawled.get("pages"):
             check.failures.append(f"crawl_site crawled nothing: {str(crawled)[:200]}")
+        many = check.expect(
+            "extract_many",
+            call(b, "extract_many", {"urls": [f"{site}/page"]}),
+            200,
+            tool="extract_many",
+        )
+        if not many.get("ok") or len(many.get("pages") or ()) != 1:
+            check.failures.append(f"extract_many read nothing: {str(many)[:200]}")
         feed = check.expect(
             "read_feed",
             call(b, "read_feed", {"url_or_text": FEED}),

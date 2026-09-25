@@ -1,10 +1,10 @@
 """Sluicer as a tool an agent can call, over the Model Context Protocol.
 
-Ten tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``,
+Eleven tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``,
 ``compile_extractor``, ``run_extractor``, ``heal_extractor``, ``audit_page``,
-``read_feed``, ``map_site`` and ``crawl_site`` -- expose what the library
-does and add no logic of their own beyond bounds: a map or a crawl an agent
-starts is small and has a clock.
+``read_feed``, ``map_site``, ``crawl_site`` and ``extract_many`` -- expose
+what the library does and add no logic of their own beyond bounds: a map, a
+crawl or a list of pages an agent starts is small and has a clock.
 Run it with ``sluicer-mcp``; it needs the ``mcp`` extra.
 
 Every answer carries ``ok``, true exactly when it can be used as it is, and has
@@ -87,11 +87,18 @@ CRAWL_PAGES = 25
 
 CRAWL_DEPTH = 3
 """The most links from its start one ``crawl_site`` goes."""
+
+MANY_URLS = 25
+"""The most addresses one ``extract_many`` reads. Measured on the 140 pages of
+the product benchmark, a page's summary weighs 2.3 KB at the median, and its
+records 4.2 KB more: twenty-five summaries fit ``MOST_ANSWER_BYTES``, and
+twenty-five pages' records do not, so records are asked for and cut first."""
 FEED_ITEMS = 500
 """The most items one ``read_feed`` answers with."""
 
 TIME_BUDGET_SECONDS = 60.0
-"""How long ``map_site`` and ``crawl_site`` may keep starting requests. A page
+"""How long ``map_site``, ``crawl_site`` and ``extract_many`` may keep starting
+requests. A page
 already started finishes, so an answer can take a little longer."""
 
 CRAWL_MAX_DELAY_SECONDS = 10.0
@@ -105,7 +112,7 @@ class McpExtraMissing(MissingExtra):
 
 
 class UnknownTool(ValueError):
-    """A tool asked for by name is not one of the ten."""
+    """A tool asked for by name is not one of the eleven."""
 
 
 def _server_class() -> Any:
@@ -327,11 +334,11 @@ def _page_of(
 
 
 def build_server(tools: Iterable[str] | None = None) -> Any:
-    """Build the server with its ten tools registered.
+    """Build the server with its eleven tools registered.
 
     ``tools`` names the ones to register, when a client wants fewer: each
     registered tool costs an agent context whether it is called or not. A
-    name that is not one of the ten is an ``UnknownTool``, a ``ValueError``,
+    name that is not one of the eleven is an ``UnknownTool``, a ``ValueError``,
     that lists them.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
@@ -876,6 +883,75 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         _bounded(answer, _cut_largest("summary", among="pages"), _cut_list("pages"))
         return cast(answers.CrawlAnswer, answer)
 
+    @tool("Extract several pages")
+    @_answers_instead_of_raising
+    def extract_many(
+        urls: list[str],
+        records: bool = False,
+        induce: bool = False,
+        respect_tdm: bool = False,
+    ) -> answers.ManyAnswer:
+        """Read several pages' declared data, politely, in the order given.
+
+        urls: 1 to 25 http(s) addresses, on one site or several; one given
+        twice is read once.
+        records: also return each page's records, not only its summary; the
+        heaviest pages' records are left out first to keep the answer under
+        75,000 bytes, each counted in that page's records_left_out.
+        induce: also read repeated rows from a page that declares nothing
+        about them; those fields say source "induced".
+        respect_tdm: give a page whose site reserves its text and data mining
+        rights (TDMRep) as a tdm_reserved error, never its data.
+
+        Returns {"ok", "pages", "stopped"}. Pages come in the order given,
+        each {"ok", "url", "landed", "fetch", "canonical", "summary",
+        "sources", "types", "links"}, and "records" when asked -- or, when it
+        has nothing, {"ok": false, "error"} with the page's reason. A page
+        asked again after a request that may succeed later says so in
+        "retries". Each site is asked one request at a time, a second apart
+        or its Crawl-delay, robots.txt obeyed; several sites at once. stopped
+        is "done", or "time_budget" when a minute passed first and the pages
+        after are left out. ok is false only when no page could be read, and
+        error then says why. Past 75,000 bytes the heaviest pages' records go
+        first, then the heaviest summary answers, named in summary_left_out,
+        then the last pages, counted in pages_left_out. For many more
+        addresses, or a whole site, the command line's sluicer batch has no
+        such bounds.
+        """
+        if not 1 <= len(urls) <= MANY_URLS:
+            raise _BadInput(
+                f"urls must hold 1 to {MANY_URLS} addresses, not {len(urls)}"
+            )
+        try:
+            run = crawling.extract_many(
+                urls,
+                induce=induce,
+                respect_tdm=respect_tdm,
+                max_delay=CRAWL_MAX_DELAY_SECONDS,
+                time_budget=TIME_BUDGET_SECONDS,
+                allow_private=_allow_private(),
+            )
+        except ValueError as bad:
+            raise _BadInput(str(bad)) from bad
+        pages = [_crawled(page, records=records) for page in run]
+        for page in pages:
+            page.pop("depth", None)
+            page.pop("found_on", None)
+        answer: dict[str, Any] = {
+            "ok": any(page["ok"] for page in pages),
+            "pages": pages,
+            "stopped": run.stopped,
+        }
+        if not answer["ok"] and pages:
+            answer["error"] = pages[0]["error"]
+        _bounded(
+            answer,
+            _cut_heaviest_lists("records", among="pages"),
+            _cut_largest("summary", among="pages"),
+            _cut_list("pages"),
+        )
+        return cast(answers.ManyAnswer, answer)
+
     unknown = [name for name in wanted or () if name not in seen]
     if unknown:
         raise UnknownTool(
@@ -997,6 +1073,27 @@ def _cut_largest(key: str, among: str | None = None) -> Cut:
     return cut
 
 
+def _cut_heaviest_lists(key: str, among: str) -> Cut:
+    """A cut that leaves the whole list ``answer[among][i][key]`` out of the
+    heaviest entries first, counting each in that entry's ``<key>_left_out``:
+    a page's records, which it carries all of or none of."""
+
+    def cut(answer: dict[str, Any], most: int) -> None:
+        holders = [one for one in answer.get(among) or () if isinstance(one, dict)]
+        heaviest = sorted(
+            (index for index, one in enumerate(holders) if key in one),
+            key=lambda index: (-_bytes_of(holders[index][key]), index),
+        )
+        weight = _bytes_of(answer)
+        for index in heaviest:
+            if weight <= most:
+                break
+            weight -= _bytes_of(holders[index][key])
+            holders[index][f"{key}_left_out"] = len(holders[index].pop(key))
+
+    return cut
+
+
 def _cut_leaving_all(key: str) -> Cut:
     """A cut that leaves the whole list ``answer[key]`` out and counts it in
     ``<key>_left_out``: ``extract_declared``'s records, which an answer
@@ -1058,16 +1155,16 @@ def _within(name: str, value: int, least: int, most: int) -> None:
         raise _BadInput(f"{name} must be from {least} to {most}, not {value}")
 
 
-def _crawled(page: crawling.Page) -> dict[str, Any]:
-    """A crawled page as an agent gets it: the summary, never the records."""
+def _crawled(page: crawling.Page, records: bool = False) -> dict[str, Any]:
+    """A crawled page as an agent gets it: the summary, and the records only
+    when asked for."""
     line = page.to_json()
     if not page.ok:
         error = {**line["error"], "url": page.url}
         kept = ("ok", "url", "depth", "retries")
         return {key: line[key] for key in kept if key in line} | {"error": error}
-    line["types"] = sorted(
-        {kind for record in line.pop("records") for kind in record["types"]}
-    )
+    read = line["records"] if records else line.pop("records")
+    line["types"] = sorted({kind for record in read for kind in record["types"]})
     line["links"] = len(line["links"])
     return line
 
@@ -1099,8 +1196,8 @@ def main(tools: Iterable[str] | None = None) -> None:
     """Run the server over stdio, or explain a missing ``mcp`` extra in one line.
 
     ``tools`` names the tools to register, or ``SLUICER_MCP_TOOLS`` does; all
-    ten when neither says. A name that is not a tool exits 2, as a wrong
-    option does, with the list of the ten. A broken install, as opposed to a
+    eleven when neither says. A name that is not a tool exits 2, as a wrong
+    option does, with the list of the eleven. A broken install, as opposed to a
     missing one, keeps its traceback.
     """
     if tools is None and os.environ.get(TOOLS_ENV, "").strip():
