@@ -70,7 +70,7 @@ class Resource:
 
 RESOURCES = (
     # Read from PyPI's JSON on 2026-09-25: each project's newest release.
-    # None of the three depends on anything on macOS or Linux (click wants
+    # None of the four depends on anything on macOS or Linux (click wants
     # colorama on Windows only), so these are the whole base install.
     # tomli is not here: pyproject asks for it below Python 3.11 only, and the
     # formula's Python is 3.14.
@@ -79,6 +79,12 @@ RESOURCES = (
         "8.5.0",
         "https://files.pythonhosted.org/packages/c7/0e/7fa0ef50764b67090eca4114772a2abf8b6148198475e54c660b97caeee6/click-8.5.0.tar.gz",
         "ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34",
+    ),
+    Resource(
+        "cssselect",
+        "1.5.0",
+        "https://files.pythonhosted.org/packages/8e/5a/6d6fcf922709391fac986f0a03ad4546f4f45b94d10aeb6c1ee041599993/cssselect-1.5.0.tar.gz",
+        "3cbe82dd7acbee9ba9e5723b5f9e4749826912f1fb31cd7f92aabed5fde15b15",
     ),
     Resource(
         "lxml",
@@ -94,7 +100,7 @@ RESOURCES = (
     ),
 )
 
-RUN = ("click >=8.2", "lxml >=5.3", "protego >=0.3")
+RUN = ("click >=8.2", "cssselect >=1.2", "lxml >=5.3", "protego >=0.3")
 """The recipe's run requirements beside Python: pyproject's floors, in
 conda's spelling. tomli is not among them: pyproject asks for it below Python
 3.11 only, and no Python the recipe installs on is (``PYTHON_MIN``)."""

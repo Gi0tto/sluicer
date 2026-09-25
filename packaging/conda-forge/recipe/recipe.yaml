@@ -36,6 +36,7 @@ requirements:
   run:
     - python >=${{ python_min }}
     - click >=8.2
+    - cssselect >=1.2
     - lxml >=5.3
     - protego >=0.3
 
