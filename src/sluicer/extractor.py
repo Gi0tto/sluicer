@@ -687,11 +687,14 @@ def _compiled(
 def _a_subject(doc: Document, answer: Any) -> bool:
     """Whether the summary's ``type`` answer is a thing the page is about.
 
-    A thing declared on an element inside one of the rows of the page's
-    listing is one of its items, not its subject: quotes.toscrape.com with
-    only its first quote declared a CreativeWork was read as that quote, and
-    its listing was never learnt. A thing declared in JSON-LD has no element,
-    and is the page's."""
+    A thing declared on one of the rows of the page's listing, or just
+    inside it (``_IN_A_ROW``), is one of its items, not its subject:
+    quotes.toscrape.com with only its first quote declared a CreativeWork was
+    read as that quote, and its listing was never learnt. Deeper, the row is
+    a block of the page's layout, not an item: two shops of the products
+    corpus stack their page in alike tables, the product declared five levels
+    inside one, and the tables were learnt as a listing of furniture. A thing
+    declared in JSON-LD has no element, and is the page's."""
     if answer is None or answer.key != "@type":
         return False
     where = answer.where
@@ -705,7 +708,13 @@ def _a_subject(doc: Document, answer: Any) -> bool:
     if not group:
         return True
     rows = set(group)
-    return not any(node in rows for node in [found[0], *found[0].iterancestors()])
+    near = itertools.islice([found[0], *found[0].iterancestors()], _IN_A_ROW + 1)
+    return not any(node in rows for node in near)
+
+
+# How far inside a row a thing may be declared and still be the row's: on it,
+# as quotes.toscrape.com's div.quote, or in a wrapper or two.
+_IN_A_ROW = 2
 
 
 def run_extractor(
@@ -1375,10 +1384,15 @@ def _labelled_otherwise(
     on some PEPs, and the place of PEP 8's type holds PEP 257's status,
     "Active", after "Status:", which PEP 8 says before its own status.
 
-    A label its own page does not say is no other field of it: MSN's film
-    pages say "Directors:" on one film and "Director:" on another, before
-    the same place. Only a text written as a label counts (``_a_label``):
-    the text before a value is often something else the template says."""
+    So is the place when that other page says the example's own label
+    somewhere else: PEP 257 puts its Discussions-To where PEP 8 puts its
+    status, and says "Status:" a row further down.
+
+    A label its own page does not say, before a place whose page does not
+    say the example's label elsewhere, is no other field: MSN's film pages
+    say "Directors:" on one film and "Director:" on another, before the same
+    place. Only a text written as a label counts (``_a_label``): the text
+    before a value is often something else the template says."""
     where, _, attribute = path.partition("@")
     if len(docs) < 2 or attribute:
         return None
@@ -1403,9 +1417,11 @@ def _labelled_otherwise(
     if own is None:
         return None
     own_label, own_nodes = own
-    for label, value, _nodes in said:
-        if not _same_label(label, own_label) and any(
-            _same_label(text, label) for text, _ in own_nodes
+    for label, value, nodes in said:
+        if _same_label(label, own_label):
+            continue
+        if any(_same_label(text, label) for text, _ in own_nodes) or any(
+            _same_label(text, own_label) for text, _ in nodes
         ):
             return f"{value!r} after {label!r}"
     return None
@@ -2288,7 +2304,11 @@ def _check_rows(
             checks.append(
                 Check("field", f"{f.name} in some rows", f"in {share:.0%}", share > 0)
             )
-        if f.reads and len(present) >= _SHAPE_EVIDENCE:
+        # Under five values a share says little, and one odd value is half of
+        # two: a short page is held to some value reading and shaped as
+        # learnt, three "Call" prices in three rows failing.
+        few = len(present) < _SHAPE_EVIDENCE
+        if f.reads and present:
             read = _READERS[f.reads]
             readable = sum(1 for v in present if read(v) is not None) / len(present)
             unread = next((v for v in present if read(v) is None), present[0])
@@ -2296,20 +2316,30 @@ def _check_rows(
                 Check(
                     "reads",
                     f"{f.name} to read as {'an' if f.reads == 'amount' else 'a'} "
-                    f"{f.reads} in at least {SHAPE_KEPT:.0%} of rows",
+                    f"{f.reads} "
+                    + (
+                        "in some row"
+                        if few
+                        else f"in at least {SHAPE_KEPT:.0%} of rows"
+                    ),
                     f"{readable:.0%}, e.g. {unread!r}",
-                    readable >= SHAPE_KEPT,
+                    readable > 0 if few else readable >= SHAPE_KEPT,
                 )
             )
-        if f.shape and len(present) >= _SHAPE_EVIDENCE:
+        if f.shape and present:
             kept_shape = sum(1 for v in present if _fits(v, f.shape)) / len(present)
             example = next((v for v in present if not _fits(v, f.shape)), present[0])
             checks.append(
                 Check(
                     "shape",
-                    f"{f.name} shaped {f.shape} in at least {SHAPE_KEPT:.0%} of rows",
+                    f"{f.name} shaped {f.shape} "
+                    + (
+                        "in some row"
+                        if few
+                        else f"in at least {SHAPE_KEPT:.0%} of rows"
+                    ),
                     f"{kept_shape:.0%}, e.g. {example!r}",
-                    kept_shape >= SHAPE_KEPT,
+                    kept_shape > 0 if few else kept_shape >= SHAPE_KEPT,
                 )
             )
         if len(f.samples) >= _VARIED and len(present) >= _SHAPE_EVIDENCE:

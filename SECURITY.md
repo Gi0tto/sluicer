@@ -121,6 +121,14 @@ no entity resolved and nothing fetched from inside it, and one that declares a
 document type is refused, so neither an external entity nor billion laughs
 reaches the parser.
 
+A selector an agent writes is a small program run on the server's CPU: XPath
+lets one line cost the square or the cube of a page's size, and so does
+ordinary CSS. The tools evaluate a caller's selectors in a process of their
+own, killed after 60 seconds (`sluicer.isolated.SECONDS`), or when the call's
+budget ends over HTTP, below; such a call is answered `bad_input`. The
+command line and the library evaluate selectors in their own process: run an
+extractor file only from someone you would let run code that long.
+
 So: run the MCP server where you would be willing to run `curl` with a URL
 somebody else chose. If that is not acceptable in your environment, put the
 egress control where it belongs, in the network, not in this library.
@@ -157,6 +165,15 @@ user's own browser included. So it starts closed:
   by default) is answered 504, at `/mcp` a body that takes longer than that to
   arrive included, and four tool calls that may fetch run at once. A call that fetches nothing, its every page handed in, runs on four
   workers of its own, so slow sites cannot hold it back.
+- A caller's selectors -- `select_values`, and `compile_extractor`,
+  `run_extractor` and `heal_extractor` with an extractor written by
+  selectors -- are evaluated in a process of their own, killed when the
+  call's time budget ends (`sluicer.isolated`). XPath lets one line cost the
+  cube of a page's size, `//p[count(//p[count(//p) > 0]) > 0]` on 3,000
+  paragraphs, and CSS's `p ~ p` took 110 s on 8,000; lxml evaluates both in
+  C, which no thread can stop. Before this, four such calls held every
+  worker for as long as they ran, and the server answered every later call
+  504.
 
 What it does not do: it speaks plain HTTP, so beyond one machine the token
 crosses the network in the clear unless TLS is put in front of it; there is one

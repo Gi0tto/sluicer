@@ -388,6 +388,84 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A caller's selectors can no longer hold a server's workers. XPath lets one
+  line cost the cube of a page's size -- `//p[count(//p[count(//p) > 0]) >
+  0]` on a 9 KB page of 3,000 paragraphs runs for minutes -- and CSS's
+  `p ~ p` took 110 s on 8,000; lxml evaluates both in C, where no thread can
+  be stopped. Four such `select_values` calls to `sluicer serve --timeout 15`
+  were answered 504 and kept every worker busy, so every later call was a
+  504 too. The MCP tools that evaluate a caller's selectors --
+  `select_values`, and `compile_extractor`, `run_extractor` and
+  `heal_extractor` with an extractor written by selectors -- now evaluate
+  them in a process of their own (`sluicer.isolated`), killed when the
+  call's budget ends over HTTP, or after 60 seconds over stdio, and such a
+  call is answered `bad_input`. It costs a call about 90 ms to start the
+  process. The command line and the library evaluate selectors as before, in
+  their own process. `tests/live/api_check.py` sends four such selectors to
+  a real server and then a harmless one, answered at once.
+- A listing page with fewer than five values of a column is held to one at
+  least reading and shaped as learnt: three rows whose price says "Call"
+  fail a price learnt as an amount, learnt or written. Under five values the
+  `reads` and `shape` checks were skipped, since 0.7.1, and such a page
+  passed; one odd value among them still passes. The drift pairs and SWDE
+  answer exactly as before.
+- A thing declared deep inside one of a page's repeated blocks is the page's
+  subject again, not a row's: only a thing declared on a row or at most two
+  levels inside it is one of the listing's items. Two pages of the products
+  corpus stack their layout in alike tables, the product declared five
+  levels inside one of them; 0.8.0 took it for a row, learnt the tables as
+  the page's listing, 1,452 and 1,618 columns of site furniture, and replayed
+  them with ok=True, where 0.7.1 learnt no listing. Over the products corpus
+  and the test fixtures (152 pages) compile now learns what 0.7.1 learnt on
+  every page, and quotes.toscrape.com, whose quote is declared on its row,
+  keeps its listing. The drift pairs and SWDE never ask this (a listing is
+  asked for, or examples choose it), and are unchanged.
+- A page field learnt by its place is read after its label instead when
+  another page given puts another labelled value there and says the
+  example's own label elsewhere: PEP 257 puts its Discussions-To where PEP 8
+  puts its status, and says "Status:" a row further down. With every value
+  plain text nothing contradicted the place, and PEP 257's status read
+  "Doc-SIG list" with the run passing; only a label the example's own page
+  says counted.
+- A column of a hand-written listing that fewer than half the learnt rows
+  carried -- a sale badge on three rows in ten -- fails a page none of whose
+  rows carries it when that is under a 1% chance (`written.BY_CHANCE`): from
+  13 rows for that badge, and 0.08% for twenty. 0.8.0 checked such a column's
+  presence nowhere, as a learnt listing does not, so a redesign that broke
+  its selector passed every page with exit 0; and `heal` reported it `kept`
+  when no new row carried it. `heal` now reports it `broken` when the new
+  pages' rows together make that as unlikely. Ten rows without the badge
+  (2.8%) still pass, and a page of twenty on which truly nothing is on sale
+  fails as a redesign would.
+- A hand-written field is taken for an address, with no shape or reading to
+  hold it to, only when its values are read from an `href` or a `src`. 0.8.0
+  decided from the selector's text, and `.//a[@href]` -- the links that have
+  an href, read as their text -- ended like an address: a title that turned
+  into a number passed with exit 0. `(.//a/@href)[1]` is now an address, as
+  it always read one.
+- CSS's `::text` and `::attr()` are read as parsel, Scrapy's selectors,
+  reads them, as the selector language says. After a space, `div.price
+  ::text` is every text node inside the element -- `Price:`, `12` and `EUR`
+  -- and `h1 ::text` the heading's text; 0.8.0 read the text of the elements
+  inside it, `12` alone, and nothing for `h1 ::text`. `ol ::attr(class)`
+  reads the `ol`'s own class too. Text nodes come in the page's order, so
+  `div.x::text` on a `div.x` inside another reads `A`, `B`, `C` where it
+  read `A`, `C`, `B`.
+- `sluicer compile` refuses a field named twice, `--select x=h1 --select
+  x=h2` or `--want x=a --want x=b`, exit 2, as an extractor file with two
+  fields of one name is refused. The last one was kept and the first dropped
+  without a word.
+- `select_values` answers `bad_input` for a selector that selects a comment
+  on the page it is asked of, and for one with a NUL or a control character,
+  which lxml refuses with a `ValueError` of its own; both reached the agent as
+  the SDK's bare "Error executing tool". Such a selector is a `SelectorError`
+  wherever it is read: `selector()`, `Page.select()`, `sluicer select` (exit
+  2) and an extractor's file.
+- A hand-written listing whose rows selector cannot be read on one page --
+  an XPath that selects a comment there, as `//li | //comment()` does -- fails
+  that page's listing check, exit 3, with why. It escaped as a traceback:
+  `sluicer run` and `heal` stopped with exit 1, and the other pages went
+  unread.
 - The check a sitemap or a feed passes before libxml2 reads it finds a
   declared entity or document type in every encoding libxml2 reads: UTF-16
   without a byte order mark and UTF-32, which libxml2 tells from the bytes of

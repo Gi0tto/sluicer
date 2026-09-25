@@ -30,6 +30,7 @@ import json
 import logging
 import os
 import sys
+import time
 from collections.abc import (
     AsyncIterator,
     Awaitable,
@@ -42,7 +43,7 @@ from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from typing import Any
 
-from sluicer import __version__, mcp_server
+from sluicer import __version__, isolated, mcp_server
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
 
@@ -304,6 +305,7 @@ def _run_tool(
     call_tool: Callable[..., Coroutine[Any, Any, Any]],
     name: str,
     arguments: dict[str, Any],
+    deadline: float,
 ) -> Any:
     """One tool call through the SDK, on a worker thread with a loop of its own.
 
@@ -315,8 +317,14 @@ def _run_tool(
     pool of this module's, the budget does not rest on that difference, and
     ``MAX_CALLS`` and ``MAX_READS`` bound the calls still running after their
     answer was sent. ``call_tool`` is the server's own, the SDK's.
+
+    A caller's selectors are the exception a worker can end on time: the
+    tools evaluate them in a process of their own (``sluicer.isolated``),
+    killed at ``deadline``, the end of the call's budget, so a selector that
+    would run for minutes frees its worker when its call has been answered.
     """
-    return asyncio.run(call_tool(name, arguments))
+    with isolated.until(deadline):
+        return asyncio.run(call_tool(name, arguments))
 
 
 async def _body(request: Any, limit: int) -> bytes | None:
@@ -380,8 +388,9 @@ def build_app(
     async def run(name: str, arguments: dict[str, Any]) -> Any:
         """One call on a worker of the pool its arguments choose."""
         pool = fetching if may_fetch(arguments) else reading
+        deadline = time.monotonic() + timeout
         return await asyncio.wrap_future(
-            pool.submit(_run_tool, direct, name, arguments)
+            pool.submit(_run_tool, direct, name, arguments, deadline)
         )
 
     async def call_over_mcp(

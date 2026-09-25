@@ -80,6 +80,43 @@ def test_a_listing_written_by_selectors_learns_its_columns_from_the_pages():
     assert extractor.listing is None and extractor.fields == ()
 
 
+@pytest.mark.parametrize(
+    ("title", "address"),
+    [
+        (".//a[@href]", False),
+        ("xpath:.//a[@src or @href]", False),
+        (".//a/@href", True),
+        ("(.//a/@href)[1]", True),
+        ("a::attr(href)", True),
+        ("a::attr(class)", False),
+    ],
+)
+def test_a_field_is_an_address_when_its_values_are_links(title, address):
+    """An address has no shape or reading to hold it to; a link's text does.
+    ``.//a[@href]`` names the links that have an href, and reads their text:
+    it was taken for an address, so a title that turned into a number
+    passed."""
+    extractor = compile_extractor(
+        [page("shop_v1.html"), page("shop_v1_page2.html")],
+        select={"title": title, "price": "span.price::text"},
+        rows="li.product",
+    )
+
+    [field, _price] = extractor.written.fields
+    assert (field.shape is None) is address
+    if not address and "class" not in title:
+        numbers = listing(
+            [
+                f'<a class="title" href="/b/{n}">{n}.00</a>'
+                f'<span class="price">£{n}.50</span>'
+                for n in range(1, 7)
+            ]
+        )
+        run = run_extractor(extractor, numbers, "https://shop.example/")
+        assert not run.ok
+        assert "shape" in failed(run)
+
+
 def test_a_written_extractor_is_a_file_of_format_3_and_reads_back_the_same():
     extractor = books()
 
@@ -187,11 +224,98 @@ def test_a_redesign_that_breaks_the_selectors_fails_and_gives_no_rows():
     assert check.expected == "rows at li.product"
 
 
+def test_a_rows_selector_a_page_cannot_answer_fails_that_page():
+    """An XPath of rows that selects a comment on one page cannot be read
+    there: that page fails its listing check, and neither a run nor a heal
+    stops on a traceback."""
+    rows = "xpath://li[@class='product'] | //comment()[contains(., 'rows')]"
+    extractor = compile_extractor(
+        [page("shop_v1.html"), page("shop_v1_page2.html")], select=BOOK, rows=rows
+    )
+    html, url = page("shop_v1.html")
+    commented = html.replace(b"<ol", b"<!-- rows --><ol", 1)
+
+    run = run_extractor(extractor, commented, url)
+
+    assert not run.ok
+    assert failed(run) == ["listing"]
+    [check] = [c for c in run.checks if not c.ok]
+    assert check.expected == f"rows at {rows}"
+    assert "comment" in check.got
+    assert run.rows == []
+    healed, changes = heal(extractor, [(commented, url)])
+    assert [(c.kind, c.before) for c in changes] == [("broken", rows)]
+    assert healed.written == extractor.written
+
+
 def test_a_page_with_the_rows_but_none_in_them_fails():
     run = run_extractor(books(), *page("shop_empty.html"))
 
     assert not run.ok
     assert "listing" in failed(run)
+
+
+def sales(rows: int, badge: str = "sale", on_sale: int = 3) -> bytes:
+    """A listing of ``rows`` books, every ``on_sale``-th one with a badge."""
+    return listing(
+        [
+            f'<a class="title" href="/b/{n}">Book {n}</a>'
+            f'<span class="price">£{n}.50</span>'
+            + (f'<span class="{badge}">SALE</span>' if n % on_sale == 0 else "")
+            for n in range(1, rows + 1)
+        ]
+    )
+
+
+def on_sale() -> Extractor:
+    """Books, and a sale badge that three rows in ten carry."""
+    return compile_extractor(
+        [
+            (sales(10), "https://shop.example/c1"),
+            (sales(10), "https://shop.example/c2"),
+        ],
+        select={"title": "a.title", "sale": "span.sale::text"},
+        rows="li.product",
+    )
+
+
+def test_a_column_few_rows_carry_fails_when_no_row_of_a_long_page_does():
+    """A badge three rows in ten carry is absent from ten rows by chance one
+    page in thirty-six; from twenty, one in more than a thousand. Its
+    selector broken by a redesign, it found nothing in any row, and every
+    page passed."""
+    extractor = on_sale()
+    [_title, sale] = extractor.written.fields
+    assert sale.missing == 0.7
+
+    renamed = run_extractor(
+        extractor, sales(20, badge="promo"), "https://shop.example/"
+    )
+    short = run_extractor(extractor, sales(10, badge="promo"), "https://shop.example/")
+    none_on_sale = run_extractor(
+        extractor, sales(20, on_sale=99), "https://shop.example/"
+    )
+
+    assert not renamed.ok
+    [check] = [c for c in renamed.checks if not c.ok]
+    assert (check.name, check.expected) == ("field", "sale in some rows")
+    assert check.got == "in none of 20 rows, a 0.08% chance for a field 30% carried"
+    # Ten rows without it are not evidence enough, nor is a page on which
+    # it is truly gone told from one of a day with no sale.
+    assert short.ok and not none_on_sale.ok
+
+
+def test_heal_reports_a_column_no_new_row_carries_broken():
+    old = on_sale()
+
+    healed, changes = heal(
+        old, [(sales(10, badge="promo"), "https://shop.example/")] * 2
+    )
+
+    assert [(c.kind, c.before) for c in changes if c.kind in LOSSES] == [
+        ("broken", "sale")
+    ]
+    assert healed.written == old.written
 
 
 def test_a_column_gone_from_its_rows_fails_as_a_learnt_one_does():
@@ -208,6 +332,35 @@ def test_a_price_slot_that_now_holds_a_button_fails_its_reading_and_shape():
 
     assert not run.ok
     assert set(failed(run)) == {"reads", "shape", "values"}
+
+
+def _three_rows(price) -> bytes:
+    """shop_v1.html cut to its first three books, the n-th priced ``price(n)``."""
+    html = page("shop_v1.html")[0].decode()
+    rows = re.findall(r'<li class="product">.*?</li>', html)
+    for n, row in enumerate(rows, 1):
+        kept = re.sub(r'(<span class="price">)[^<]*', rf"\g<1>{price(n)}", row)
+        html = html.replace(row, kept if n <= 3 else "")
+    return html.encode()
+
+
+def test_a_short_page_whose_prices_all_say_call_fails_learnt_or_written():
+    """Under five rows a column's reading and shape went unchecked: three
+    rows whose price said "Call" passed a price learnt as an amount. A short
+    page is held to one value at least reading and shaped as learnt."""
+    learnt = compile_extractor(
+        [page("shop_v1.html"), page("shop_v1_page2.html")],
+        want={"price": "£51.77", "title": "A Light in the Attic"},
+    )
+    short = _three_rows(lambda n: "Call")
+    one_odd = _three_rows(lambda n: "Call" if n == 1 else f"£{n}.50")
+
+    for extractor in (books(), learnt):
+        run = run_extractor(extractor, short, "https://shop.example/")
+        assert not run.ok
+        assert set(failed(run)) == {"reads", "shape"}
+        odd = run_extractor(extractor, one_odd, "https://shop.example/")
+        assert odd.ok, failed(odd)
 
 
 def test_the_checks_a_written_listing_gets_are_the_ones_a_learnt_one_gets():
@@ -547,6 +700,8 @@ def test_heal_exits_three_and_writes_nothing_for_a_broken_selector(tmp_path):
         (["--rows", "li"], "--select"),
         (["--select", "t=h1", "--want", "t=x"], "--want"),
         (["--select", "t=h1", "--listing"], "--rows"),
+        (["--select", "t=h1", "--select", "t=h2"], "two fields named 't'"),
+        (["--want", "t=Brake", "--want", " t=pad"], "two fields named 't'"),
     ],
 )
 def test_compile_refuses_a_selector_it_cannot_read_naming_it(tmp_path, options, said):

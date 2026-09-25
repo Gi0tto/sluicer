@@ -39,6 +39,7 @@ from sluicer.fetch import (
 )
 from sluicer.fetch.archive import NotArchived
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
+from sluicer.isolated import TookTooLong, isolated
 from sluicer.markdown import to_markdown
 from sluicer.selectors import (
     SelectorError,
@@ -186,6 +187,10 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
             return _error("fetch_failed", failed, retryable=True, url=failed.url)
         except _BadInput as bad:
             return _error("bad_input", bad)
+        except TookTooLong as slow:
+            # The caller's selector, not the page or the server: asked again,
+            # it runs as long again.
+            return _error("bad_input", slow)
         except _Reserved as reserved:
             return _error("tdm_reserved", reserved, url=reserved.url)
 
@@ -636,9 +641,12 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
                 raise _BadInput(str(unread)) from unread
         read = [_html_of(one)[:2] for one in pages]
         try:
-            learnt = extractor_module.compile_extractor(
-                read, listing=listing, want=want, select=select, rows=rows
-            )
+            if select is not None:
+                learnt = isolated(_written_from, read, select, rows)
+            else:
+                learnt = extractor_module.compile_extractor(
+                    read, listing=listing, want=want
+                )
         except (extractor_module.NothingToLearn, ValueError) as nothing:
             raise _BadInput(str(nothing)) from nothing
         return {"ok": True, "extractor": json.loads(learnt.to_json())}
@@ -662,7 +670,10 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         """
         loaded = _extractor_from(extractor)
         html, url, _fetched = _html_of(html_or_url)
-        run = extractor_module.run_extractor(loaded, html, url=url)
+        if loaded.written is not None:
+            run = isolated(extractor_module.run_extractor, loaded, html, url)
+        else:
+            run = extractor_module.run_extractor(loaded, html, url=url)
         answer = {
             "ok": run.ok,
             "rows": run.rows,
@@ -704,7 +715,10 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             raise _BadInput("heal_extractor needs at least one page")
         read = [_html_of(one)[:2] for one in pages]
         try:
-            healed, changes = extractor_module.heal(loaded, read)
+            if loaded.written is not None:
+                healed, changes = isolated(extractor_module.heal, loaded, read)
+            else:
+                healed, changes = extractor_module.heal(loaded, read)
         except extractor_module.NothingToLearn as nothing:
             raise _BadInput(str(nothing)) from nothing
         lost = any(c.kind in extractor_module.LOSSES for c in changes)
@@ -1008,11 +1022,16 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         html, url, fetched, headers = _page_of(html_or_url)
         if respect_tdm:
             _respect_tdm(html, url, fetched, headers)
-        found = parse_page(html, url, headers).select(selector)
+        try:
+            found = isolated(_selected, html, url, headers, selector)
+        except SelectorError as unanswered:
+            # Read when written, a selector can still select a comment on
+            # the page it is asked of.
+            raise _BadInput(str(unanswered)) from unanswered
         answer: dict[str, Any] = {
             "ok": True,
             "url": url,
-            "values": [{"value": one.value, "where": one.where} for one in found],
+            "values": [{"value": value, "where": where} for value, where in found],
             "count": len(found),
         }
         if fetched is not None:
@@ -1244,6 +1263,26 @@ def _change(change: extractor_module.Change) -> Any:
         for key, value in answer.items()
         if value is not None or key in ("before", "after")
     }
+
+
+# -- evaluated isolated: a caller's selectors, in a process of their own ------
+
+
+def _selected(
+    html: str, url: str | None, headers: dict[str, str] | None, selector: str
+) -> list[tuple[str, str]]:
+    """What ``selector`` gives on the page, each value and where it is."""
+    return [
+        (one.value, one.where)
+        for one in parse_page(html, url, headers).select(selector)
+    ]
+
+
+def _written_from(
+    pages: list[tuple[str, str | None]], select: dict[str, str], rows: str | None
+) -> extractor_module.Extractor:
+    """An extractor written by ``select`` and ``rows``, learnt from ``pages``."""
+    return extractor_module.compile_extractor(pages, select=select, rows=rows)
 
 
 def _extractor_from(given: dict[str, Any]) -> extractor_module.Extractor:

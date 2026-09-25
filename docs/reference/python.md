@@ -277,9 +277,10 @@ class Selector:
 A selector as written and as it is evaluated.
 
 ``kind`` is ``css`` or ``xpath``. For CSS, ``xpath`` is what the
-selector's elements are found by, and ``reads`` says what of each is
-read: ``element`` its whole text, ``text`` its own text nodes (``::text``),
-``attribute`` the one named by ``attribute`` (``::attr(name)``). An
+selector is evaluated as, and ``reads`` says what of each element is
+read: ``element`` its whole text, ``text`` its own text nodes (``::text``,
+which ``xpath`` then selects), ``attribute`` the one named by
+``attribute`` (``::attr(name)``). An
 XPath reads what it selects, an element, a text or an attribute, and its
 ``reads`` is ``selected``.
 

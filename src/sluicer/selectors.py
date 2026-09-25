@@ -69,9 +69,10 @@ class Selector:
     """A selector as written and as it is evaluated.
 
     ``kind`` is ``css`` or ``xpath``. For CSS, ``xpath`` is what the
-    selector's elements are found by, and ``reads`` says what of each is
-    read: ``element`` its whole text, ``text`` its own text nodes (``::text``),
-    ``attribute`` the one named by ``attribute`` (``::attr(name)``). An
+    selector is evaluated as, and ``reads`` says what of each element is
+    read: ``element`` its whole text, ``text`` its own text nodes (``::text``,
+    which ``xpath`` then selects), ``attribute`` the one named by
+    ``attribute`` (``::attr(name)``). An
     XPath reads what it selects, an element, a text or an attribute, and its
     ``reads`` is ``selected``.
     """
@@ -133,12 +134,36 @@ def _translated(text: str) -> Selector:
     reads, attribute = reading.pop()
     translator = cssselect.HTMLTranslator()
     try:
-        paths = [translator.selector_to_xpath(one) for one in group]
-    except cssselect.ExpressionError as why:
+        paths = [
+            _pseudo_read(translator.selector_to_xpath(one), reads) for one in group
+        ]
+        # Compiled once here, so that what lxml refuses in the translation --
+        # a NUL in an attribute's value -- is said when the selector is read.
+        etree.XPath(" | ".join(paths))
+    except (cssselect.ExpressionError, etree.XPathError, ValueError) as why:
         raise SelectorError(
             f"{text!r} is not a CSS selector Sluicer reads: {why}"
         ) from None
     return Selector(text, "css", " | ".join(paths), reads, attribute)
+
+
+def _pseudo_read(path: str, reads: str) -> str:
+    """The XPath of one CSS selector, with what its pseudo-element reads, as
+    parsel -- Scrapy's selectors -- reads it.
+
+    ``::text`` selects the text nodes, so they come in the page's order,
+    nested elements' too. After a space, ``div ::text`` (``div *::text``) is
+    every text node inside the element, not the text of the elements inside
+    it, and ``div ::attr(class)`` the attribute of the element and of
+    everything inside it: cssselect ends such a path with ``::*/*``, which
+    parsel reads as ``descendant-or-self`` of the element, and so does this.
+    """
+    inside = path.endswith("::*/*")
+    if reads == "text":
+        return path[: -len("*/*")] + "text()" if inside else path + "/text()"
+    if reads == "attribute" and inside:
+        return path[: -len("/*")]
+    return path
 
 
 def _pseudo(text: str, pseudo: Any) -> tuple[str, str | None]:
@@ -177,7 +202,8 @@ def _xpath(text: str) -> Selector:
         # is a number rather than nodes -- is said when the selector is
         # written, not first on some page an extractor is run on.
         given = etree.XPath(text)(_EMPTY)
-    except etree.XPathError as why:
+    except (etree.XPathError, ValueError) as why:
+        # ValueError: lxml's own refusal of a NUL or a control character.
         raise SelectorError(f"{text!r} is not an XPath: {why}") from None
     if not isinstance(given, list):
         raise SelectorError(
@@ -216,15 +242,21 @@ class Selected:
     fields. A text or an attribute has nothing inside it.
     """
 
-    __slots__ = ("_node", "_page", "value", "where")
+    __slots__ = ("_attribute", "_node", "_page", "value", "where")
 
     def __init__(
-        self, value: str, where: str, node: HtmlElement | None, page: Page
+        self,
+        value: str,
+        where: str,
+        node: HtmlElement | None,
+        page: Page,
+        attribute: str | None = None,
     ) -> None:
         self.value = value
         self.where = where
         self._node = node
         self._page = page
+        self._attribute = attribute
 
     def __repr__(self) -> str:
         return f"Selected(value={self.value!r}, where={self.where!r})"
@@ -316,12 +348,14 @@ class Page:
     def css(self, text: str) -> Selection:
         """What the CSS selector ``text`` gives on the page.
 
-        ``::text`` reads an element's own text nodes, each one a value, as
-        Scrapy does, and ``::attr(name)`` its attribute; without either, the
-        element's whole text is its value. A text node or an attribute of
-        spaces alone, or an element without the attribute, gives no value; an
-        element with no text gives an empty one, so every row of a listing is
-        counted.
+        ``::text`` reads an element's own text nodes, each one a value, and
+        ``::attr(name)`` its attribute, as Scrapy's parsel does: after a
+        space, ``div ::text`` is every text node inside the element, and
+        ``div ::attr(name)`` the attribute of the element and of everything
+        inside it. Without either, the element's whole text is its value. A
+        text node or an attribute of spaces alone, or an element without the
+        attribute, gives no value; an element with no text gives an empty
+        one, so every row of a listing is counted.
 
         Raises:
             SelectorError: ``text`` is not a CSS selector Sluicer reads.
@@ -368,16 +402,11 @@ class Page:
 
     def _read(self, chosen: Selector, node: Any) -> Iterable[Selected]:
         if isinstance(node, HtmlElement):
-            if chosen.reads == "text":
-                for text in node.xpath("text()"):
-                    said = " ".join(text.split())
-                    if said:
-                        yield self._selected(said, node, None)
-            elif chosen.reads == "attribute":
+            if chosen.reads == "attribute":
                 assert chosen.attribute is not None
                 value = self._attribute(chosen.attribute, node.get(chosen.attribute))
                 if value:
-                    yield self._selected(value, node, None)
+                    yield self._selected(value, node, None, chosen.attribute)
             else:
                 said = " ".join(node.text_content().split())
                 yield self._selected(said, node, node)
@@ -389,7 +418,7 @@ class Page:
             if node.is_attribute:
                 value = self._attribute(str(node.attrname), str(node))
                 if value:
-                    yield self._selected(value, owner, None)
+                    yield self._selected(value, owner, None, str(node.attrname))
                 return
             # A text after an element, its tail, is the parent's text.
             if node.is_tail:
@@ -418,9 +447,14 @@ class Page:
         return " ".join(value.split())
 
     def _selected(
-        self, value: str, element: HtmlElement, node: HtmlElement | None
+        self,
+        value: str,
+        element: HtmlElement,
+        node: HtmlElement | None,
+        attribute: str | None = None,
     ) -> Selected:
-        return Selected(value, xpath_of(element, self._positions), node, self)
+        where = xpath_of(element, self._positions)
+        return Selected(value, where, node, self, attribute)
 
 
 def _what(result: Any) -> str:
@@ -448,6 +482,13 @@ def parse(
     Never raises: any input, however broken, is a page, if an empty one.
     """
     return Page(load(html, url=url, charset=charset(lowered(headers))))
+
+
+def _an_address(one: Selected) -> bool:
+    """Whether ``one`` is an ``href`` or ``src``, read from the attribute: an
+    address, resolved against the page. A link's text is not one, however
+    the selector that gave it names the link -- ``.//a[@href]``."""
+    return one._attribute in _ADDRESSES
 
 
 def _element_of(one: Selected) -> HtmlElement | None:

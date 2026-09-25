@@ -60,7 +60,48 @@ def test_text_is_the_element_s_own_text_nodes_as_scrapy_reads_it():
 
     assert note.getall() == ["Prices", "VAT,", "."]
     assert {n.where for n in note} == {"/html/body/p[1]"}
-    assert shop().css("#note *::text").getall() == ["include", "always"]
+
+
+# What parsel 1.12.0, Scrapy's selectors, gives for each on SHOP, spaces
+# collapsed and nodes of spaces alone left out, as Sluicer reads a value.
+AS_PARSEL = [
+    ("#note::text", ["Prices", "VAT,", "."]),
+    ("#note *::text", ["Prices", "include", "VAT,", "always", "."]),
+    ("#note ::text", ["Prices", "include", "VAT,", "always", "."]),
+    ("h1 ::text", ["Books of the week"]),
+    ("#note b::text", ["include"]),
+    ("li *::text", ["A Light in the Attic", "£51.77", "Tipping the Velvet", "£53.74"]),
+    (
+        "li > *::text",
+        ["A Light in the Attic", "£51.77", "Tipping the Velvet", "£53.74"],
+    ),
+    ("ol li::text", []),
+    ("ol::attr(class)", ["row"]),
+    (
+        "ol ::attr(class)",
+        ["row", "product", "title", "price", "product sale", "title", "price"],
+    ),
+]
+
+
+@pytest.mark.parametrize(("written", "parsel"), AS_PARSEL)
+def test_text_and_attributes_after_a_space_are_read_as_parsel_reads_them(
+    written, parsel
+):
+    """After a space, ``::text`` is every text node inside the element and
+    ``::attr()`` the attribute of the element and of everything inside it:
+    ``div.price ::text`` is ``Price:``, ``12`` and ``EUR``, as parsel reads
+    it. Sluicer read it as the text of the elements inside, ``12`` alone,
+    and ``h1 ::text`` as nothing at all."""
+    assert shop().css(written).getall() == parsel
+
+
+def test_text_nodes_are_read_in_the_page_s_order_as_parsel_reads_them():
+    """An element inside another that is selected too: its text comes where
+    the page has it, not after the outer element's own."""
+    nested = parse("<div class=x>A<div class=x>B</div>C</div>")
+
+    assert nested.css("div.x::text").getall() == ["A", "B", "C"]
 
 
 def test_an_attribute_is_read_and_an_address_resolved_against_the_page():
@@ -193,6 +234,19 @@ def test_an_xpath_that_cannot_be_read_is_an_error_naming_it(written, said):
 
     assert said in str(raised.value)
     assert repr(written) in str(raised.value)
+
+
+@pytest.mark.parametrize("written", ["//h1\x00", "h1[title='\x00']", "//h1[@x='\x01']"])
+def test_a_selector_with_a_character_xpath_cannot_hold_is_an_error_naming_it(written):
+    """lxml refuses a NUL or a control character anywhere in an XPath with a
+    ValueError of its own, which escaped as not a SelectorError: over MCP, an
+    unexpected tool error, not bad_input."""
+    with pytest.raises(SelectorError) as raised:
+        selector(written)
+
+    assert repr(written) in str(raised.value)
+    with pytest.raises(SelectorError):
+        shop().select(written)
 
 
 def test_a_selector_error_is_a_value_error():

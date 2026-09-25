@@ -31,6 +31,7 @@ from typing import Any
 
 from sluicer.document import Document, load
 from sluicer.extractor import (
+    _COMMON,
     _READERS,
     _SAMPLES,
     _SHAPE_EVIDENCE,
@@ -55,10 +56,10 @@ from sluicer.extractor import (
     shape,
 )
 from sluicer.selectors import (
-    _ADDRESSES,
     Page,
     Selected,
     SelectorError,
+    _an_address,
     _element_of,
     selector,
 )
@@ -100,6 +101,14 @@ class Written:
     fields: tuple[WrittenField, ...]
     rows: str | None = None
     empty: float = 0.0
+
+
+BY_CHANCE = 0.01
+"""How unlikely it must be that no row of a page carries a column a few of
+the learnt rows carried before the page fails for it: a sale badge three rows
+in ten carry is absent from ten rows 2.8% of the time, and from twenty 0.08%.
+A column most rows carried is held to some row on every page, as a learnt
+one is."""
 
 
 def compile_written(
@@ -158,18 +167,14 @@ def _rows_selector(text: str) -> None:
         )
 
 
-def _an_address(text: str) -> bool:
-    """Whether a selector reads an ``href`` or ``src``: an address, which has
-    no shape or reading worth holding it to, as a learnt one has none."""
-    chosen = selector(text)
-    if chosen.kind == "css":
-        return chosen.attribute in _ADDRESSES
-    return re.search(r"@(?:href|src)\W*$", chosen.text) is not None
-
-
 def _values(found: Sequence[Selected]) -> list[str]:
     """What a field reads of what its selector gave: the values not empty."""
     return [one.value for one in found if one.value]
+
+
+def _given(found: Sequence[Selected]) -> list[Selected]:
+    """``_values``, each with where it was read from."""
+    return [one for one in found if one.value]
 
 
 def _learn(
@@ -191,9 +196,12 @@ def _learn(
     fields = []
     for name, text in select.items():
         values: list[str] = []
+        # An address -- an href or a src, read from the attribute -- has no
+        # shape or reading worth holding it to, as a learnt one has none.
+        address = True
         first = False
         for page, called_as in zip(pages, called, strict=True):
-            found = _values(page.select(text))
+            found = _given(page.select(text))
             if not found:
                 raise NothingToLearn(f"{name}={text!r} gives nothing on {called_as}")
             if len(found) > 1 and not first:
@@ -202,8 +210,8 @@ def _learn(
                     f"{name}={text!r} gives {len(found)} values on {called_as}; the "
                     "first is read, and a run does not hold it to one"
                 )
-            values.append(found[0])
-        address = _an_address(text)
+            values.append(found[0].value)
+            address = address and _an_address(found[0])
         shapes = {shape(value) for value in values}
         # A reading from two pages at least, as a label is learnt: one page
         # cannot tell a price from a title that happens to be a number.
@@ -238,6 +246,7 @@ def _learn_rows(
     notes: list[str] = []
     held: list[dict[str, str]] = []
     doubled: Counter[str] = Counter()
+    addresses: Counter[str] = Counter()
     empty = 0.0
     for page, called_as in zip(pages, called, strict=True):
         members = page.select(rows)
@@ -249,8 +258,9 @@ def _learn_rows(
             )
         if not elements:
             raise NothingToLearn(f"the rows {rows!r} are nowhere on {called_as}")
-        read, twice, _broken = _read_rows(elements, select, raising=True)
+        read, twice, links, _broken = _read_rows(elements, select, raising=True)
         doubled.update(twice)
+        addresses.update(links)
         kept = [row for row in read if row]
         empty = max(empty, round(1 - len(kept) / len(elements), 4))
         held.extend(kept)
@@ -267,7 +277,7 @@ def _learn_rows(
                 f"{name}={text!r} gives more than one value in {doubled[name]} "
                 "rows; the first is read, and a run does not hold it to one"
             )
-        address = _an_address(text)
+        address = addresses[name] == len(present)
         shapes = {shape(value) for value in present}
         shaped = len(shapes) == 1 and len(present) >= _SHAPE_EVIDENCE
         fields.append(
@@ -286,14 +296,16 @@ def _learn_rows(
 
 def _read_rows(
     elements: list[Selected], select: Mapping[str, str], raising: bool = False
-) -> tuple[list[dict[str, str]], Counter[str], dict[str, str]]:
+) -> tuple[list[dict[str, str]], Counter[str], Counter[str], dict[str, str]]:
     """Each row's fields: the first value each selector gives inside it.
 
-    Also how many rows gave a field more than one value, and, unless
-    ``raising``, the fields whose selector could not be read on this page --
-    one that selected a comment -- with why."""
+    Also how many rows gave a field more than one value, how many gave it an
+    address (``_an_address``), and, unless ``raising``, the fields whose
+    selector could not be read on this page -- one that selected a comment --
+    with why."""
     rows: list[dict[str, str]] = []
     doubled: Counter[str] = Counter()
+    addresses: Counter[str] = Counter()
     broken: dict[str, str] = {}
     for element in elements:
         row: dict[str, str] = {}
@@ -301,7 +313,7 @@ def _read_rows(
             if name in broken:
                 continue
             try:
-                found = _values(element.select(text))
+                found = _given(element.select(text))
             except SelectorError as why:
                 if raising:
                     raise
@@ -310,9 +322,10 @@ def _read_rows(
             if len(found) > 1:
                 doubled[name] += 1
             if found:
-                row[name] = found[0]
+                row[name] = found[0].value
+                addresses[name] += _an_address(found[0])
         rows.append(row)
-    return rows, doubled, broken
+    return rows, doubled, addresses, broken
 
 
 # -- replaying ----------------------------------------------------------------
@@ -345,7 +358,14 @@ def _replayed(
                 fields[f.name] = value
         return [], fields, said
     where = f"rows at {written.rows}"
-    members = page.select(written.rows)
+    try:
+        members = page.select(written.rows)
+    except SelectorError as why:
+        # Read on an empty page when written, a selector can still fail on
+        # one page -- an XPath that selects a comment there -- and the page
+        # fails, as one without the rows does; the rest are still read.
+        said.append((None, Check("listing", where, str(why), False)))
+        return [], {}, said
     elements = [one for one in members if _element_of(one) is not None]
     if not members or len(elements) != len(members):
         got = (
@@ -356,7 +376,7 @@ def _replayed(
         said.append((None, Check("listing", where, got, False)))
         return [], {}, said
     said.append((None, Check("listing", where, f"{len(elements)} found", True)))
-    read, doubled, broken = _read_rows(
+    read, doubled, _addresses, broken = _read_rows(
         elements, {f.name: f.selector for f in written.fields}
     )
     rows = [row for row in read if row]
@@ -385,6 +405,22 @@ def _replayed(
         )
         _check_rows([column], rows, len(elements), written.empty, own, slots=False)
         said.extend((f.name, check) for check in own[len(level) :])
+        seldom = _seldom(f, len(rows))
+        if seldom is not None:
+            carried = sum(1 for row in rows if f.name in row)
+            said.append(
+                (
+                    f.name,
+                    Check(
+                        "field",
+                        f"{f.name} in some rows",
+                        f"in {carried / len(rows):.0%}"
+                        if carried
+                        else f"in none of {len(rows)} rows, {seldom}",
+                        carried > 0,
+                    ),
+                )
+            )
         if not f.first:
             twice = doubled[f.name]
             said.append(
@@ -401,6 +437,21 @@ def _replayed(
                 )
             )
     return rows, {}, said
+
+
+def _seldom(f: WrittenField, rows: int) -> str | None:
+    """How unlikely ``rows`` rows none of which carries ``f`` are, when ``f``
+    is a column fewer than half the learnt rows carried -- which a learnt
+    listing leaves unchecked -- and that is under ``BY_CHANCE``; else None.
+
+    A person named the column, and a selector a redesign broke finds it in no
+    row: a sale badge renamed passed every page as a day with no sale."""
+    if not 1 - _COMMON < f.missing < 1:
+        return None
+    chance = f.missing**rows
+    if chance >= BY_CHANCE:
+        return None
+    return f"a {chance:.2%} chance for a field {1 - f.missing:.0%} carried"
 
 
 def _replay_field(page: Page, f: WrittenField, said: Said) -> str | None:
@@ -462,8 +513,10 @@ def heal_written(
     cannot say it for them."""
     rows_broken = False
     broken: set[str] = set()
+    pooled: list[dict[str, str]] = []
     for doc in docs:
-        _rows, _fields, said = _replayed(written, doc)
+        rows, _fields, said = _replayed(written, doc)
+        pooled.extend(rows)
         for owner, check in said:
             if check.ok:
                 continue
@@ -473,6 +526,15 @@ def heal_written(
                 broken.add(owner)
     if rows_broken:
         return written, [Change("broken", written.rows, None)]
+    # A column too few rows carry to fail any one page, found in no row of
+    # all the new pages together.
+    broken.update(
+        f.name
+        for f in written.fields
+        if written.rows is not None
+        and _seldom(f, len(pooled)) is not None
+        and not any(f.name in row for row in pooled)
+    )
     changes = [
         Change("broken", f.name, None)
         if f.name in broken
@@ -489,7 +551,8 @@ def heal_written(
             written.rows,
         )
     except NothingToLearn:
-        # A column no new row carries, which its learnt share let go.
+        # A column no new row carries, and too few could have for that to
+        # say it is gone: kept, as it was learnt.
         return written, changes
     return again, changes
 
