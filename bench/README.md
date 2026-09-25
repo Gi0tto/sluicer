@@ -201,6 +201,27 @@ held-out test here: Sluicer's rules were made while the pages of the other
 scoreboards and of the drift benchmark were read ([`PREREG.md`](PREREG.md)
 says which).
 
+## Conformance: JSON-LD in HTML
+
+[`docs/conformance-jsonld.md`](../docs/conformance-jsonld.md) runs the 50
+tests of the W3C JSON-LD 1.1 test suite's `html-manifest.jsonld` against
+Sluicer's JSON-LD reader, `sluicer.compat.extruct` and extruct.
+
+```bash
+uv run bench/w3c_jsonld.py
+```
+
+`w3c_jsonld.py` downloads the suite (`w3c/json-ld-api`, W3C Software and
+Document License) at one pinned commit into `bench/cache/w3c-jsonld/`. Each
+reader answers every page (`tools/jsonld_w3c_read.py`); PyLD, pinned in
+`requirements/pyld.txt`, processes each answer with the test's options, and
+the result is compared with the expected one by the suite's own rules
+(`tools/jsonld_w3c_score.py`). PyLD reading the pages itself checks the
+harness. A reader takes no option and reports no base, so tests that name a
+script by fragment, want the first script alone, or set a `<base href>` fail
+for every reader; the page counts them apart and lists every failure with its
+reason.
+
 ## Before a release: the floors
 
 [`PREREG.md`](PREREG.md) says what every scoreboard fixes before it is run:

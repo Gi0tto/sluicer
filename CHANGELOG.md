@@ -21,6 +21,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   memory, install size and packages, and the machine, as PREREG's "How a
   second is measured" fixes it. Three tables: WCXB's and the news pages'
   four tools, and extruct beside `sluicer.compat.extruct`.
+- `docs/conformance-jsonld.md`: the W3C JSON-LD 1.1 test suite's 50 tests of
+  JSON-LD in HTML, run against Sluicer's JSON-LD reader,
+  `sluicer.compat.extruct` and extruct by `bench/w3c_jsonld.py`. The suite is
+  downloaded at a pinned commit, never vendored; each reader's answer is
+  processed by PyLD with the test's options and compared by the suite's own
+  rules, and PyLD reading the pages itself checks the harness. Every failure
+  is listed with its reason, the rules fixed in `bench/PREREG.md` first.
 
 ### Changed
 - The WCXB and news scoreboards and `docs/extruct.md` print seconds only from

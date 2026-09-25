@@ -49,6 +49,7 @@ measured on a scoreboard's pages names that scoreboard in its commit.
 | products | Zyte's product-extraction benchmark, 140 pages | commit `cba97d7a8d42` | `bench/products.py` |
 | drift | 44 Wayback pairs over 25 sites | `bench/drift/pairs.json` | `bench/drift/run.py` |
 | SWDE | 80 sites, 124,291 pages, 9 archives | mirror commit `e9b60db`, each archive's SHA-256 | `bench/swde.py` stops on a mismatch |
+| W3C JSON-LD in HTML | the JSON-LD 1.1 test suite's `html-manifest.jsonld`, 50 tests | commit `ffdb326121ea` | `bench/w3c_jsonld.py` |
 
 No corpus is committed here; each is downloaded into `bench/cache/`.
 
@@ -97,6 +98,49 @@ No corpus is committed here; each is downloaded into `bench/cache/`.
 - Every tool is called for what the scoreboard asks: metascraper for its
   publication date, not its date, which puts the modification date first
   (fixed on 2026-09-24 after the first scoreboards had it wrong).
+
+## The W3C JSON-LD tests in HTML
+
+Fixed on 2026-09-25, while the harness was built and before its page was
+first published. Building it, the readers' answers on eight of the pages were
+read to learn what each returns, and the harness was run until PyLD, reading
+the pages itself, was scored as the suite scores a processor: that is when
+the page's loader began to keep a fragment, and to read the error code PyLD
+wraps when it turns a document into RDF. The rules below were not changed by
+the readers' results. No rule of Sluicer's was changed, and none is to be made
+reading this suite's pages: the page is a conformance check, not a scoreboard
+to tune to.
+
+- **The suite.** `w3c/json-ld-api` at commit `ffdb326121ea`, its
+  `tests/html-manifest.jsonld`, under the W3C Software and Document License:
+  downloaded into `bench/cache/`, never vendored.
+- **A reader** is given the page's bytes and its address (the suite's base
+  IRI and the test's input, fragment included) and nothing of the test's
+  options, since a reader takes none. Its answer, a list of values, or what it
+  raised, is recorded as it is.
+- **Processing.** PyLD, pinned in `bench/requirements/pyld.txt`, processes the
+  answer as the document of the test's operation (expand, compact with the
+  test's context, flatten, to N-Quads), with the test's `base` option or else
+  the page's address as base, in JSON-LD 1.1's processing mode.
+- **Comparison.** The suite README's JSON-LD object comparison: objects member
+  by member, arrays in any order except a `@list`'s, values by strict
+  equality, language tags case-insensitively; a flattened result is also
+  right when it equals the expected one with every blank node label written
+  alike and both are the same RDF graph; an RDF result by its canonical
+  N-Quads (URDNA2015) against the expected file's.
+- **A negative test** passes for a reader that answers nothing or raises, the
+  two ways a reader refuses; any answer fails it.
+- **The check on the harness.** PyLD reads every page itself with the test's
+  options, through a loader that serves the suite from disk, and passes a
+  negative test only by raising the test's error code. Every test PyLD fails
+  is listed on the page.
+- **Every failure** is given the first reason of these that holds: the test
+  names a script by fragment; it wants the first script of several; it is a
+  negative test the reader answered; the page sets a `<base href>`; the
+  reader's answer is not the JSON the scripts hold; otherwise, the result
+  differs.
+- Sluicer's reader against extruct and against its own extruct interface are
+  paired comparisons over the 50 tests, as above.
 
 ## SWDE's halves, and how often the held-out half is read
 
