@@ -388,6 +388,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- `sluicer.compat.extruct`'s Dublin Core copies an element's attributes as
+  extruct does, pair by pair. Copied by key, an attribute a page names `{},`,
+  `{a}b` or `{` was read by lxml as a namespaced name and raised `KeyError` or
+  `ValueError`, or dropped the page's Dublin Core under `errors="ignore"`,
+  where extruct 0.18 reads the element with it. The compatibility bench's
+  pages answer exactly as before. Found by the second correctness review;
+  also in 0.7.1.
 - `extract(visible=True)`, `--visible` and the MCP tools' `visible` read a
   page whose date sits in a link to an address that is not a URL -- an
   unfilled template's `https://[domain]/story`, or `http://[::1` -- and a

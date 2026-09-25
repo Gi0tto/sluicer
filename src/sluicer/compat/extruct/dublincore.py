@@ -167,8 +167,13 @@ class DublinCoreExtractor:
             if not dot or prefix.strip().lower() not in prefixes:
                 continue
             local = local_name(name)
+            # Pair by pair, as extruct copies them: looked up by key, an
+            # attribute a page names "{},", "{a}b" or "{" is read by lxml as a
+            # namespaced name and raises KeyError or ValueError.
             if local in _ELEMENTS:
-                elements.append({**element.attrib, "URI": _ELEMENTS[local]})
+                elements.append(
+                    {**dict(element.attrib.items()), "URI": _ELEMENTS[local]}
+                )
             elif local in _TERMS:
-                terms.append({**element.attrib, "URI": _TERMS[local]})
+                terms.append({**dict(element.attrib.items()), "URI": _TERMS[local]})
         return [{"namespaces": namespaces, "elements": elements, "terms": terms}]
