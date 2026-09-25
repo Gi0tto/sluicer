@@ -388,6 +388,20 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- `--visible` reads a page whose boxes nest deep in step with its size.
+  Each date asked every box round it whether it was hidden and whether it
+  sat in a link, a `<time>` had its whole text read, every `<time>` inside
+  it included, and a "By" line read the whole text of the boxes round it to
+  learn it was longer than a byline: a chain of 2,000 nested `<time>`, as
+  deep as the parser nests, took 1.3 s for 30 KB, and 1 MiB of such chains
+  46 s; 2 MiB of nested "By" lines took 10.4 s. Each box is asked once now,
+  a `<time>` holding more than a dozen elements is a container, as an
+  element named as a date's already was, and a line's box is read only as
+  far as its 80 characters: 1.1 s for each page, and the answers are the
+  same on all 3,988 cached corpus pages, none of whose 11,062 `<time>`
+  holds more than seven elements. Also in 0.7.1. Found while checking the
+  second security review's item on author candidates, whose one XPath
+  query per candidate is asked of three at most and grows with the page.
 - A password in an address (`https://user:password@host/page`) is sent to
   the origin it names and never repeated. Every exception a fetch raises and
   its `url`, `Fetched.url` and its climbs, `fetch_page`'s and every tool's
