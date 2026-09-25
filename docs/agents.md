@@ -159,6 +159,50 @@ write its full path, which `which uvx` prints.
 
 **Anything else that speaks MCP** -- over stdio, the command above.
 
+## Over HTTP: n8n and Dify
+
+n8n and Dify do not start MCP servers over stdio; they connect to one over
+HTTP. `sluicer serve` (the `api` extra) is that server at `/mcp`, over MCP's
+streamable HTTP transport, with the same ten tools:
+
+```bash
+uv tool install "sluicer[api]"
+export SLUICER_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+sluicer serve --host 0.0.0.0     # beyond loopback, so it needs the token
+```
+
+On one machine with no container in between, `sluicer serve` alone listens on
+`127.0.0.1:8000` with no token. A container's `127.0.0.1` is its own, so for
+n8n or Dify in Docker the server listens beyond loopback, with the token, and
+the address names the host as the container sees it
+(`host.docker.internal` with Docker Desktop), or Sluicer runs as a container on
+the same network. [The HTTP API](http-api.md#mcp-over-http) has the details
+and what the server refuses.
+
+**n8n** -- the **MCP Client Tool** node, on an AI Agent's Tool input, or the
+**MCP Client** node for one call as a step:
+
+| Field | Value |
+|---|---|
+| Endpoint URL | `http://host.docker.internal:8000/mcp` |
+| Server Transport | HTTP Streamable |
+| Authentication | Bearer Auth, a credential whose Bearer Token is the token |
+| Options > Timeout | `130000`, above the server's 120-second budget; the node waits 60000 ms by default |
+
+**Dify** -- Tools > MCP > **Add MCP Server (HTTP)**:
+
+| Field | Value |
+|---|---|
+| Server URL | `http://host.docker.internal:8000/mcp` |
+| Name, Server Identifier | `sluicer` |
+| Advanced Options > Custom Headers | `Authorization`: `Bearer <token>` |
+| Advanced Options > Timeouts | above the server's 120-second budget |
+
+Neither was run here; both are written from their documentation as it read on
+2026-09-25. What was run, against `sluicer serve`, is the `mcp` Python SDK's
+client and the TypeScript SDK's, which n8n's MCP nodes are built on: both list
+the ten tools and call them.
+
 ## In your own agent's code
 
 Any framework that speaks MCP starts the same server. Run it as its own

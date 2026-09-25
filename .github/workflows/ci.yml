@@ -346,6 +346,13 @@ jobs:
       # borrowed referer, and sluicer fetch prints the rendered page.
       - name: Call each fetching extra for real
         run: .venv/bin/python tests/live/extras_check.py
+      # The unit suite reaches /mcp in process, through httpx2's ASGI transport.
+      # This starts sluicer serve and asks it over a real socket what n8n's or
+      # Dify's MCP client would, through the mcp package's own client: the tools
+      # it lists against stdio's, extract_declared on a fixture page handed in
+      # and fetched from a local server, and each refusal of the door.
+      - name: MCP over streamable HTTP, against a real sluicer serve
+        run: .venv/bin/python tests/live/mcp_http_check.py
 
   live:
     name: The fetch limits and the crawler hold against real sockets and a real browser

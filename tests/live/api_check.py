@@ -604,7 +604,11 @@ def main() -> int:
             check.failures.append(
                 f"{name} is served but this check never calls it: add a call"
             )
-        unprovoked = set(http_api.STATUS) - check.codes - {"internal_error"}
+        # cross_origin is answered at /mcp only, in JSON-RPC's shape, and
+        # tests/live/mcp_http_check.py provokes it there.
+        unprovoked = (
+            set(http_api.STATUS) - check.codes - {"internal_error", "cross_origin"}
+        )
         for code in sorted(unprovoked):
             check.failures.append(f"no request here provokes {code}")
     finally:
