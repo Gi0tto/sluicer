@@ -227,6 +227,18 @@ apart. A page that renames the label and moves the row passes with the value
 now at the place, unless the field reads as an amount or a date, or five pages
 or more taught it a shape. "SKU" written "SKU:" or "sku" is the same label.
 
+**A label without a colon is no label to a page field.** A text counts as
+the label before a value only when it ends with a colon or sits in HTML's own
+element for one (`th`, `dt`, `label`). A header written as
+`<span>Status</span><span>Active</span>`, whose rows differ from page to
+page -- one PEP with a Discussions-To row the others lack -- is learnt by the
+place, and a page with the extra row reads its Discussions-To as the status
+and passes. Taking any text the template says once on every page for a label
+fixed that, and read "Only 2 left!" as the price of a page that put it
+between "Write a Review" and the price, with the run passing: the text before
+a value is often not its label, and without a colon or a label's element the
+two cannot be told apart.
+
 **Extractors are measured on 44 pairs of captures from 25 sites.** The drift
 benchmark (docs/drift.md) shows no silent failure and no false alarm there, and
 that is a small sample: mostly news and link aggregators, no real shop, and
