@@ -345,6 +345,13 @@ def test_a_page_is_read_in_the_encoding_it_declares(page, label, how, where, sty
     codec = DECLARED[label]
     html = _declared(page, label, how, where, style)
     data = html.encode(codec, errors="replace")
+    # ISO-2022-JP writes a character with ASCII bytes after an escape: "¬" is
+    # ESC $ B " L. The HTML standard looks for the declaration in the bytes
+    # as ASCII, as a browser does, so such a quote before it ends an attribute
+    # there and the declaration after it is not seen: the page is not read in
+    # it, by Sluicer or by a browser. The fuzz profile drew one on 2026-09-25.
+    declared_at = data.lower().find(label.lower().encode("ascii"))
+    assume(b"\x1b" not in data[:declared_at])
 
     assert answer(data, page.url) == answer(_as_read(data, codec), page.url)
 
