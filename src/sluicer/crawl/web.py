@@ -13,11 +13,10 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from sluicer.fetch import STICKY, RungMemory, robots_reader_from
+from sluicer.fetch import STICKY, Needed, RungMemory, robots_reader_from
 from sluicer.fetch.address import _resolve
 from sluicer.fetch.gate import site_key
 from sluicer.fetch.http_rung import Response
-from sluicer.fetch.ladder import Needed
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, Redirects, Rung
 
 
