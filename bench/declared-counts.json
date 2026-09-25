@@ -102,17 +102,17 @@
   }
  },
  "types": {
-  "distinct": 1197,
+  "distinct": 1196,
   "pages": {
    "BreadcrumbList": 33453,
    "WebSite": 27512,
    "Organization": 22457,
-   "WebPage": 19300,
+   "WebPage": 19302,
    "ImageObject": 13581,
    "h-entry": 10100,
-   "Person": 9993,
+   "Person": 10040,
    "Article": 9649,
-   "Product": 8747,
+   "Product": 8748,
    "CollectionPage": 4701,
    "BlogPosting": 4015,
    "NewsArticle": 3268,
@@ -159,43 +159,43 @@
  "merging": {
   "pages_with_things": 59380,
   "several_vocabularies": 27213,
-  "folded": 1795,
+  "folded": 1800,
   "folded_by": {
-   "jsonld + microdata": 1771,
-   "jsonld + rdfa": 24,
-   "jsonld + microdata + rdfa": 1
+   "jsonld + microdata": 1770,
+   "jsonld + rdfa": 29,
+   "jsonld + microdata + rdfa": 2
   }
  },
  "conflicts": {
   "answered": {
    "title": 84528,
    "description": 58986,
-   "url": 67954,
+   "url": 67955,
    "image": 50276,
-   "author": 19228,
-   "published": 23359,
-   "modified": 21402,
+   "author": 19229,
+   "published": 23361,
+   "modified": 21403,
    "language": 76842,
    "site_name": 48967,
    "publisher": 26167,
-   "type": 64097,
-   "price": 8050,
+   "type": 64096,
+   "price": 8051,
    "price_regular": 167,
    "price_low": 680,
    "price_high": 616,
-   "currency": 8713,
-   "availability": 7548,
-   "brand": 4547,
+   "currency": 8714,
+   "availability": 7549,
+   "brand": 4548,
    "sku": 5540,
    "gtin": 948,
    "mpn": 1227,
    "rating": 1742,
    "rating_best": 993,
    "rating_count": 1824,
-   "breadcrumb": 33251
+   "breadcrumb": 33252
   },
   "conflicting": {
-   "modified": 146,
+   "modified": 145,
    "price": 122,
    "published": 109,
    "currency": 22
@@ -220,7 +220,7 @@
     "jsonld / dublincore": 5
    }
   },
-  "pages_with_any": 356
+  "pages_with_any": 355
  },
  "titles": {
   "declared_twice": 62625,
@@ -239,23 +239,23 @@
  },
  "normalised": {
   "answered": {
-   "published": 23359,
-   "modified": 21402,
-   "price": 8050,
+   "published": 23361,
+   "modified": 21403,
+   "price": 8051,
    "price_regular": 167,
    "price_low": 680,
    "price_high": 616,
-   "currency": 8713,
+   "currency": 8714,
    "gtin": 948
   },
   "read": {
-   "published": 22037,
-   "modified": 21023,
-   "price": 8009,
+   "published": 22039,
+   "modified": 21024,
+   "price": 8010,
    "price_regular": 167,
    "price_low": 680,
    "price_high": 616,
-   "currency": 8599,
+   "currency": 8600,
    "gtin": 800
   },
   "unread_shapes": {
@@ -395,8 +395,8 @@
   }
  ],
  "sluicer": {
-  "src": "3589001",
-  "version": "0.7.1",
+  "src": "fcf78f1",
+  "version": "0.8.0",
   "lxml": "6.1.3",
   "libxml2": "2.14.6",
   "mf2py": "2.0.2",

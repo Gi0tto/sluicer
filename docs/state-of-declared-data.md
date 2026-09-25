@@ -8,7 +8,7 @@ by a rule fixed before any was downloaded. Each is read as
 `sluicer.extract` reads a page, with its provenance, and the conflicts
 between what one page declares twice are counted with the rest.
 
-Counted on 2026-09-25 by `bench/declared_report.py`, with Sluicer 0.7.1 at the last commit to `src/`, `3589001` (lxml 6.1.3, libxml2 2.14.6, mf2py 2.0.2). Every number below is written by the script from its counts, `bench/declared-counts.json`,
+Counted on 2026-09-25 by `bench/declared_report.py`, with Sluicer 0.8.0 at the last commit to `src/`, `fcf78f1` (lxml 6.1.3, libxml2 2.14.6, mf2py 2.0.2). Every number below is written by the script from its counts, `bench/declared-counts.json`,
 except Web Data Commons', which are cited where they stand.
 
 !!! warning "A few WARC files are not the web"
@@ -181,7 +181,7 @@ one series.
 ## Types
 
 The types of the records Sluicer reads from the vocabularies about
-things, by the pages declaring each: 1,197 distinct types, the
+things, by the pages declaring each: 1,196 distinct types, the
 twenty-five commonest. A schema.org type is written by its name
 whatever the page wrote (`http://schema.org/Product`, `schema:Product`);
 any other keeps its whole IRI, and microformats their class.
@@ -191,12 +191,12 @@ any other keeps its whole IRI, and microformats their class.
 | `BreadcrumbList` | 33,453 | 38.9% (38.6-39.2) |
 | `WebSite` | 27,512 | 32.0% (31.7-32.3) |
 | `Organization` | 22,457 | 26.1% (25.8-26.4) |
-| `WebPage` | 19,300 | 22.4% (22.2-22.7) |
+| `WebPage` | 19,302 | 22.4% (22.2-22.7) |
 | `ImageObject` | 13,581 | 15.8% (15.5-16.0) |
 | `h-entry` | 10,100 | 11.7% (11.5-12.0) |
-| `Person` | 9,993 | 11.6% (11.4-11.8) |
+| `Person` | 10,040 | 11.7% (11.5-11.9) |
 | `Article` | 9,649 | 11.2% (11.0-11.4) |
-| `Product` | 8,747 | 10.2% (10.0-10.4) |
+| `Product` | 8,748 | 10.2% (10.0-10.4) |
 | `CollectionPage` | 4,701 | 5.5% (5.3-5.6) |
 | `BlogPosting` | 4,015 | 4.7% (4.5-4.8) |
 | `NewsArticle` | 3,268 | 3.8% (3.7-3.9) |
@@ -250,15 +250,15 @@ Sluicer folds records of one type declared in two vocabularies about
 things -- a Product in JSON-LD and again in microdata -- into one, the
 earlier vocabulary's fields winning and the later one filling gaps.
 Of the 59,380 pages declaring a thing, 27,213 (45.8% (45.4-46.2)) declare
-them in two or more of those vocabularies, and on 1,795 (6.6% (6.3-6.9) of those) one record
+them in two or more of those vocabularies, and on 1,800 (6.6% (6.3-6.9) of those) one record
 holds fields from two or more: the fold added what the first
 vocabulary left out. A fold that added no field is not seen here.
 
 | folded from | pages |
 |---|---|
-| JSON-LD + microdata | 1,771 |
-| JSON-LD + RDFa | 24 |
-| JSON-LD + microdata + RDFa | 1 |
+| JSON-LD + microdata | 1,770 |
+| JSON-LD + RDFa | 29 |
+| JSON-LD + microdata + RDFa | 2 |
 
 ## Conflicts
 
@@ -267,14 +267,14 @@ A conflict is a question the page answers twice with two meanings
 currencies, two publication or modification dates that are two days
 or two instants. `126` and `126.00` agree, and a value no rule can read
 disagrees with nothing. Sluicer compares these four questions only.
-Of the 86,029 pages, 356 (0.4% (0.4-0.5)) declare at least one conflict.
+Of the 86,029 pages, 355 (0.4% (0.4-0.5)) declare at least one conflict.
 
 | question | pages answering it | in conflict | share | the summary's answer / the other, most often |
 |---|---|---|---|---|
-| price | 8,050 | 122 | 1.5% (1.3-1.8) | JSON-LD / OpenGraph (92), microdata / OpenGraph (29), OpenGraph / OpenGraph (1) |
-| currency | 8,713 | 22 | 0.3% (0.2-0.4) | JSON-LD / OpenGraph (22) |
-| published | 23,359 | 109 | 0.5% (0.4-0.6) | JSON-LD / OpenGraph (87), microdata / OpenGraph (15), JSON-LD / Dublin Core (5) |
-| modified | 21,402 | 146 | 0.7% (0.6-0.8) | JSON-LD / OpenGraph (117), microdata / OpenGraph (13), OpenGraph / OpenGraph (4) |
+| price | 8,051 | 122 | 1.5% (1.3-1.8) | JSON-LD / OpenGraph (92), microdata / OpenGraph (29), OpenGraph / OpenGraph (1) |
+| currency | 8,714 | 22 | 0.3% (0.2-0.4) | JSON-LD / OpenGraph (22) |
+| published | 23,361 | 109 | 0.5% (0.4-0.6) | JSON-LD / OpenGraph (87), microdata / OpenGraph (15), JSON-LD / Dublin Core (5) |
+| modified | 21,403 | 145 | 0.7% (0.6-0.8) | JSON-LD / OpenGraph (117), microdata / OpenGraph (13), OpenGraph / OpenGraph (4) |
 
 A title is not compared: a page's `<title>` adds the site's name, its
 `og:title` drops it, and the two are one title. How often they differ:
@@ -314,13 +314,13 @@ check digit is right -- only where the text leaves no doubt:
 
 | question | pages answering it | read | share read |
 |---|---|---|---|
-| published | 23,359 | 22,037 | 94.3% (94.0-94.6) |
-| modified | 21,402 | 21,023 | 98.2% (98.0-98.4) |
-| price | 8,050 | 8,009 | 99.5% (99.3-99.6) |
+| published | 23,361 | 22,039 | 94.3% (94.0-94.6) |
+| modified | 21,403 | 21,024 | 98.2% (98.0-98.4) |
+| price | 8,051 | 8,010 | 99.5% (99.3-99.6) |
 | price_regular | 167 | 167 | 100.0% (97.8-100.0) |
 | price_low | 680 | 680 | 100.0% (99.4-100.0) |
 | price_high | 616 | 616 | 100.0% (99.4-100.0) |
-| currency | 8,713 | 8,599 | 98.7% (98.4-98.9) |
+| currency | 8,714 | 8,600 | 98.7% (98.4-98.9) |
 | gtin | 948 | 800 | 84.4% (81.9-86.6) |
 
 Of 948 GTINs, 800 (84.4% (81.9-86.6)) are right,
