@@ -392,6 +392,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
   process. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
+- A thing declared deep inside one of a page's repeated blocks is the page's
+  subject again, not a row's: only a thing declared on a row or at most two
+  levels inside it is one of the listing's items. Two pages of the products
+  corpus stack their layout in alike tables, the product declared five
+  levels inside one of them; 0.8.0 took it for a row, learnt the tables as
+  the page's listing, 1,452 and 1,618 columns of site furniture, and replayed
+  them with ok=True, where 0.7.1 learnt no listing. Over the products corpus
+  and the test fixtures (152 pages) compile now learns what 0.7.1 learnt on
+  every page, and quotes.toscrape.com, whose quote is declared on its row,
+  keeps its listing. The drift pairs and SWDE never ask this (a listing is
+  asked for, or examples choose it), and are unchanged.
 - A page field learnt by its place is read after its label instead when
   another page given puts another labelled value there and says the
   example's own label elsewhere: PEP 257 puts its Discussions-To where PEP 8

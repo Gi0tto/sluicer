@@ -687,11 +687,14 @@ def _compiled(
 def _a_subject(doc: Document, answer: Any) -> bool:
     """Whether the summary's ``type`` answer is a thing the page is about.
 
-    A thing declared on an element inside one of the rows of the page's
-    listing is one of its items, not its subject: quotes.toscrape.com with
-    only its first quote declared a CreativeWork was read as that quote, and
-    its listing was never learnt. A thing declared in JSON-LD has no element,
-    and is the page's."""
+    A thing declared on one of the rows of the page's listing, or just
+    inside it (``_IN_A_ROW``), is one of its items, not its subject:
+    quotes.toscrape.com with only its first quote declared a CreativeWork was
+    read as that quote, and its listing was never learnt. Deeper, the row is
+    a block of the page's layout, not an item: two shops of the products
+    corpus stack their page in alike tables, the product declared five levels
+    inside one, and the tables were learnt as a listing of furniture. A thing
+    declared in JSON-LD has no element, and is the page's."""
     if answer is None or answer.key != "@type":
         return False
     where = answer.where
@@ -705,7 +708,13 @@ def _a_subject(doc: Document, answer: Any) -> bool:
     if not group:
         return True
     rows = set(group)
-    return not any(node in rows for node in [found[0], *found[0].iterancestors()])
+    near = itertools.islice([found[0], *found[0].iterancestors()], _IN_A_ROW + 1)
+    return not any(node in rows for node in near)
+
+
+# How far inside a row a thing may be declared and still be the row's: on it,
+# as quotes.toscrape.com's div.quote, or in a wrapper or two.
+_IN_A_ROW = 2
 
 
 def run_extractor(
