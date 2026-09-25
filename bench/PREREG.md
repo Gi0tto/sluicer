@@ -27,7 +27,7 @@ Held out, and only these:
 
 - **SWDE's held-out half, less its camera sites.** Split before any full
   result was read; no rule was made reading its pages or its errors. Its
-  numbers have been read three times, listed below, and one of those readings
+  numbers have been read at the readings listed below, and one of those readings
   was to see whether a rule made on the development half held before it was
   kept. The ten camera sites were read before the split.
 - **Every scoreboard, for `--visible` alone.** Its rules were made on WCXB's
@@ -111,6 +111,7 @@ and errors only. The held-out half is scored, and read only as numbers:
 | 2026-09-24 | read-after-label, `4978927` (then `1b85481`, before a rebase) | whether it held beyond development |
 | 2026-09-24 | 0.7.0 | the release's scoreboard |
 | 2026-09-25 | 0.7.1 | the release's scoreboard |
+| 2026-09-25 | 0.7.1, the same results scored again | its intervals and the paired comparison with Scrapling, first printed |
 
 The next reading is the release after 0.7.1. All ten camera sites were read
 while the benchmark was built, before the split, so the held-out camera sites
