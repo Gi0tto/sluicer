@@ -388,6 +388,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A JSON-LD `null` past the 32 contexts a word is named through still clears
+  them all. The contexts of nested graphs were cut to the outermost 32, so in
+  33 graphs around one whose context is `[null, "https://schema.org"]`, the
+  outermost naming FOAF's `name`, the Product's `name` was FOAF's and the
+  page had no title; the contexts from the last `null` on are carried now.
+  Past the 32, an object's words are kept as written, as under a context
+  elsewhere, instead of named through the 32 that were read, which one past
+  them could redefine; a context named by an address elsewhere counts toward
+  the 32, as each one carried beside a graph does. All 3,976 cached corpus
+  pages answer as before. Found by the second correctness review.
 - A found configuration file its owner's own group may write is read. Ubuntu
   and Fedora give each user a group of their own and a umask of 002, so
   every `sluicer.toml` made there is 664, and each was refused as writable by
