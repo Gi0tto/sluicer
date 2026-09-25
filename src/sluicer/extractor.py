@@ -367,6 +367,60 @@ def _extractor_of(body: Any) -> Extractor:
     )
 
 
+# What a page's JSON-LD contexts give each prefix: its addresses.
+_Prefixes = dict[str, set[str]]
+
+
+def _same_type(learnt: str, declared: str, prefixes: _Prefixes | None) -> bool:
+    """Whether a type the extractor learnt is one the page declares.
+
+    Since 0.8 a JSON-LD type of another vocabulary is named by its address,
+    ``https://schema.contao.org/Page``, where 0.7.1 kept it as the page wrote
+    it, ``contao:Page``, and an extractor 0.7.1 wrote failed the unchanged
+    page it was learnt from. ``prefixes`` are the pages' own (``_prefixes``),
+    for a file written before 0.8, and None for one since: a prefixed name is
+    then also the address the pages' contexts give its prefix."""
+    if learnt == declared:
+        return True
+    if prefixes is None:
+        return False
+    prefix, colon, word = learnt.partition(":")
+    if not colon or not word or word.startswith("//"):
+        return False
+    return any(declared == address + word for address in prefixes.get(prefix, ()))
+
+
+def _prefixes(extractor: Extractor, docs: Sequence[Document]) -> _Prefixes | None:
+    """The addresses the JSON-LD contexts of ``docs`` give each prefix, when
+    ``extractor`` was written before 0.8, or by no sluicer that says; None
+    for a file since, whose types are named as the pages are read."""
+    found = re.match(r"(\d+)\.(\d+)", extractor.version)
+    if found is not None and (int(found[1]), int(found[2])) >= (0, 8):
+        return None
+    from sluicer.declared.jsonld import read_jsonld
+
+    prefixes: _Prefixes = {}
+
+    def read(context: Any, depth: int) -> None:
+        if isinstance(context, list) and depth < _MOST_CONTEXTS:
+            for each in context:
+                read(each, depth + 1)
+        elif isinstance(context, dict):
+            for term, value in context.items():
+                address = value.get("@id") if isinstance(value, dict) else value
+                if isinstance(address, str) and "://" in address:
+                    prefixes.setdefault(term, set()).add(address)
+
+    for doc in docs:
+        for node in read_jsonld(doc):
+            read(node.get("@context"), 0)
+    return prefixes
+
+
+# The most contexts one list of them is read through for a prefix.
+_MOST_CONTEXTS = 32
+
+
 def _by_page_json(f: Any) -> dict[str, bool]:
     """What a column's file says of its learning pages one by one: only what
     was so, since a key left out keeps every check."""
@@ -803,8 +857,13 @@ def run_extractor(
         if record.source in ABOUT_A_THING
         for name in record.types
     }
+    prefixes = (
+        _prefixes(extractor, [doc])
+        if any(name not in declared for name in extractor.types)
+        else None
+    )
     for name in extractor.types:
-        present = name in declared
+        present = any(_same_type(name, d, prefixes) for d in declared)
         run.checks.append(
             Check("type", f"a declared {name}", "yes" if present else "none", present)
         )
@@ -888,11 +947,14 @@ def heal(
     for question in fresh.summary:
         if question not in extractor.summary:
             changes.append(Change("summary-gained", None, question))
+    prefixes = (
+        _prefixes(extractor, docs) if set(extractor.types) != set(fresh.types) else None
+    )
     for name in extractor.types:
-        if name not in fresh.types:
+        if not any(_same_type(name, t, prefixes) for t in fresh.types):
             changes.append(Change("type-lost", name, None))
     for name in fresh.types:
-        if name not in extractor.types:
+        if not any(_same_type(t, name, prefixes) for t in extractor.types):
             changes.append(Change("type-gained", None, name))
     fields, field_changes = _heal_fields(extractor.fields, docs)
     changes.extend(field_changes)

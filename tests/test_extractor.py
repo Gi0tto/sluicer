@@ -1024,3 +1024,64 @@ def test_links_to_the_same_places_with_other_tracking_tags_read_alike():
     assert links and all(c.kind == "moved" for c in links), [
         (c.kind, c.before, c.after) for c in links
     ]
+
+
+def _contao(type_="contao:Page", context=True) -> tuple[str, str]:
+    """A page as Contao writes it: its JSON-LD names its own type by a prefix
+    its context defines."""
+    words = (
+        '{"@vocab": "https://schema.org/", "contao": "https://schema.contao.org/"}'
+        if context
+        else '"https://schema.org"'
+    )
+    block = (
+        f'{{"@context": {words}, "@type": ["{type_}", "WebPage"],'
+        ' "name": "Research group"}'
+    )
+    return (
+        "<html><head><title>Research group</title>"
+        f'<script type="application/ld+json">{block}</script></head>'
+        "<body><h1>Research group</h1></body></html>",
+        "https://institute.example/group",
+    )
+
+
+# As 0.7.1 wrote it for _contao(): a type named as the page wrote it.
+CONTAO_071 = {
+    "format": 1,
+    "sluicer": "0.7.1",
+    "learnt_from": ["https://institute.example/group"],
+    "summary": {},
+    "types": ["WebPage", "contao:Page"],
+    "listing": None,
+}
+
+
+def test_a_type_an_extractor_before_0_8_named_as_written_is_the_same_type():
+    """0.8 names a type of another vocabulary by its address, and an
+    extractor 0.7.1 compiled from a page declaring ``contao:Page`` failed the
+    same page unchanged: "a declared contao:Page", none. Heal called it lost,
+    and wrote nothing. A file from before 0.8 is read with either spelling;
+    heal writes the address."""
+    old = Extractor.from_json(json.dumps(CONTAO_071))
+    assert compile_extractor([_contao()]).types == (
+        "WebPage",
+        "https://schema.contao.org/Page",
+    )
+
+    run = run_extractor(old, *_contao())
+    assert run.ok, [(c.expected, c.got) for c in run.checks if not c.ok]
+    healed, changes = heal(old, [_contao()])
+    assert [c for c in changes if c.kind.startswith("type")] == []
+    assert healed.types == ("WebPage", "https://schema.contao.org/Page")
+
+    # Another vocabulary's Page, or none, is still no contao:Page.
+    other = run_extractor(old, *_contao("https://other.example/ns/Page"))
+    assert failed(other) == ["type"]
+    gone = run_extractor(old, *_contao("Thing"))
+    assert failed(gone) == ["type"]
+    # And 0.8's own file holds the page to the address alone.
+    new = compile_extractor([_contao()])
+    assert failed(run_extractor(new, *_contao("contao:Page", context=False))) == [
+        "type"
+    ]

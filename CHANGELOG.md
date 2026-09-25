@@ -290,6 +290,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is listed with its reason, the rules fixed in `bench/PREREG.md` first.
 
 ### Changed
+- **Upgrading.** A type of another vocabulary than schema.org that a page's
+  JSON-LD names through a prefix of its context is now named by its
+  address, in what `extract` gives and in what `compile` learns:
+  `contao:Page` under `{"contao": "https://schema.contao.org/"}` is
+  `https://schema.contao.org/Page`. An extractor written before 0.8 learnt
+  `contao:Page`, and is read with either spelling, the prefix taken to the
+  address the page's own context gives it, so it passes the page it was
+  learnt from; `heal` does not call the type lost, and writes the address.
+  0.8's own files hold a page to the address alone.
 - Internal: `sluicer/cli.py` is a package, `sluicer/cli/`, a module per group
   of commands; every command, option, message and exit code is as it was.
 - `cssselect` (1.2 or later) joins the base install, for the CSS selectors:
