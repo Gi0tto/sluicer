@@ -502,7 +502,15 @@ def run_anansi(results: list[dict[str, Any]]) -> str:
     for r in results:
         if r["id"] in answers["results"]:
             r["anansi"] = judged_anansi(answers["results"][r["id"]])
-    return str(answers["version"])
+    return f"{answers['version']} at commit {_anansi_commit()[:7]}"
+
+
+def _anansi_commit() -> str:
+    """The commit bench/requirements/anansi.txt pins anansi at: it is not on
+    PyPI, and its package says 1.1.0 at the commit tagged v1.2.0."""
+    pinned = ANANSI_REQUIREMENTS.read_text(encoding="utf-8")
+    found = re.search(r"anansi-scraper @ git\+\S+@([0-9a-f]{40})", pinned)
+    return found.group(1) if found else "unknown"
 
 
 def _raw_hrefs(listing: Listing, a: Snapshot) -> dict[str, str]:

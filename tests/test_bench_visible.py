@@ -173,7 +173,10 @@ def test_the_section_says_what_it_compares_and_how_many():
     assert "| trafilatura 1 | author | hit rate |" in text
     # What it added is said as this run counted it.
     assert "30 questions the summary left unanswered" in text
-    assert "20 right, 5 wrong and 5 invented" in text
+    assert (
+        "20 right and 5 wrong where the page carries a label, and 5 invented "
+        "where it carries none" in text
+    )
 
 
 def test_no_other_tool_leaves_only_the_pairing_with_the_declared_answers():

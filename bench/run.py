@@ -517,10 +517,10 @@ def visible_section(runs, pages) -> list[str]:
         *visible_table(runs, pages),
         "",
         f"`--visible` answered {sum(total.values())} questions the summary left "
-        f"unanswered: {total[('silent', 'hit')]} right, "
-        f"{total[('silent', 'wrong')]} wrong and "
-        f"{total[('correct_silence', 'invention')]} invented, where the label is "
-        "empty. Each rate carries its 95% Wilson score interval. Declared then "
+        f"unanswered: {total[('silent', 'hit')]} right and "
+        f"{total[('silent', 'wrong')]} wrong where the page carries a label, and "
+        f"{total[('correct_silence', 'invention')]} invented where it carries "
+        "none. Each rate carries its 95% Wilson score interval. Declared then "
         "`--visible` against the declared answers alone and against each other "
         "tool:",
         "",

@@ -109,3 +109,10 @@ def test_a_long_title_is_judged_whole_and_shown_cut():
     )
     assert judged["result"] == "wrong"
     assert len(judged["wanted"]) == 80 and len(judged["got"]) == 80
+
+
+def test_the_page_names_the_commit_anansi_is_pinned_at():
+    """Its package says 1.1.0 at the commit tagged v1.2.0, and it is not on
+    PyPI: the version alone does not say which anansi ran."""
+    board = _load("run")
+    assert board._anansi_commit().startswith("117fbe27b3d6")
