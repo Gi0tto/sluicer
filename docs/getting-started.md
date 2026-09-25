@@ -152,6 +152,39 @@ from them. `sluicer.to_markdown(page)` gives the readable content, and
 `sluicer.fetch.fetch(url)` the page itself with what fetching it cost. Every
 public function is in the [Python reference](reference/python.md).
 
+### From a coroutine
+
+`sluicer.aextract` and `sluicer.fetch.afetch` take what `extract` and `fetch`
+take and give what they give, awaited, with the event loop left free while a
+page is fetched or parsed:
+
+```python
+import asyncio
+
+import sluicer
+from sluicer.fetch import afetch
+
+
+async def titles(urls):
+    pages = await asyncio.gather(*(afetch(url) for url in urls))
+    results = await asyncio.gather(
+        *(sluicer.aextract(p.html, url=p.url, headers=p.headers) for p in pages)
+    )
+    return [r.summary["title"].value for r in results if "title" in r.summary]
+```
+
+Each runs its sync twin on a worker thread of the loop's default executor, so
+nothing about fetching changes: the same ladder, the same limits, the same
+exceptions. Nor does politeness. Fetches of one site, from any number of
+coroutines, threads or crawls in the process, still go one at a time, a
+second after the last one ended, and read robots.txt once; `gather` over
+fifty pages of one site takes fifty seconds, and over fifty sites about one.
+Coroutines waiting for one site wait on the loop and take a worker thread
+only when their turn comes, so a slow site never holds the executor's
+threads from the others. A coroutine cancelled while it waits asks nothing;
+one cancelled after its request went stops waiting, and the request ends on
+its thread.
+
 ## 6. When a page declares nothing
 
 Some pages carry no structured data at all: a category page of plain HTML, a

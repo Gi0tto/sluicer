@@ -37,7 +37,15 @@ PYTHON: list[tuple[str, str, list[str]]] = [
     (
         "Reading a page",
         "sluicer",
-        ["extract", "Extraction", "SummaryField", "Record", "Field", "induce"],
+        [
+            "extract",
+            "aextract",
+            "Extraction",
+            "SummaryField",
+            "Record",
+            "Field",
+            "induce",
+        ],
     ),
     ("The main content as markdown", "sluicer", ["to_markdown"]),
     (
@@ -45,7 +53,7 @@ PYTHON: list[tuple[str, str, list[str]]] = [
         "sluicer.normalise",
         ["iso_date", "amount", "currency", "gtin"],
     ),
-    ("Fetching", "sluicer.fetch", ["fetch", "Fetched"]),
+    ("Fetching", "sluicer.fetch", ["fetch", "afetch", "Fetched"]),
     (
         "Extractors",
         "sluicer.extractor",

@@ -101,6 +101,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer-skill-VERSION.zip` on each release: `skills/sluicer` with the
   folder at the zip's root, the shape claude.ai's skill upload takes and what
   unzipping into `~/.agents/skills/` wants, the same bytes from the same tree.
+- `sluicer.aextract` and `sluicer.fetch.afetch`: `extract` and `fetch` for a
+  caller on an event loop, the same parameters, answers and exceptions, run
+  on a worker thread of the loop's default executor so the loop keeps
+  running. Politeness is the gate's, as for threads: six `afetch` of one site
+  gathered at once read its robots.txt once and ask it one request at a
+  time, the gate's delay apart, and coroutines, threads and crawls of one
+  site wait for each other. Coroutines waiting for one site wait on the loop
+  and take a thread only in their turn: with two worker threads and five
+  fetches of one site queued, a sixth to another site starts at once. A
+  coroutine cancelled while it waits asks nothing. `asyncio` is imported only
+  when one is called. In `docs/getting-started.md` and the Python reference.
 - The Docker MCP Catalog entry, `packaging/docker-mcp-registry/servers/sluicer/server.yaml`,
   the file a pull request to docker/mcp-registry adds, with `SLUICER_MCP_TOOLS`
   as its one setting. The release writes it pinned to the tagged commit and

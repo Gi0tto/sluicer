@@ -1,6 +1,7 @@
 """Getting the page, at the lowest cost that works.
 
-``fetch`` climbs the ladder, ``Fetched`` is what it brings back, and ``Climb``
+``fetch`` climbs the ladder, ``afetch`` awaits it from an event loop,
+``Fetched`` is what it brings back, and ``Climb``
 is one step up with the measurement that forced it. ``robots_reader_from``
 builds the reader the ladder asks robots.txt with, for a caller that asks it
 too: a crawler pacing itself by ``Crawl-delay`` reads the same file the same
@@ -9,6 +10,7 @@ Import them from here, not from ``sluicer.fetch.ladder``, which is free to
 move. Plain HTTP needs no extra; the browser rung needs the ``browser`` one.
 """
 
+from sluicer.fetch.aio import afetch
 from sluicer.fetch.ladder import (
     STICKY,
     AddressRefused,
@@ -34,6 +36,7 @@ __all__ = [
     "RobotsRefused",
     "RungMemory",
     "SiteRefused",
+    "afetch",
     "fetch",
     "robots_reader_from",
 ]
