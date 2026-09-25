@@ -455,7 +455,7 @@ jobs:
         run: |
           .venv/bin/python -c "
           import importlib.metadata as md
-          for name, floor in {'lxml': '5.3', 'click': '8.2'}.items():
+          for name, floor in {'lxml': '5.3', 'click': '8.2', 'cssselect': '1.2'}.items():
               got = md.version(name)
               assert got.startswith(floor), (
                   name + ' resolved to ' + got + ', not the declared floor '

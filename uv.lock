@@ -2450,6 +2450,7 @@ version = "0.7.1"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "cssselect" },
     { name = "lxml" },
     { name = "protego" },
 ]
@@ -2495,6 +2496,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.2" },
+    { name = "cssselect", specifier = ">=1.2" },
     { name = "lxml", specifier = ">=5.3" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.1" },
     { name = "mf2py", marker = "extra == 'microformats'", specifier = ">=2.0" },

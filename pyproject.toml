@@ -42,7 +42,11 @@ classifiers = [
 #   fourteen tests fail.
 #   protego parses robots.txt, which every fetch asks first; the HTTP rung
 #   itself is the standard library, so fetching a page needs nothing else.
-dependencies = ["lxml>=5.3", "click>=8.2", "protego>=0.3"]
+#   cssselect reads the CSS selectors a person writes into the XPath lxml
+#   evaluates: one pure-Python wheel of 21 KB with no dependency of its own,
+#   BSD-3-Clause, the translator of parsel and of lxml's own `cssselect`.
+#   1.2 is the first with `:is()`, `:where()` and `:has()`, and with types.
+dependencies = ["lxml>=5.3", "click>=8.2", "protego>=0.3", "cssselect>=1.2"]
 
 [project.optional-dependencies]
 # The browser rung drives Playwright's Chromium directly; the browser itself

@@ -109,8 +109,9 @@ uv pip install "sluicer[browser,markdown,mcp]"
 
 `pip install` works the same way, and `uv tool install` gives you the command
 in an environment of its own. The base install, `uv pip install sluicer`, reads
-HTML you already have and fetches pages over plain HTTP, with `lxml`, `click`
-and `protego` (robots.txt) alone: the HTTP client is Python's own.
+HTML you already have and fetches pages over plain HTTP, with `lxml`, `click`,
+`cssselect` (CSS selectors) and `protego` (robots.txt) alone: the HTTP client
+is Python's own.
 
 <details>
 <summary>What each extra adds</summary>
