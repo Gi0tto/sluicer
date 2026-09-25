@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
@@ -92,7 +93,12 @@ class Cache:
         return self.directory / f"{key}.json"
 
     def read(self, url: str) -> dict[str, Any] | None:
-        """The entry kept for ``url``, or None; a broken one is no entry."""
+        """The entry kept for ``url``, or None; a broken one is no entry.
+
+        So is one stored at a time still to come, or at no time at all: it
+        is never older than ``max_age``, and was given back without asking
+        its site for as long as that lasted.
+        """
         try:
             entry = json.loads(self._path(url).read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -100,6 +106,25 @@ class Cache:
         if not isinstance(entry, dict) or entry.get("format") != _FORMAT:
             return None
         if entry.get("url") != url or not isinstance(entry.get("html"), str):
+            return None
+        stored = entry.get("stored")
+        if (
+            isinstance(stored, bool)
+            or not isinstance(stored, (int, float))
+            or not math.isfinite(stored)
+            or stored > self.clock()
+        ):
+            return None
+        if not isinstance(entry.get("status"), int) or isinstance(
+            entry.get("status"), bool
+        ):
+            return None
+        if not all(isinstance(entry.get(key), str) for key in ("landed", "rung")):
+            return None
+        headers = entry.get("headers")
+        if not isinstance(headers, dict) or not all(
+            isinstance(value, str) for value in headers.values()
+        ):
             return None
         return entry
 

@@ -220,9 +220,35 @@ def test_an_entry_that_is_broken_or_not_this_pages_is_no_entry(tmp_path):
         json.dumps({**entry, "format": 0}),
         json.dumps({**entry, "url": "https://other.example/"}),
         json.dumps({**entry, "html": None}),
+        json.dumps({**entry, "stored": "yesterday"}),
+        json.dumps({**entry, "stored": True}),
+        json.dumps({**entry, "status": "200"}),
+        json.dumps({**entry, "headers": ["etag"]}),
+        json.dumps({**entry, "landed": None}),
+        # NaN, which json writes and reads, and is neither old nor young.
+        json.dumps({**entry, "stored": float("nan")}),
     ):
         path.write_text(broken, encoding="utf-8")
         assert cache.read(URL) is None
+
+
+def test_an_entry_stored_in_the_future_is_no_entry(tmp_path):
+    """A page written with a time to come was never older than max_age: it
+    was given back, without asking its site, for as long as that lasted."""
+    clock, site = Clock(), Site()
+    cache = Cache(tmp_path, max_age=60, clock=clock)
+    site.fetch(cache)
+    [path] = list(tmp_path.glob("*.json"))
+    entry = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(
+        json.dumps({**entry, "stored": clock.now + 10**9}), encoding="utf-8"
+    )
+
+    assert cache.read(URL) is None
+    clock.now += 10
+    again = site.fetch(cache)
+
+    assert again.cached is None and site.pages == [URL, URL]
 
 
 def test_a_revalidation_asks_robots_txt_first(tmp_path):

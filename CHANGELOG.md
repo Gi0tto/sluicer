@@ -539,6 +539,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   ended a whole run of many sites at the first site that sent it. It is no
   `Retry-After`, as RFC 9110's grammar has it, and a wait is read as a year
   at most.
+- A cache entry stored at a time still to come, or at none (`NaN`, text), is
+  no entry: its age read as 0, so under `--max-age` it was given back without
+  asking its site for as long as that lasted, forever for one planted a
+  thousand years ahead. An entry whose status, headers or address are not
+  what the cache writes is no entry either. Also in 0.7.1.
 
 ## 0.7.1 - 2026-09-25
 
