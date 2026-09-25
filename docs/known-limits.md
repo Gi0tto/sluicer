@@ -409,7 +409,14 @@ library's, which speaks no HTTP/2 or HTTP/3: a site is asked one request at a
 time on one kept connection, which is what the gate allows anyway. A
 connection is kept up to a minute idle, 32 of them for the process; one the
 server closed is found out before it is used, and a request that meets a
-close anyway is sent once more, on a new connection.
+close anyway is sent once more, on a new connection. An interim answer (a
+102, a 103 Early Hints) is read past to the answer it precedes; a 101 nobody
+asked for is a failure. A 204 that names a length for a body it may not have
+is not kept. A 304 is kept whatever length it names, as RFC 9110 lets it name
+the page's: a server that sends a body after one anyway has it found by the
+check before the connection is used again, or, when those bytes arrive later
+still, read by the next request as the start of its answer, which fails as
+unreadable and is worth asking again.
 
 **Brotli is never asked for.** A body is decoded as it arrives and held to the
 16 MiB bound as it grows, and the standard library has no brotli decoder to

@@ -15,7 +15,7 @@ import zlib
 import pytest
 
 from fake_browser import FakeHost
-from fake_wire import fake_http
+from fake_wire import fake_http, render
 from sluicer.fetch import wire
 from sluicer.fetch.address import AddressRefused, public_addresses
 from sluicer.fetch.browser_guard import Guard
@@ -665,6 +665,84 @@ def test_a_new_connection_that_fails_is_not_tried_again(monkeypatch):
     with pytest.raises(ConnectionResetError):
         http_rung()("https://example.com/1")
 
+    assert seen.connections == 1
+
+
+# One byte a read, so that what a server sent after an answer's headers is
+# still on the connection when they were read: the next segment, not yet come.
+_HINTS = b"HTTP/1.1 103 Early Hints\r\nLink: </style.css>; rel=preload\r\n\r\n"
+
+
+def test_early_hints_are_read_past_to_the_answer_they_precede(monkeypatch):
+    """http.client skips a 100 and no other 1xx: a 103 came back as the
+    answer, empty, the connection was kept with the real answer unread on it,
+    and the next page of the site was handed that answer as its own. Measured
+    in a crawl: /p/p3 recorded Product p2."""
+    first = _HINTS + render((200, b"<p>first</p>", {}))
+    seen = fake_http(monkeypatch, [first, (200, b"<p>second</p>", {})], chunk=1)
+    from sluicer.fetch.http_rung import http_rung
+
+    rung = http_rung()
+    got = rung("https://example.com/1")
+    assert (got.status, got.html) == (200, "<p>first</p>")
+    assert rung("https://example.com/2").html == "<p>second</p>"
+    assert seen.connections == 1
+
+
+@pytest.mark.parametrize("chunk", [1, None])
+def test_every_interim_answer_is_read_past(monkeypatch, chunk):
+    """Read whole, as one segment, the page after the hints was in the reader
+    the 103 was parsed from, and went with it."""
+    interim = (
+        b"HTTP/1.1 102 Processing\r\n\r\n"
+        + _HINTS
+        + b"HTTP/1.1 100 Continue\r\n\r\n"
+        + _HINTS
+    )
+    fake_http(monkeypatch, [interim + render((200, b"<p>ok</p>", {}))], chunk=chunk)
+    from sluicer.fetch.http_rung import http_rung
+
+    got = http_rung()("https://example.com/p")
+    assert (got.status, got.html) == (200, "<p>ok</p>")
+
+
+def test_a_switch_of_protocols_nobody_asked_for_is_not_an_answer(monkeypatch):
+    switching = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: h2c\r\n\r\n"
+    seen = fake_http(monkeypatch, [switching, PAGE])
+    from sluicer.fetch.http_rung import ProtocolError, http_responses
+
+    with pytest.raises(ProtocolError, match="101"):
+        http_responses()("https://example.com/p")
+
+    assert seen.sockets[0].closed
+    assert seen.pool._idle == []
+
+
+def test_a_no_content_answer_that_announces_content_is_not_kept(monkeypatch):
+    """A 204 may carry no body and must not say it has one: one that sends
+    a Content-Length and its bytes after the headers left them on the kept
+    connection, where the next request read them as the start of its answer."""
+    no_content = b"HTTP/1.1 204 No Content\r\nContent-Length: 5\r\n\r\nhello"
+    seen = fake_http(monkeypatch, [no_content, PAGE], chunk=1)
+    from sluicer.fetch.http_rung import http_responses
+
+    get = http_responses()
+    assert (get("https://example.com/1").status, seen.connections) == (204, 1)
+    assert get("https://example.com/2").body == PAGE[1]
+    assert seen.connections == 2
+
+
+def test_a_not_modified_answer_with_its_length_keeps_the_connection(monkeypatch):
+    """A 304 may name the length the page would have had (RFC 9110, 8.6),
+    and sends no body: its connection is kept, as the cache's revalidations
+    count on."""
+    not_modified = b"HTTP/1.1 304 Not Modified\r\nContent-Length: 1234\r\n\r\n"
+    seen = fake_http(monkeypatch, [not_modified, PAGE], chunk=1)
+    from sluicer.fetch.http_rung import http_responses
+
+    get = http_responses()
+    assert get("https://example.com/1").status == 304
+    assert get("https://example.com/2").body == PAGE[1]
     assert seen.connections == 1
 
 

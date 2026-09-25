@@ -761,6 +761,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   library's `concurrency=` and `retries=`, or a `sluicer.toml` asks for more:
   a file in a directory above is read by every command run below it, and one
   asking for a million jobs started a thread for every site of a batch.
+- The HTTP rung reads past an interim answer -- a 102, a 103 Early Hints --
+  to the answer it precedes. The standard library skips a 100 and no other:
+  a 103 came back as the answer, empty, its connection was kept with the
+  real answer unread on it, and the next request to the site was handed
+  that answer as its own -- in a crawl, `/p/p3` recorded Product p2 with no
+  error, and `fetch` returned the site's robots.txt as a page. A 101 nobody
+  asked for is a `ProtocolError`, and its connection is not kept. A 204 that
+  names a length for a body is not kept either: the bytes sent after its
+  headers were read by the next request as the start of its answer.
+  `tests/live/http_check.py` sends both in a segment of their own.
 
 ## 0.7.1 - 2026-09-25
 
