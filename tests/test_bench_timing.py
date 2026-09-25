@@ -159,3 +159,15 @@ def test_a_tool_s_interpreter_is_found_outside_this_checkout(monkeypatch):
     command, kwargs = asked[0]
     assert command[:4] == ["uv", "python", "find", "--managed-python"]
     assert kwargs["cwd"] == "/" and "VIRTUAL_ENV" not in kwargs["env"]
+
+
+def test_the_extruct_interface_is_timed_with_the_microformats_it_reads():
+    """Its default call reads microformats, the one reader behind an extra:
+    timed on the base install, every call raised MicroformatsExtraMissing
+    and the table printed how fast it raised, 5 s against extruct's 78."""
+    import run as board
+
+    assert "mf2py==2.0.2" in board.requirements("sluicer.compat.extruct")
+    assert "mf2py==2.0.2" not in board.requirements("sluicer")
+    harness = (BENCH / "tools" / "compat_tool.py").read_text(encoding="utf-8")
+    assert "import mf2py" in harness

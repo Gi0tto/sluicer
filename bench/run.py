@@ -51,7 +51,11 @@ def _uv(requirements: list[str], script: str, pages: Path, out: Path) -> list[st
 def requirements(tool: str) -> list[str]:
     """What ``uv run`` puts in a Python tool's own environment: this checkout,
     installed editable, for Sluicer; the pinned file for every other."""
-    if tool in ("sluicer", "sluicer.compat.extruct"):
+    if tool == "sluicer.compat.extruct":
+        # Its default call reads microformats, the one reader behind an extra;
+        # at the version uv.lock holds.
+        return ["--with-editable", str(ROOT), "--with", "mf2py==2.0.2"]
+    if tool == "sluicer":
         return ["--with-editable", str(ROOT)]
     return ["--with-requirements", str(HERE / "requirements" / f"{tool}.txt")]
 
