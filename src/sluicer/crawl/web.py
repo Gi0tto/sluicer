@@ -39,13 +39,11 @@ def default_web(
     across hosts, and a crawl kept to its site still owes the site's robots.txt
     a reading wherever the site keeps it.
 
-    Raises:
-        FetchExtraMissing: the ``fetch`` extra is not installed.
     """
     from sluicer.fetch.http_rung import http_responses, http_rung
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing, default_rungs
+    from sluicer.fetch.rungs import default_rungs
 
     rungs = default_rungs(allow_private, resolve, max_bytes, redirects)
-    plain = http_rung(allow_private, resolve, max_bytes, error=FetchExtraMissing)
-    get = http_responses(allow_private, resolve, max_bytes, error=FetchExtraMissing)
+    plain = http_rung(allow_private, resolve, max_bytes)
+    get = http_responses(allow_private, resolve, max_bytes)
     return Web(rungs=rungs, read=robots_reader_from(plain), get=get)

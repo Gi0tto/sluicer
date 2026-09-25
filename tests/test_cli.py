@@ -155,21 +155,21 @@ def test_a_missing_file_is_reported_not_crashed(tmp_path):
     assert result.exception is None or isinstance(result.exception, SystemExit)
 
 
-def test_a_url_without_the_fetch_extra_explains_itself(monkeypatch):
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+def test_a_url_whose_rung_needs_a_missing_extra_explains_itself(monkeypatch):
+    from sluicer.fetch.rungs import FetchExtraMissing
 
     def fake_fetch(url, rungs=None, **kwargs):
         raise FetchExtraMissing(
-            "Fetching a URL needs scrapling, which is not installed. "
-            'Install it with: uv pip install "sluicer[fetch]"'
+            "The stealth rung needs scrapling, which is not installed. "
+            'Install it with: uv pip install "sluicer[stealth]"'
         )
 
     monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
 
-    result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p", "--stealth"])
 
     assert result.exit_code == 2
-    assert 'uv pip install "sluicer[fetch]"' in result.stderr
+    assert 'uv pip install "sluicer[stealth]"' in result.stderr
     assert isinstance(result.exception, SystemExit)
 
 
@@ -420,16 +420,16 @@ def test_a_windows_1252_files_declared_data_keeps_its_characters(tmp_path):
     assert payload["records"][0]["fields"]["name"]["value"] == "Caf\xe9 filter"
 
 
-def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(
-    monkeypatch, absent
-):
+def test_a_missing_protego_at_the_command_line_is_a_broken_install(monkeypatch, absent):
     """The rule ``sluicer.extras`` states, driven through the front door.
 
     Nothing here fakes the exception: the real ``fetch`` runs, with fake rungs
     and a robots.txt that has rules in it, so the real call site is the thing
-    that raises. With protego absent and the call site raising the base
-    ``MissingExtra``, this walked straight past ``cli.py``'s
-    ``except FetchExtraMissing`` and reached the user as a traceback.
+    that raises. Until 0.8 protego came with the fetch extra, and a missing
+    one was a sentence naming it. The base install brings it now, so without
+    it the install is broken, as it would be without lxml: the import error
+    keeps its traceback, and no install line sends the reader to install
+    what they have.
     """
     from sluicer.fetch import fetch as real_fetch
     from sluicer.fetch.result import Fetched
@@ -451,11 +451,8 @@ def test_a_missing_protego_at_the_command_line_is_a_message_not_a_traceback(
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
-    assert result.exit_code == 2
-    assert 'uv pip install "sluicer[fetch]"' in result.stderr
-    assert isinstance(result.exception, SystemExit), (
-        f"reached the user as {result.exception!r}"
-    )
+    assert type(result.exception) is ModuleNotFoundError
+    assert "uv pip install" not in result.stderr
 
 
 def test_standard_input_is_a_source():
@@ -870,22 +867,6 @@ def test_audit_of_a_url_can_leave_the_site_alone(monkeypatch):
 
     assert result.exit_code == 0
     assert "not asked (--no-site)" in result.stdout
-
-
-def test_audit_says_how_to_install_what_reading_a_site_needs(monkeypatch):
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
-
-    _fetched_well(monkeypatch)
-
-    def read_site(url, **kwargs):
-        raise FetchExtraMissing("Reading a site needs curl_cffi, sluicer[fetch]")
-
-    monkeypatch.setattr("sluicer.fetch.site.read_site", read_site)
-
-    result = CliRunner().invoke(main, ["audit", "https://example.com/"])
-
-    assert result.exit_code == 2
-    assert "sluicer[fetch]" in result.stderr
 
 
 def test_audit_of_a_site_whose_robots_txt_could_not_be_read_says_so(monkeypatch):

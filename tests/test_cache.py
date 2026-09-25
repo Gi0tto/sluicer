@@ -314,11 +314,11 @@ def test_the_http_transport_sends_the_validators_by_default(tmp_path, monkeypatc
     )
     sent = {}
 
-    def http_responses(allow_private, resolve, max_bytes, error, send=None):
+    def http_responses(allow_private, resolve, max_bytes, send=None):
         sent.update(allow_private=allow_private, send=dict(send or {}))
         return lambda url: Response(url, 304, "", b"")
 
-    def http_rung(allow_private, resolve, max_bytes, error=None):
+    def http_rung(allow_private, resolve, max_bytes):
         return lambda url: Fetched(url=url, html="", status=404, rung="http")
 
     monkeypatch.setattr("sluicer.fetch.http_rung.http_responses", http_responses)

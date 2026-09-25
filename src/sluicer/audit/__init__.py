@@ -79,8 +79,6 @@ def audit(
     Raises:
         ValueError: ``site`` without ``url``: which page the agents may have is
             a question about an address.
-        FetchExtraMissing: ``site`` holds a robots.txt and protego, from the
-            ``fetch`` extra, is not installed.
     """
     if site is not None and url is None:
         raise ValueError("auditing what a site serves needs the page's address")

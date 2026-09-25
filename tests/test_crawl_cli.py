@@ -163,13 +163,13 @@ def test_a_file_that_cannot_be_written_exits_two(fake, tmp_path):
     assert "Could not write" in result.stderr
 
 
-def test_a_crawl_without_the_fetch_extra_says_how_to_install_it(monkeypatch):
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+def test_a_crawl_without_an_extra_it_needs_says_how_to_install_it(monkeypatch):
+    from sluicer.fetch.rungs import FetchExtraMissing
 
     def missing(*args, **kwargs):
         raise FetchExtraMissing(
-            "Fetching a URL needs scrapling, which is not installed. "
-            'Install it with: uv pip install "sluicer[fetch]"'
+            "Loading a page in a browser needs playwright, which is not installed. "
+            'Install it with: uv pip install "sluicer[browser]"'
         )
 
     monkeypatch.setattr("sluicer.cli.crawl_site", missing)
@@ -177,15 +177,15 @@ def test_a_crawl_without_the_fetch_extra_says_how_to_install_it(monkeypatch):
     result = invoke("crawl", f"{ROOT}/")
 
     assert result.exit_code == 2
-    assert "sluicer[fetch]" in result.stderr
+    assert "sluicer[browser]" in result.stderr
 
 
 def test_a_missing_extra_found_mid_crawl_says_so_too(monkeypatch):
     from sluicer.crawl.pages import Crawl
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+    from sluicer.fetch.rungs import FetchExtraMissing
 
     def pages(run):
-        raise FetchExtraMissing("Reading a site's robots.txt needs protego")
+        raise FetchExtraMissing("Loading a page in a browser needs playwright")
         yield
 
     monkeypatch.setattr("sluicer.cli.crawl_site", lambda *a, **k: Crawl(pages))
@@ -193,7 +193,7 @@ def test_a_missing_extra_found_mid_crawl_says_so_too(monkeypatch):
     result = invoke("crawl", f"{ROOT}/")
 
     assert result.exit_code == 2
-    assert "needs protego" in result.stderr
+    assert "needs playwright" in result.stderr
 
 
 # -- batch -----------------------------------------------------------------------
@@ -295,15 +295,15 @@ def test_map_of_a_site_that_cannot_be_read_exits_two(fake):
     assert "503" in result.stderr
 
 
-def test_a_batch_without_the_fetch_extra_says_how_to_install_it(monkeypatch):
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+def test_a_batch_without_an_extra_it_needs_says_how_to_install_it(monkeypatch):
+    from sluicer.fetch.rungs import FetchExtraMissing
 
     def missing(*args, **kwargs):
-        raise FetchExtraMissing('Install it with: uv pip install "sluicer[fetch]"')
+        raise FetchExtraMissing('Install it with: uv pip install "sluicer[browser]"')
 
     monkeypatch.setattr("sluicer.cli.extract_many", missing)
 
     result = invoke("batch", "-", stdin=f"{ROOT}/a\n")
 
     assert result.exit_code == 2
-    assert "sluicer[fetch]" in result.stderr
+    assert "sluicer[browser]" in result.stderr

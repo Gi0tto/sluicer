@@ -28,7 +28,6 @@ from typing import Any
 
 from sluicer.audit.report import CrawlerVerdict, SiteFile
 from sluicer.declared.headers import stated
-from sluicer.extras import import_extra
 from sluicer.pathmatch import matches, target_of
 
 _OPENAI = "https://developers.openai.com/api/docs/bots"
@@ -349,10 +348,6 @@ def verdicts(url: str, robots: SiteFile) -> tuple[list[CrawlerVerdict], list[str
     A robots.txt that answered 4xx has no rules and allows everything, as RFC
     9309 says; one that could not be read has every verdict None, which RFC
     9309 would have a crawler treat as a refusal.
-
-    Raises:
-        FetchExtraMissing: protego, part of the ``fetch`` extra, is not
-            installed.
     """
     readable = robots.found or (
         robots.status is not None and 400 <= robots.status < 500
@@ -496,14 +491,6 @@ def _path_and_statement(value: str) -> tuple[str, str]:
 
 
 def _parse(text: str) -> Any:
-    # Imported here, as ``sluicer.fetch.identity`` does, and for its reason:
-    # the class a missing extra raises lives beside the rungs.
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+    from sluicer.fetch.identity import protego
 
-    protego = import_extra(
-        "protego",
-        "fetch",
-        doing="Reading a site's robots.txt",
-        error=FetchExtraMissing,
-    )
-    return protego.Protego.parse(text)
+    return protego().Protego.parse(text)

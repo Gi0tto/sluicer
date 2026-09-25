@@ -13,8 +13,7 @@ import pytest
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 
-pytest.importorskip("curl_cffi", reason="the examples fetch: sluicer[fetch]")
-pytest.importorskip("protego", reason="the examples fetch: sluicer[fetch]")
+pytest.importorskip("protego", reason="the examples fetch, which the base install does")
 pytest.importorskip("trafilatura", reason="two examples need sluicer[markdown]")
 
 

@@ -260,9 +260,9 @@ Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 **Arguments**
 
 - `url`: an http(s) address.
-- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default. Injected so tests stay off the network. The default rungs are the real web, so a fetch with them holds the site in ``sluicer.fetch.gate`` for its whole length -- robots.txt, the page, any climb -- a second after anyone's last request to it. Injected rungs are the caller's to pace, as a crawl paces its own.
+- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default, the browser when the ``browser`` extra is installed (without it, a climb to it fails and is recorded, and the HTTP page comes back). Injected so tests stay off the network. The default rungs are the real web, so a fetch with them holds the site in ``sluicer.fetch.gate`` for its whole length -- robots.txt, the page, any climb -- a second after anyone's last request to it. Injected rungs are the caller's to pace, as a crawl paces its own.
 - `obey_robots`: ask the site's robots.txt first (the default), and again for the host a redirect ended on.
-- `stealth`: append the stealth rung, which does not announce itself. Never automatic.
+- `stealth`: append the stealth rung, which does not announce itself. Never automatic; it needs the ``stealth`` extra.
 - `robots_reader`: how robots.txt is read; built from the cheapest rung by default.
 - `allow_private`: when false, refuse addresses off the public internet: the one asked for before any request, and every one a redirect or the page itself names before it is requested. The MCP server sets it.
 - `resolve`: the name lookup ``allow_private`` decides with.
@@ -282,7 +282,7 @@ The ``Fetched`` page, with every climb, the final URL, and how long each rung to
 - `ResponseTooLarge`: the page is heavier than ``max_bytes``.
 - `RedirectRefused`: an injected rung was given a rule for redirects, and a hop broke it.
 - `FetchFailed`: every rung failed, the URL is invalid, or its robots.txt could not be read.
-- `FetchExtraMissing`: the ``fetch`` extra is not installed.
+- `FetchExtraMissing`: ``stealth`` was asked for and the ``stealth`` extra is not installed.
 
 ### `sluicer.fetch.Fetched`
 
@@ -464,7 +464,6 @@ A ``SiteMap``, with every sitemap tried and what became of it.
 - `FetchFailed`: ``url`` is not an http(s) address, its robots.txt could not be read, or its sitemaps gave nothing and the page failed too.
 - `AddressRefused`: ``allow_private`` is false and ``url`` is private.
 - RobotsRefused, ResponseTooLarge: the sitemaps gave nothing, and this is what happened to the page.
-- `FetchExtraMissing`: the ``fetch`` extra is not installed.
 
 ### `sluicer.crawl.crawl`
 
@@ -524,7 +523,6 @@ A ``Crawl`` to iterate for its ``Page``s.
 
 - `ValueError`: ``start`` is not an http(s) address, or a pattern is not a regular expression.
 - `StateMismatch`: ``state`` holds another crawl.
-- `FetchExtraMissing`: the ``fetch`` extra is not installed.
 
 ### `sluicer.crawl.extract_many`
 
@@ -652,4 +650,3 @@ An ``Audit``. Nothing is fetched here: ``site`` is read by the caller.
 **Raises**
 
 - `ValueError`: ``site`` without ``url``: which page the agents may have is a question about an address.
-- `FetchExtraMissing`: ``site`` holds a robots.txt and protego, from the ``fetch`` extra, is not installed.

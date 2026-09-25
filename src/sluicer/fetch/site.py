@@ -16,13 +16,11 @@ from urllib.parse import urlsplit, urlunsplit
 
 from sluicer.audit.report import Site, SiteFile
 from sluicer.declared.tdmrep import WELL_KNOWN
-from sluicer.extras import import_extra
 from sluicer.fetch.address import AddressRefused, _resolve
 from sluicer.fetch.gate import GATE, after
 from sluicer.fetch.http_rung import http_rung
-from sluicer.fetch.identity import PRODUCT_TOKEN, robots_url_for
+from sluicer.fetch.identity import PRODUCT_TOKEN, protego, robots_url_for
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge, Rung
-from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
 LLMS_FILES = ("/llms.txt", "/llms-full.txt")
 """Where llmstxt.org puts the file, at the root, and the longer companion
@@ -50,7 +48,6 @@ def read_site(
 
     Raises:
         AddressRefused: ``allow_private`` is false and the site is private.
-        FetchExtraMissing: the ``fetch`` extra is not installed.
     """
     if rung is not None:
         return _read_site(url, rung, obey_robots)
@@ -58,7 +55,6 @@ def read_site(
         allow_private,
         resolve,
         MAX_RESPONSE_BYTES,
-        error=FetchExtraMissing,
         allow_empty=True,
     )
     # The site's files, asked in its turn: one after another, as one visit.
@@ -97,7 +93,6 @@ def read_tdmrep_file(
 
     Raises:
         AddressRefused: ``allow_private`` is false and the site is private.
-        FetchExtraMissing: the ``fetch`` extra is not installed.
     """
     if rung is not None:
         return _read_tdmrep(url, rung, obey_robots)
@@ -105,7 +100,6 @@ def read_tdmrep_file(
         allow_private,
         resolve,
         MAX_RESPONSE_BYTES,
-        error=FetchExtraMissing,
         allow_empty=True,
     )
     with GATE.turn(url) as ready:
@@ -148,12 +142,6 @@ def _refusal(address: str, robots: SiteFile) -> str | None:
             "not fetched: the site's robots.txt could not be read, which RFC 9309 "
             "treats as a refusal"
         )
-    protego = import_extra(
-        "protego",
-        "fetch",
-        doing="Reading a site's robots.txt",
-        error=FetchExtraMissing,
-    )
-    if protego.Protego.parse(robots.text or "").can_fetch(address, PRODUCT_TOKEN):
+    if protego().Protego.parse(robots.text or "").can_fetch(address, PRODUCT_TOKEN):
         return None
     return "not fetched: the site's robots.txt disallows it"

@@ -82,7 +82,7 @@ PUBLIC, PRIVATE = _serve(Public), _serve(Private)
 def main() -> int:
     from sluicer.fetch import address
     from sluicer.fetch.address import AddressRefused
-    from sluicer.fetch.scrapling_rungs import default_rungs
+    from sluicer.fetch.rungs import default_rungs
 
     # 127.0.0.1 is private, so the check is taught which port is "the web".
     judge = address._judge

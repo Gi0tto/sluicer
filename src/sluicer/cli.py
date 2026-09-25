@@ -61,7 +61,7 @@ from sluicer.extractor import (
 from sluicer.fetch import AddressRefused, FetchFailed, RobotsRefused, fetch as fetch_url
 from sluicer.fetch.http_rung import PROXY_ENV
 from sluicer.fetch.result import Fetched, ResponseTooLarge
-from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+from sluicer.fetch.rungs import FetchExtraMissing
 from sluicer.http_api import (
     DEFAULT_HOST,
     DEFAULT_PORT,
@@ -1168,14 +1168,11 @@ def audit_command(
         source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
     )
     site = None
-    try:
-        if fetched is not None and not no_site and fetched.archived is None:
-            from sluicer.fetch.site import read_site
+    if fetched is not None and not no_site and fetched.archived is None:
+        from sluicer.fetch.site import read_site
 
-            site = read_site(fetched.url, obey_robots=not no_robots)
-        result = audit_page(html, url=url, site=site)
-    except FetchExtraMissing as missing:
-        _fail(str(missing), missing)
+        site = read_site(fetched.url, obey_robots=not no_robots)
+    result = audit_page(html, url=url, site=site)
     if fetched is not None and fetched.archived is not None and not no_site:
         result.not_checked.insert(
             0,

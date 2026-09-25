@@ -207,7 +207,9 @@ def fetch(
     Args:
         url: an http(s) address.
         rungs: ``(name, rung)`` pairs, cheapest first; plain HTTP then a
-            browser by default. Injected so tests stay off the network. The
+            browser by default, the browser when the ``browser`` extra is
+            installed (without it, a climb to it fails and is recorded, and
+            the HTTP page comes back). Injected so tests stay off the network. The
             default rungs are the real web, so a fetch with them holds the
             site in ``sluicer.fetch.gate`` for its whole length -- robots.txt,
             the page, any climb -- a second after anyone's last request to it.
@@ -215,7 +217,7 @@ def fetch(
         obey_robots: ask the site's robots.txt first (the default), and again
             for the host a redirect ended on.
         stealth: append the stealth rung, which does not announce itself.
-            Never automatic.
+            Never automatic; it needs the ``stealth`` extra.
         robots_reader: how robots.txt is read; built from the cheapest rung
             by default.
         allow_private: when false, refuse addresses off the public internet:
@@ -246,15 +248,16 @@ def fetch(
             hop broke it.
         FetchFailed: every rung failed, the URL is invalid, or its robots.txt
             could not be read.
-        FetchExtraMissing: the ``fetch`` extra is not installed.
+        FetchExtraMissing: ``stealth`` was asked for and the ``stealth`` extra
+            is not installed.
     """
     gated = rungs is None
     if rungs is None:
-        from sluicer.fetch.scrapling_rungs import default_rungs
+        from sluicer.fetch.rungs import default_rungs
 
         rungs = default_rungs(allow_private, resolve, max_bytes, proxy=proxy)
     if stealth:
-        from sluicer.fetch.scrapling_rungs import stealth_rung
+        from sluicer.fetch.stealth import stealth_rung
 
         rungs = [*rungs, stealth_rung(allow_private, resolve, max_bytes, proxy)]
     if not rungs:

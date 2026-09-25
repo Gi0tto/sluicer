@@ -18,12 +18,15 @@ SRC = Path(__file__).resolve().parent.parent / "src"
 
 # A module is forbidden when it is one of these, or inside one of them.
 FORBIDDEN = (
-    # Network clients: fetching is scrapling's, behind the fetch extra, and a
-    # second client would be a second way out that nothing announces.
+    # Network clients: fetching is the HTTP rung's own, on the standard
+    # library, and a second client would be a second way out that nothing
+    # announces.
     "requests",
     "httpx",
     "urllib.request",
+    "http.client",
     "socket",
+    "curl_cffi",
     "aiohttp",
     # Model clients, hosted and local.
     "openai",
@@ -50,10 +53,16 @@ FORBIDDEN = (
 # ``langchain_community`` as much as ``langchain`` itself.
 FORBIDDEN_FAMILIES = ("langchain", "llama_index", "llama_cpp")
 
-# The one exception, and why: telling whether an address is on the public
-# internet means asking what a name resolves to. ``getaddrinfo`` opens no
-# connection and sends nothing of the page's; the fetch itself stays scrapling's.
-ALLOWED = {("sluicer/fetch/address.py", "socket")}
+# The exceptions, and why. Telling whether an address is on the public internet
+# means asking what a name resolves to: ``getaddrinfo`` opens no connection and
+# sends nothing of the page's. And the HTTP rung is the one client: its
+# sockets, TLS and proxies in ``wire``, the protocol in ``http_rung``. Nothing
+# else in the package opens a connection.
+ALLOWED = {
+    ("sluicer/fetch/address.py", "socket"),
+    ("sluicer/fetch/wire.py", "socket"),
+    ("sluicer/fetch/http_rung.py", "http.client"),
+}
 
 # The calls that import a module named by a string.
 _IMPORTERS = frozenset({"import_extra", "import_module", "__import__"})
@@ -158,4 +167,5 @@ def test_the_extras_this_package_really_loads_are_seen_and_allowed():
         "protego",
         "mcp.server.mcpserver",
         "scrapling.fetchers",
+        "playwright.sync_api",
     } <= loaded

@@ -129,25 +129,18 @@ def test_http_and_https_on_one_host_are_two_different_robots_files():
     assert calls == ["http://example.com/robots.txt", "https://example.com/robots.txt"]
 
 
-def test_a_missing_protego_says_the_fetch_extra_is_what_installs_it(absent):
-    """The label has to be the one the entry points catch, not the base class.
-
-    ``sluicer.extras`` states the rule this breaks: an absent extra is a
-    sentence, never a traceback. The call site used the default
-    ``MissingExtra``, and ``cli.py`` catches ``FetchExtraMissing`` by name, so
-    a bare ``MissingExtra`` sailed straight past that handler. protego ships
-    behind the fetch extra, so the fetch extra's own exception is what a
-    missing protego has to raise.
-    """
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+def test_a_missing_protego_is_a_broken_install_not_a_missing_extra(absent):
+    """Until 0.8 protego came with the fetch extra and a missing one named it;
+    the base install fetches now, and brings protego, so a missing protego is
+    an install that is broken, raised as the import error it is."""
+    from sluicer.extras import MissingExtra
 
     absent("protego")
 
-    with pytest.raises(FetchExtraMissing) as raised:
+    with pytest.raises(ModuleNotFoundError) as raised:
         robots_allows("https://example.com/private/p", read=lambda url: REFUSE_US)
 
-    assert raised.value.extra == "fetch"
-    assert 'uv pip install "sluicer[fetch]"' in str(raised.value)
+    assert not isinstance(raised.value, MissingExtra)
 
 
 def test_the_process_cache_forgets_the_least_recently_used_site_past_its_bound(

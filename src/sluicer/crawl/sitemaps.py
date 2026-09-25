@@ -304,7 +304,6 @@ def map_site(
         AddressRefused: ``allow_private`` is false and ``url`` is private.
         RobotsRefused, ResponseTooLarge: the sitemaps gave nothing, and this is
             what happened to the page.
-        FetchExtraMissing: the ``fetch`` extra is not installed.
     """
     start = normalise(url)
     if start is None:

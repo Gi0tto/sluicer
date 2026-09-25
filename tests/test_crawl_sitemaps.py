@@ -484,12 +484,12 @@ def test_a_sitemap_on_a_host_whose_robots_file_is_down_is_reported_unread():
 
 
 def test_a_missing_extra_is_raised_not_reported_as_a_sitemap_that_failed():
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+    from sluicer.fetch.rungs import FetchExtraMissing
 
     fake = site({})
 
     def get(url):
-        raise FetchExtraMissing("Fetching a URL needs curl_cffi", extra="fetch")
+        raise FetchExtraMissing("Loading a page needs playwright", extra="browser")
 
     web = fake.web()
     web = type(web)(rungs=web.rungs, read=web.read, get=get)
@@ -498,14 +498,14 @@ def test_a_missing_extra_is_raised_not_reported_as_a_sitemap_that_failed():
 
 
 def test_the_real_web_is_built_from_the_ladder_and_plain_http(monkeypatch):
-    """What ``default_web`` wires together, asked through fakes of both
-    libraries: the page rung obeys the redirect rule, robots.txt does not."""
+    """What ``default_web`` wires together, asked over the fake wire: the
+    page rung obeys the redirect rule, robots.txt does not."""
+    from fake_wire import fake_http
     from sluicer.crawl.web import default_web
     from sluicer.fetch import RedirectRefused
-    from test_fetch_guards import fake_browser, fake_curl
 
-    fake_browser(monkeypatch, {})
-    seen = fake_curl(
+    monkeypatch.delenv("SLUICER_BROWSER", raising=False)
+    seen = fake_http(
         monkeypatch,
         [
             (301, b"", {"location": "https://cdn.example/robots.txt"}),
@@ -522,7 +522,8 @@ def test_the_real_web_is_built_from_the_ladder_and_plain_http(monkeypatch):
     with pytest.raises(RedirectRefused):
         dict(web.rungs)["http"]("https://example.com/p")
     assert web.get("https://example.com/s.xml.gz").body.startswith(b"\x1f\x8b")
-    assert seen["urls"][1] == "https://cdn.example/robots.txt"
+    assert [t.host for t in seen.targets[:2]] == ["example.com", "cdn.example"]
+    assert seen.urls[1] == "/robots.txt"
 
 
 def test_what_a_sitemap_cannot_mean_is_passed_over():

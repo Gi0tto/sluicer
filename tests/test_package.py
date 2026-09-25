@@ -40,14 +40,17 @@ def test_the_fetch_package_has_a_surface_of_its_own():
 
 def test_the_rung_type_lives_beside_the_result_it_returns():
     """The adapter must not have to import a type from the orchestrator."""
-    import sluicer.fetch.scrapling_rungs as adapter
-    from sluicer.fetch import result
+    from sluicer.fetch import browser, result, rungs
 
-    assert adapter.Rung is result.Rung
+    assert rungs.Rung is result.Rung
+    assert browser.Rung is result.Rung
 
 
 def test_installing_the_mcp_extra_gives_a_server_whose_tools_all_work():
-    """Two of the three tools need the other extras, so the extra must pull them.
+    """page_markdown needs trafilatura for any input, so the extra must pull
+    it; fetching needs nothing past the base install, so it must pull no
+    browser: until 0.8 it brought two Playwright drivers, 86 to 96 MB of
+    wheels, for a rung most calls never reach.
 
     Read back out of the built metadata rather than out of pyproject.toml: a
     self-referential extra is a thing the packaging machinery has to resolve,
@@ -58,17 +61,32 @@ def test_installing_the_mcp_extra_gives_a_server_whose_tools_all_work():
     required = metadata.requires("sluicer")
     under_mcp = [line for line in required if "extra == 'mcp'" in line]
 
-    # Asserted by effect, not by spelling. pyproject.toml declares the
-    # self-references sluicer[fetch] and sluicer[markdown], and the build
-    # backend is free to resolve them: hatchling flattens them to the
-    # underlying requirements. Both spellings install the same three
-    # packages, and that is the thing worth pinning.
-    assert any("scrapling" in line or "sluicer[fetch]" in line for line in under_mcp), (
-        f"the mcp extra does not bring the fetch extra: {under_mcp}"
-    )
+    # Asserted by effect, not by spelling: hatchling may flatten the
+    # self-reference sluicer[markdown] to trafilatura itself.
     assert any(
         "trafilatura" in line or "sluicer[markdown]" in line for line in under_mcp
     ), f"the mcp extra does not bring the markdown extra: {under_mcp}"
+    for heavy in ("scrapling", "playwright", "patchright", "sluicer[fetch]"):
+        assert not any(heavy in line for line in under_mcp), (
+            f"the mcp extra brings {heavy}: {under_mcp}"
+        )
+
+
+def test_the_fetch_extra_still_installs_every_rung_it_meant():
+    """Deprecated, not removed: a line written for 0.7 keeps its browser and
+    its stealth rung."""
+    from importlib import metadata
+
+    under_fetch = [
+        line for line in metadata.requires("sluicer") if "extra == 'fetch'" in line
+    ]
+
+    assert any(
+        "playwright" in line or "sluicer[browser]" in line for line in under_fetch
+    )
+    assert any(
+        "scrapling" in line or "sluicer[stealth]" in line for line in under_fetch
+    )
 
 
 def test_nothing_outside_the_fetch_package_reaches_past_its_surface():
@@ -94,15 +112,14 @@ def test_nothing_outside_the_fetch_package_reaches_past_its_surface():
     assert offenders == [], f"these import past the fetch surface: {offenders}"
 
 
-def test_the_fetch_extra_declares_the_robots_parser_it_uses():
-    """A transitive dependency is not a declared one, and this is the third time.
+def test_the_base_install_declares_everything_a_fetch_uses():
+    """A transitive dependency is not a declared one, and this is the fourth time.
 
-    ``identity.py`` imports protego to parse robots.txt, and nothing declared
-    it: it arrived only because ``scrapling[fetchers]`` happens to pull it in
-    today. The day scrapling drops it, or a reader installs protego's provider
-    some other way, the robots gate stops working -- and the comment block
-    above that import is this project's own record of learning exactly this
-    lesson, twice, about scrapling's fetchers and about the mcp extra.
+    ``identity.py`` imports protego to parse robots.txt, and until 0.7.1
+    nothing declared it: it arrived only because ``scrapling[fetchers]``
+    pulled it in. Since 0.8 the base install fetches, so protego is the base
+    install's, and the HTTP rung is the standard library's: no curl_cffi, no
+    scrapling, no browser among what every install gets.
 
     Read out of the built metadata, not out of pyproject.toml, for the same
     reason the mcp test above does: what the installer will read is the only
@@ -110,13 +127,11 @@ def test_the_fetch_extra_declares_the_robots_parser_it_uses():
     """
     from importlib import metadata
 
-    under_fetch = [
-        line for line in metadata.requires("sluicer") if "extra == 'fetch'" in line
-    ]
+    base = [line for line in metadata.requires("sluicer") if "extra ==" not in line]
 
-    assert any("protego" in line for line in under_fetch), (
-        f"the fetch extra does not declare protego: {under_fetch}"
-    )
+    assert any(line.startswith("protego") for line in base), base
+    for absent in ("curl", "scrapling", "playwright"):
+        assert not any(absent in line for line in base), base
 
 
 def test_the_structure_package_has_a_surface_of_its_own():

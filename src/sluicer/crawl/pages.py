@@ -244,7 +244,6 @@ def crawl(
         ValueError: ``start`` is not an http(s) address, or a pattern is not a
             regular expression.
         StateMismatch: ``state`` holds another crawl.
-        FetchExtraMissing: the ``fetch`` extra is not installed.
     """
     first = normalise(start)
     if first is None:

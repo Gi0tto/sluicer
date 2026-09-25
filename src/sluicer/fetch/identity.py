@@ -6,15 +6,16 @@ it from a person. Sluicer arrives under its own name and obeys robots.txt.
 
 from __future__ import annotations
 
+import importlib
 import math
+import re
 import time
 from collections import OrderedDict
-from collections.abc import Callable, MutableMapping
+from collections.abc import Callable, Mapping, MutableMapping
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from sluicer import __version__
-from sluicer.extras import import_extra
 
 PRODUCT_TOKEN = "Sluicer"
 """The name a robots.txt group is matched against, and nothing else.
@@ -29,6 +30,81 @@ us and its delay paced us.
 USER_AGENT = f"{PRODUCT_TOKEN}/{__version__} (+https://github.com/Gi0tto/sluicer)"
 """What every request says it is. One line in robots.txt is enough to refuse it:
 ``User-agent: Sluicer``."""
+
+_WRITTEN_BY_THE_TRANSPORT = frozenset(
+    {
+        "host",
+        "accept-encoding",
+        "connection",
+        "keep-alive",
+        "content-length",
+        "transfer-encoding",
+        "te",
+        "trailer",
+        "upgrade",
+        "proxy-authorization",
+        "proxy-connection",
+    }
+)
+_TOKEN = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+
+
+def refused_header(name: str) -> str | None:
+    """Why a caller may not send a header called ``name``, or None when it may.
+
+    ``User-Agent`` is ours: a site that does not want Sluicer must be able to
+    say so, and a caller who could rename us would take that from it. The
+    others are the transport's own -- where the request goes, how its body
+    and its connection are framed, which encodings it can decode -- and a
+    caller's would contradict it.
+    """
+    lowered = name.strip().lower()
+    if not _TOKEN.fullmatch(name.strip()):
+        return f"{name!r} is not a header name"
+    if lowered == "user-agent":
+        return (
+            "the User-Agent is not replaced: Sluicer always says it is "
+            f"{PRODUCT_TOKEN}, so that a site can refuse it"
+        )
+    if lowered in _WRITTEN_BY_THE_TRANSPORT:
+        return f"the {name.strip()} header is written by the transport, not by a caller"
+    return None
+
+
+def outgoing(
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """The headers a caller asked to send, cookies folded into one ``Cookie``.
+
+    A header ``refused_header`` refuses, a value that runs onto another line,
+    or a cookie whose name or value would break the header is a
+    ``ValueError`` naming it, before anything is asked of any site.
+    """
+    sent: dict[str, str] = {}
+    for name, value in (headers or {}).items():
+        refusal = refused_header(name)
+        if refusal is not None:
+            raise ValueError(refusal)
+        if "\r" in value or "\n" in value:
+            raise ValueError(f"the {name} header's value runs onto another line")
+        sent[name.strip()] = value.strip()
+    crumbs = []
+    for name, value in (cookies or {}).items():
+        if not _TOKEN.fullmatch(name):
+            raise ValueError(f"{name!r} is not a cookie name")
+        if any(c in value for c in ';,\r\n"') or value != value.strip():
+            raise ValueError(f"the value of the cookie {name} would break the header")
+        crumbs.append(f"{name}={value}")
+    if crumbs:
+        given = next((key for key in sent if key.lower() == "cookie"), None)
+        joined = "; ".join(crumbs)
+        if given is None:
+            sent["Cookie"] = joined
+        else:
+            sent[given] = f"{sent[given]}; {joined}"
+    return sent
+
 
 ROBOTS_TTL_SECONDS = 24 * 60 * 60
 """How long a robots.txt answer is believed before the site is asked again.
@@ -174,19 +250,17 @@ def _rules(
     text = _robots_text(url, read, cache, now)
     if not text:
         return None
-    # Imported here: ``scrapling_rungs`` imports ``USER_AGENT`` from this
-    # module, so a top-level import would be a cycle. ``FetchExtraMissing``
-    # rather than a bare ``MissingExtra``, because protego ships with the fetch
-    # extra and the entry points catch that extra's class by name.
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
+    return protego().Protego.parse(text)
 
-    protego = import_extra(
-        "protego",
-        "fetch",
-        doing="Reading a site's robots.txt",
-        error=FetchExtraMissing,
-    )
-    return protego.Protego.parse(text)
+
+def protego() -> Any:
+    """protego, the robots.txt parser: a dependency of the base install.
+
+    Imported by name when first asked, so that reading HTML, which never
+    reads a robots.txt, does not pay for it; ``Any``, because protego ships
+    no types.
+    """
+    return importlib.import_module("protego")
 
 
 def _robots_text(

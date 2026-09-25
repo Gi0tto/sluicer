@@ -260,12 +260,9 @@ def _asking(
     failure, and any other answer is read as the HTTP rung reads it."""
     if transport is None:
         from sluicer.fetch.http_rung import http_responses
-        from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
         def transport(address: str, send: Mapping[str, str]) -> Response:
-            get = http_responses(
-                allow_private, resolve, max_bytes, FetchExtraMissing, send=send
-            )
+            get = http_responses(allow_private, resolve, max_bytes, send=send)
             return get(address)
 
     def rung(address: str) -> Fetched:
@@ -293,9 +290,8 @@ def _plain(
 ) -> Rung:
     """The plain HTTP rung, for the robots.txt a revalidation asks first."""
     from sluicer.fetch.http_rung import http_rung
-    from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
-    return http_rung(allow_private, resolve, max_bytes, error=FetchExtraMissing)
+    return http_rung(allow_private, resolve, max_bytes)
 
 
 def _enough(fetched: Fetched) -> bool:
