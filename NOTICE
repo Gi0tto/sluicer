@@ -8,9 +8,10 @@ Unported licence (CC BY-SA 3.0). That file, and only that file, is
 distributed under CC BY-SA 3.0, whose text is in LICENSES/CC-BY-SA-3.0.txt.
 Its source is schema.org, https://schema.org/, release 30.1, as the file says.
 
-One more file is not under the MIT License. src/sluicer/calendar_names.py
+One more file is not under the MIT License. src/sluicer/calendar_names.json
 holds month and weekday names taken from the Unicode Common Locale Data
 Repository (CLDR), which Unicode, Inc. publishes under the Unicode License v3.
 That file, and only that file, is distributed under the Unicode License v3,
 whose text is in LICENSES/Unicode-3.0.txt. Its source is CLDR release 48.2.0,
-https://cldr.unicode.org/, as the file says.
+https://cldr.unicode.org/, as the file says. src/sluicer/calendar_names.py,
+which reads it, is under the MIT License.

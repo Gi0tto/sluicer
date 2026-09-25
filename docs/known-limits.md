@@ -83,7 +83,7 @@ what it is worth.
 
 **A date's month is read by its name in any language CLDR covers.**
 `normalised` reads a date's month by its name in any of the 430 languages and
-regions CLDR 48.2 covers at its modern level (`sluicer/calendar_names.py`,
+regions CLDR 48.2 covers at its modern level (`sluicer/calendar_names.json`,
 under the Unicode License v3, with its source), in the orders they write it:
 `10. Mai 2023`, `10 de mayo de 2023`, Hungarian's `2023. május 10.`, and the
 numbers with units of Chinese, Japanese and Korean, `2023年5月10日`. Five

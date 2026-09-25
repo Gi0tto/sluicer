@@ -154,6 +154,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The stealth rung is the only place scrapling is used, still opt-in and one
   page at a time, never in a crawl, and never remembered as a site's rung. It
   sends none of the caller's headers or cookies.
+- CLDR's month and weekday names are package data, `sluicer/calendar_names.json`
+  (48 KB, the one file under the Unicode License v3), no longer a Python
+  module of 2,731 lines; `sluicer.calendar_names` reads it at import and
+  gives the same `MONTHS` and `WEEKDAYS`, all 1,568 and 1,140 entries
+  compared. Importing it takes 1.0 ms with bytecode cached, as before
+  (0.95 ms), and 1.2 ms without, against 11 ms to compile the module, which
+  is what Pyodide pays (medians, Python 3.14, Apple M4).
+  `scripts/cldr_calendar.py --check`, run in CI, fails when the committed file
+  is not exactly what the pinned CLDR release gives.
 
 ### Fixed
 - Without scrapling, 0.7.x could not fetch even over plain HTTP: `fetch()`
