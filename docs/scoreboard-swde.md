@@ -16,7 +16,7 @@ Sluicer, [Scrapling](https://github.com/D4Vinci/Scrapling)'s adaptive
 selectors, which promise to find an element again when a page changes,
 are asked the same thing, as [the drift benchmark](drift.md) asks them.
 
-Regenerated on 2026-09-25 from commit `ef4038d` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
+Regenerated on 2026-09-25 from commit `a8ca1b1` by `uv run bench/swde.py`, against the mirror at `e9b60dbbcb89`, every
 archive checked against its SHA-256. No seconds are printed: five
 timed rounds of every tool would take nearly seven hours
 ([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md),
@@ -57,7 +57,7 @@ read them as a table, not one at a time.
 
 | system | wrong answers | of them flagged by the run | not learnt (site-attributes) |
 |---|---|---|---|
-| **sluicer 0.7.1** | 12,059 | 1,998 (17%) | 20 of 320 |
+| **sluicer 0.7.1** | 12,059 | 1,999 (17%) | 20 of 320 |
 | Scrapling 0.4.15, adaptive | 56,058 | no checks | 63 of 320 |
 
 A wrong answer is a value that is not the page's, or a value where the

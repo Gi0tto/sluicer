@@ -55,6 +55,7 @@ nav:
       - Extractors on SWDE: scoreboard-swde.md
       - Drift: drift.md
       - Speed and weight: speed.md
+      - "Conformance: JSON-LD in HTML": conformance-jsonld.md
       - The field, measured: field-survey.md
   - Project:
       - Why Sluicer: why.md

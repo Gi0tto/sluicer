@@ -3,7 +3,7 @@
 How often Sluicer's `summary` gets a page's title, author and publication
 date right, measured beside the tools people use for the same job, on a
 public annotated corpus, with the losses in the same table as the wins.
-Regenerated on 2026-09-25 from commit `ca9e4d2` by
+Regenerated on 2026-09-25 from commit `a8ca1b1` by
 `uv run bench/run.py`; the method and every pin are in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -49,15 +49,17 @@ The 359 article, listing, collection and product pages:
 
 ## Speed and size
 
-| tool | seconds for all pages | packages installed |
-|---|---|---|
-| sluicer 0.7.1 | 1.07 | 3 |
-| trafilatura 2.2.0 | 16.19 | 17 |
-| metascraper 5.58.1 | 2.75 | 125 |
-| newspaper4k 0.9.6 | 29.61 | 22 |
+Measured on 2026-09-25 by `uv run bench/timing.py wcxb` at commit `a8ca1b1`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
 
-Seconds count only the extraction call, one page after another on one
-core; packages count everything the tool's own environment holds.
+| tool | runtime | seconds per page | seconds for all 511 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
+|---|---|---|---|---|---|---|---|
+| sluicer 0.7.1 | Python 3.12.13 | 0.0023 | 1.18 (1.11–1.62) | 434 | 88.7 MiB | 19.4 MiB | 3 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0316 | 16.13 (14.23–19.21) | 32 | 170.1 MiB | 58.2 MiB | 17 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0061 | 3.10 (2.83–6.33) | 165 | 718.0 MiB | 55.5 MiB | 125 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0696 | 35.57 (31.58–66.20) | 14 | 217.8 MiB | 39.4 MiB | 22 |
+
+How install size and memory are counted, and the other tables, are in
+[speed and weight](speed.md).
 
 ## Where Sluicer loses, and why
 
@@ -85,7 +87,7 @@ same: sluicer 1 title, 42 authors and 8 dates; trafilatura 1 title, 98 authors a
 publication date, a date is not a small error but a fact that is not
 there.
 
-Fastest: sluicer. Smallest install: sluicer.
+Fastest median pass: sluicer. Smallest install: sluicer; fewest packages: sluicer.
 
 ## How sure, and what differs
 

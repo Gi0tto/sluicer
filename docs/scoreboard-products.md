@@ -9,7 +9,7 @@ predictions are added beside theirs and that evaluator runs unchanged, so
 every rule below is Zyte's: a price matches as a decimal, several values
 can be right, and a page with no availability counts as in stock.
 
-Regenerated on 2026-09-25 from commit `f919bd0` by `uv run bench/products.py`, against the benchmark at `cba97d7a8d42`. Sluicer read the 140 pages in 1.0 s.
+Regenerated on 2026-09-25 from commit `a8ca1b1` by `uv run bench/products.py`, against the benchmark at `cba97d7a8d42`.
 
 !!! warning "Sluicer's rules were made on these pages"
     Rules were written, measured on these pages and kept because the

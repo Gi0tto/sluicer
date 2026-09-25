@@ -4,7 +4,7 @@ The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on news pages from 42 countries'
 publishers, in 21 declared languages, with their scripts:
 as fundus fetched them, stored re-encoded as UTF-8.
-Regenerated on 2026-09-25 from commit `9c9836a` by
+Regenerated on 2026-09-25 from commit `a8ca1b1` by
 `uv run bench/news.py`, against fundus at `c1b86b675018`; the method is in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -179,9 +179,14 @@ Each page is counted under the language its `<html lang>` declares.
 
 ## Speed and size
 
-| tool | seconds for all pages | packages installed |
-|---|---|---|
-| sluicer 0.7.1 | 1.07 | 3 |
-| trafilatura 2.2.0 | 2.10 | 17 |
-| metascraper 5.58.1 | 2.39 | 125 |
-| newspaper4k 0.9.6 | 15.71 | 22 |
+Measured on 2026-09-25 by `uv run bench/timing.py news` at commit `a8ca1b1`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+
+| tool | runtime | seconds per page | seconds for all 263 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
+|---|---|---|---|---|---|---|---|
+| sluicer 0.7.1 | Python 3.12.13 | 0.0038 | 1.01 (0.96–1.47) | 261 | 194.9 MiB | 19.4 MiB | 3 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0077 | 2.02 (1.98–2.38) | 130 | 250.9 MiB | 58.2 MiB | 17 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0093 | 2.44 (2.20–2.51) | 108 | 1500.2 MiB | 55.5 MiB | 125 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0623 | 16.38 (15.06–18.00) | 16 | 334.1 MiB | 39.4 MiB | 22 |
+
+How install size and memory are counted, and the other tables, are in
+[speed and weight](speed.md).
