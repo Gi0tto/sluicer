@@ -53,13 +53,19 @@ def default_web(
     across hosts, and a crawl kept to its site still owes the site's robots.txt
     a reading wherever the site keeps it.
 
+    ``headers`` and ``cookies`` go with every request -- pages, robots.txt,
+    sitemaps -- to the origin asked, as ``fetch`` sends them.
     """
     from sluicer.fetch.http_rung import http_responses, http_rung
+    from sluicer.fetch.identity import outgoing
     from sluicer.fetch.rungs import default_rungs
 
-    rungs = default_rungs(allow_private, resolve, max_bytes, redirects)
-    plain = http_rung(allow_private, resolve, max_bytes)
-    get = http_responses(allow_private, resolve, max_bytes)
+    send = outgoing(headers, cookies)
+    rungs = default_rungs(
+        allow_private, resolve, max_bytes, redirects, headers=headers, cookies=cookies
+    )
+    plain = http_rung(allow_private, resolve, max_bytes, send=send)
+    get = http_responses(allow_private, resolve, max_bytes, send=send)
     return Web(rungs=rungs, read=robots_reader_from(plain), get=get, memory=STICKY)
 
 

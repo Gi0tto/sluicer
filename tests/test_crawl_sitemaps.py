@@ -614,3 +614,24 @@ def test_a_page_built_to_make_the_refusal_slow_is_refused_in_linear_time():
         parse_sitemap(body)
 
     assert time.perf_counter() - started < 1.0
+
+
+def test_the_real_web_sends_the_callers_headers_and_cookies_on_every_request(
+    monkeypatch,
+):
+    """Measured before, against a local server: a crawl given headers= and
+    cookies= sent neither, not with its pages, its robots.txt or its sitemaps;
+    ``default_web`` took them and built its rungs without them."""
+    from fake_wire import fake_http
+    from sluicer.crawl.web import default_web
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    seen = fake_http(monkeypatch, [(200, b"<p>" + b"page " * 60, {})] * 3)
+
+    web = default_web(headers={"X-Token": "abc"}, cookies={"s": "1"})
+    dict(web.rungs)["http"]("https://example.com/p")
+    web.read("https://example.com/robots.txt")
+    web.get("https://example.com/sitemap.xml")
+
+    assert [r.headers.get("x-token") for r in seen.requests] == ["abc"] * 3
+    assert [r.headers.get("cookie") for r in seen.requests] == ["s=1"] * 3
