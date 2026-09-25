@@ -423,6 +423,66 @@ Dates are the day the work landed. Anything not listed here did not happen.
   shared on purpose. Each entry is written under a name of its own before it
   is moved into place, so two writers of one page no longer share a partial
   file. Windows has no such modes.
+- A JSON-LD word a context defines as schema.org's namespace is schema.org's
+  prefix however the address is written: `{"schema": "http://schema.org"}`,
+  with no `/` to end in, and `{"schema": {"@id": "http://schema.org/"}}`,
+  with no `@prefix`, left `schema:Product` and `schema:name` as written, and
+  the page lost its type, title and price. JSON-LD 1.1
+  reads such a word as no prefix, so PyLD keeps `schema:Product` as an
+  address whose scheme is `schema` (in 1.0 it is `http://schema.orgProduct`):
+  neither is anything a reader goes by, and a page that writes it means
+  schema.org's. A word defined as any other address is a prefix only as
+  JSON-LD 1.1 says, as before. All 3,976 cached corpus pages answer as
+  before. Found by the second correctness review.
+- A JSON-LD `null` past the 32 contexts a word is named through still clears
+  them all. The contexts of nested graphs were cut to the outermost 32, so in
+  33 graphs around one whose context is `[null, "https://schema.org"]`, the
+  outermost naming FOAF's `name`, the Product's `name` was FOAF's and the
+  page had no title; the contexts from the last `null` on are carried now.
+  Past the 32, an object's words are kept as written, as under a context
+  elsewhere, instead of named through the 32 that were read, which one past
+  them could redefine; a context named by an address elsewhere counts toward
+  the 32, as each one carried beside a graph does. All 3,976 cached corpus
+  pages answer as before. Found by the second correctness review.
+- A found configuration file its owner's own group may write is read. Ubuntu
+  and Fedora give each user a group of their own and a umask of 002, so
+  every `sluicer.toml` made there is 664, and each was refused as writable by
+  others. A group counts as the owner's when every user whose primary group
+  it is, and every member it lists, is the owner, as Debian's OpenSSH reads
+  an `authorized_keys`; a group anyone else is in, a file writable by all, or
+  a Linux file with an access list, whose group bits are the list's mask, is
+  refused as before. Found by the second correctness review.
+- A found configuration file whose macOS access list lets only its owner
+  write it is read: `chmod +a "user:$(whoami) allow write"` counted as
+  others writing it. One whose list lets anyone else write it is refused as
+  before, now saying how to remove the entry (`chmod -a# N`, or `chmod -N`
+  for the whole list) instead of `chmod go-w`, which changes the mode bits
+  and leaves the list as it was. Found by the second correctness review.
+- A value at the top of a configuration file is judged by every command that
+  takes its key, whether or not the command's own table sets the key too.
+  `format = "jsonl"` with `[crawl]` and `[batch]` each setting `format =
+  "csv"` was refused, since map, which writes `json` or `csv`, was the only
+  command left to judge it; and `format = "xml"` was accepted wherever every
+  such command's table set its own. Found by the second correctness review.
+- `sluicer.compat.extruct`'s Dublin Core copies an element's attributes as
+  extruct does, pair by pair. Copied by key, an attribute a page names `{},`,
+  `{a}b` or `{` was read by lxml as a namespaced name and raised `KeyError` or
+  `ValueError`, or dropped the page's Dublin Core under `errors="ignore"`,
+  where extruct 0.18 reads the element with it. The compatibility bench's
+  pages answer exactly as before. Found by the second correctness review;
+  also in 0.7.1.
+- `extract(visible=True)`, `--visible` and the MCP tools' `visible` read a
+  page whose date sits in a link to an address that is not a URL -- an
+  unfilled template's `https://[domain]/story`, or `http://[::1` -- and a
+  page at such an address. `urlsplit` refuses those with a `ValueError`, which
+  was raised to the caller; such a link is now another page's, and such a
+  page's address gives no date. All 3,976 cached corpus pages answer as
+  before. Found by the second correctness review's fuzzer; also in 0.7.1.
+- The browser's guard proxy serves only the browser it was made for. It
+  listened on 127.0.0.1 with no credentials, so any process on the machine
+  could use it, and through it the caller's own proxy, whose credentials it
+  adds; each guard proxy now makes its own at random and answers 407 without
+  them. Found by the review of the guard proxy.
 - `--visible` chooses a page's text nodes in one pass. The XPath predicate it
   used, `string-length(normalize-space()) > 1`, cost libxml2 the square of a
   page's tail texts: 16,000 took 2.2 seconds, and four 3.6 MB pages held

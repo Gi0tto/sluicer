@@ -624,7 +624,8 @@ def test_the_action_passes_a_page_with_no_error(tmp_path):
     assert done.returncode == 0, done.stdout + done.stderr
     assert outputs["errors"] == "0" and outputs["warnings"] == "2"
     assert outputs["pages"] == "1" and outputs["unreadable"] == "0"
-    assert "examples/site/article.html" in summary
+    # The page as it was given: backslashes on Windows.
+    assert str(CLEAN.relative_to(ROOT)) in summary or str(CLEAN) in summary
     [line] = Path(outputs["report"]).read_text(encoding="utf-8").splitlines()
     assert json.loads(line)["exit"] == 0
 

@@ -1444,7 +1444,9 @@ def test_a_guarded_pages_context_goes_through_the_guard_proxy(monkeypatch):
     monkeypatch.setattr(
         "sluicer.fetch.browser_proxy.guard_proxy",
         lambda resolve, upstream: types.SimpleNamespace(
-            address=f"http://127.0.0.1:1/ via {upstream}"
+            address=f"http://127.0.0.1:1/ via {upstream}",
+            username="sluicer",
+            password="secret",
         ),
     )
     host = FakeHost({"https://example.com/p": "<p>hi</p>"})
@@ -1456,6 +1458,8 @@ def test_a_guarded_pages_context_goes_through_the_guard_proxy(monkeypatch):
 
     assert host.contexts[0].options["proxy"] == {
         "server": "http://127.0.0.1:1/ via socks5://p:1",
+        "username": "sluicer",
+        "password": "secret",
         "bypass": "<-loopback>",
     }
 

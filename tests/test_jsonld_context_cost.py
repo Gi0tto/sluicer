@@ -220,7 +220,9 @@ def test_a_context_past_the_most_that_are_read_is_not_read():
     record = extract(
         _page({"@context": contexts, "@type": "Thing", first: "a", last: "b"})
     ).records[0]
-    assert list(record.fields) == ["http://p0.example/x", last]
+    # Not named through the contexts that were read: one past them may
+    # define p0 again, as a word no context names is left as written.
+    assert list(record.fields) == [first, last]
 
     # A null clears them all, and what follows it is read.
     contexts += [None, {"z": "http://z.example/"}]
@@ -228,3 +230,52 @@ def test_a_context_past_the_most_that_are_read_is_not_read():
         _page({"@context": contexts, "@type": "Thing", first: "a", "z:x": "c"})
     ).records[0]
     assert list(record.fields) == [first, "http://z.example/x"]
+
+
+def test_a_null_past_the_most_that_are_read_still_clears_them_all():
+    """Found by the second review: 33 graphs nested, each with a context, the
+    outermost naming FOAF's ``name``, around a graph whose context is
+    ``[null, "https://schema.org"]``. Only the outermost 32 were carried, the
+    null among those dropped, and the Product's ``name`` was FOAF's: the
+    page lost its title."""
+    node: dict[str, Any] = {
+        "@context": [None, "https://schema.org"],
+        "@graph": [{"@type": "Product", "name": "Brake pad"}],
+    }
+    for i in range(33):
+        context = (
+            {"name": "http://xmlns.com/foaf/0.1/name"}
+            if i == 32
+            else {f"t{i}": f"http://ex.example/{i}/"}
+        )
+        node = {"@context": context, "@graph": [node]}
+
+    read = extract(_page(node))
+
+    assert [list(r.fields) for r in read.records] == [["name"]]
+    assert read.summary["title"].value == "Brake pad"
+
+
+def test_words_under_graphs_past_the_most_that_are_read_are_left_as_written():
+    from sluicer.declared.jsonld import _MAX_CONTEXTS
+
+    node: dict[str, Any] = {"@type": "Thing", "p0:x": "a"}
+    for i in reversed(range(_MAX_CONTEXTS + 8)):
+        node = {"@context": {f"p{i}": f"http://p{i}.example/"}, "@graph": [node]}
+
+    assert list(extract(_page(node)).records[0].fields) == ["p0:x"]
+
+
+def test_a_context_named_elsewhere_counts_toward_the_most_that_are_read():
+    # Each is one of the contexts carried beside a graph's nodes, as a
+    # context read is, so the two limits count the same contexts.
+    from sluicer.declared.jsonld import _MAX_CONTEXTS
+
+    contexts: list[Any] = [
+        *(f"https://ctx.example/{i}" for i in range(_MAX_CONTEXTS)),
+        {"p": "http://p.example/"},
+    ]
+    record = extract(
+        _page({"@context": contexts, "@type": "Thing", "p:x": "a"})
+    ).records[0]
+    assert list(record.fields) == ["p:x"]

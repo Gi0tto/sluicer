@@ -644,7 +644,8 @@ class _Inflate:
         return out
 
 
-class _Zstd:
+class _Zstd:  # pragma: no cover - zstd is Python 3.14's, or backports.zstd
+    # CI measures coverage on 3.13; tests/test_fetch_guards.py runs this on 3.14.
     def __init__(self, module: ModuleType) -> None:
         self.module = module
         self.started = False

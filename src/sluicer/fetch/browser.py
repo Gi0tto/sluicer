@@ -264,16 +264,19 @@ HOST = BrowserHost()
 atexit.register(HOST.close)
 
 
-def _context_options(proxy: str | None, through: str | None = None) -> dict[str, Any]:
+def _context_options(
+    proxy: str | None, through: dict[str, str] | None = None
+) -> dict[str, Any]:
     """A page's context: our name, no service workers, the proxy asked for.
 
-    ``through`` is a guard proxy's address, which is then the context's proxy,
-    loopback included -- Chromium passes loopback by a proxy unless its
-    bypass list says ``<-loopback>`` -- and the one asked for its way out.
+    ``through`` is a guard proxy, its address and its own credentials, which
+    is then the context's proxy, loopback included -- Chromium passes
+    loopback by a proxy unless its bypass list says ``<-loopback>`` -- and the
+    one asked for its way out.
     """
     options: dict[str, Any] = {"user_agent": USER_AGENT, "service_workers": "block"}
     if through is not None:
-        options["proxy"] = {"server": through, "bypass": "<-loopback>"}
+        options["proxy"] = {**through, "bypass": "<-loopback>"}
         return options
     chosen = chosen_proxy(proxy)
     if chosen is not None:
@@ -295,7 +298,7 @@ def _load(
     cookies: Mapping[str, str],
     asked: Sequence[str],
     proxy: str | None,
-    through: str | None = None,
+    through: dict[str, str] | None = None,
 ) -> Job:
     """The job that loads ``url`` in a new context of the browser.
 
@@ -436,16 +439,21 @@ def browser_rung(
 
 def _guard_proxy(
     resolve: Callable[[str], Iterable[str]], proxy: str | None
-) -> str | None:
-    """The address of the guard proxy a guarded page's context goes through,
-    the proxy asked for its way out; None for a browser elsewhere
+) -> dict[str, str] | None:
+    """The guard proxy a guarded page's context goes through, its address and
+    its own credentials, the proxy asked for its way out; None for a browser elsewhere
     (``SLUICER_CDP_URL``), which cannot reach this machine's loopback, and
     whose pages the guard's routes alone judge."""
     if os.environ.get(CDP_ENV, "").strip():
         return None
     from sluicer.fetch.browser_proxy import guard_proxy
 
-    return guard_proxy(resolve, chosen_proxy(proxy)).address
+    guard = guard_proxy(resolve, chosen_proxy(proxy))
+    return {
+        "server": guard.address,
+        "username": guard.username,
+        "password": guard.password,
+    }
 
 
 def _as_fetched(loaded: Loaded | None, url: str, max_bytes: int) -> Fetched:

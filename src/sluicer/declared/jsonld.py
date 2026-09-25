@@ -165,9 +165,10 @@ def _flatten(parsed: object) -> list[tuple[dict[str, Any], tuple[str | int, ...]
     A node read out of a graph keeps the ``@context`` its terms were written
     in: the wrapper's, before any of its own. Without it ``ex:foo``, written
     under ``{"ex": "http://example.com/"}``, named nothing once unwrapped.
-    The nodes of one graph that have no context of their own share one; at
-    most ``_MAX_CONTEXTS`` of the graphs' contexts are carried, the
-    outermost, as no more are read (see ``Terms``).
+    The nodes of one graph that have no context of their own share one. The
+    contexts carried are those from the last ``null`` on, which clears every
+    context before it, and at most one past ``_MAX_CONTEXTS``: no more are
+    read (see ``Terms``), and the one past them says that there were more.
     """
     found: list[tuple[dict[str, Any], tuple[str | int, ...]]] = []
     # A tuple is a node already read, waiting for its graph: JSON makes none.
@@ -217,8 +218,16 @@ def _within(node: dict[str, Any], around: list[object]) -> dict[str, Any]:
 
 
 def _contexts(around: list[object], declared: object) -> list[object]:
-    """The contexts inside a graph: those around it, then its own, spread."""
-    return [*around, *_listed(declared)][:_MAX_CONTEXTS]
+    """The contexts inside a graph: those around it, then its own, spread,
+    from the last ``null`` on and at most one past what ``Terms`` reads."""
+    contexts = [*around, *_listed(declared)]
+    last_null = max(
+        (n for n, context in enumerate(contexts) if context is None), default=None
+    )
+    if last_null is not None:
+        contexts = contexts[last_null:]
+    first = 1 if contexts and contexts[0] is None else 0
+    return contexts[: first + _MAX_CONTEXTS + 1]
 
 
 def _listed(declared: object) -> list[object]:
@@ -376,7 +385,8 @@ _ABSOLUTE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 _GEN_DELIMS = (":", "/", "?", "#", "[", "]", "@")
 # The most contexts one word is named through: real blocks nest two or three.
 # Each is a layer a word is looked up in, and a block of ten thousand contexts
-# listed or nested would make every word under them ten thousand lookups.
+# listed or nested would make every word under them ten thousand lookups. A
+# context not read here, one named by an address elsewhere, counts too.
 _MAX_CONTEXTS = 32
 
 
@@ -406,8 +416,11 @@ class Terms:
     nodes each with a context of their own cost their thousand contexts,
     not a thousand copies of every term around them. Each context is read
     once for the terms it is read in. A word is looked up layer by layer,
-    so at most ``_MAX_CONTEXTS`` are read, outermost first; one declared
-    past them is not read, and a ``null`` still clears them all.
+    so at most ``_MAX_CONTEXTS`` are read since the last ``null``, outermost
+    first. Past them the words are named as if no context had been read, as
+    under a context elsewhere, until a ``null`` clears them all: through the
+    contexts that were read, a word one past them defines again would have
+    been named as it is not.
     """
 
     def __init__(
@@ -416,6 +429,8 @@ class Terms:
         iris: dict[str, str | _Undefined | None] | None = None,
         prefixes: dict[str, str | None] | None = None,
         outer: Terms | None = None,
+        *,
+        past_the_most: bool = False,
     ) -> None:
         self.vocab = vocab
         # The words this layer's context defines: each one's address, None
@@ -426,6 +441,8 @@ class Terms:
         self.prefixes = prefixes or {}
         self.outer = outer
         self.depth: int = 0 if outer is None else outer.depth + 1
+        # Terms under more contexts than are read: they read none but a null.
+        self.past_the_most = past_the_most
         # The terms inside each context declared under these, read once: one
         # graph's thousand nodes share one context. A string is known by its
         # text, anything else by itself.
@@ -450,8 +467,12 @@ class Terms:
         held = self._inside.get(key)
         if held is not None and (held[0] is context or isinstance(context, str)):
             return held[1]
-        if context is not None and self.depth >= _MAX_CONTEXTS:
+        if context is None:
+            terms = self._read(context)
+        elif self.past_the_most:
             terms = self
+        elif self.depth >= _MAX_CONTEXTS:
+            terms = Terms(past_the_most=True)
         else:
             terms = self._read(context)
         self._inside[key] = (context, terms)
@@ -531,9 +552,10 @@ class Terms:
         if isinstance(context, str):
             if _SCHEMA_CONTEXT.fullmatch(context.strip()):
                 return Terms(_SCHEMA, None, {"schema": _SCHEMA}, self)
-            return self
+            # A layer that defines nothing, so that it counts as one read.
+            return Terms(self.vocab, None, None, self)
         if not isinstance(context, dict):
-            return self
+            return Terms(self.vocab, None, None, self)
         # Every term the context names hides what outer contexts said of it,
         # even one it leaves undefined.
         iris: dict[str, str | _Undefined | None] = {}
@@ -549,7 +571,7 @@ class Terms:
             iris[term] = iri
             if reading.is_prefix(term, iri):
                 assert iri is not None
-                prefixes[term] = _SCHEMA if _SCHEMA_NAMESPACE.fullmatch(iri) else iri
+                prefixes[term] = _as_prefix(iri)
         # Where an undefined word's address would begin. JSON-LD 1.1 reads
         # @vocab before the terms beside it, so it may be written through a
         # prefix or a term of the contexts around, never of its own.
@@ -560,6 +582,12 @@ class Terms:
             if vocab is not None and _SCHEMA_NAMESPACE.fullmatch(vocab):
                 vocab = _SCHEMA
         return Terms(vocab, iris, prefixes, self)
+
+
+def _as_prefix(iri: str) -> str:
+    """The address a prefix read to ``iri`` puts before a word: schema.org's
+    namespace one way, however the context wrote it."""
+    return _SCHEMA if _SCHEMA_NAMESPACE.fullmatch(iri) else iri
 
 
 class _Undefined:
@@ -598,7 +626,8 @@ class _Reading:
         self.targets: dict[str, str | None] = {}
         # JSON-LD 1.1's prefix flag: a simple definition's term is a prefix
         # when its address ends in a delimiter, an expanded one's when it
-        # says ``"@prefix": true``.
+        # says ``"@prefix": true``; and any term whose address is schema.org's
+        # namespace (see ``is_prefix``).
         self.simple: set[str] = set()
         self.flagged: set[str] = set()
         self.read: dict[str, str | None] = {}
@@ -637,11 +666,21 @@ class _Reading:
         return self.read
 
     def is_prefix(self, term: str, iri: str | None) -> bool:
-        """Whether ``term``, read to ``iri``, expands the words it prefixes."""
+        """Whether ``term``, read to ``iri``, expands the words it prefixes.
+
+        A term whose address is schema.org's namespace does, however it is
+        written: ``{"schema": "http://schema.org"}`` has no ``/`` to end in
+        and ``{"@id": "http://schema.org/"}`` no ``@prefix``, so JSON-LD 1.1
+        reads ``schema:Product`` as an address whose scheme is ``schema``,
+        and 1.0 as ``http://schema.orgProduct``. Neither is anything a reader
+        goes by, and a page that writes it means schema.org's Product.
+        """
         if iri is None:
             return False
-        return term in self.flagged or (
-            term in self.simple and iri.endswith(_GEN_DELIMS)
+        return (
+            term in self.flagged
+            or (term in self.simple and iri.endswith(_GEN_DELIMS))
+            or _SCHEMA_NAMESPACE.fullmatch(iri) is not None
         )
 
     def expand(self, written: str) -> str | _Wait | None:
@@ -660,7 +699,7 @@ class _Reading:
                 base = self.read[prefix]
                 if self.is_prefix(prefix, base):
                     assert base is not None
-                    return base + suffix
+                    return _as_prefix(base) + suffix
             elif (outer := self.outer._prefix(prefix)) is not None:
                 return outer + suffix
             return written if _ABSOLUTE.match(written) else None

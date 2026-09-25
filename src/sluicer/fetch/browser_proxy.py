@@ -38,8 +38,11 @@ browser pages use.
 
 from __future__ import annotations
 
+import base64
 import collections
 import contextlib
+import hmac
+import secrets
 import socket
 import threading
 import time
@@ -141,7 +144,12 @@ def asked_of(head: bytes) -> Asked | None:
         where = _authority(target)
         if where is None:
             return None
-        return Asked(method, where[0], where[1])
+        return Asked(
+            method,
+            where[0],
+            where[1],
+            headers=tuple(line for line in lines[1:] if line),
+        )
     try:
         parts = urlsplit(target)
         port = parts.port or 80
@@ -190,6 +198,14 @@ class GuardProxy:
         self.resolve = resolve
         self.upstream = upstream
         self.refused: collections.deque[tuple[str, str]] = collections.deque(maxlen=100)
+        # Its own credentials, which only the browser it serves is given: on
+        # 127.0.0.1 with none, any process on the machine could use it, and
+        # through it the caller's proxy, whose credentials it adds.
+        self.username = "sluicer"
+        self.password = secrets.token_urlsafe(32)
+        self._login = "Basic " + base64.b64encode(
+            f"{self.username}:{self.password}".encode("ascii")
+        ).decode("ascii")
         self._listener = socket.create_server(("127.0.0.1", 0))
         self.address = f"http://127.0.0.1:{self._listener.getsockname()[1]}"
         threading.Thread(
@@ -217,6 +233,9 @@ class GuardProxy:
             asked = asked_of(head) if head is not None else None
             if asked is None:
                 _answer(client, 400, "not a request this proxy serves")
+                return
+            if not self._authorized(asked):
+                _answer(client, 407, "this proxy serves the browser it was made for")
                 return
             try:
                 addresses = public_addresses(asked.url, self.resolve)
@@ -249,6 +268,14 @@ class GuardProxy:
         finally:
             with contextlib.suppress(OSError):
                 client.close()
+
+    def _authorized(self, asked: Asked) -> bool:
+        """Whether ``asked`` carries this proxy's own credentials."""
+        for header in asked.headers:
+            name, _, value = header.partition(b":")
+            if name.strip().lower() == b"proxy-authorization":
+                return hmac.compare_digest(value.strip(), self._login.encode("ascii"))
+        return False
 
     def _connect(self, asked: Asked, addresses: list[str]) -> socket.socket:
         """A connection to the site ``asked`` is for, at ``addresses``, or to
@@ -286,11 +313,17 @@ def _read_head(client: socket.socket) -> tuple[bytes | None, bytes]:
 
 
 def _answer(client: socket.socket, status: int, reason: str) -> None:
-    words = {400: "Bad Request", 403: "Forbidden", 502: "Bad Gateway"}[status]
+    words = {
+        400: "Bad Request",
+        403: "Forbidden",
+        407: "Proxy Authentication Required",
+        502: "Bad Gateway",
+    }[status]
     body = f"{reason}\n".encode("utf-8", "replace")
+    asks = 'Proxy-Authenticate: Basic realm="sluicer"\r\n' if status == 407 else ""
     head = (
         f"HTTP/1.1 {status} {words}\r\nContent-Type: text/plain; charset=utf-8\r\n"
-        f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n"
+        f"{asks}Content-Length: {len(body)}\r\nConnection: close\r\n\r\n"
     )
     with contextlib.suppress(OSError):
         client.sendall(head.encode("ascii") + body)
