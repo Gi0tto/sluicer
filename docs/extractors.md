@@ -59,7 +59,10 @@ that drifted (with `failed`, the checks it broke) and for a heal that lost data
   always with `--listing`: where it sits (`html>body>div.page>ol.row`), what one
   row looks like (`li.product`), how many rows each page had, and for every
   field its share of empty rows, the one shape its values shared if they did,
-  and a few sample values.
+  and a few sample values; and, when it was so, that one of the pages had
+  it in no row (`"absent_on_a_page": true`) or said one thing in every row of
+  five or more (`"alike_on_a_page": true`), which no page is then failed
+  for, since the page it was learnt from would be.
 
 The file is plain JSON, meant to be read and, if you need to, edited. Every
 value is checked when it is read, not only its key: a share that is not a
