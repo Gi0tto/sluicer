@@ -351,6 +351,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- The records' documentation says what a JSON-LD number becomes: the text
+  the page wrote, `"41.90"` and not `41.9`, as every value in a record is
+  text (`Field`, the getting-started guide). It always was, on purpose, and
+  was said only in the reader's docstring. The W3C conformance page says it
+  too; none of the suite's HTML pages writes a number.
 - A JSON-LD record names its properties and types through the block's
   `@context`, as RDFa's are named through `vocab` and `prefix`: a schema.org
   word by its own name, however it is written (`schema:name`,

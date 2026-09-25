@@ -59,7 +59,9 @@ class Field:
     """One extracted value and the reader that produced it.
 
     ``value`` is text for a scalar, and for a nested value the JSON the page
-    declared, with every leaf as text.
+    declared, with every leaf as text. A JSON-LD number is the text the page
+    wrote, ``"41.90"`` and never the float ``41.9``, so a price keeps its
+    cents; ``Extraction.normalised`` reads the summary's prices as decimals.
     """
 
     value: JsonValue
