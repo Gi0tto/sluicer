@@ -159,7 +159,16 @@ it does not, the server is listed as disabled.
 }
 ```
 
-**Claude Desktop** -- `claude_desktop_config.json`, in
+**Claude Desktop** -- each release from 0.8.0 carries `sluicer-VERSION.mcpb`,
+a bundle in the [MCPB](https://github.com/modelcontextprotocol/mcpb) format:
+open it with Claude Desktop to install the server. It is 134 KB and holds no
+Python; its manifest has the host install `sluicer[mcp]` at that version from
+PyPI with uv, and its two settings are the variables at the top of this
+page, `SLUICER_MCP_TOOLS` and `SLUICER_ALLOW_PRIVATE`. The release checks it with the
+format's own validator, then unpacks it and lists its ten tools with uv, as
+the manifest starts it. Installing it in Claude Desktop was not run.
+
+Or by hand: `claude_desktop_config.json`, in
 `~/Library/Application Support/Claude/` on macOS and `%APPDATA%\Claude\` on
 Windows, with the same `mcpServers` entry as Gemini CLI's. An application
 started from the Dock may not see your shell's `PATH`; if `uvx` is not found,

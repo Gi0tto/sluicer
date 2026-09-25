@@ -284,3 +284,127 @@ def test_the_agent_plugin_starts_the_server_the_registry_lists():
     ]
     assert server["args"] == registry
     assert server["args"][1] == f"sluicer[mcp]=={sluicer.__version__}"
+
+
+# -- the Claude Desktop bundle and the skill's zip ---------------------------
+
+MCPB = PACKAGING / "mcpb"
+
+
+def _registered_tools() -> list[str]:
+    import asyncio
+
+    pytest.importorskip("mcp")
+    from sluicer.mcp_server import build_server
+
+    return sorted(tool.name for tool in asyncio.run(build_server().list_tools()))
+
+
+def test_the_bundle_installs_the_package_at_its_own_version():
+    manifest = _json(MCPB / "manifest.json")
+    project = (MCPB / "pyproject.toml").read_text(encoding="utf-8")
+    version = sluicer.__version__
+    assert manifest["manifest_version"] == "0.4" and manifest["server"]["type"] == "uv"
+    assert manifest["version"] == version
+    assert re.findall(r"^version = \"(.+)\"$", project, re.MULTILINE) == [version]
+    assert re.findall(r"^dependencies = \[(.+)\]$", project, re.MULTILINE) == [
+        f'"sluicer[mcp]=={version}"'
+    ]
+    # No [build-system]: uv installs its dependency and never builds it.
+    assert "[build-system]" not in project
+    assert manifest["license"] == _json(ROOT / "plugin.json")["license"]
+
+
+def test_the_bundle_lists_the_tools_the_server_registers():
+    """Claude Desktop shows the manifest's tools before the server starts,
+    and the release's smoke check expects exactly these from it."""
+    listed = [tool["name"] for tool in _json(MCPB / "manifest.json")["tools"]]
+    assert sorted(listed) == _registered_tools()
+
+
+def test_the_bundle_s_settings_are_the_variables_the_server_reads():
+    from sluicer import mcp_server
+
+    manifest = _json(MCPB / "manifest.json")
+    env = manifest["server"]["mcp_config"]["env"]
+    assert env == {
+        mcp_server.ALLOW_PRIVATE_ENV: "${user_config.allow_private}",
+        mcp_server.TOOLS_ENV: "${user_config.tools}",
+    }
+    settings = manifest["user_config"]
+    # A boolean arrives as "true" or "false" (the mcpb host's substitution);
+    # the server reads "true" as on, and anything else as off.
+    assert settings["allow_private"]["type"] == "boolean"
+    assert settings["allow_private"]["default"] is False
+    # Empty is all ten: the server ignores an empty SLUICER_MCP_TOOLS.
+    assert settings["tools"]["default"] == ""
+
+
+def test_the_release_assets_are_staged_from_the_repository(tmp_path):
+    build = _script("build_assets")
+    build.main([str(tmp_path)])
+    version = sluicer.__version__
+    stage = tmp_path / "mcpb"
+    assert sorted(p.relative_to(stage).as_posix() for p in stage.rglob("*")) == [
+        "LICENSE",
+        "LICENSES",
+        "LICENSES/CC-BY-SA-3.0.txt",
+        "LICENSES/Unicode-3.0.txt",
+        "NOTICE",
+        "icon.png",
+        "manifest.json",
+        "pyproject.toml",
+        "server.py",
+    ]
+    # The manifest's icon is in the bundle, the validator's one complaint
+    # about the directory it was committed in.
+    assert (stage / _json(stage / "manifest.json")["icon"]).read_bytes()[:4] == (
+        b"\x89PNG"
+    )
+    import zipfile
+
+    skill = tmp_path / f"sluicer-skill-{version}.zip"
+    with zipfile.ZipFile(skill) as bundle:
+        names = bundle.namelist()
+        assert names == sorted(names) and "sluicer/SKILL.md" in names
+        assert all(name.startswith("sluicer/") for name in names)
+        assert (
+            bundle.read("sluicer/SKILL.md")
+            == (ROOT / "skills" / "sluicer" / "SKILL.md").read_bytes()
+        )
+    # The same tree gives the same bytes: a build's clock never shows.
+    again = tmp_path / "again"
+    build.main([str(again)])
+    assert (again / skill.name).read_bytes() == skill.read_bytes()
+
+
+def test_the_release_assets_stop_on_a_version_that_disagrees(tmp_path, monkeypatch):
+    build = _script("build_assets")
+    wrong = tmp_path / "mcpb"
+    wrong.mkdir()
+    for name in ("manifest.json", "pyproject.toml", "server.py"):
+        (wrong / name).write_bytes((MCPB / name).read_bytes())
+    manifest = _json(wrong / "manifest.json")
+    manifest["version"] = "0.0.1"
+    (wrong / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(build, "MCPB", wrong)
+    with pytest.raises(SystemExit, match=re.escape("0.0.1")):
+        build.main([str(tmp_path / "out")])
+
+
+def test_the_release_builds_the_bundle_and_tests_it_before_attaching_it():
+    assets = _job("release.yml", "assets")
+    steps = [
+        "packaging/build_assets.py",
+        "@anthropic-ai/mcpb@2.1.2 validate",
+        "@anthropic-ai/mcpb@2.1.2 pack",
+        "packaging/mcp_smoke.py -- uv run --find-links",
+    ]
+    places = [assets.index(step) for step in steps]
+    assert places == sorted(places)
+    attach = _job("release.yml", "attach")
+    assert "needs: [assets, publish]" in attach, "the bundle installs from PyPI"
+    assert "contents: write" in attach
+    assert re.search(r"if: .*vars\.PUBLISH_RELEASE_ASSETS == 'true'", attach)
+    for asset in (".mcpb", "sluicer-skill-"):
+        assert asset in attach, asset

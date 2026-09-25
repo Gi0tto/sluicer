@@ -39,8 +39,15 @@ EPOCH = (1980, 1, 1, 0, 0, 0)
 def version() -> str:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     found = re.search(r'^version = "(.+)"$', pyproject, re.MULTILINE)
-    assert found, "pyproject.toml states no version"
+    if not found:
+        raise SystemExit("pyproject.toml states no version")
     return found[1]
+
+
+def _agrees(where: str, stated: str, wanted: str) -> None:
+    # Not an assert: `python -O` would build the wrong bundle without a word.
+    if stated != wanted:
+        raise SystemExit(f"{where} says {stated}, pyproject.toml says {wanted}")
 
 
 def skill_zip(out: Path, stated: str) -> Path:
@@ -59,9 +66,13 @@ def skill_zip(out: Path, stated: str) -> Path:
 def mcpb_stage(out: Path, stated: str) -> Path:
     manifest = json.loads((MCPB / "manifest.json").read_text(encoding="utf-8"))
     project = (MCPB / "pyproject.toml").read_text(encoding="utf-8")
-    assert manifest["version"] == stated, (manifest["version"], stated)
-    assert f'version = "{stated}"' in project, "packaging/mcpb/pyproject.toml"
-    assert f'"sluicer[mcp]=={stated}"' in project, "packaging/mcpb/pyproject.toml"
+    _agrees("the bundle's manifest.json", manifest["version"], stated)
+    for pattern in (
+        r'^version = "(.+)"$',
+        r'^dependencies = \["sluicer\[mcp\]==(.+)"\]$',
+    ):
+        found = re.search(pattern, project, re.MULTILINE)
+        _agrees("the bundle's pyproject.toml", found[1] if found else "nothing", stated)
     stage = out / "mcpb"
     if stage.exists():
         shutil.rmtree(stage)

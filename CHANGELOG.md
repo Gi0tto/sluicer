@@ -23,6 +23,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   to the standard's closed fields, to `.claude-plugin/plugin.json` and to
   `server.json`'s command. Codex 0.157.0 installed it from a local copy, and
   Claude Code still loads its own plugin beside it.
+- `sluicer-VERSION.mcpb`, the server as an MCPB bundle for Claude Desktop, on
+  each release: 134 KB, no Python in it, the host installing `sluicer[mcp]`
+  at that version with uv, with the two settings the server reads. The
+  release stages it with `packaging/build_assets.py`, passes it through the
+  official validator (`@anthropic-ai/mcpb` 2.1.2), packs it, unpacks it and
+  lists its ten tools from it before attaching it, once PyPI serves the
+  version and the repository variable `PUBLISH_RELEASE_ASSETS` is true.
 
 ### Fixed
 - The image's wheel was built without NOTICE and LICENSES/, since the

@@ -151,6 +151,46 @@ jobs:
             --tag "${image}:${version}" --tag "${image}:latest" \
             "${image}:${version}-amd64" "${image}:${version}-arm64"
 
+  assets:
+    # The two files a release carries beside the distributions: the skill as
+    # a zip, for claude.ai's upload and ~/.agents/skills/, and the MCPB bundle
+    # Claude Desktop installs with a click. The bundle holds no Python: its
+    # manifest has the host install sluicer[mcp] at this version with uv.
+    name: The skill's zip and the Claude Desktop bundle build, and the bundle answers
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: distributions
+          path: dist/
+      - name: Stage them from the repository
+        run: python3 packaging/build_assets.py assets
+      - name: The official validator passes the bundle, and packs it
+        # A pinned release of the MCPB tool; this job holds no token.
+        run: |
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          npx -y @anthropic-ai/mcpb@2.1.2 validate assets/mcpb
+          npx -y @anthropic-ai/mcpb@2.1.2 pack assets/mcpb "assets/sluicer-${version}.mcpb"
+      - name: A client lists its ten tools from the packed bundle
+        # Unpacked and started as a host does, with uv and the manifest's own
+        # command. PyPI does not serve this version yet, so the wheel this
+        # workflow built and tested stands in for it.
+        run: |
+          mkdir unpacked
+          unzip -q assets/sluicer-*.mcpb -d unpacked
+          python3 packaging/mcp_smoke.py -- uv run --find-links "$PWD/dist" --directory unpacked server.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: |
+            assets/*.mcpb
+            assets/*.zip
+
   publish:
     name: Publish to PyPI
     needs: [build, installs]
@@ -213,3 +253,31 @@ jobs:
         run: |
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
+
+  attach:
+    name: Attach the bundle and the skill's zip to the release
+    # After PyPI serves the version: the bundle installs it from there. Off
+    # until the repository variable PUBLISH_RELEASE_ASSETS is true. A release
+    # already written by hand gets the files; otherwise a draft is opened with
+    # them, for its notes to be written before it is published.
+    needs: [assets, publish]
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_RELEASE_ASSETS == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: assets/
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          files=(assets/sluicer-*.mcpb assets/sluicer-skill-*.zip)
+          if gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" -R "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" -R "$GITHUB_REPOSITORY" \
+              --draft --verify-tag --title "Sluicer ${GITHUB_REF_NAME#v}" \
+              --notes "Opened by the release workflow with its files; the notes are still to write."
+          fi
