@@ -138,6 +138,22 @@ Dates are the day the work landed. Anything not listed here did not happen.
   fetches of one site queued, a sixth to another site starts at once. A
   coroutine cancelled while it waits asks nothing. `asyncio` is imported only
   when one is called. In `docs/getting-started.md` and the Python reference.
+- `packaging/homebrew/sluicer.rb` and `packaging/conda-forge/recipe/recipe.yaml`,
+  a Homebrew formula and a conda-forge recipe (the v1 format conda-forge asks
+  of new recipes) for the base install, prepared and not submitted.
+  `packaging/recipes.py` writes both from one `VERSION`, 0.8.0, and fills in
+  the sdist's checksum from PyPI once the release is there, or from
+  `--sdist PATH`; until then both carry a placeholder that says so.
+  `tests/test_recipes.py` holds them to the script and to pyproject's
+  dependencies, floors and licence. Checked on an sdist of this branch built
+  as 0.8.0: `brew install --build-from-source` and `brew test` pass, and
+  `brew style` and `brew audit --new --strict --online` pass on the same
+  formula pointed at 0.7.0 on PyPI (on the committed file they fail only on
+  the placeholder's address, which 0.8.0's publication replaces);
+  `rattler-build build` with its tests on Python 3.11 and 3.14, and
+  `conda-smithy recipe-lint --conda-forge`, pass. The formula installs
+  click's completions for bash, zsh and fish. Sluicer does not yet meet
+  homebrew-core's notability rules.
 - The Docker MCP Catalog entry, `packaging/docker-mcp-registry/servers/sluicer/server.yaml`,
   the file a pull request to docker/mcp-registry adds, with `SLUICER_MCP_TOOLS`
   as its one setting. The release writes it pinned to the tagged commit and
