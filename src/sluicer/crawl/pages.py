@@ -38,7 +38,14 @@ from sluicer.crawl.schedule import (
     Schedule,
     Task,
 )
-from sluicer.crawl.urls import canonical_of, links_on, names_a_file, normalise, site_of
+from sluicer.crawl.urls import (
+    canonical_of,
+    links_on,
+    names_a_file,
+    normalise,
+    not_a_start,
+    site_of,
+)
 from sluicer.crawl.web import Parts, Web, default_web
 from sluicer.declared.tdmrep import WELL_KNOWN, TdmRule, read_tdmrep, reservation
 from sluicer.document import load
@@ -281,9 +288,7 @@ def crawl(
     """
     first = normalise(start)
     if first is None:
-        raise ValueError(
-            shown(f"{start!r} is not an http(s) address a crawl can start at")
-        )
+        raise ValueError(shown(not_a_start(start)))
     frontier = _Frontier(
         first, max_pages, max_depth, same_site, _patterns(include), _patterns(exclude)
     )
@@ -702,7 +707,7 @@ class _Visitor:
             return Page(task.url, task.depth, task.found_on, error=error)
 
         if normalise(task.url) is None:
-            return failed("bad_input", f"{task.url!r} is not an http(s) address")
+            return failed("bad_input", not_a_start(task.url))
         # Before its robots.txt is read: that is a request too, and a refused
         # address would come back from it as a robots.txt nobody could read.
         refused = None if self.allow_private else why_not_public(task.url, self.resolve)

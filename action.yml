@@ -26,8 +26,8 @@ inputs:
     default: "0.8.0"
   package:
     description: >-
-      What to install instead, as uv's --with takes it, such as ".[fetch]" for
-      a checkout of Sluicer. Empty installs sluicer[fetch] at the version above.
+      What to install instead, as uv's --with takes it, such as "." for
+      a checkout of Sluicer. Empty installs sluicer at the version above.
     default: ""
 
 outputs:
@@ -63,6 +63,6 @@ runs:
         PACKAGE: ${{ inputs.package }}
         UV_NO_PROGRESS: "1"
       run: |
-        package="${PACKAGE:-sluicer[fetch]==${VERSION}}"
+        package="${PACKAGE:-sluicer==${VERSION}}"
         uv run --no-project --python 3.13 --with "$package" \
           python "$GITHUB_ACTION_PATH/packaging/audit_action.py"

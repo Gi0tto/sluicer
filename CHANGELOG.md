@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
+## 0.8.0 - 2026-09-25
 
 ### Added
 - Every title, author and date scoreboard (WCXB, as served, news,
@@ -72,7 +72,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
   1.8 s with an empty cache, after 8.9 MB (8.5 MB of it Pyodide and lxml).
 - `sluicer serve` answers MCP over streamable HTTP at `/mcp`, for the clients
   that do not start servers over stdio, n8n's and Dify's among them: the MCP
-  SDK's own transport over the same server, the same ten tools with the same
+  SDK's own transport over the same server, the same twelve tools with the same
   schemas and bounds, on the same workers within the same `--timeout`.
   Stateless, POST only, JSON answers. The token and the `Host` check hold as
   for the other routes, and a request whose `Origin` is not the server's own
@@ -85,7 +85,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The image on the GitHub Container Registry: `ghcr.io/gi0tto/sluicer`, for
   amd64 and arm64, at each release's version and at `latest`. The release
   builds it from the tagged source on a runner of each architecture, and
-  pushes it only after a client has listed its ten tools from it over stdio,
+  pushes it only after a client has listed its twelve tools from it over stdio,
   its HTTP API has listed them too, it has been seen to run unprivileged, and
   its licences have been found in it. The push waits for the repository
   variable `PUBLISH_TO_GHCR`, as PyPI's waits for `PUBLISH_TO_PYPI`.
@@ -105,7 +105,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
   at that version with uv, with the two settings the server reads. The
   release stages it with `packaging/build_assets.py`, passes it through the
   official validator (`@anthropic-ai/mcpb` 2.1.2), packs it, unpacks it and
-  lists its ten tools from it before attaching it, once PyPI serves the
+  lists its twelve tools from it before attaching it, once PyPI serves the
   version and the repository variable `PUBLISH_RELEASE_ASSETS` is true.
 - The documentation site serves `llms.txt`, in llmstxt.org's format, and every
   page's markdown at its path with `.md`. `scripts/docs_llms.py`, a hook of
@@ -422,6 +422,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   rejects, and `p:not(:has(b))` to one that selects every `p`. The error
   says which cssselect it needs. Found by the CI job that runs the
   declared minimum versions.
+- `sluicer crawl`, `map` and `batch` at an address with a login
+  (`http://user:password@host/`) say that a crawl does not send one and to
+  pass it as a header or a cookie; they said the address was not http(s).
+- The GitHub Action installs `sluicer` with no extra, where it installed
+  `sluicer[fetch]`, deprecated since this release: an audit fetches over
+  plain HTTP and needs no browser. `package` still installs what it names.
 - `--visible` reads a page whose boxes nest deep in step with its size.
   Each date asked every box round it whether it was hidden and whether it
   sat in a link, a `<time>` had its whole text read, every `<time>` inside
@@ -545,7 +551,7 @@ Dates are the day the work landed. Anything not listed here did not happen.
   selector tool was called. Its evaluation stops at 30 seconds whatever the
   call's budget, which let four hostile selectors hold `sluicer serve`'s
   reading workers for two minutes. Found by the second security review.
-- A caller's selectors can no longer hold a server's workers. XPath lets one
+- A caller's selectors hold a server's workers for 30 seconds at most. XPath lets one
   line cost the cube of a page's size -- `//p[count(//p[count(//p) > 0]) >
   0]` on a 9 KB page of 3,000 paragraphs runs for minutes -- and CSS's
   `p ~ p` took 110 s on 8,000; lxml evaluates both in C, where no thread can
@@ -906,7 +912,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   installed, a speculation rule's prefetch and prerender -- written in the
   page, sent in a `Speculation-Rules` header, added by a script, aimed at
   another site -- and a WebRTC connection to a STUN or a TURN server each
-  reached a private address. Every connection of a guarded page now goes
+  reached a private address. Every connection of a page the browser rung
+  guards now goes
   through a proxy on this machine's loopback (`sluicer.fetch.browser_proxy`)
   that judges each host and port as the HTTP rung does and connects only to
   the addresses it checked, a proxy the caller asked for its way out;

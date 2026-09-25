@@ -374,8 +374,12 @@ def test_has_is_refused_where_cssselect_translates_it_wrongly(monkeypatch):
     selectors._translated.cache_clear()
     try:
         for written in ("div:has(b)", "div + div:has(> a)", "p:not(:has(b))"):
-            with pytest.raises(selectors.SelectorError, match=r"cssselect 1\.5"):
+            with pytest.raises(
+                selectors.SelectorError, match=r"cssselect 1\.5"
+            ) as told:
                 selectors.selector(written)
+            # Not the hint for a mistyped XPath: the selector is CSS.
+            assert "an XPath begins" not in str(told.value)
         assert selectors.selector("div:is(p, b)")
     finally:
         selectors._translated.cache_clear()

@@ -90,6 +90,21 @@ def normalise(url: str) -> str | None:
     return urlunsplit((scheme, netloc, path, query, ""))
 
 
+def not_a_start(url: str) -> str:
+    """Why a crawl cannot start at ``url``, which :func:`normalise` refused."""
+    try:
+        parts = urlsplit(url.strip())
+        login = bool(parts.username or parts.password)
+    except ValueError:
+        login = False
+    if login:
+        return (
+            f"{url!r} carries a login, which a crawl does not send; pass it "
+            "as a header or a cookie instead"
+        )
+    return f"{url!r} is not an http(s) address a crawl can start at"
+
+
 def site_of(url: str) -> str:
     """The site ``url`` belongs to: its host without a leading ``www.``, and its
     port when that is not the default. Empty for an address a crawl cannot take.

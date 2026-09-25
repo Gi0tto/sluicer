@@ -29,7 +29,7 @@ them.
 
 Every other reader is written in the `lxml` the base install already carries.
 Microformats2 has a reference parser, `mf2py`, and an environment holding it
-alone holds twelve packages against a base install of three. A reader that
+alone holds twelve packages against a base install of four. A reader that
 raises unless someone installed something is not a default, so it is behind
 `sluicer[microformats]` and `extract(html, microformats=True)`. It buys
 compatibility with `extruct` rather than reach: across twenty live pages

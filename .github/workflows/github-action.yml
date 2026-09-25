@@ -44,7 +44,7 @@ jobs:
         uses: ./
         with:
           urls: http://127.0.0.1:8000/site/article.html
-          package: ".[fetch]"
+          package: "."
       - name: A page that breaks rules fails the step
         id: broken
         continue-on-error: true
@@ -53,7 +53,7 @@ jobs:
           urls: |
             http://127.0.0.1:8000/site/article.html
             http://127.0.0.1:8000/brake-pads.html
-          package: ".[fetch]"
+          package: "."
       - name: Told never to fail, it only reports
         id: report
         uses: ./
@@ -61,7 +61,7 @@ jobs:
           urls: http://127.0.0.1:8000/brake-pads.html
           fail-on: never
           site: "false"
-          package: ".[fetch]"
+          package: "."
       - name: Each step said what the pages hold
         env:
           CLEAN_ERRORS: ${{ steps.clean.outputs.errors }}

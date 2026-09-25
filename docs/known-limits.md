@@ -120,7 +120,7 @@ than by this pretending, or by `sluicer.compat.extruct`, which builds one.
 **Microformats is off unless you ask, and flattened when you do.** It is the
 only reader behind an extra, because it is the only one that cannot be written
 in the `lxml` the base install already carries: `mf2py` is the reference parser
-and costs twelve packages against a base install of three. `extract(html,
+and costs twelve packages against a base install of four. `extract(html,
 microformats=True)` turns it on and raises `MicroformatsExtraMissing` when the
 extra is absent. What it returns is flat, and a tree is not: a repeated property
 keeps its first value, so a second `p-category` is dropped; a nested item
@@ -166,6 +166,12 @@ rather than decided by the order the page's author typed. What is lost is the
 loser: it is dropped, not kept under a qualified name. Microformats keeps its
 own type spelling: an `h-entry` records `@type` as `h-entry`, so it
 never folds with a schema.org `Article` that means the same thing.
+
+**`:has()` needs cssselect 1.5.** The base install accepts cssselect 1.2,
+and cssselect 1.2 to 1.4 translate `:has()` wrongly: `p + p:has(b)` to an
+XPath lxml rejects, `p:not(:has(b))` to one that selects every `p`. Below
+1.5 a selector with `:has()` is refused, with an error that says so;
+`uv pip install -U cssselect` lifts it.
 
 **A place is an XPath into the page as lxml parsed it, not as a browser
 did.** libxml2 builds its own tree: it adds no `<tbody>` to a table, which a
@@ -529,8 +535,8 @@ logged-in ones too: RFC 9309 reads a 5xx as nothing allowed until it
 answers otherwise, and the failure says so. The archive (`--at`)
 and the stealth rung are sent none.
 
-**The cache serves single pages.** `--cache` is read by `extract`, `inspect`,
-`markdown`, `audit` and `diff`, not by `crawl` or `batch`, whose state file is
+**The cache serves single pages.** `--cache` is read by `fetch`, `extract`,
+`inspect`, `markdown`, `audit`, `diff`, `feed` and `select`, not by `crawl` or `batch`, whose state file is
 their memory, nor by the MCP server. A page that came from the browser rung is
 not revalidated, since a browser sends no validators it was not given: it is
 fetched again, and kept again.
@@ -726,7 +732,10 @@ decompression, so a gzip that inflates to gigabytes costs the bound; before
 to the same bound only once the page is loaded: the browser's own memory is the
 browser's.
 
-**Every error answer has `is_error` false.** A missing extra, a robots
+**A tool's own error answers have `is_error` false.** Two answers are MCP's
+failures instead, `isError` true: arguments that do not fit a tool's input
+schema, which the MCP SDK refuses before the tool runs, and a call to `sluicer
+serve`'s `/mcp` that runs past its time (`timed_out:`). A missing extra, a robots
 refusal, a refused address, a failed fetch, a page too heavy and a bad input
 come back as results, `{"ok": false, "error": {"code", "message",
 "retryable"}}`, not as protocol failures, so an agent that branches only on the

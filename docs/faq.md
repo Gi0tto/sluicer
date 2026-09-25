@@ -51,7 +51,11 @@ declared first and the guesses after it:
 | Sluicer | 73.6% | 77.9% | 83 |
 | trafilatura | 83.3% | 44.1% | 630 |
 
-The scoreboards have not measured it yet.
+On the pages it was not made on, each scoreboard's section "What `--visible`
+adds" scores it: it finds more authors and dates -- on WCXB 0.649 and 0.717
+of them against 0.532 and 0.581 -- and invents some, 33 answers on WCXB's 511
+pages, so its dates are right less often when it answers (0.823 against
+0.917).
 
 ## Is it ready for production?
 

@@ -98,7 +98,7 @@ header or a cookie.
 | `proxy` | every command that fetches | the proxy, as `--proxy` takes it; `SLUICER_PROXY` wins; a file you name only |
 | `header` | every command that fetches | a list of `"NAME: VALUE"`, as `-H`; a file you name only |
 | `cookie` | every command that fetches | a list of `"NAME=VALUE"`, as `--cookie`; a file you name only |
-| `cache` | `fetch`, `extract`, `inspect`, `markdown`, `diff`, `audit`, `feed` | the cache directory; a file you name only |
+| `cache` | `fetch`, `extract`, `inspect`, `markdown`, `diff`, `audit`, `feed`, `select` | the cache directory; a file you name only |
 | `max-age` | the same | seconds a kept page is good for, with `cache` |
 | `no-robots` | the commands that take `--no-robots` | `true` fetches where robots.txt says no; a file you name only |
 | `respect` | the commands that take `--respect` | a list: `["tdm"]` |

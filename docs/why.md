@@ -45,7 +45,7 @@ could not be checked from the project's own code or README.
 | robots.txt, by default | obeyed, and not fetched when it cannot be read | not obeyed unless `robots_txt_obey` | not checked unless `check_robots_txt` | obeyed in a crawl; a single scrape only under a team setting | does not fetch | obeyed by its spider |
 | Bot protection | none: it announces itself | its fetchers bypass anti-bot systems, its README says | a stealth mode, its README says | the service's job, its README says | does not fetch | does not fetch |
 | When a site's layout changes | fails loudly, exit 3; `heal` says what moved | relocates an element by similarity, when asked | ? | ? | -- | -- |
-| MCP server | eleven tools, each annotated read-only | yes | in its Docker server | yes | no | no |
+| MCP server | twelve tools, each annotated read-only | yes | in its Docker server | yes | no | no |
 | Where it runs | your machine | your machine | your machine, or its Docker server | its cloud with a key, or self-hosted | your machine | your machine |
 
 Read from each project at one commit on 2026-09-24 -- Scrapling `0b85f7e`,
@@ -82,7 +82,7 @@ a currency or a date two ways that mean different things -- 41.90 in JSON-LD
 and 39.90 in OpenGraph -- `conflicts` lists both, with their places, instead of
 choosing one silently. Four of Zyte's 140 product pages do.
 
-**The tags nobody owns.** Across the 359 commercial pages of a public annotated
+**The tags nobody owns.** Across the 359 article, listing, collection and product pages of a public annotated
 corpus, `article:published_time` is on 33% and `<meta name="author">` on 29%.
 The first is OpenGraph's `article:` namespace; the second belongs to no
 vocabulary, and Sluicer reports it as `"source": "html"`, because that is what
@@ -103,7 +103,7 @@ request says `Sluicer/<version>`, borrows no browser's referer or fingerprint,
 and obeys `robots.txt` -- and nothing is fetched when `robots.txt` cannot be
 read, as RFC 9309 says. The stealth rung exists and never runs unless asked.
 
-**A tool an agent can trust.** Eleven MCP tools, each answer with `ok` and an
+**A tool an agent can trust.** Twelve MCP tools, each answer with `ok` and an
 output schema, an error that can never be mistaken for the page, and a server
 that keeps every request -- redirects, images, frames, websockets -- off
 private addresses unless told otherwise.

@@ -110,7 +110,7 @@ def _css(text: str, guessed: bool = False) -> Selector:
     try:
         return _translated(text)
     except SelectorError as broken:
-        if not guessed:
+        if not guessed or (not HAS_READ and "cssselect 1.5" in str(broken)):
             raise
         raise SelectorError(
             f"{broken}; an XPath begins with /, ./ or (, or is written after xpath:"

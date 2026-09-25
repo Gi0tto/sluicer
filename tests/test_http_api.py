@@ -927,6 +927,7 @@ def test_connections_that_sent_nothing_make_room_for_a_request():
     /health answered 503 on 60 probes of 60 over a minute. uvicorn counts a
     connection that has sent nothing toward ``limit_concurrency``, so closing
     them in time only made room for the next one."""
+    pytest.importorskip("uvicorn")
     from uvicorn.protocols.http.flow_control import service_unavailable
 
     loop, connect = _connections(limit=4)
@@ -950,6 +951,7 @@ def test_connections_that_sent_nothing_make_room_for_a_request():
 def test_a_connection_inside_a_request_is_never_closed_to_make_room():
     """Only a connection waiting for a request's head is closed for another:
     when every one is in a request, the server is busy, and says 503."""
+    pytest.importorskip("uvicorn")
     from uvicorn.protocols.http.flow_control import service_unavailable
 
     loop, connect = _connections(limit=3)
