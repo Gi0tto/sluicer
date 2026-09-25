@@ -189,7 +189,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says what is sent, to whom, through what, where pages are kept, who
   reaches `serve` and whether robots.txt is obeyed, and a found file that
   tries is refused, naming the key. It must also be the user's and writable
-  by no one else. `no-robots = true` from a file is said on stderr on every
+  by no one else, through its mode or a macOS access list, which the mode
+  does not show. `no-robots = true` from a file is said on stderr on every
   run. `docs/configuration.md` and `SECURITY.md` say all of it.
 - `tomli>=1.0.3` on Python 3.10 only, to read that file: 3.10 has no
   `tomllib`. MIT, pure Python, no dependencies; 1.0.3 is the first that

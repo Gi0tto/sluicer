@@ -554,3 +554,34 @@ def test_a_file_the_variable_names_may(here, fetched, tmp_path_factory):
     assert result.exit_code == 0, result.output
     assert fetched[0]["proxy"] == "http://127.0.0.1:8080"
     assert fetched[0]["headers"] == {"X-Team": "data"}
+
+
+def _acl(path: Path, entry: str) -> None:
+    import subprocess
+
+    subprocess.run(["/bin/chmod", "+a", entry, str(path)], check=True)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS's access lists")
+def test_a_file_found_that_an_access_list_lets_others_write_is_refused(here, crawled):
+    """Found by security review: macOS's access lists are not in the mode
+    bits, and one granting everyone write passed the check."""
+    found = _write(here / "sluicer.toml", "delay = 4\n")
+    found.chmod(0o600)
+    _acl(found, "everyone allow write")
+
+    result = _run("crawl", URL)
+
+    assert result.exit_code == 2 and crawled == []
+    assert "others can write" in result.stderr
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS's access lists")
+def test_an_access_list_that_only_denies_is_no_reason_to_refuse(here, crawled):
+    found = _write(here / "sluicer.toml", "delay = 4\n")
+    found.chmod(0o600)
+    _acl(found, "everyone deny write")
+
+    _run("crawl", URL)
+
+    assert crawled[0]["min_delay"] == 4

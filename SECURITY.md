@@ -39,7 +39,8 @@ directories above the one you run in may be a repository's you cloned, so it
 may not set a proxy, a header, a cookie, the cache directory, `serve`'s host
 or `no-robots`: those come only from a file you name with `--config` or
 `SLUICER_CONFIG`, and a file found that tries is refused before anything runs.
-A found file that another user owns or can write is refused too. In 0.8's first form a cloned repository's
+A found file that another user owns or can write, through its mode or a macOS
+access list, is refused too. In 0.8's first form a cloned repository's
 `pyproject.toml` could set `proxy`, and a `--cookie` session given on the
 command line went through that proxy in plain HTTP.
 

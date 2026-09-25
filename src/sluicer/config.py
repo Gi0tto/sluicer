@@ -319,7 +319,7 @@ def _check_owner(path: Path) -> None:
     status = path.stat()
     if status.st_uid != os.getuid():
         why = "belongs to another user"
-    elif status.st_mode & 0o022:
+    elif status.st_mode & 0o022 or _listed_writers(path):
         why = "others can write it"
     else:
         return
@@ -328,6 +328,63 @@ def _check_owner(path: Path) -> None:
         f"behalf: make it yours alone (chmod go-w), name it with --config, or "
         f"run with --no-config."
     )
+
+
+# macOS's access lists, <sys/acl.h>: what an entry may allow that changes a
+# file -- writing, appending, deleting it, and changing its list or its owner.
+_ACL_TYPE_EXTENDED = 0x100
+_ACL_FIRST_ENTRY, _ACL_NEXT_ENTRY = 0, -1
+_ACL_EXTENDED_ALLOW = 1
+_ACL_CHANGES = (1 << 2, 1 << 4, 1 << 5, 1 << 12, 1 << 13)
+
+
+def _listed_writers(path: Path) -> bool:
+    """Whether an access list on ``path`` allows anyone to change it.
+
+    macOS keeps access lists beside the mode bits, which do not show them:
+    ``chmod +a "everyone allow write"`` leaves a file ``-rw-------``. Linux's
+    lists show in the group bits, which the mode check reads. Where the list
+    cannot be asked for, there is taken to be none, as on a system with no
+    owners.
+    """
+    if sys.platform != "darwin":
+        return False
+    import ctypes
+    import ctypes.util
+
+    try:
+        libc = ctypes.CDLL(ctypes.util.find_library("c"))
+        get_file, get_entry = libc.acl_get_file, libc.acl_get_entry
+        get_tag, get_permset = libc.acl_get_tag_type, libc.acl_get_permset
+        get_perm, free = libc.acl_get_perm_np, libc.acl_free
+    except (OSError, AttributeError):
+        return False
+    get_file.restype = ctypes.c_void_p
+    get_file.argtypes = [ctypes.c_char_p, ctypes.c_int]
+    get_entry.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+    get_tag.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    get_permset.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    get_perm.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    free.argtypes = [ctypes.c_void_p]
+    acl = get_file(os.fsencode(path), _ACL_TYPE_EXTENDED)
+    if not acl:
+        return False
+    try:
+        entry, tag, perms = ctypes.c_void_p(), ctypes.c_int(), ctypes.c_void_p()
+        which = _ACL_FIRST_ENTRY
+        while get_entry(acl, which, ctypes.byref(entry)) == 0:
+            which = _ACL_NEXT_ENTRY
+            if get_tag(entry, ctypes.byref(tag)) != 0:
+                continue
+            if tag.value != _ACL_EXTENDED_ALLOW:
+                continue
+            if get_permset(entry, ctypes.byref(perms)) != 0:
+                continue
+            if any(get_perm(perms, change) == 1 for change in _ACL_CHANGES):
+                return True
+        return False
+    finally:
+        free(acl)
 
 
 def _read(path: Path, from_pyproject: bool) -> dict[str, Any]:

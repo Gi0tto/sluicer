@@ -61,7 +61,7 @@ fetch are kept, who can reach `sluicer serve`, and whether robots.txt is
 obeyed. Only a file you name, with `--config` or `SLUICER_CONFIG`, sets
 those; one found that tries is refused, naming the key and what to do. It must
 also be yours, and writable by you alone: one someone else can write, in a
-shared directory above yours, is refused too. A
+shared directory above yours or through a macOS access list, is refused too. A
 file you name is read as you named it.
 
 ## What wins
