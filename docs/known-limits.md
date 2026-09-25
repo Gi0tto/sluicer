@@ -138,7 +138,10 @@ a JSON-LD block's words are named through its `@context` -- `ex:colour` under
 `{"ex": "http://example.com/"}` is `http://example.com/colour`, and a `name`
 the context maps to FOAF is FOAF's -- while a word the context says nothing
 about, or one a context elsewhere would define, is kept as written, since only
-schema.org's own context is known and nothing is fetched. The precedence decides who
+schema.org's own context is known and nothing is fetched. Two words of one
+object that name one property -- `price` and `schema:price` -- give one value:
+the word written as the name itself, wherever the object lists it, and failing
+that the first written; its place points at the key the page wrote. The precedence decides who
 wins -- JSON-LD, microdata, microformats, RDFa, Dublin Core, OpenGraph, the
 Twitter card, HTML's own metadata names -- so the answer is stated and stable
 rather than decided by the order the page's author typed. What is lost is the

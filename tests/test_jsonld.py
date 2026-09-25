@@ -456,3 +456,89 @@ def test_a_context_of_terms_defined_through_each_other_costs_a_bounded_amount():
     )
 
     assert list(record.fields) == ["t4999", "http://example.com/x/x/"]
+
+
+def _page(block: str) -> str:
+    script = f'<script type="application/ld+json">{block}</script>'
+    return f"<html><head>{script}</head></html>"
+
+
+def test_a_word_written_as_its_own_name_wins_over_one_spelt_otherwise():
+    """Found by review: ``schema:price`` and ``price`` name one property, and
+    the first written won, so the price was 6 where 0.7.1 and every reader
+    that goes by the key read 5. The key written as the name wins, wherever
+    it stands; among other spellings, the first written."""
+    from sluicer import extract
+
+    for offer in (
+        '{"@type": "Offer", "schema:price": "6", "price": "5"}',
+        '{"@type": "Offer", "price": "5", "schema:price": "6"}',
+        '{"@type": "Offer", "http://schema.org/price": "7", "schema:price": "6",'
+        ' "price": "5"}',
+    ):
+        found = extract(
+            _page(
+                '{"@context": "https://schema.org", "@type": "Product", "name": "N",'
+                f' "offers": {offer}}}'
+            )
+        )
+        assert found.records[0].fields["offers"].value == {
+            "@type": "Offer",
+            "price": "5",
+        }, offer
+        assert (found.summary["price"].value, found.summary["price"].where) == (
+            "5",
+            "/html/head/script[1]#/offers/price",
+        ), offer
+
+    record = _record(
+        '{"@context": "https://schema.org", "@type": "Product",'
+        ' "schema:sku": "A", "sku": "B", "schema:gtin": "1",'
+        ' "http://schema.org/gtin": "2", "mpn": "", "schema:mpn": "M"}'
+    )
+    assert {name: (f.value, f.where) for name, f in record.fields.items()} == {
+        "sku": ("B", "/html/head/script[1]#/sku"),
+        "gtin": ("1", "/html/head/script[1]#/schema:gtin"),
+        "mpn": ("M", "/html/head/script[1]#/schema:mpn"),
+    }
+
+
+def test_a_value_named_otherwise_than_written_is_placed_at_the_key_written():
+    """Found by review: the pointer named the key the record calls the value
+    by, ``/offers/price``, and the page wrote ``schema:price``: a pointer to a
+    key the block does not have."""
+    from sluicer import extract
+
+    found = extract(
+        _page(
+            '{"@context": "https://schema.org", "@type": "Product", "name": "N",'
+            ' "offers": [{"@type": "Offer", "schema:price": "6",'
+            ' "schema:seller": {"@type": "Organization", "schema:name": "S"}}]}'
+        )
+    )
+
+    assert (found.summary["price"].value, found.summary["price"].where) == (
+        "6",
+        "/html/head/script[1]#/offers/0/schema:price",
+    )
+    offers = found.records[0].fields["offers"]
+    from sluicer.declared.located import place
+
+    assert place(offers.value, offers.where, [0, "seller", "name"]) == (
+        "/html/head/script[1]#/offers/0/schema:seller/schema:name"
+    )
+
+
+def test_the_audit_reads_the_word_written_as_its_own_name_too():
+    from sluicer.audit.records import normalise
+    from sluicer.declared.jsonld import Terms
+
+    assert normalise(
+        {
+            "@context": "https://schema.org",
+            "@type": "Offer",
+            "schema:price": "6",
+            "price": "5",
+        },
+        terms=Terms(),
+    ) == {"@type": ["Offer"], "price": "5"}

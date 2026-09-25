@@ -219,7 +219,7 @@ def _record_from(
     terms: Terms | None = None,
 ) -> Record:
     """One item as a record. ``terms``, for JSON-LD, names its words through
-    their context; two words naming one property give the first's value."""
+    their context; of two words naming one property, see ``_named``."""
     if terms is not None and "@context" in item:
         terms = terms.within(item["@context"])
     types = _types(item.get("@type"), terms)
@@ -230,21 +230,43 @@ def _record_from(
         source=source,
         where=paid(places, lambda: spell(at, positions)),
     )
-    for key, value in item.items():
+    for name, keys in _named(item, terms).items():
+        for key in keys:
+            normalised = _json(item[key], 0, None if at is None else (at, key), terms)
+            if normalised is None:
+                continue
+            record.fields[name] = Field(
+                value=normalised,
+                source=source,
+                where=paid(places, partial(place, item, at, (key,), positions)),
+            )
+            break
+    return record
+
+
+def _named(value: dict[str, Any], terms: Terms | None) -> dict[str, list[str]]:
+    """``value``'s words by the name each gives, keywords left out.
+
+    Two words can name one property -- ``price`` and ``schema:price`` under
+    schema.org's context -- and a record holds one value for it. The word
+    written as the name itself comes first, wherever it stands: it is the key
+    0.7.1 read, and every reader that goes by the key, so the answer does not
+    turn on the order a page lists its keys in. The other spellings follow,
+    first written first. The first of them with a value gives the property.
+    """
+    named: dict[str, list[str]] = {}
+    for key in value:
         if key.startswith("@"):
             continue
         name = key if terms is None else terms.name(key)
-        if name in record.fields:
-            continue
-        normalised = _json(value, 0, None if at is None else (at, key), terms)
-        if normalised is None:
-            continue
-        record.fields[name] = Field(
-            value=normalised,
-            source=source,
-            where=paid(places, partial(place, item, at, (key,), positions)),
-        )
-    return record
+        held = named.get(name)
+        if held is None:
+            named[name] = [key]
+        elif key == name:
+            held.insert(0, key)
+        else:
+            held.append(key)
+    return named
 
 
 def _json(
@@ -261,7 +283,8 @@ def _json(
     ``Located``, so a value read deep inside a field can still say where it
     was; one a reader placed keeps the reader's place. ``terms`` names a
     JSON-LD object's words, in its own context when it declares one; a
-    place keeps the word as the page wrote it.
+    place keeps the word as the page wrote it, and a word named otherwise is
+    placed through the object's ``props`` at the key written.
     """
     if depth > MAX_DEPTH:
         return None
@@ -280,7 +303,8 @@ def _json(
             return _json(value[keyword], depth + 1, _on(at, keyword), terms)
     node: dict[str, JsonValue]
     if isinstance(value, Located):
-        node = Located(at=value.at, props=value.props)
+        # Its own, since a word renamed below is placed through it.
+        node = Located(at=value.at, props=dict(value.props))
     elif at is not None:
         node = Located(at=at)
     else:
@@ -289,12 +313,16 @@ def _json(
     if terms is not None and "@context" in value:
         terms = terms.within(value["@context"])
     out: dict[str, JsonValue] = {}
-    for key, item in value.items():
-        if key.startswith("@"):
-            continue
-        normalised = _json(item, depth + 1, _on(here, key), terms)
-        if normalised is not None:
-            out.setdefault(key if terms is None else terms.name(key), normalised)
+    for name, keys in _named(value, terms).items():
+        for key in keys:
+            normalised = _json(value[key], depth + 1, _on(here, key), terms)
+            if normalised is None:
+                continue
+            out[name] = normalised
+            if here is not None and key != name:
+                # A value is placed at the key the page wrote, not at its name.
+                here.props[name] = (here, key)
+            break
     if not out:
         identifier = _scalar(value.get("@id"))
         if identifier is None:

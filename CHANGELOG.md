@@ -391,7 +391,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the product's title, and `ex:foo` stayed a word no one could read. A word
   the context says nothing about is kept as written, as before: only
   schema.org's context is known, nothing is fetched, and a definition naming
-  no address is not followed. The audit names them the same way. Over the
+  no address is not followed. The audit names them the same way. Two words
+  of one object that name one property -- `price` and `schema:price` under
+  schema.org's context -- give the value of the one written as the name
+  itself, wherever the object lists it, as 0.7.1 and every reader that goes
+  by the key read it; failing that, the first written. A value's place
+  points at the key the page wrote, `#/offers/schema:price`, never at the
+  name the record gives it. Over the
   3,976 cached corpus pages the summary, `normalised` and conflicts are
   unchanged; records change on 5 pages, each a word of another vocabulary now
   named by its address: Contao's `contao:` properties and `contao:Page` type
