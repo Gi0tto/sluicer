@@ -138,3 +138,24 @@ def test_the_table_says_the_machine_and_every_version():
     # second, peak memory, install size, packages.
     assert "| 0.0300 |" in row and "| 3.00 (1.00\u20135.00) |" in row
     assert "| 4.8 MiB |" in row and row.endswith("| 3 |")
+
+
+def test_a_tool_s_interpreter_is_found_outside_this_checkout(monkeypatch):
+    """Asked from the checkout, uv finds its .venv first, and an environment
+    made on it holds every package of the checkout's own: extruct was timed
+    with 87 packages installed where its pins hold 22."""
+    asked = []
+
+    def run(command, **kwargs):
+        asked.append((command, kwargs))
+
+        class Found:
+            stdout = "/managed/bin/python3.14\n"
+
+        return Found()
+
+    monkeypatch.setattr(timing.subprocess, "run", run)
+    assert timing.interpreter("3.14") == "/managed/bin/python3.14"
+    command, kwargs = asked[0]
+    assert command[:4] == ["uv", "python", "find", "--managed-python"]
+    assert kwargs["cwd"] == "/" and "VIRTUAL_ENV" not in kwargs["env"]

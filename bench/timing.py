@@ -325,7 +325,27 @@ def _machine() -> dict[str, Any]:
     }
 
 
+def interpreter(version: str) -> str:
+    """A uv-managed Python ``version``, found from outside this checkout:
+    asked from inside it, uv finds the checkout's own ``.venv`` first, and an
+    environment made on it holds every package the checkout's does -- extruct
+    was timed with 87 packages where its pins hold 22."""
+    env = {key: value for key, value in os.environ.items() if key != "VIRTUAL_ENV"}
+    found = subprocess.run(
+        ["uv", "python", "find", "--managed-python", version],
+        cwd="/",
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return found.stdout.strip()
+
+
 def _run_one(table: Table, pages: Path) -> Callable[[str, int], dict[str, Any]]:
+    python = interpreter(table.python)
+
     def run_one(tool: str, _round: int) -> dict[str, Any]:
         env = dict(os.environ)
         if tool == "metascraper":
@@ -338,7 +358,7 @@ def _run_one(table: Table, pages: Path) -> Callable[[str, int], dict[str, Any]]:
             ]
         else:
             command = [
-                "uv", "run", "--no-project", "--python", table.python,
+                "uv", "run", "--no-project", "--python", python,
                 *board.requirements(tool), "python", str(WORKER), tool, str(pages),
             ]  # fmt: skip
         found = subprocess.run(
@@ -391,7 +411,8 @@ def publish() -> None:
         said += refusals(record, versions, commit)
         if said:
             raise SystemExit(f"refusing to print the {name} timing: " + "; ".join(said))
-        sections += [f"## {table.title.capitalize()}", "", *table_lines(name, record)]
+        heading = table.title[0].upper() + table.title[1:]
+        sections += [f"## {heading}", "", *table_lines(name, record)]
     lines = [
         "# Speed and weight",
         "",
