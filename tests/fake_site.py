@@ -8,7 +8,9 @@ the last request" is something a test can see. Nothing here opens a socket.
 
 A page is ``(status, body, headers)``, or a bare string for a 200 page. A
 ``Location`` header makes a redirect, followed the way the HTTP rung follows
-one, hop by hop.
+one, hop by hop. An exception is raised as a failed request would be, and a
+list is the answers of an address in turn, its last one kept for every later
+request: a page that fails once and then answers.
 """
 
 from __future__ import annotations
@@ -58,6 +60,8 @@ class FakeWeb:
         self.clock.now += self.cost
         self.requests.append((url, started, self.clock.now))
         answer = self.pages.get(url, (404, "<html><body>Not found</body></html>", {}))
+        if isinstance(answer, list):
+            answer = answer.pop(0) if len(answer) > 1 else answer[0]
         if isinstance(answer, BaseException):
             raise answer
         if isinstance(answer, str):

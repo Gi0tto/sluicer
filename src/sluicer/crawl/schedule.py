@@ -2,11 +2,12 @@
 
 Politeness is what this module is for. A site is never asked twice at once, and
 never again sooner than its delay after its last request ended: at least
-``DEFAULT_DELAY_SECONDS``, longer when its robots.txt asks. Every request
-counts -- its robots.txt, its sitemaps, its pages. Different sites are asked
-side by side, up to a bound. "Never twice at once" holds for the process, not
-only for one crawl: each request is made holding its site in
-``sluicer.fetch.gate``, which every other fetch holds too.
+``DEFAULT_DELAY_SECONDS``, longer when its robots.txt asks, and at least as
+long as it has lately taken to answer. Every request counts -- its robots.txt,
+its sitemaps, its pages. Different sites are asked side by side, up to a
+bound. "Never twice at once" holds for the process, not only for one crawl:
+each request is made holding its site in ``sluicer.fetch.gate``, which every
+other fetch holds too.
 
 Order is the other promise. Tasks are numbered as they are added, and the pages
 come back in that order whatever order they finished in, so the same crawl of
@@ -47,6 +48,13 @@ SLOWING_STATUSES = frozenset({429, 503})
 
 CONCURRENCY = 4
 """How many sites are asked at the same moment, never more than once each."""
+
+RETRIES = 2
+"""How many times a crawl asks again for a page whose request may succeed
+later: one that did not answer -- a connection reset, a timeout, a name that
+did not resolve, a robots.txt that could not be read -- or answered 429 or a
+5xx. Never a 4xx but 429: a 404 or a 403 is the site's answer about the page,
+and asking again gets it again."""
 
 LOOKAHEAD = 256
 """How far past the first unfinished task a free site may be served from.
@@ -106,14 +114,26 @@ class Politeness:
         sleep: Callable[[float], None] = time.sleep,
         ended: MutableMapping[str, float] | None = None,
         gate: Gate = GATE,
+        ceiling: float = MAX_DELAY_SECONDS,
     ) -> None:
         self.min_delay = min_delay
+        self.ceiling = ceiling
         self.clock = clock
         self.sleep = sleep
         self.gate = gate
         self._read = read
         self._ended = gate.ended if ended is None else ended
         self._delays: dict[str, float] = {}
+        # What robots.txt and ours ask, before anything the site's answers
+        # added: what a retry's backoff doubles.
+        self._rules: dict[str, float] = {}
+        # How long each site has lately taken to answer, and when the request
+        # it is answering now began.
+        self._latency: dict[str, float] = {}
+        self._began: dict[str, float] = {}
+        # Sites whose last page failed through all its retries: asked once a
+        # page until one of their requests is answered.
+        self._failing: set[str] = set()
         # What a site's own answers asked for: a delay it doubled by a 429 or
         # a 503 with no Retry-After, a moment a Retry-After named, and one it
         # named past what the crawl waits for, until which it is not asked.
@@ -125,12 +145,14 @@ class Politeness:
     @contextmanager
     def turn(self, url: str, delay: float | None = None) -> Iterator[None]:
         """Make one request to ``url``'s site: holding it, after ``delay`` (the
-        delay known for it by default), and counted when the block ends."""
+        delay known for it by default), and counted, and timed, when the block
+        ends."""
         with self.gate.hold(url):
             if delay is None:
                 self.rest(url)
             else:
                 self.wait(url, delay)
+            self.began(url)
             try:
                 yield
             finally:
@@ -153,6 +175,7 @@ class Politeness:
             return f"it leads off {site_of(current)}, to {site_of(target) or target}"
         self.ended(current)
         self.rest(target)
+        self.began(target)
         return None
 
     def paced(self, rungs: Sequence[tuple[str, Rung]]) -> list[tuple[str, Rung]]:
@@ -187,6 +210,7 @@ class Politeness:
         """
         delay = max(self.min_delay, robots_delay(url, self.reader, now=self.clock))
         with self._lock:
+            self._rules[site_of(url)] = delay
             delay = max(delay, self._slowed.get(site_of(url), 0.0))
             self._delays[site_of(url)] = delay
         return delay
@@ -225,24 +249,92 @@ class Politeness:
         """When ``site`` may next be asked, as far as is known without asking."""
         with self._lock:
             ended = self._ended.get(site)
-            delay = self._delays.get(site, self.min_delay)
+            delay = max(self._delays.get(site, self.min_delay), self._pace(site))
             until = self._not_before.get(site, -math.inf)
         return max(until, -math.inf if ended is None else ended + delay)
 
     def wait(self, url: str, delay: float) -> None:
-        """Sleep until ``url``'s site has rested ``delay`` seconds."""
+        """Sleep until ``url``'s site has rested ``delay`` seconds, or as long
+        as it has lately taken to answer, when that is longer."""
+        site = site_of(url)
         with self._lock:
-            ended = self._ended.get(site_of(url))
-            until = self._not_before.get(site_of(url), -math.inf)
+            ended = self._ended.get(site)
+            until = self._not_before.get(site, -math.inf)
+            delay = max(delay, self._pace(site))
         ready = max(until, -math.inf if ended is None else ended + delay)
         rest = ready - self.clock()
         if rest > 0:
             self.sleep(rest)
 
-    def ended(self, url: str) -> None:
-        """Note that a request to ``url``'s site has just ended."""
+    def began(self, url: str) -> None:
+        """Note that a request to ``url``'s site starts now, to time it."""
         with self._lock:
-            self._ended[site_of(url)] = self.clock()
+            self._began[site_of(url)] = self.clock()
+
+    def ended(self, url: str) -> None:
+        """Note that a request to ``url``'s site has just ended, and how long
+        it took when its start was noted.
+
+        The pace follows the answers as Scrapy's AutoThrottle does, for one
+        request at a time: each one's seconds are averaged with the pace
+        before, so one slow answer moves it halfway and a site that stays slow
+        is soon asked as slowly as it answers.
+        """
+        site = site_of(url)
+        with self._lock:
+            now = self.clock()
+            self._ended[site] = now
+            began = self._began.pop(site, None)
+            if began is not None:
+                took = now - began
+                known = self._latency.get(site)
+                self._latency[site] = took if known is None else (known + took) / 2
+
+    def pace(self, url: str) -> float:
+        """The rest ``url``'s site has earned by how long it takes to answer:
+        its recent answers' seconds, never more than the crawl's ceiling."""
+        with self._lock:
+            return self._pace(site_of(url))
+
+    def _pace(self, site: str) -> float:
+        return min(self.ceiling, self._latency.get(site, 0.0))
+
+    def backoff(self, url: str, retry: int) -> float | None:
+        """How many seconds after its last request ended ``url``'s site is
+        asked again for a page's ``retry``-th time, counting from 1; None when
+        it is not asked again.
+
+        Twice the site's delay for the first retry, four times for the second,
+        and so on: the delay its robots.txt and ours ask, doubled each time, or
+        longer when the site asked for longer -- a Retry-After, a delay a 429
+        doubled, a pace its slow answers set -- and never more than the
+        crawl's ceiling but for a Retry-After within it. None for a site whose
+        last page failed through all its retries, until it answers again.
+        """
+        site = site_of(url)
+        with self._lock:
+            if site in self._failing:
+                return None
+            rule = self._rules.get(site, self.min_delay)
+            current = max(self._delays.get(site, self.min_delay), self._pace(site))
+            ended = self._ended.get(site)
+            until = self._not_before.get(site, -math.inf)
+        wait = min(self.ceiling, max(rule * 2.0**retry, current))
+        return wait if ended is None else max(wait, until - ended)
+
+    def last_ended(self, url: str) -> float | None:
+        """When the last request to ``url``'s site ended, if one is known."""
+        with self._lock:
+            return self._ended.get(site_of(url))
+
+    def failing(self, url: str, failed: bool) -> None:
+        """Note whether ``url``'s site failed a page through all its retries
+        (``failed``), or answered one."""
+        with self._lock:
+            if failed:
+                self._failing.add(site_of(url))
+            else:
+                self._failing.discard(site_of(url))
 
 
 def retry_after(headers: dict[str, str]) -> float | None:

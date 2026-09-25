@@ -130,9 +130,12 @@ def test_a_site_saying_too_many_without_a_retry_after_is_asked_half_as_often():
     pages[f"{ROOT}/c/1"] = (429, page("Slow down"), {})
     fake = FakeWeb(pages)
 
-    list(run(fake, max_pages=5))
+    result = list(run(fake, max_pages=5))
 
-    assert fake.gaps("example.com") == [1.0, 1.0, 2.0, 2.0, 2.0]
+    # Each 429 doubles the delay, the two retries' included: 2, 4, then 8 s
+    # for every page after.
+    assert len(result[1].retries) == 2
+    assert fake.gaps("example.com") == [1.0, 1.0, 2.0, 4.0, 8.0, 8.0, 8.0]
 
 
 def test_a_retry_after_longer_than_the_crawl_waits_is_an_answer():
@@ -1035,3 +1038,195 @@ def test_headers_for_a_web_of_ones_own_are_refused_rather_than_dropped():
 def test_a_crawl_refuses_a_user_agent_before_it_asks_anything(monkeypatch):
     with pytest.raises(ValueError, match="User-Agent"):
         crawl(f"{ROOT}/", headers={"User-Agent": "Mozilla/5.0"})
+
+
+# -- retries -------------------------------------------------------------------
+
+
+def requests_of(fake, url):
+    """When each request for ``url`` started and ended, in order."""
+    return [(start, end) for asked, start, end in fake.requests if asked == url]
+
+
+def test_a_page_whose_connection_was_reset_is_asked_again_after_a_backoff():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = [ConnectionResetError("reset by peer"), pages[f"{ROOT}/c/1"]]
+    fake = FakeWeb(pages)
+
+    result = {p.url: p for p in run(fake)}
+
+    again = result[f"{ROOT}/c/1"]
+    assert again.ok and again.found
+    assert [retry.after for retry in again.retries] == [2.0]
+    assert "ConnectionResetError: reset by peer" in again.retries[0].reason
+    failed, answered = requests_of(fake, f"{ROOT}/c/1")
+    assert round(answered[0] - failed[1], 6) == 2.0
+    assert result[f"{ROOT}/c/2"].retries == ()
+
+
+def test_a_server_error_is_asked_again_each_time_twice_as_late():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = [
+        (500, "oops", {}),
+        (502, "gateway", {}),
+        pages[f"{ROOT}/c/1"],
+    ]
+    fake = FakeWeb(pages)
+
+    again = {p.url: p for p in run(fake)}[f"{ROOT}/c/1"]
+
+    assert again.status == 200 and again.found
+    assert [(r.reason, r.after) for r in again.retries] == [
+        ("it answered 500", 2.0),
+        ("it answered 502", 4.0),
+    ]
+
+
+def test_a_page_is_asked_three_times_at_most_and_is_then_what_it_last_was():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = (500, "oops", {})
+    fake = FakeWeb(pages)
+
+    again = {p.url: p for p in run(fake)}[f"{ROOT}/c/1"]
+
+    assert again.status == 500 and len(again.retries) == 2
+    assert len(requests_of(fake, f"{ROOT}/c/1")) == 3
+
+
+def test_no_retries_asks_once():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = ConnectionError("connection reset")
+    fake = FakeWeb(pages)
+
+    again = {p.url: p for p in run(fake, retries=0)}[f"{ROOT}/c/1"]
+
+    assert again.error.code == "fetch_failed" and again.retries == ()
+    assert len(requests_of(fake, f"{ROOT}/c/1")) == 1
+
+
+def test_a_client_error_is_the_page_s_answer_and_never_asked_again():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = (404, "gone", {})
+    pages[f"{ROOT}/c/2"] = (403, "no", {})
+    fake = FakeWeb(pages)
+
+    result = {p.url: p for p in run(fake)}
+
+    assert [result[f"{ROOT}/c/{n}"].status for n in (1, 2)] == [404, 403]
+    assert result[f"{ROOT}/c/1"].retries == result[f"{ROOT}/c/2"].retries == ()
+    assert len(requests_of(fake, f"{ROOT}/c/1")) == 1
+    assert len(requests_of(fake, f"{ROOT}/c/2")) == 1
+
+
+def test_a_robots_file_that_did_not_answer_is_asked_again():
+    pages = shop()
+    pages[f"{ROOT}/robots.txt"] = [ConnectionError("no route"), "User-agent: *\n"]
+    fake = FakeWeb(pages)
+
+    first = next(iter(run(fake)))
+
+    assert first.ok and len(first.retries) == 1
+    assert "robots.txt" in first.retries[0].reason
+
+
+def test_a_retry_waits_the_retry_after_the_site_named_when_it_is_longer():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = [(503, "busy", {"Retry-After": "7"}), pages[f"{ROOT}/c/1"]]
+    fake = FakeWeb(pages)
+
+    again = {p.url: p for p in run(fake)}[f"{ROOT}/c/1"]
+
+    assert again.ok and [r.after for r in again.retries] == [7.0]
+    failed, answered = requests_of(fake, f"{ROOT}/c/1")
+    assert round(answered[0] - failed[1], 6) == 7.0
+
+
+def test_a_site_that_failed_a_page_through_its_retries_is_asked_once_a_page():
+    """A site that is down costs its retries once, not once a page; the first
+    page it answers makes its failures worth retrying again."""
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = ConnectionError("down")
+    pages[f"{ROOT}/c/2"] = ConnectionError("down")
+    pages[f"{ROOT}/p/1"] = [ConnectionError("blip"), pages[f"{ROOT}/p/1"]]
+    fake = FakeWeb(pages)
+    listed = [f"{ROOT}/c/1", f"{ROOT}/c/2", f"{ROOT}/about", f"{ROOT}/p/1"]
+
+    result = list(
+        extract_many(listed, web=fake.web(), clock=fake.clock, sleep=fake.clock.sleep)
+    )
+
+    assert [len(p.retries) for p in result] == [2, 0, 0, 1]
+    assert [p.ok for p in result] == [False, False, True, True]
+    assert len(requests_of(fake, f"{ROOT}/c/2")) == 1
+
+
+def test_a_retry_that_would_start_past_the_time_budget_is_not_made():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = ConnectionError("connection reset")
+    fake = FakeWeb(pages)
+
+    result = list(run(fake, time_budget=4.0))
+
+    assert result[1].url == f"{ROOT}/c/1" and result[1].retries == ()
+    assert len(requests_of(fake, f"{ROOT}/c/1")) == 1
+
+
+def test_a_retried_page_says_so_in_its_line_and_another_says_nothing():
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = [(503, "busy", {}), pages[f"{ROOT}/c/1"]]
+    pages[f"{ROOT}/c/2"] = ConnectionError("down")
+
+    lines = {p.url: p.to_json() for p in run(FakeWeb(pages), max_depth=1)}
+
+    assert lines[f"{ROOT}/c/1"]["retries"] == [
+        {"reason": "it answered 503", "after": 2.0}
+    ]
+    # The 503 doubled the site's delay to two seconds; the backoff doubles
+    # the delay robots.txt and ours ask, and waits the longer of the two.
+    assert [r["after"] for r in lines[f"{ROOT}/c/2"]["retries"]] == [2.0, 4.0]
+    assert lines[f"{ROOT}/c/2"]["error"]["code"] == "fetch_failed"
+    assert "retries" not in lines[f"{ROOT}/"]
+    json.dumps(lines)
+
+
+def test_a_batch_retries_as_a_crawl_does():
+    pages = shop()
+    pages[f"{ROOT}/p/1"] = [ConnectionResetError("reset"), pages[f"{ROOT}/p/1"]]
+    fake = FakeWeb(pages)
+
+    listed = [f"{ROOT}/p/1", f"{ROOT}/p/2"]
+    result = list(
+        extract_many(listed, web=fake.web(), clock=fake.clock, sleep=fake.clock.sleep)
+    )
+
+    assert [p.ok for p in result] == [True, True]
+    assert len(result[0].retries) == 1 and result[1].retries == ()
+
+
+# -- a pace that follows the site ------------------------------------------------
+
+
+def test_a_site_that_answers_slowly_is_asked_as_slowly():
+    fake = FakeWeb(shop(), cost=3.0)
+
+    list(run(fake, max_pages=4))
+
+    assert fake.gaps("example.com") == [3.0] * 4
+
+
+def test_a_slow_site_is_never_waited_for_longer_than_the_crawl_waits():
+    fake = FakeWeb(shop(), cost=100.0)
+
+    list(run(fake, max_pages=3, max_delay=10.0))
+
+    assert fake.gaps("example.com") == [10.0] * 3
+
+
+def test_a_fast_site_is_still_asked_no_sooner_than_its_crawl_delay():
+    pages = shop()
+    pages[f"{ROOT}/robots.txt"] = "User-agent: *\nCrawl-delay: 4\n"
+    fake = FakeWeb(pages, cost=3.0)
+
+    list(run(fake, max_pages=3))
+
+    assert fake.gaps("example.com") == [4.0, 4.0, 4.0]

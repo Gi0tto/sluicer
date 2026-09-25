@@ -21,7 +21,7 @@ import re
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import IO, Any
 from urllib.parse import urlsplit
@@ -31,6 +31,7 @@ from sluicer.crawl.schedule import (
     CONCURRENCY,
     DEFAULT_DELAY_SECONDS,
     MAX_DELAY_SECONDS,
+    RETRIES,
     Politeness,
     Queue,
     Schedule,
@@ -90,6 +91,16 @@ class PageError:
 
 
 @dataclass(frozen=True)
+class Retry:
+    """One time a page was asked again: ``reason`` is what the request before
+    it came to -- ``it answered 503``, or why it failed -- and ``after`` the
+    seconds from that request's end to this one's start."""
+
+    reason: str
+    after: float
+
+
+@dataclass(frozen=True)
 class Page:
     """One address a crawl or a batch took, and what became of it.
 
@@ -100,7 +111,9 @@ class Page:
     document order; a page that answered 4xx or 5xx has neither, since both
     would be its error page's. ``extraction`` is ``sluicer.extract``'s
     reading, as for one fetch; it and the fetch fields are None exactly when
-    ``error`` is not.
+    ``error`` is not. ``retries`` is every time the page was asked again after
+    a request that may succeed later, oldest first; what the page is, is what
+    its last request came to.
     """
 
     url: str
@@ -115,6 +128,7 @@ class Page:
     canonical: str | None = None
     links: tuple[str, ...] = ()
     error: PageError | None = None
+    retries: tuple[Retry, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -136,6 +150,11 @@ class Page:
             "depth": self.depth,
             "found_on": self.found_on,
         }
+        if self.retries:
+            line["retries"] = [
+                {"reason": retry.reason, "after": round(retry.after, 3)}
+                for retry in self.retries
+            ]
         if self.error is not None:
             error = asdict(self.error)
             if error["target"] is None:
@@ -199,6 +218,7 @@ def crawl(
     min_delay: float = DEFAULT_DELAY_SECONDS,
     max_delay: float = MAX_DELAY_SECONDS,
     concurrency: int = CONCURRENCY,
+    retries: int = RETRIES,
     time_budget: float | None = None,
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
@@ -229,10 +249,15 @@ def crawl(
         respect_tdm: give a page whose site reserves its text and data mining
             rights (TDMRep: its tdmrep.json, headers or meta tags) as a
             ``tdm_reserved`` error, never its data.
-        min_delay: the least seconds between two requests to one site.
-        max_delay: the longest robots.txt ``Crawl-delay`` waited for.
+        min_delay: the least seconds between two requests to one site; a site
+            that takes longer to answer waits as long as it lately took.
+        max_delay: the longest robots.txt ``Crawl-delay`` waited for, and the
+            longest wait a slow site or a retry is given.
         concurrency: how many sites may be asked at once.
-        time_budget: seconds after which no further page is started.
+        retries: how many times a page is asked again when its request did
+            not answer, or answered 429 or a 5xx, each after twice the wait
+            before; 0 asks once.
+        time_budget: seconds after which no further page, or retry, is started.
         allow_private: when false, refuse addresses off the public internet.
         resolve: the name lookup ``allow_private`` decides with.
         max_bytes: the most one page may weigh.
@@ -278,7 +303,9 @@ def crawl(
         max_bytes,
         headers,
         cookies,
+        max_delay,
     )
+    deadline = None if time_budget is None else clock() + time_budget
     visitor = _Visitor(
         web,
         polite,
@@ -289,8 +316,9 @@ def crawl(
         induce,
         kept,
         respect_tdm,
+        retries,
+        deadline,
     )
-    deadline = None if time_budget is None else clock() + time_budget
     schedule: Schedule[Page] = Schedule(visitor.visit, polite, concurrency, deadline)
 
     def pages(run: Crawl) -> Iterator[Page]:
@@ -318,6 +346,7 @@ def extract_many(
     min_delay: float = DEFAULT_DELAY_SECONDS,
     max_delay: float = MAX_DELAY_SECONDS,
     concurrency: int = CONCURRENCY,
+    retries: int = RETRIES,
     time_budget: float | None = None,
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
@@ -379,7 +408,9 @@ def extract_many(
         max_bytes,
         headers,
         cookies,
+        max_delay,
     )
+    deadline = None if time_budget is None else clock() + time_budget
     visitor = _Visitor(
         web,
         polite,
@@ -390,8 +421,9 @@ def extract_many(
         induce,
         None,
         respect_tdm,
+        retries,
+        deadline,
     )
-    deadline = None if time_budget is None else clock() + time_budget
     schedule: Schedule[Page] = Schedule(visitor.visit, polite, concurrency, deadline)
 
     def pages(run: Crawl) -> Iterator[Page]:
@@ -414,6 +446,7 @@ def _reach(
     max_bytes: int,
     headers: Mapping[str, str] | None = None,
     cookies: Mapping[str, str] | None = None,
+    max_delay: float = MAX_DELAY_SECONDS,
 ) -> tuple[Politeness, Web]:
     """The pacing and the web it paces, each built with the other.
 
@@ -422,7 +455,13 @@ def _reach(
     called, by which time both exist.
     """
     reached: list[Web] = []
-    polite = Politeness(lambda url: reached[0].read(url), min_delay, clock, sleep)
+    polite = Politeness(
+        lambda url: reached[0].read(url),
+        min_delay,
+        clock,
+        sleep,
+        ceiling=max_delay,
+    )
     reached.append(
         web
         if web is not None
@@ -523,7 +562,11 @@ class _Visitor:
         induce: bool,
         kept: Callable[[str], str | None] | None,
         respect_tdm: bool = False,
+        retries: int = RETRIES,
+        deadline: float | None = None,
     ) -> None:
+        if retries < 0:
+            raise ValueError(f"retries must be 0 or more, not {retries}")
         self.web = web
         self.polite = polite
         self.rungs = polite.paced(web.rungs)
@@ -534,6 +577,8 @@ class _Visitor:
         self.induce = induce
         self.kept = kept
         self.respect_tdm = respect_tdm
+        self.retries = retries
+        self.deadline = deadline
         # Each site's tdmrep.json, read once, as its robots.txt is.
         self.tdm_rules: dict[str, list[TdmRule]] = {}
 
@@ -566,6 +611,35 @@ class _Visitor:
         return rules
 
     def visit(self, task: Task) -> Page:
+        """Take ``task``, asking again, a bounded number of times and each time
+        later, while what came back may be different later."""
+        retries: list[Retry] = []
+        while True:
+            page = self._take(task)
+            why = _worth_asking_again(page)
+            if why is None:
+                self.polite.failing(task.url, failed=False)
+                break
+            if len(retries) >= self.retries:
+                self.polite.failing(task.url, failed=bool(self.retries))
+                break
+            after = self.polite.backoff(task.url, len(retries) + 1)
+            if after is None or self.polite.refused_for(task.url) > 0:
+                break
+            ended = self.polite.last_ended(task.url)
+            if (
+                self.deadline is not None
+                and ended is not None
+                and ended + after > self.deadline
+            ):
+                break
+            retries.append(Retry(why, after))
+            self.polite.wait(task.url, after)
+        return replace(page, retries=tuple(retries)) if retries else page
+
+    def _take(self, task: Task) -> Page:
+        """One try at ``task``: its robots.txt, its fetch, its reading."""
+
         def failed(
             code: str, message: str, retryable: bool = False, target: str | None = None
         ) -> Page:
@@ -672,6 +746,17 @@ class _Visitor:
             canonical=canonical_of(doc, fetched.headers) if answered else None,
             links=tuple(links_on(doc, fetched.headers)) if answered else (),
         )
+
+
+def _worth_asking_again(page: Page) -> str | None:
+    """What ``page`` came to, when asking again later may bring back more:
+    a fetch that failed -- the page or its robots.txt did not answer -- or a
+    429 or a 5xx. None for any other answer."""
+    if page.error is not None:
+        return page.error.message if page.error.code == "fetch_failed" else None
+    if page.status is not None and (page.status == 429 or page.status >= 500):
+        return f"it answered {page.status}"
+    return None
 
 
 def _patterns(given: Sequence[str]) -> list[re.Pattern[str]]:

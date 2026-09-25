@@ -45,7 +45,7 @@ from sluicer.audit import (
 )
 from sluicer.crawl import Crawl, crawl as crawl_site, extract_many
 from sluicer.crawl.pages import MAX_DEPTH, MAX_PAGES
-from sluicer.crawl.schedule import DEFAULT_DELAY_SECONDS
+from sluicer.crawl.schedule import CONCURRENCY, DEFAULT_DELAY_SECONDS, RETRIES
 from sluicer.crawl.sitemaps import MAX_SITEMAP_URLS, map_site
 from sluicer.declared.microformats import MicroformatsExtraMissing
 from sluicer.declared.readers import READERS
@@ -1679,6 +1679,21 @@ _many_options = [
         "robots.txt Crawl-delay wins when longer.",
     ),
     click.option(
+        "--retries",
+        type=click.IntRange(min=0),
+        default=RETRIES,
+        show_default=True,
+        help="Ask a page again this many times when it did not answer, or "
+        "answered 429 or a 5xx, each time twice as late; never a 4xx.",
+    ),
+    click.option(
+        "--jobs",
+        type=click.IntRange(min=1),
+        default=CONCURRENCY,
+        show_default=True,
+        help="How many sites are asked at once, each still one request at a time.",
+    ),
+    click.option(
         "--induce",
         is_flag=True,
         help="Also read the rows a page repeats when it declares nothing about them.",
@@ -1742,6 +1757,8 @@ def crawl_command(
     out: str | None,
     resume: bool,
     delay: float,
+    retries: int,
+    jobs: int,
     induce: bool,
     respect: tuple[str, ...],
 ) -> None:
@@ -1764,6 +1781,8 @@ def crawl_command(
             induce=induce,
             respect_tdm="tdm" in respect,
             min_delay=delay,
+            retries=retries,
+            concurrency=jobs,
             **_sent(),
         )
     except (FetchExtraMissing, ValueError) as failure:
@@ -1887,6 +1906,8 @@ def batch_command(
     out: str | None,
     resume: bool,
     delay: float,
+    retries: int,
+    jobs: int,
     induce: bool,
     respect: tuple[str, ...],
 ) -> None:
@@ -1920,6 +1941,8 @@ def batch_command(
             induce=induce,
             respect_tdm="tdm" in respect,
             min_delay=delay,
+            retries=retries,
+            concurrency=jobs,
             **_sent(),
         )
     except (FetchExtraMissing, ValueError) as failure:
@@ -1962,6 +1985,8 @@ def _report(pages: Crawl, out: str | None) -> None:
                 click.echo(json.dumps(line, ensure_ascii=False))
                 tally.add(line)
             said = page.error.code if page.error else f"{page.status} {page.rung}"
+            if page.retries:
+                said += f", asked {len(page.retries) + 1} times"
             click.echo(f"{count:>5}  {said}  {page.url}", err=True)
     except KeyboardInterrupt:
         kept = f"; {out} holds them, and --resume continues" if out else ""

@@ -196,6 +196,44 @@ def test_a_missing_extra_found_mid_crawl_says_so_too(monkeypatch):
     assert "needs playwright" in result.stderr
 
 
+def test_a_page_asked_again_says_so_on_stderr(fake):
+    fake.pages[f"{ROOT}/a"] = [ConnectionError("reset"), fake.pages[f"{ROOT}/a"]]
+
+    result = invoke("crawl", f"{ROOT}/")
+
+    assert result.exit_code == 0, result.stderr
+    assert f"    2  200 http, asked 2 times  {ROOT}/a" in result.stderr
+    assert lines(result.stdout)[1]["retries"][0]["after"] == 2.0
+
+
+def test_retries_zero_asks_every_page_once(fake):
+    fake.pages[f"{ROOT}/a"] = ConnectionError("reset")
+
+    result = invoke("crawl", f"{ROOT}/", "--retries", "0")
+
+    assert f"    2  fetch_failed  {ROOT}/a" in result.stderr
+    assert [r[0] for r in fake.requests].count(f"{ROOT}/a") == 1
+
+
+@pytest.mark.parametrize("command", ["crawl", "batch"])
+def test_jobs_is_how_many_sites_are_asked_at_once(monkeypatch, command):
+    asked = []
+
+    def record(*args, **kwargs):
+        asked.append(kwargs)
+        raise ValueError("stop here")
+
+    name = "crawl_site" if command == "crawl" else "extract_many"
+    monkeypatch.setattr(f"sluicer.cli.{name}", record)
+    source = f"{ROOT}/" if command == "crawl" else "-"
+
+    invoke(command, source, "--jobs", "7", stdin=f"{ROOT}/a\n")
+    invoke(command, source, stdin=f"{ROOT}/a\n")
+
+    assert [one["concurrency"] for one in asked] == [7, 4]
+    assert invoke(command, source, "--jobs", "0", stdin="x\n").exit_code == 2
+
+
 # -- batch -----------------------------------------------------------------------
 
 

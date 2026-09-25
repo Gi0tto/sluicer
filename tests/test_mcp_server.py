@@ -1306,6 +1306,27 @@ def test_a_crawl_that_read_nothing_is_not_ok_and_says_why(monkeypatch):
     }
 
 
+def test_a_crawled_page_asked_again_says_so_failed_or_not(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    pages = _shop()
+    pages["https://example.com/a"] = [(503, "busy", {}), pages["https://example.com/a"]]
+    pages["https://example.com/private/x"] = ConnectionError("down")
+    _fake_site_library(monkeypatch, pages)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    answer = registered["crawl_site"]("https://example.com/", max_depth=1)
+
+    got = {page["url"]: page for page in answer["pages"]}
+    assert got["https://example.com/a"]["retries"] == [
+        {"reason": "it answered 503", "after": 2.0}
+    ]
+    failed = got["https://example.com/private/x"]
+    assert failed["error"]["code"] == "fetch_failed"
+    assert len(failed["retries"]) == 2
+    assert "retries" not in got["https://example.com/"]
+
+
 def test_the_crawl_tools_refuse_private_addresses_unless_told(monkeypatch):
     registered = fake_mcp(monkeypatch)
     fake, _ = _fake_site_library(monkeypatch, {})

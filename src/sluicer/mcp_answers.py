@@ -387,6 +387,14 @@ class MapAnswer(TypedDict, total=False):
     truncated: bool
 
 
+class RetryAnswer(TypedDict):
+    """One time a crawled page was asked again: what the request before came
+    to, and the seconds from its end to this one's start."""
+
+    reason: str
+    after: float
+
+
 class CrawledPage(TypedDict, total=False):
     """One page of a crawl: its summary and the types it declared, not its
     records, which ``extract_declared`` gives for any page worth reading whole.
@@ -404,6 +412,7 @@ class CrawledPage(TypedDict, total=False):
     sources: list[str]
     types: list[str]
     links: int
+    retries: list[RetryAnswer]
     error: PageError
 
 
