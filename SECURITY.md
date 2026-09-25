@@ -118,9 +118,15 @@ user's own browser included. So it starts closed:
   of it already decides who may call. The token is read from the environment,
   never from the command line where `ps` shows it, and compared in constant
   time. Only `GET /health`, which says the version, answers without it.
+- `/mcp`, the MCP server over streamable HTTP, is behind the same checks and
+  one more, which MCP's transport requires: a request whose `Origin` is not
+  this server's own is refused with 403 before anything runs. A browser sends
+  an `Origin`; n8n's and Dify's clients, which are not browsers, send none.
+  Only a POST is answered: a GET would hold open a stream the stateless server
+  never writes to.
 - A body over 16 MiB is refused, a request past its time budget (120 seconds
-  by default) is answered 504, and four tool calls that may fetch run at
-  once. A call that fetches nothing, its every page handed in, runs on four
+  by default) is answered 504, at `/mcp` a body that takes longer than that to
+  arrive included, and four tool calls that may fetch run at once. A call that fetches nothing, its every page handed in, runs on four
   workers of its own, so slow sites cannot hold it back.
 
 What it does not do: it speaks plain HTTP, so beyond one machine the token

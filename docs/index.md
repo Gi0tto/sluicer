@@ -152,7 +152,10 @@ or network unless you allow it.
 [In your agent](agents.md)
 covers Cursor, VS Code, Gemini CLI, Claude Desktop, Zed, LangChain, the OpenAI
 Agents SDK and Pydantic AI. For any other language, `sluicer serve` offers the
-same tools over HTTP ([HTTP API](http-api.md)).
+same tools over HTTP ([HTTP API](http-api.md)),
+and at `/mcp` the MCP server itself over streamable HTTP, for n8n, Dify and any
+client that does not start servers over stdio
+([Over HTTP](agents.md#over-http-n8n-and-dify)).
 
 ## Measured, losses included
 

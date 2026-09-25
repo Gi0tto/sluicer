@@ -402,10 +402,11 @@ Usage: sluicer serve [OPTIONS]
   Serve the MCP server's tools over HTTP (needs sluicer[api]).
 
   POST /v1/tools/<name> with the tool's arguments as a JSON object answers what the tool
-  answers; GET /v1/tools and /openapi.json describe them. The token, when
-  SLUICER_API_TOKEN is set, goes in "Authorization: Bearer". Private addresses are
-  refused unless SLUICER_ALLOW_PRIVATE=1, as for the MCP server. Exits 2 without
-  listening when it cannot serve safely.
+  answers; GET /v1/tools and /openapi.json describe them. /mcp is the MCP server itself
+  over streamable HTTP, stateless, for a client that does not start servers over stdio,
+  as n8n's and Dify's do not. The token, when SLUICER_API_TOKEN is set, goes in
+  "Authorization: Bearer". Private addresses are refused unless SLUICER_ALLOW_PRIVATE=1,
+  as for the MCP server. Exits 2 without listening when it cannot serve safely.
 
 Options:
   --host TEXT              Where to listen. Anything but loopback needs

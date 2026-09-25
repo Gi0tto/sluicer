@@ -4,6 +4,20 @@ Dates are the day the work landed. Anything not listed here did not happen.
 
 ## Unreleased
 
+### Added
+- `sluicer serve` answers MCP over streamable HTTP at `/mcp`, for the clients
+  that do not start servers over stdio, n8n's and Dify's among them: the MCP
+  SDK's own transport over the same server, the same ten tools with the same
+  schemas and bounds, on the same workers within the same `--timeout`.
+  Stateless, POST only, JSON answers. The token and the `Host` check hold as
+  for the other routes, and a request whose `Origin` is not the server's own
+  is refused with 403 (`cross_origin`), as the transport requires. A tool call
+  past its time is a failed call (`isError`, `timed_out:`); a refusal of the
+  door is a JSON-RPC error whose `data` carries its code. Configurations for
+  n8n and Dify are in `docs/agents.md` and `docs/http-api.md`, and CI's
+  with-extras job connects the `mcp` package's own client to a real
+  `sluicer serve` (`tests/live/mcp_http_check.py`).
+
 ### Fixed
 - `sluicer serve`: a call that fetches nothing no longer waits behind calls
   that fetch. Four slow sites held every worker, and `extract_declared` on

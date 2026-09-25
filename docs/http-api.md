@@ -6,7 +6,9 @@ tools an agent gets, each in the [MCP reference](reference/mcp.md), with the
 same arguments, the same answers and the same output schemas, because it is
 built from them: an HTTP call goes through the MCP SDK's own `call_tool`, argument
 validation and output-schema check included. A tool the MCP server gains is
-served here with nothing else to change.
+served here with nothing else to change. At `/mcp` it is the MCP server itself,
+over MCP's streamable HTTP transport, for a client that does not start servers
+over stdio: [MCP over HTTP](#mcp-over-http), with n8n and Dify.
 
 It needs the `api` extra, which brings the other three:
 
@@ -104,10 +106,96 @@ Abridged: a real page declares more, and the summary answers more questions.
 | `GET /v1/tools` | needed | `{"ok": true, "tools": [...]}`: every tool as the MCP server lists it, with `name`, `description`, `inputSchema` and `outputSchema` |
 | `POST /v1/tools/{name}` | needed | the tool's answer |
 | `GET /openapi.json` | needed | an OpenAPI 3.1 document, generated from those same schemas |
+| `POST /mcp` | needed | MCP over streamable HTTP: [MCP over HTTP](#mcp-over-http) |
 
 A client generator pointed at `/openapi.json` gets one operation per tool,
 named after it. The tools themselves, and what each argument means, are
 described in the listing and in [Extractors](extractors.md).
+
+## MCP over HTTP
+
+`/mcp` is the MCP SDK's own streamable HTTP transport over the same server:
+the same ten tools, listed with the same descriptions, annotations and both
+schemas, and each call answers what it answers over stdio, the bounds of each
+tool included. A call runs on the same workers as a `POST /v1/tools/{name}`,
+within the same `--timeout`. The token, the `Host` check and the refusal of
+private addresses hold as for every other route.
+
+- **Stateless.** Every tool only reads, so no session is kept: no
+  `Mcp-Session-Id`, and each request stands alone. Both the `initialize`
+  handshake (protocol revisions 2024-11-05 to 2025-11-25) and the 2026-07-28
+  revision, which has none, are answered.
+- **POST only.** A stateless server sends nothing unasked, so a `GET`, which
+  asks for a stream of what the server sends unasked, is answered 405, as the
+  transport allows, and so is every other method.
+- **JSON answers**, one per request, rather than an event stream.
+- **An `Origin` that is not this server's own is refused** with 403
+  (`cross_origin`), as the transport requires of a server: a browser sends
+  one, and this server serves no page. A client that is not a browser sends
+  none, as n8n's and Dify's do not.
+- **A call past its time** is a failed call in MCP's own way, `isError` true
+  and a text starting `timed_out:`. A refusal of the door is a JSON-RPC error
+  with no `id`, its code in `data`:
+  `{"jsonrpc": "2.0", "id": null, "error": {"code": -32600, "message": "...", "data": {"code": "unauthorized"}}}`,
+  with the status of the table below.
+
+The address is `http://127.0.0.1:8000/mcp`, and the token, when there is one,
+goes in `Authorization: Bearer <token>`. Measured on 2026-09-25 against
+`sluicer serve`: the `mcp` Python SDK's client (2.2.0) in both of its modes,
+and the TypeScript SDK's (1.30.1), which n8n's MCP nodes are built on, list the
+ten tools and call `extract_declared`; the TypeScript client asks for the
+stream once, takes the 405 and goes on.
+
+### n8n
+
+The **MCP Client Tool** node, on an AI Agent's Tool input, offers the tools to
+the agent; the **MCP Client** node calls one tool as a step of a workflow. Both
+take the same connection:
+
+| Field | Value |
+|---|---|
+| Endpoint URL | `http://<host>:8000/mcp` |
+| Server Transport | HTTP Streamable |
+| Authentication | Bearer Auth, with a credential whose Bearer Token is `SLUICER_API_TOKEN` |
+| Options > Timeout | above the server's `--timeout`, in milliseconds: `130000` for the default 120 s. The node's own default is 60000. |
+
+In the MCP Client Tool node, Tools to Include can leave out the tools the agent
+does not need; each costs context.
+
+### Dify
+
+Tools > MCP > **Add MCP Server (HTTP)**:
+
+| Field | Value |
+|---|---|
+| Server URL | `http://<host>:8000/mcp` |
+| Name, Server Identifier | `sluicer` |
+| Advanced Options > Custom Headers | `Authorization`: `Bearer <token>` |
+| Advanced Options > Timeouts | above the server's `--timeout` |
+
+Dify takes only MCP servers over HTTP. Neither n8n's nor Dify's clients were
+run here; both configurations are written from their documentation as it read
+on 2026-09-25.
+
+### From a container
+
+n8n and Dify usually run in Docker, and a container's `127.0.0.1` is its own,
+not the host's. So the server has to listen where the container can reach it,
+which is beyond loopback and needs a token:
+
+```bash
+export SLUICER_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+sluicer serve --host 0.0.0.0
+```
+
+and the Endpoint URL names the host as the container sees it:
+`http://host.docker.internal:8000/mcp` with Docker Desktop, or the host's
+address on the Docker network on Linux. Better, run Sluicer as a container on
+the same network as n8n or Dify ([In Docker](#in-docker)) and name it:
+`http://sluicer:8000/mcp`. A server on loopback refuses a `Host` of
+`host.docker.internal` with 421 in any case: a name that is not loopback's is
+what DNS rebinding sends. A Dify or n8n in the cloud reaches only a public
+address, so there the server needs the token and TLS in front of it.
 
 ## Answers and statuses
 
@@ -125,14 +213,15 @@ why, in the shape the MCP tools use: `{"code", "message", "retryable"}`, with
 | `refused_by_site` | 403 | tool | The site answered with a challenge page ("Just a moment..."), on every rung. Not the page, and not to be worked around. |
 | `refused_address` | 403 | tool | A private address, refused unless `SLUICER_ALLOW_PRIVATE=1`. |
 | `not_found` | 404 | door | No tool, or no path, by that name. |
-| `method_not_allowed` | 405 | door | A tool is a POST. |
-| `too_large` | 413 | tool or door | A page over 16 MiB, fetched or handed in, or a request body over 16 MiB. |
+| `cross_origin` | 403 | door | At `/mcp` only: a request whose `Origin` is not this server's own. |
+| `method_not_allowed` | 405 | door | A tool is a POST, and so is `/mcp`. |
+| `too_large` | 413 | tool or door | A page over 16 MiB, fetched or handed in, or a request body over 16 MiB, at `/mcp` too. |
 | `unsupported_media_type` | 415 | door | The body must be `application/json`. |
 | `misdirected` | 421 | door | Listening on loopback, it answers only requests addressed to `localhost`, `127.0.0.1` or `[::1]`. |
 | `internal_error` | 500 | door | A bug. The message is generic; the traceback is in the server's log. |
 | `missing_extra` | 501 | tool | An extra this call needs is not installed; `extra` names it. |
 | `fetch_failed` | 502 | tool | Every rung failed. Retryable. |
-| `timed_out` | 504 | door | The request ran past `--timeout`. Retryable. |
+| `timed_out` | 504 | door | The request ran past `--timeout`. At `/mcp`, a body that took longer to arrive; a tool call past it is a failed call. Retryable. |
 
 `retryable` is true for `fetch_failed` and `timed_out` only: the same call may
 work later. Every other code needs something to change first.
@@ -216,9 +305,22 @@ at 0.30 s, only because asyncio's own cancel is not held. The pools are also
 what bound the calls still running after their 504: four that fetch, and four
 that only parse.
 
-The suite reaches the app through starlette's TestClient, with the real SDK and
-no socket, and CI runs it with the network taken away. `tests/live/api_check.py`
+`/mcp` is the SDK's `streamable_http_app` over the same server, stateless, its
+own `Host` and `Origin` checks turned off for the door's, which, unlike the
+SDK's, answer a `Host` of `localhost` with no port and refuse a page served on
+another loopback port. The
+server's `call_tool` is replaced by one that runs on the door's workers within
+the budget, so a call over MCP and one over `POST /v1/tools/{name}` wait for
+the same four workers, and the door reads the body itself before the SDK sees
+it.
+
+The suite reaches the app through starlette's TestClient and `/mcp` through
+the SDK's own client over httpx2's ASGI transport, with the real SDK and no
+socket, and CI runs it with the network taken away. `tests/live/api_check.py`
 starts `sluicer serve` three times and asks it over a real socket: every tool
 it lists, and one error of each kind a request can provoke, each answer checked
 against the schema the server publishes for it. The Docker job serves from the
-image. What it does not do is in [Known limits](known-limits.md#in-the-http-api).
+image. `tests/live/mcp_http_check.py` starts it twice and connects with the
+`mcp` package's own client over streamable HTTP: the tools it lists against
+stdio's, `extract_declared` on a fixture page handed in and fetched from a local
+server, and each refusal of the door. What it does not do is in [Known limits](known-limits.md#in-the-http-api).

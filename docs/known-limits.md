@@ -550,6 +550,14 @@ is done, and a list of URLs handed to `compile_extractor` is one request inside
 one budget: six pages that each take the plain HTTP rung's twenty seconds use
 all of the default 120.
 
+**`/mcp` keeps no session and sends nothing unasked.** It answers a POST
+only: no notification or progress while a call runs, no resumable stream, and
+a call's answer arrives when it is done, as JSON. A client's own timeout below
+the server's `--timeout` gives up on a call the server is still running: n8n's
+MCP nodes wait 60 seconds unless told otherwise. A page in a browser on
+another origin is refused, a tool that connects from its own page on another
+port of this machine included.
+
 **Most bounds are not options of the command.** The 16 MiB body, the four
 workers and the 64 connections are arguments of `build_app` or constants beside
 it; only the time budget is a flag of `sluicer serve`. Past 64 connections,
