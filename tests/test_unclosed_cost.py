@@ -109,3 +109,22 @@ def test_a_page_of_unclosed_brackets_is_judged_in_a_moment():
 
 def test_a_head_of_unclosed_comments_is_sniffed_in_a_moment():
     assert _seconds(lambda: sniff_encoding(b"<!--" * 16_384)) < 0.5
+
+
+def test_a_page_of_many_bylines_and_dates_is_read_in_a_moment():
+    """Found by review: each "By" line and each date asked its enclosing box's
+    whole text, and a box holding them all cost the square of the box. 8,000
+    of them in one article, 583 KB, took 22 s with visible=True."""
+    from sluicer import extract
+
+    page = (
+        "<html><body><article>"
+        + "".join(
+            f"<p class=byline>By Ann Lee {i}</p><time datetime=2025-01-0{1 + i % 9}>"
+            f"x{i}</time>"
+            for i in range(8_000)
+        )
+        + "</article></body></html>"
+    )
+
+    assert _seconds(lambda: extract(page, visible=True)) < 2

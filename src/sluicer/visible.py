@@ -146,6 +146,25 @@ class _Page:
         self.doc = doc
         self.tree = doc.tree
         self._aside: dict[HtmlElement, bool] = {}
+        # Each element's text, read once: a "By" line or a date climbs to
+        # boxes it shares with every other one, and reading such a box for
+        # each of them cost its square -- 8,000 in one article took 22 s.
+        self._raw: dict[HtmlElement, str] = {}
+        self._text: dict[HtmlElement, str] = {}
+
+    def raw(self, element: HtmlElement) -> str:
+        """``element``'s text as lxml joins it, read once."""
+        found = self._raw.get(element)
+        if found is None:
+            found = self._raw[element] = element.text_content()
+        return found
+
+    def text(self, element: HtmlElement) -> str:
+        """``element``'s text with its white space collapsed, read once."""
+        found = self._text.get(element)
+        if found is None:
+            found = self._text[element] = " ".join(self.raw(element).split())
+        return found
 
     def aside(self, element: HtmlElement) -> bool:
         """Whether ``element`` sits in the page's chrome or another voice's
@@ -352,7 +371,7 @@ def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | 
     for _ in range(5):
         if element is None or not isinstance(element.tag, str):
             return None
-        text = _text(element)
+        text = page.text(element)
         if len(text) > 80:
             return None
         if element.tag in ("p", "span", "div", "address") and not page.aside(element):
@@ -393,7 +412,7 @@ def _modified(page: _Page) -> Guess | None:
     """The date the page says it was last updated on: a date whose label or
     element's name says so, in the places a publication date is looked for."""
     for element in _date_places(page):
-        if not _an_update(element):
+        if not _an_update(page, element):
             continue
         text = re.sub(
             r"^\s*(?:last\s+)?\w*\s*(?:on)?\s*:?\s*", "", _text(element), count=1
@@ -437,7 +456,7 @@ def _date_in_a_line(page: _Page, updates: bool) -> Guess | None:
             continue
         if page.aside(element) or _hidden(element) or _in_a_link(element, page.doc):
             continue
-        labelled = _an_update(element)
+        labelled = _an_update(page, element)
         for start, value in _dates_in(text):
             if (labelled or _said_updated(text[:start])) is updates:
                 rule = "updated, in a line" if updates else "in a line"
@@ -543,7 +562,7 @@ def _date(page: _Page) -> Guess | None:
         if not page.aside(t)
         and not _in_a_link(t, doc)
         and not _hidden(t)
-        and not _an_update(t)
+        and not _an_update(page, t)
     ]
     shown = {t.get("datetime") or _text(t) for t in times}
     if len(shown) > _MOST_DATES:
@@ -563,7 +582,7 @@ def _date(page: _Page) -> Guess | None:
         text = _text(element)
         if not 6 <= len(text) <= 52 or page.aside(element) or _in_a_link(element, doc):
             continue
-        if _hidden(element) or _an_update(element):
+        if _hidden(element) or _an_update(page, element):
             continue
         value = iso_date(
             re.sub(r"^\s*(?:published|posted|on)\s*:?\s*", "", text, flags=re.I)
@@ -596,23 +615,55 @@ def _hidden(element: HtmlElement) -> bool:
     return False
 
 
-def _an_update(element: HtmlElement) -> bool:
+def _an_update(page: _Page, element: HtmlElement) -> bool:
     """Whether the page says ``element``'s date is when it was changed: by
     the element's own name or text, or by the few words just before it."""
     named = " ".join(element.get(name) or "" for name in ("class", "id", "itemprop"))
     if _UPDATED.search(named) and not _PUBLISHED.search(named):
         return True
-    own = _text(element)
+    own = page.text(element)
     if _UPDATED.search(own[:24]):
         return True
-    parent = element.getparent()
-    if parent is None:
+    if element.getparent() is None or not own:
         return False
-    before = _text(parent)
-    at = before.find(own) if own else -1
-    before = before[:at] if at >= 0 else ""
+    before = _just_before(page, element)
     label = re.search(r"(\w+)(?:\s+on)?\s*:?\s*$", before[-32:])
     return bool(label and _UPDATED_WORD.fullmatch(label.group(1)))
+
+
+# How much text before an element is read for the word that labels it, and
+# past how many of its siblings: the label is the last word of 32 characters.
+_BEFORE_CHARACTERS = 40
+_BEFORE_SIBLINGS = 64
+
+
+def _just_before(page: _Page, element: HtmlElement) -> str:
+    """The text written just before ``element`` inside its parent, collapsed.
+
+    The parent's whole text was read, and cut where ``element``'s text first
+    appeared in it: for each date, the whole of a box that may hold them all,
+    and for a date whose text also came earlier, the words before the earlier
+    one. Here the siblings before it are read back until there is enough.
+    """
+    pieces: list[str] = []
+    collected = 0
+    node = element.getprevious()
+    for _ in range(_BEFORE_SIBLINGS):
+        if node is None:
+            parent = element.getparent()
+            pieces.append((parent.text if parent is not None else None) or "")
+            break
+        pieces += (node.tail or "", page.raw(node) if isinstance(node.tag, str) else "")
+        collected += len(pieces[-2].strip()) + len(pieces[-1].strip())
+        if collected > _BEFORE_CHARACTERS:
+            break
+        node = node.getprevious()
+    raw = "".join(reversed(pieces))
+    before = " ".join(raw.split())
+    if before and (raw[-1:].isspace() or page.raw(element)[:1].isspace()):
+        # Collapsed with the element's text, a space stood between them.
+        before += " "
+    return before
 
 
 def _in_a_link(element: HtmlElement, doc: Document) -> bool:
@@ -653,7 +704,7 @@ def _date_near_heading(page: _Page) -> Guess | None:
             or _in_a_link(element, page.doc)
         ):
             continue
-        if _hidden(element) or _an_update(element):
+        if _hidden(element) or _an_update(page, element):
             continue
         value = iso_date(
             re.sub(r"^\s*(?:published|posted|on)\s*:?\s*", "", text, flags=re.I)

@@ -76,6 +76,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- `--visible` reads a page in step with its size. Each "By" line and each
+  date read the whole text of the boxes round it, and a box that holds them
+  all was read once for each: 8,000 in one article, 583 KB, took 22 seconds.
+  Each element's text is now read once per page, and a date's label is read
+  from the words just before it rather than from its box's whole text. No
+  answer changed on the 5,976 cached corpus pages. Found by review.
 - A date's offset is only a zone the date writes. `email.utils` reads any
   word after the time as the zone, and once "PM" was read as the half of the
   day it no longer held that place: "May 24, 2026 10:05 am 4 min read" was
