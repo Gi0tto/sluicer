@@ -39,6 +39,7 @@ import json
 import shutil
 import statistics
 import subprocess
+import sys
 import urllib.request
 from collections import Counter
 from pathlib import Path
@@ -46,6 +47,9 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
+sys.path.insert(0, str(HERE))
+
+import stats  # noqa: E402
 
 MIRROR = "woailaosang/swde"
 COMMIT = "e9b60dbbcb899d70e813e8b899b84e3540d540da"
@@ -372,6 +376,72 @@ def _mean_f1(
     return statistics.fmean(metrics(per[k])["f1"] for k in keys)
 
 
+def _by_site(
+    per: dict[tuple[str, str], Counter[str]], keys: list[tuple[str, str]]
+) -> list[list[float]]:
+    """Per site, in the order of its id: the F1s of its site-attributes
+    summed, how many they are, and its hits, answers and labelled pages. One
+    extractor is learnt per site, and its pages stand or fall together, so a
+    site is what an interval resamples (``bench/PREREG.md``)."""
+    rows: dict[str, list[float]] = {}
+    for key in keys:
+        tally = per[key]
+        pooled = metrics_counts(tally)
+        row = rows.setdefault(key[0], [0.0] * 5)
+        row[0] += metrics(tally)["f1"]
+        row[1] += 1
+        row[2] += pooled[0]
+        row[3] += pooled[1]
+        row[4] += pooled[2]
+    ordered = [rows[site] for site in sorted(rows)]
+    return [[row[i] for row in ordered] for i in range(5)]
+
+
+def metrics_counts(tally: Counter[str]) -> tuple[int, int, int]:
+    """Hits, answers and labelled pages, as ``metrics`` counts them."""
+    hits = tally["hit"]
+    answers = hits + sum(
+        v for k, v in tally.items() if k.startswith(("wrong", "invented"))
+    )
+    labelled = hits + sum(
+        v for k, v in tally.items() if k.startswith(("wrong", "missed", "unlearnt"))
+    )
+    return hits, answers, labelled
+
+
+# What each column statistic reads from a site's sums: mean F1, precision
+# (right when answering), recall (the hit rate).
+_READ = {
+    "f1": lambda s: stats.ratio(s[0], s[1]),
+    "precision": lambda s: stats.ratio(s[2], s[3]),
+    "recall": lambda s: stats.ratio(s[2], s[4]),
+}
+
+
+def f1_interval(
+    per: dict[tuple[str, str], Counter[str]],
+    keys: list[tuple[str, str]],
+    measure: str = "f1",
+) -> tuple[float, float, float]:
+    """The mean F1 over ``keys`` (or the pooled precision or recall), and its
+    95% percentile interval over 10,000 resamples of their sites."""
+    return stats.interval(_by_site(per, keys), _READ[measure])
+
+
+def f1_difference(
+    ours: dict[tuple[str, str], Counter[str]],
+    theirs: dict[tuple[str, str], Counter[str]],
+    keys: list[tuple[str, str]],
+    measure: str = "f1",
+) -> stats.Comparison:
+    """Our mean F1 over ``keys`` minus theirs, the sites resampled together."""
+    read = _READ[measure]
+    return stats.compare(
+        [*_by_site(ours, keys), *_by_site(theirs, keys)],
+        lambda s: read(s[:5]) - read(s[5:]),
+    )
+
+
 def _pooled(per: dict[tuple[str, str], Counter[str]]) -> Counter[str]:
     total: Counter[str] = Counter()
     for tally in per.values():
@@ -389,14 +459,40 @@ def _answers_wrong(tally: Counter[str]) -> tuple[int, int]:
 def _row(
     label: str, per: dict[tuple[str, str], Counter[str]], keys: list[tuple[str, str]]
 ) -> str:
-    pooled: Counter[str] = Counter()
-    for key in keys:
-        pooled.update(per[key])
-    m = metrics(pooled)
-    return (
-        f"| {label} | {_mean_f1(per, keys):.3f} | {m['precision']:.3f} | "
-        f"{m['recall']:.3f} |"
-    )
+    cells = [
+        stats.bounded(*f1_interval(per, keys, measure))
+        for measure in ("f1", "precision", "recall")
+    ]
+    return f"| {label} | " + " | ".join(cells) + " |"
+
+
+def _comparisons(
+    ours: dict[tuple[str, str], Counter[str]],
+    theirs: dict[tuple[str, str], Counter[str]],
+    keys: list[tuple[str, str]],
+) -> list[str]:
+    """Sluicer against Scrapling on every site, the sites resampled together."""
+    lines = [
+        "| Sluicer against Scrapling | difference (95% interval) | verdict |",
+        "|---|---|---|",
+    ]
+    for measure, label in (
+        ("f1", "mean F1"),
+        ("precision", "precision"),
+        ("recall", "recall"),
+    ):
+        found = f1_difference(ours, theirs, keys, measure)
+        lines.append(f"| {label} | {stats.difference(found)} | {found.verdict} |")
+    return [
+        *lines,
+        "",
+        "The difference is Sluicer's minus Scrapling's; its interval is the 95%",
+        "percentile interval of 10,000 resamples of the sites, drawn together for",
+        "both (`bench/stats.py`, seed 20260924): **better** above zero, **worse**",
+        "below, **inconclusive** when it holds zero. With the two halves below,",
+        "these are five comparisons, made with no correction for making many, so",
+        "read them as a table, not one at a time.",
+    ]
 
 
 def publish(board: dict[str, Any]) -> None:
@@ -432,9 +528,10 @@ def publish(board: dict[str, Any]) -> None:
         "",
         f"Regenerated on {datetime.date.today().isoformat()} from commit `{commit}` by "
         f"`uv run bench/swde.py`, against the mirror at `{COMMIT[:12]}`, every",
-        f"archive checked against its SHA-256. Sluicer took {sl['seconds']:.0f} s "
-        f"of CPU to learn and run its {len({s for s, _ in keys})} extractors, "
-        f"Scrapling {sc['seconds']:.0f} s.",
+        "archive checked against its SHA-256. No seconds are printed: five",
+        "timed rounds of every tool would take nearly seven hours",
+        "([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md),",
+        '"How a second is measured").',
         "",
         '!!! warning "Read this before the numbers"',
         "    These pages declare almost nothing, so every value here is learnt from",
@@ -447,12 +544,16 @@ def publish(board: dict[str, Any]) -> None:
         "## Every site and attribute",
         "",
         "F1 is averaged over the site-attributes, as SWDE's results are reported;",
-        "precision and recall pool every page.",
+        "precision and recall pool every page. One extractor is learnt per site",
+        "and its pages stand or fall together, so each interval is the 95%",
+        "percentile interval of 10,000 resamples of the sites, not of the pages.",
         "",
         "| system | mean F1 | precision | recall |",
         "|---|---|---|---|",
         _row(names["sluicer"], sl["per"], keys),
         _row(names["scrapling"], sc["per"], keys),
+        "",
+        *_comparisons(sl["per"], sc["per"], keys),
         "",
         "| system | wrong answers | of them flagged by the run "
         "| not learnt (site-attributes) |",
@@ -492,14 +593,18 @@ def publish(board: dict[str, Any]) -> None:
         "benchmark was being built, before the split, so the held-out camera",
         "sites are not a clean test.",
         "",
-        "| half | site-attributes | sluicer F1 | Scrapling F1 |",
-        "|---|---|---|---|",
+        "| half | site-attributes | sluicer F1 | Scrapling F1 "
+        "| difference (95% interval) | verdict |",
+        "|---|---|---|---|---|---|",
     ]
     for name in ("development", "held-out"):
         hkeys = [k for k in keys if half(k[0]) == name]
+        found = f1_difference(sl["per"], sc["per"], hkeys)
         lines.append(
-            f"| {name} | {len(hkeys)} | {_mean_f1(sl['per'], hkeys):.3f} | "
-            f"{_mean_f1(sc['per'], hkeys):.3f} |"
+            f"| {name} | {len(hkeys)} | "
+            f"{stats.bounded(*f1_interval(sl['per'], hkeys))} | "
+            f"{stats.bounded(*f1_interval(sc['per'], hkeys))} | "
+            f"{stats.difference(found)} | {found.verdict} |"
         )
     lines += [
         "",

@@ -81,7 +81,9 @@ def _served_dates() -> list[tuple[str, float, float, int]]:
     for line in table.splitlines():
         cells = [cell.strip().strip("*") for cell in line.strip("|").split("|")]
         if len(cells) == 11 and cells[1] == "date":
-            rows.append((cells[0], float(cells[4]), float(cells[6]), int(cells[10])))
+            # A rate is printed with its interval: "0.780 (0.73-0.83)".
+            hit, right = (float(cells[i].split()[0]) for i in (4, 6))
+            rows.append((cells[0], hit, right, int(cells[10])))
         if len(rows) == 4:
             break
     return rows
@@ -151,8 +153,11 @@ def _swde_rows() -> list[tuple[str, float, float, int]]:
     wrong: dict[str, int] = {}
     for line in table.splitlines():
         cells = [cell.strip().strip("*") for cell in line.strip("|").split("|")]
-        if len(cells) == 4 and re.fullmatch(r"\d\.\d{3}", cells[1]):
-            scores.setdefault(cells[0], (float(cells[1]), float(cells[2])))
+        # A number is printed with its interval: "0.849 (0.81-0.89)".
+        if len(cells) == 4 and re.fullmatch(r"\d\.\d{3}( \(.*\))?", cells[1]):
+            scores.setdefault(
+                cells[0], (float(cells[1].split()[0]), float(cells[2].split()[0]))
+            )
         elif len(cells) == 4 and re.fullmatch(r"[\d,]+", cells[1]):
             wrong.setdefault(cells[0], int(cells[1].replace(",", "")))
     return [(name, f1, right, wrong[name]) for name, (f1, right) in scores.items()]

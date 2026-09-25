@@ -33,6 +33,7 @@ sys.path.insert(0, str(HERE))
 
 import corpus  # noqa: E402
 import score  # noqa: E402
+import stats  # noqa: E402
 
 PYTHON = "3.12"
 RESULTS = corpus.CACHE / "results"
@@ -163,7 +164,7 @@ def _summary_table(runs, per_page, pages, types=None) -> list[str]:
     ]
     for tool, run in runs.items():
         counts = score.tally(per_page[tool], pages, types)
-        rates = " | ".join(f"{score.hit_rate(counts[f]):.3f}" for f in score.FIELDS)
+        rates = " | ".join(score.rate(counts[f], "hit") for f in score.FIELDS)
         lines.append(
             f"| {_name(run)} | {rates} | {counts['author']['invention']} "
             f"| {counts['date']['invention']} |"
@@ -184,7 +185,7 @@ def _full_table(runs, per_page, pages, types=None) -> list[str]:
             lines.append(
                 f"| {_name(run)} | {field} | {c['hit']} | {c['wrong']} | {c['silent']}"
                 f" | {c['correct_silence']} | {c['invention']}"
-                f" | {score.hit_rate(c):.3f} | {score.right_when_answering(c):.3f} |"
+                f" | {score.rate(c, 'hit')} | {score.rate(c, 'right')} |"
             )
     return lines
 
@@ -259,38 +260,105 @@ def _listed(items: list[str]) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def _gaps(per_page, pages) -> str:
-    """Where Sluicer's hit rate is below another tool's, widest gap first."""
-    counts = {tool: score.tally(per_page[tool], pages) for tool in per_page}
-    gaps = []
-    for field in score.FIELDS:
-        best = max(
-            (tool for tool in counts if tool != "sluicer"),
-            key=lambda tool: score.hit_rate(counts[tool][field]),
-            default=None,
+MEASURES = {"hit": "hit rate", "right": "right when answering"}
+
+
+def comparisons(
+    per_page: dict[str, dict[str, dict[str, str]]],
+) -> dict[tuple[str, str, str], Any]:
+    """Sluicer against every other tool, per field, on both rates: each a
+    paired comparison over the pages, as ``bench/PREREG.md`` calls it."""
+    if "sluicer" not in per_page:
+        return {}
+    return {
+        (tool, field, measure): score.paired(
+            per_page["sluicer"], per_page[tool], field, measure
         )
-        if best is None:
-            continue
-        ours = score.hit_rate(counts["sluicer"][field])
-        theirs = score.hit_rate(counts[best][field])
-        if theirs > ours:
-            gaps.append((theirs - ours, field, best, ours, theirs))
-    if not gaps:
-        return "Sluicer's hit rate is the highest on every field."
+        for tool in per_page
+        if tool != "sluicer"
+        for field in score.FIELDS
+        for measure in MEASURES
+    }
+
+
+def many(count: int) -> list[str]:
+    """What a table of ``count`` verdicts is, said beside it on every page."""
+    return [
+        "The difference is the first side's rate minus the second's, over the",
+        "same pages. Its interval is the 95% percentile interval of 10,000",
+        "resamples of the pages, drawn together for both sides (`bench/stats.py`,",
+        "seed 20260924): **better** when the interval is above zero, **worse**",
+        "when it is below, **inconclusive** when it holds zero. These are",
+        f"{count} comparisons, made with no correction for making many: where two",
+        "sides did not differ at all, about one in twenty would still be called",
+        "better or worse, so read the verdicts as a table, not one at a time.",
+    ]
+
+
+def comparison_table(runs, verdicts) -> list[str]:
+    """Every verdict of Sluicer against another tool, and what they are."""
+    if not verdicts:
+        return []
+    lines = [
+        "| Sluicer against | field | rate | difference (95% interval) | verdict |",
+        "|---|---|---|---|---|",
+    ]
+    for (tool, field, measure), found in verdicts.items():
+        lines.append(
+            f"| {_name(runs[tool])} | {field} | {MEASURES[measure]} "
+            f"| {stats.difference(found)} | {found.verdict} |"
+        )
+    return [*lines, "", *many(len(verdicts))]
+
+
+def _called(verdicts, field: str, measure: str) -> str:
+    """Where Sluicer stands on one rate, as the paired comparisons call it."""
+    by = {
+        verdict: [
+            tool
+            for (tool, f, m), found in verdicts.items()
+            if f == field and m == measure and found.verdict == verdict
+        ]
+        for verdict in ("better", "worse", "inconclusive")
+    }
+    said = []
+    if by["better"]:
+        said.append(f"ahead of {_listed(by['better'])}")
+    if by["worse"]:
+        said.append(f"behind {_listed(by['worse'])}")
+    if by["inconclusive"]:
+        said.append(f"not told apart from {_listed(by['inconclusive'])}")
+    return _listed(said) if said else ""
+
+
+def _gaps(verdicts) -> str:
+    """Where the paired comparisons put Sluicer's hit rate behind another's."""
+    behind = [
+        field
+        for field in score.FIELDS
+        if any(
+            found.verdict == "worse"
+            for (_tool, f, m), found in verdicts.items()
+            if f == field and m == "hit"
+        )
+    ]
+    if not behind:
+        return (
+            "By the paired comparisons below, no other tool's hit rate is ahead "
+            "of Sluicer's on any field."
+        )
+    standing = "; ".join(
+        f"on {field}, {_called(verdicts, field, 'hit')}" for field in behind
+    )
     return (
-        "Sluicer's hit rate is below another tool's on "
-        + _listed(
-            [
-                f"{field} ({ours:.3f} against {best}'s {theirs:.3f})"
-                for _, field, best, ours, theirs in sorted(gaps, reverse=True)
-            ]
-        )
-        + "."
+        "By the paired comparisons below, Sluicer's hit rate is behind another "
+        f"tool's on {_listed(behind)}: {standing}."
     )
 
 
-def _wins(runs, per_page, pages) -> list[str]:
-    """What Sluicer does better, stated only where this run shows it."""
+def _wins(runs, per_page, pages, verdicts) -> list[str]:
+    """What Sluicer does better, stated only where this run's paired
+    comparisons call it better."""
     if "sluicer" not in per_page:
         return []
     counts = {tool: score.tally(per_page[tool], pages) for tool in per_page}
@@ -303,6 +371,9 @@ def _wins(runs, per_page, pages) -> list[str]:
             f"{tool} {score.right_when_answering(counts[tool][field]):.3f}"
             for tool in ranked
         )
+        called = _called(verdicts, field, "right")
+        if called:
+            cells += f"; Sluicer {called}"
         least = min(counts[tool][field]["invention"] for tool in counts)
         tied = [tool for tool in counts if counts[tool][field]["invention"] == least]
         fewest = (
@@ -327,6 +398,7 @@ def _wins(runs, per_page, pages) -> list[str]:
 
 
 def _document(pages_list, pages, runs, per_page) -> str:
+    verdicts = comparisons(per_page)
     scripts, json_ld = _corpus_scripts(pages_list)
     commercial = [p for p in pages_list if p["page_type"] in score.COMMERCIAL]
     labelled = {
@@ -401,7 +473,7 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "",
         *_losses(runs, per_page, pages),
         "",
-        *([_gaps(per_page, pages), ""] if "sluicer" in per_page else []),
+        *([_gaps(verdicts), ""] if verdicts else []),
         "The other tools also read bylines and dates from the visible text of",
         "the page, where no vocabulary declares them; Sluicer reads only what the",
         "page states in markup that means something, and answers nothing rather",
@@ -410,7 +482,14 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "",
         "## Where it wins",
         "",
-        *_wins(runs, per_page, pages),
+        *_wins(runs, per_page, pages, verdicts),
+        "",
+        "## How sure, and what differs",
+        "",
+        "Each rate above carries its 95% Wilson score interval, the bounds",
+        "rounded outwards to two places. Sluicer against each other tool:",
+        "",
+        *comparison_table(runs, verdicts),
         "",
         "## Every outcome",
         "",

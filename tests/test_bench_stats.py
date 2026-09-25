@@ -161,3 +161,16 @@ def test_a_bootstrapped_interval_of_one_number():
     observed, low, high = stats.interval([sums, counts], lambda s: s[0] / s[1])
     assert observed == pytest.approx(6.5 / 7)
     assert low <= observed <= high <= 1.0
+
+
+def test_any_interval_is_printed_as_a_rate_s_is():
+    assert stats.bounded(0.8491, 0.81234, 0.88001) == "0.849 (0.81\u20130.89)"
+
+
+def test_a_bound_that_rounds_outwards_to_zero_keeps_its_side_of_it():
+    """Called worse on a bound of -0.00031, the interval must not be printed
+    as ending on 0.000, which a reader takes for inconclusive."""
+    worse = stats.Comparison(-0.006, -0.0131, -0.00031)
+    assert stats.difference(worse) == "-0.006 (-0.014 to -0.0003)"
+    better = stats.Comparison(0.004, 0.00004, 0.0091)
+    assert stats.difference(better) == "+0.004 (+0.00004 to +0.010)"

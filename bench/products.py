@@ -44,11 +44,17 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import sluicer  # noqa: E402 -- the checkout's own, whatever is installed
 
+sys.path.insert(0, str(HERE))
+
+import stats  # noqa: E402
+import zyte  # noqa: E402
+
 REPOSITORY = "scrapinghub/product-extraction-benchmark"
-COMMIT = "cba97d7a8d42aeefd4021bc15d482f297faceaa3"
+# Pinned in bench/zyte.py, which reads the same checkout page by page.
+COMMIT = zyte.COMMIT
 ARCHIVE = f"https://codeload.github.com/{REPOSITORY}/tar.gz/{COMMIT}"
 CACHE = HERE / "cache" / "products"
-BENCH = CACHE / f"product-extraction-benchmark-{COMMIT}"
+BENCH = zyte.BENCH
 SCOREBOARD = ROOT / "docs" / "scoreboard-products.md"
 
 # Availability values that mean a buyer cannot have it now. Everything else a
@@ -240,6 +246,46 @@ def _errors(
     ]
 
 
+def _comparisons(labels: dict[str, str], systems: list[str]) -> list[str]:
+    """Sluicer's F1 minus every other system's, paired page by page."""
+    evaluate = zyte.evaluator(BENCH / "evaluate.py")
+    truth = json.loads(
+        (BENCH / "dataset" / "ground-truth.json").read_text(encoding="utf-8")
+    )
+    predicted = {
+        system: json.loads(
+            (BENCH / "dataset" / "output" / f"{system}.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        for system in systems
+    }
+    lines = [
+        "| attribute | Sluicer against | F1 difference (95% interval) | verdict |",
+        "|---|---|---|---|",
+    ]
+    count = 0
+    for attribute in zyte.ATTRIBUTES:
+        ours = zyte.counts(truth, predicted["sluicer"], attribute, evaluate)
+        for system in systems[1:]:
+            theirs = zyte.counts(truth, predicted[system], attribute, evaluate)
+            found = zyte.compare(ours, theirs, evaluate)
+            count += 1
+            lines.append(
+                f"| {attribute} | {labels[system]} | {stats.difference(found)} "
+                f"| {found.verdict} |"
+            )
+    return [
+        *lines,
+        "",
+        "The interval is the 95% percentile interval of 10,000 resamples of the",
+        "pages (`bench/stats.py`, seed 20260924): **better** when it is above",
+        "zero, **worse** when below, **inconclusive** when it holds zero. These",
+        f"are {count} comparisons, made with no correction for making many, so",
+        "read them as a table, not one at a time.",
+    ]
+
+
 def publish(
     metrics: dict[str, Any],
     seconds: float,
@@ -309,7 +355,11 @@ def publish(
     lines += [
         "",
         "The ± is the evaluator's bootstrap standard deviation over 1,000",
-        "resamples of the pages.",
+        "resamples of the pages (seed 42), kept as Zyte's evaluator prints it.",
+        "Beside it, Sluicer against each system, by the same evaluator's",
+        "matching and F1, the pages resampled together:",
+        "",
+        *_comparisons(labels, systems),
         "",
         "## Reading the errors",
         "",

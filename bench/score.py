@@ -30,6 +30,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable
 from typing import Any
 
+import stats
 from dateutil import parser as dates
 
 FIELDS = ("title", "author", "date")
@@ -183,3 +184,42 @@ def right_when_answering(counts: Counter[str]) -> float:
     """Hits over every answer given, inventions included."""
     answered = counts["hit"] + counts["wrong"] + counts["invention"]
     return counts["hit"] / answered if answered else 0.0
+
+
+# What a rate counts its trials over: a hit rate the labelled pages, a share
+# right when answering the answers given.
+TRIALS = {
+    "hit": ("hit", "wrong", "silent"),
+    "right": ("hit", "wrong", "invention"),
+}
+
+
+def rate(counts: Counter[str], measure: str) -> str:
+    """A hit rate (``hit``) or a share right when answering (``right``), with
+    its Wilson interval, as ``bench/stats.py`` prints it."""
+    return stats.rate(counts["hit"], sum(counts[k] for k in TRIALS[measure]))
+
+
+def columns(per_page: dict[str, str], ids: list[str], measure: str) -> list[list[int]]:
+    """One field's hits and trials, page by page, in the order of ``ids``."""
+    trials = TRIALS[measure]
+    return [
+        [int(per_page[page_id] == "hit") for page_id in ids],
+        [int(per_page[page_id] in trials) for page_id in ids],
+    ]
+
+
+def paired(
+    ours: dict[str, dict[str, str]],
+    theirs: dict[str, dict[str, str]],
+    field: str,
+    measure: str,
+) -> stats.Comparison:
+    """Our rate on ``field`` minus theirs, over the pages both scored, paired
+    page by page as ``bench/PREREG.md`` writes it."""
+    ids = sorted(set(ours) & set(theirs))
+    mine = {page_id: ours[page_id][field] for page_id in ids}
+    other = {page_id: theirs[page_id][field] for page_id in ids}
+    return stats.rate_difference(
+        *columns(mine, ids, measure), *columns(other, ids, measure)
+    )

@@ -83,7 +83,13 @@ def rate(hits: int, trials: int) -> str:
     value = hits / trials if trials else 0.0
     if bounds is None:
         return f"{value:.3f}"
-    return f"{value:.3f} ({_down(bounds[0], 2)}{DASH}{_up(bounds[1], 2)})"
+    return bounded(value, *bounds)
+
+
+def bounded(value: float, low: float, high: float) -> str:
+    """``0.727 (0.68-0.77)``: a number and any 95% interval, printed as a
+    rate's is, the bounds to two places rounded outwards."""
+    return f"{value:.3f} ({_down(low, 2)}{DASH}{_up(high, 2)})"
 
 
 # --- a difference ---------------------------------------------------------------
@@ -203,14 +209,26 @@ def _signed(value: float, rounded: str) -> str:
     return rounded if float(rounded) == 0 else ("+" if value > 0 else "") + rounded
 
 
+def _outwards(value: float, rounding: Callable[[float, int], str]) -> str:
+    """``value`` rounded outwards to three places, or to as many more as keep
+    it off zero: an upper bound of -0.0003 printed 0.000 would read as an
+    interval that holds zero, beside a verdict that says it does not."""
+    places = 3
+    rounded = rounding(value, places)
+    while value != 0 and float(rounded) == 0 and places < 9:
+        places += 1
+        rounded = rounding(value, places)
+    return rounded.rstrip("0") if places > 3 else rounded
+
+
 def difference(comparison: Comparison) -> str:
     """``+0.021 (-0.011 to +0.053)``: the difference, and its interval with
     the lower bound rounded down and the upper up, to three places."""
     observed = f"{comparison.observed:.3f}"
     if float(observed) == 0:
         observed = f"{0:.3f}"
-    low = _down(comparison.low, 3)
-    high = _up(comparison.high, 3)
+    low = _outwards(comparison.low, _down)
+    high = _outwards(comparison.high, _up)
     return (
         f"{_signed(comparison.observed, observed)} "
         f"({_signed(comparison.low, low)} to {_signed(comparison.high, high)})"

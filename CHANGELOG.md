@@ -14,6 +14,32 @@ Dates are the day the work landed. Anything not listed here did not happen.
   inconclusive. Its tests hold it to Wilson intervals published for known
   counts (Newcombe 1998) and to the bootstrap written out the slow way.
 
+### Changed
+- Every scoreboard prints how sure its numbers are and calls a difference
+  only as the paired comparison does. The title, author and date scoreboards
+  print each hit rate and share right when answering with its Wilson
+  interval, and a table of Sluicer against each other tool on both rates,
+  every row a difference, its interval and a verdict; the pages as served add
+  every tool served against WCXB's copy of the same pages. Products compare
+  F1s by Zyte's own matching and formula (`bench/zyte.py` imports them from
+  its `evaluate.py`), beside Zyte's ±. SWDE and trafilatura's main-text
+  snippets bootstrap over sites and over pages, since their trials are not
+  independent. The sentences that ranked tools by their printed rates --
+  "Sluicer's hit rate is below another tool's on...", "Sluicer is second of
+  4, behind..." -- now say ahead, behind or not told apart where the
+  verdicts do: on the pages as served, "fourth of 4, behind trafilatura
+  0.855, metascraper 0.811, newspaper4k 0.786" on dates is now behind
+  trafilatura and not told apart from metascraper and newspaper4k.
+- `bench/gate.py` fails on a drop the paired comparison of today's outcomes
+  with the baseline's calls worse, or one past the floor's tolerance, and
+  reports a floor missed within both as held within noise, as PREREG's "What
+  counts as worse" writes it; `bench/floors-pages.json` is the baseline.
+  `--raise` wrote it from 0.7.1's results and raised four floors: trafilatura's
+  set's date (0.584 to 0.585, 0.791 to 0.793) and SWDE's silent wrong answers
+  (2,921 to 2,346 and 8,797 to 7,715 as ceilings).
+- SWDE's scoreboard prints no seconds, as PREREG's "How a second is measured"
+  says: its CPU times were measured once, not as that section fixes.
+
 ## 0.7.1
 
 ### Added
