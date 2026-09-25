@@ -1,0 +1,406 @@
+{
+ "pages": 86029,
+ "truncated": 162,
+ "failed": {},
+ "left_out": {
+  "not HTML": 1477
+ },
+ "hosts": 77257,
+ "top_level_domains": {
+  "com": 36107,
+  "org": 4772,
+  "ru": 4244,
+  "de": 3646,
+  "net": 2419,
+  "jp": 1985,
+  "uk": 1773,
+  "fr": 1745,
+  "it": 1636,
+  "pl": 1591,
+  "br": 1448,
+  "nl": 1234,
+  "cz": 925,
+  "au": 882,
+  "ua": 757,
+  "es": 743,
+  "cn": 733,
+  "ca": 696,
+  "edu": 631,
+  "eu": 595
+ },
+ "vocabularies": {
+  "pages": {
+   "jsonld": 44404,
+   "microdata": 20382,
+   "microformats": 26509,
+   "rdfa": 1871,
+   "dublincore": 1506,
+   "opengraph": 59368,
+   "twitter": 43700,
+   "html": 73126
+  },
+  "hosts": {
+   "jsonld": 39957,
+   "microdata": 18589,
+   "microformats": 24363,
+   "rdfa": 1676,
+   "dublincore": 1290,
+   "opengraph": 53294,
+   "twitter": 39277,
+   "html": 65814
+  }
+ },
+ "any": {
+  "about_things": 59380,
+  "about_things_mf2_vocabulary": 57848,
+  "anything": 79236,
+  "nothing": 6793
+ },
+ "any_hosts": {
+  "about_things": 53539,
+  "about_things_mf2_vocabulary": 52173,
+  "anything": 71208,
+  "nothing": 6222
+ },
+ "combinations": {
+  "jsonld + opengraph + twitter + html": 13637,
+  "jsonld + microformats + opengraph + twitter + html": 9007,
+  "html": 8900,
+  "(nothing)": 6793,
+  "jsonld + microdata + microformats + opengraph + twitter + html": 5024,
+  "opengraph + twitter + html": 4554,
+  "opengraph + html": 4320,
+  "jsonld + microdata + opengraph + twitter + html": 3472,
+  "jsonld + opengraph + html": 3313,
+  "microformats + html": 2946,
+  "microdata + opengraph + html": 1768,
+  "jsonld + html": 1622,
+  "microdata + html": 1418,
+  "microdata + opengraph + twitter + html": 1348,
+  "microformats + opengraph + twitter + html": 1250
+ },
+ "microformats": {
+  "vocabulary": 14149,
+  "other_types_only": 4500,
+  "no_field": 7860,
+  "types": {
+   "h-entry": 10100,
+   "h-feed": 3123,
+   "h-full": 2640,
+   "h-auto": 1255,
+   "h-card": 1111,
+   "h-fit": 236,
+   "h-screen": 175,
+   "h-relative": 126,
+   "h-adr": 108,
+   "h-text": 72,
+   "h-px": 56,
+   "h-ni": 47,
+   "h-pot": 47,
+   "h-logo": 45,
+   "h-date": 38
+  }
+ },
+ "types": {
+  "distinct": 1197,
+  "pages": {
+   "BreadcrumbList": 33453,
+   "WebSite": 27512,
+   "Organization": 22457,
+   "WebPage": 19300,
+   "ImageObject": 13581,
+   "h-entry": 10100,
+   "Person": 9993,
+   "Article": 9649,
+   "Product": 8747,
+   "CollectionPage": 4701,
+   "BlogPosting": 4015,
+   "NewsArticle": 3268,
+   "h-feed": 3123,
+   "LocalBusiness": 3030,
+   "h-full": 2640,
+   "CreativeWork": 2226,
+   "SiteNavigationElement": 2152,
+   "FAQPage": 1955,
+   "Blog": 1572,
+   "WPHeader": 1359,
+   "h-auto": 1255,
+   "ItemPage": 1219,
+   "ItemList": 1151,
+   "h-card": 1111,
+   "Event": 955
+  }
+ },
+ "jsonld_nodes": {
+  "typed": 624733,
+  "classes": {
+   "ListItem": 111342,
+   "ImageObject": 61808,
+   "Organization": 41872,
+   "BreadcrumbList": 31199,
+   "WebSite": 28947,
+   "Person": 28133,
+   "WebPage": 27266,
+   "Offer": 23593,
+   "SearchAction": 17676,
+   "Product": 15768,
+   "EntryPoint": 14840,
+   "SiteNavigationElement": 14172,
+   "PostalAddress": 12987,
+   "Answer": 12115,
+   "PropertyValueSpecification": 11845,
+   "Article": 11031,
+   "ReadAction": 10771,
+   "Question": 10716,
+   "QuantitativeValue": 8236,
+   "Brand": 7246
+  }
+ },
+ "merging": {
+  "pages_with_things": 59380,
+  "several_vocabularies": 27213,
+  "folded": 1795,
+  "folded_by": {
+   "jsonld + microdata": 1771,
+   "jsonld + rdfa": 24,
+   "jsonld + microdata + rdfa": 1
+  }
+ },
+ "conflicts": {
+  "answered": {
+   "title": 84528,
+   "description": 58986,
+   "url": 67954,
+   "image": 50276,
+   "author": 19228,
+   "published": 23359,
+   "modified": 21402,
+   "language": 76842,
+   "site_name": 48967,
+   "publisher": 26167,
+   "type": 64097,
+   "price": 8050,
+   "price_regular": 167,
+   "price_low": 680,
+   "price_high": 616,
+   "currency": 8713,
+   "availability": 7548,
+   "brand": 4547,
+   "sku": 5540,
+   "gtin": 948,
+   "mpn": 1227,
+   "rating": 1742,
+   "rating_best": 993,
+   "rating_count": 1824,
+   "breadcrumb": 33251
+  },
+  "conflicting": {
+   "modified": 146,
+   "price": 122,
+   "published": 109,
+   "currency": 22
+  },
+  "between": {
+   "currency": {
+    "jsonld / opengraph": 22
+   },
+   "modified": {
+    "jsonld / opengraph": 117,
+    "microdata / opengraph": 13,
+    "opengraph / opengraph": 4
+   },
+   "price": {
+    "jsonld / opengraph": 92,
+    "microdata / opengraph": 29,
+    "opengraph / opengraph": 1
+   },
+   "published": {
+    "jsonld / opengraph": 87,
+    "microdata / opengraph": 15,
+    "jsonld / dublincore": 5
+   }
+  },
+  "pages_with_any": 356
+ },
+ "titles": {
+  "declared_twice": 62625,
+  "differ": 38118,
+  "differ_beyond_containment": 12099
+ },
+ "jsonld_blocks": {
+  "pages": 44511,
+  "blocks": 76732,
+  "valid": 75987,
+  "control_characters": 348,
+  "recovered": 138,
+  "lost": 259,
+  "pages_with_invalid": 667,
+  "pages_losing_one": 238
+ },
+ "normalised": {
+  "answered": {
+   "published": 23359,
+   "modified": 21402,
+   "price": 8050,
+   "price_regular": 167,
+   "price_low": 680,
+   "price_high": 616,
+   "currency": 8713,
+   "gtin": 948
+  },
+  "read": {
+   "published": 22037,
+   "modified": 21023,
+   "price": 8009,
+   "price_regular": 167,
+   "price_low": 680,
+   "price_high": 616,
+   "currency": 8599,
+   "gtin": 800
+  },
+  "unread_shapes": {
+   "date": {
+    "9999": 258,
+    "9:99 aa": 135,
+    "99:99": 120,
+    "9999/99/99": 90,
+    "99:99 aa": 64,
+    "-9999-99-99a99:99:99+99:99": 59,
+    "999 aaaa aaa": 52,
+    "99/99/9999": 49,
+    "9999999999": 48,
+    "9999-99-99aaa99:99:99+99:99": 40
+   },
+   "price": {
+    "999.999": 7,
+    "99.999": 5,
+    "9,999": 4,
+    "9.999": 3,
+    "9999.999": 2,
+    "$ 9,999": 1,
+    "9 aaa.": 1,
+    "9.99 aaa.": 1,
+    "99 999 aaa.": 1,
+    "99 999.99 ₽/aa.": 1
+   }
+  }
+ },
+ "gtin": {
+  "answered": 948,
+  "not_a_gtin_shape": 103,
+  "wrong_check_digit": 45,
+  "valid": 800
+ },
+ "links": {
+  "canonical": 60280,
+  "canonical_self": 50339,
+  "canonical_elsewhere": 9941,
+  "canonical_conflict": 219,
+  "hreflang": 10237,
+  "x_default": 5750
+ },
+ "rights": {
+  "robots_meta": 48053,
+  "robots_directives": {
+   "max-image-preview:large": 32648,
+   "follow": 30462,
+   "index": 29847,
+   "max-snippet:-1": 19008,
+   "max-video-preview:-1": 18891,
+   "noindex": 3316,
+   "all": 1606,
+   "nofollow": 1013,
+   "noodp": 743,
+   "noarchive": 443,
+   "max-image-preview:standard": 411,
+   "noydir": 386,
+   "archive": 56,
+   "noai": 40,
+   "none": 40
+  },
+  "crawler_named": {
+   "googlebot": 1384,
+   "bingbot": 243,
+   "googlebot-news": 119,
+   "msnbot": 69,
+   "slurp": 42,
+   "yandex": 31,
+   "baiduspider": 26,
+   "googlebot-image": 18,
+   "duckduckbot": 10,
+   "gptbot": 7,
+   "ccbot": 4,
+   "applebot": 3,
+   "google-extended": 2,
+   "googlebot-video": 2
+  },
+  "x_robots_tag": 733,
+  "x_robots_directives": {
+   "follow": 277,
+   "noindex": 259,
+   "index": 213,
+   "all": 185,
+   "max-image-preview:large": 140,
+   "max-snippet:-1": 121,
+   "max-video-preview:-1": 117,
+   "nofollow": 108,
+   "noodp": 55,
+   "noarchive": 43,
+   "nosnippet": 20,
+   "none": 18,
+   "noimageindex": 7,
+   "noai": 6,
+   "noimageai": 4
+  },
+  "tdm_reservation": {
+   "0": 106,
+   "1": 22
+  },
+  "tdm_policy": 6,
+  "http_tdm_reservation": {
+   "0": 105,
+   "1": 8
+  },
+  "http_tdm_policy": 5,
+  "license": 685
+ },
+ "files": [
+  {
+   "pages": 21782,
+   "left_out": {
+    "not HTML": 366
+   },
+   "failed": {}
+  },
+  {
+   "pages": 21535,
+   "left_out": {
+    "not HTML": 383
+   },
+   "failed": {}
+  },
+  {
+   "pages": 21491,
+   "left_out": {
+    "not HTML": 348
+   },
+   "failed": {}
+  },
+  {
+   "pages": 21221,
+   "left_out": {
+    "not HTML": 380
+   },
+   "failed": {}
+  }
+ ],
+ "sluicer": {
+  "src": "3589001",
+  "version": "0.7.1",
+  "lxml": "6.1.3",
+  "libxml2": "2.14.6",
+  "mf2py": "2.0.2",
+  "python": "3.14.6"
+ },
+ "counted_on": "2026-09-25"
+}

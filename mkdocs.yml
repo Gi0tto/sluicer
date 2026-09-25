@@ -55,6 +55,7 @@ nav:
       - Extractors on SWDE: scoreboard-swde.md
       - Drift: drift.md
       - The field, measured: field-survey.md
+      - The state of declared data: state-of-declared-data.md
   - Project:
       - Why Sluicer: why.md
       - FAQ: faq.md

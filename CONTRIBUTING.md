@@ -111,6 +111,7 @@ before a release.
 | `docs/assets/social-preview.png` | the card's words, in the script | `uv run scripts/social_card.py` |
 | `src/sluicer/calendar_names.py` | the Unicode CLDR, at a pinned release | `uv run scripts/cldr_calendar.py` |
 | `docs/scoreboard*.md`, `docs/drift.md` | the benchmarks' pinned pages | the scripts in `bench/`, see [`bench/README.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/README.md) |
+| `docs/state-of-declared-data.md` | `bench/declared-counts.json`, counted on four pinned Common Crawl WARC files | `.venv/bin/python bench/declared_report.py`, or `--report-only` from the counts |
 
 `docs/changelog.md`, `docs/roadmap.md`, `docs/contributing.md` and
 `docs/security.md` are symlinks to the files of the same name in the repository

@@ -256,6 +256,28 @@ _DATES = frozenset({"published", "modified"})
 _PRICES = frozenset({"price", "price_regular", "price_low", "price_high"})
 _GTIN_LENGTHS = frozenset({8, 12, 13, 14})
 _PAGE_TITLE = "//title[not(ancestor::svg or ancestor::math)]"
+# microformats2's own vocabularies, as the microformats wiki lists them
+# (https://microformats.org/wiki/microformats2#v2_vocabularies, 2026-09-25).
+# Its parsing rules take any class of the form ``h-`` and letters for a root,
+# Tailwind's ``h-full`` and Bootstrap's ``h-auto`` among them; PREREG says why
+# the report counts these apart, a change made after the first count.
+MF2_VOCABULARIES = frozenset(
+    {
+        "h-adr",
+        "h-card",
+        "h-entry",
+        "h-event",
+        "h-feed",
+        "h-geo",
+        "h-item",
+        "h-listing",
+        "h-product",
+        "h-recipe",
+        "h-resume",
+        "h-review",
+        "h-review-aggregate",
+    }
+)
 _LONGEST_SHAPE = 32
 _PROGRESS = 5_000
 
@@ -352,6 +374,8 @@ class Tally:
     any: Counter[str] = field(default_factory=Counter)
     any_hosts: dict[str, set[str]] = field(default_factory=dict)
     combinations: Counter[str] = field(default_factory=Counter)
+    microformats: Counter[str] = field(default_factory=Counter)
+    microformats_types: Counter[str] = field(default_factory=Counter)
     types: Counter[str] = field(default_factory=Counter)
     jsonld_typed: int = 0
     jsonld_classes: Counter[str] = field(default_factory=Counter)
@@ -405,6 +429,9 @@ class Tally:
         kinds = ["anything"] if found.sources else ["nothing"]
         if about_things:
             kinds.append("about_things")
+        microformats = self._microformats(found)
+        if any(s != "microformats" for s in about_things) or microformats:
+            kinds.append("about_things_mf2_vocabulary")
         for kind in kinds:
             self.any[kind] += 1
             self.any_hosts.setdefault(kind, set()).add(host)
@@ -426,6 +453,22 @@ class Tally:
         if folds:
             self.merging["folded"] += 1
             self.folded_by.update(folds)
+
+    def _microformats(self, found: Extraction) -> bool:
+        """Count the page's microformats; whether one is microformats2's own."""
+        if "microformats" not in found.sources:
+            return False
+        types = {
+            name
+            for record in found.records
+            if record.source == "microformats"
+            for name in record.types
+        }
+        self.microformats_types.update(types)
+        own = bool(types & MF2_VOCABULARIES)
+        kind = "vocabulary" if own else "other_types_only" if types else "no_field"
+        self.microformats[kind] += 1
+        return own
 
     def _types(self, found: Extraction) -> None:
         self.types.update(
@@ -577,11 +620,23 @@ class Tally:
             },
             "any": {
                 k: self.any[k]
-                for k in ("about_things", "anything", "nothing")
+                for k in (
+                    "about_things",
+                    "about_things_mf2_vocabulary",
+                    "anything",
+                    "nothing",
+                )
                 if self.any[k]
             },
             "any_hosts": {k: len(v) for k, v in sorted(self.any_hosts.items())},
             "combinations": top(self.combinations, 15),
+            "microformats": {
+                **{
+                    k: self.microformats[k]
+                    for k in ("vocabulary", "other_types_only", "no_field")
+                },
+                "types": top(self.microformats_types, 15),
+            },
             "types": {"distinct": len(self.types), "pages": top(self.types, 25)},
             "jsonld_nodes": {
                 "typed": self.jsonld_typed,
@@ -734,6 +789,7 @@ def versions() -> dict[str, str]:
             cwd=ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
@@ -877,13 +933,15 @@ def render(counts: dict[str, Any], manifest: dict[str, Any]) -> str:
         '!!! warning "A few WARC files are not the web"',
         f"    {len(files)} files of one crawl, {_n(hosts)} hosts. Common Crawl "
         "chooses what it",
-        "    fetches by its own ranking of hosts, obeys robots.txt, keeps a",
-        "    body only up to a length and marks the rest truncated, and takes",
-        "    many pages from one host, so pages are not independent draws. The",
-        "    intervals, 95% Wilson intervals over pages, are therefore narrower",
-        "    than the sample's real uncertainty; for the vocabularies the share",
-        "    of hosts is given too. What a crawler that skips scripts, a",
-        "    logged-in page or a page behind an anti-bot wall declares is not here.",
+        "    fetches by its own ranking of hosts and obeys robots.txt, so a site",
+        "    that refuses its crawler is not here; it keeps a body only up to a",
+        "    length, marking the rest truncated; it runs no script, so what a",
+        "    page declares only once its scripts have run is not here, nor",
+        "    what a page behind a login or an anti-bot wall declares; and it",
+        "    takes many pages from one host, so pages are not independent",
+        "    draws. The intervals, 95% Wilson intervals over pages, are",
+        "    therefore narrower than the sample's real uncertainty; for the",
+        "    vocabularies the share of hosts is given too.",
         "",
         "## The sample",
         "",
@@ -918,7 +976,9 @@ def render(counts: dict[str, Any], manifest: dict[str, Any]) -> str:
         f"{_n(pages)} pages, from {_n(hosts)} hosts. "
         f"{_n(counts['truncated'])} of them "
         f"({_pct(counts['truncated'], pages)}) were truncated by the crawler and "
-        "are read as it kept them. Left out, and counted by why:",
+        "are read as it kept them. Common Crawl writes its redirects and",
+        "errors to other files, its `crawldiagnostics`, so these hold its",
+        "successful answers. Left out, and counted by why:",
         "",
     ]
     out += _table(
@@ -975,6 +1035,12 @@ def render(counts: dict[str, Any], manifest: dict[str, Any]) -> str:
             _share(any_hosts.get("about_things", 0), hosts),
         ],
         [
+            "**any about things**, microformats only microformats2's own",
+            _n(any_.get("about_things_mf2_vocabulary", 0)),
+            _share(any_.get("about_things_mf2_vocabulary", 0), pages),
+            _share(any_hosts.get("about_things_mf2_vocabulary", 0), hosts),
+        ],
+        [
             "**anything at all**",
             _n(any_.get("anything", 0)),
             _share(any_.get("anything", 0), pages),
@@ -988,6 +1054,7 @@ def render(counts: dict[str, Any], manifest: dict[str, Any]) -> str:
         ],
     ]
     out += _table(["vocabulary", "pages", "share of pages", "share of hosts"], rows)
+    out += _microformats(counts)
     out += [
         "",
         "The combinations pages declare, the fifteen commonest, in Sluicer's",
@@ -1033,6 +1100,52 @@ def render(counts: dict[str, Any], manifest: dict[str, Any]) -> str:
     return "\n".join(out)
 
 
+def _microformats(counts: dict[str, Any]) -> list[str]:
+    mf = counts.get("microformats")
+    if not mf:
+        return []
+    found = counts["vocabularies"]["pages"].get("microformats", 0)
+    out = [
+        "",
+        "Microformats need a word. microformats2's parsing rules take any class",
+        "of the form `h-` and letters for the root of an item, and CSS",
+        "frameworks name classes so: Tailwind's `h-full` and Bootstrap's",
+        "`h-auto` set a height. So the pages where the microformats reader",
+        f"found something, {_n(found)}, are split here by what they hold: a",
+        "record of one of the thirteen vocabularies the microformats wiki lists",
+        "as microformats2's (`h-entry`, `h-card`, `h-feed` and the rest; a",
+        "classic `hentry` or `vcard` is read as one), records of other types",
+        "only, or roots that gave no field at all. This split was decided after",
+        "the first count was read, and `bench/PREREG.md` says so.",
+        "",
+    ]
+    out += _table(
+        ["pages with microformats", "pages", "share of them"],
+        [
+            [
+                "a record of microformats2's own vocabularies",
+                _n(mf["vocabulary"]),
+                _share(mf["vocabulary"], found),
+            ],
+            [
+                "records of other types only",
+                _n(mf["other_types_only"]),
+                _share(mf["other_types_only"], found),
+            ],
+            ["roots with no field", _n(mf["no_field"]), _share(mf["no_field"], found)],
+        ],
+    )
+    out += ["", "The types of their records, the fifteen commonest:", ""]
+    out += _table(
+        ["type", "pages", "microformats2's own"],
+        [
+            [f"`{t}`", _n(n), "yes" if t in MF2_VOCABULARIES else "no"]
+            for t, n in mf["types"].items()
+        ],
+    )
+    return out
+
+
 def _wdc(counts: dict[str, Any]) -> list[str]:
     pages = counts["pages"]
     vocab = counts["vocabularies"]["pages"]
@@ -1043,14 +1156,15 @@ def _wdc(counts: dict[str, Any]) -> list[str]:
         "",
         "[Web Data Commons](https://webdatacommons.org/structureddata/) (Bizer,",
         "Meusel, Primpeli, Brinkmann; University of Mannheim) extracts the",
-        "structured data of a whole Common Crawl with Any23. Its latest",
+        "structured data of a whole Common Crawl with Apache Any23. Its latest",
         f"extraction, released {WDC['released']}, is of the {WDC['month']} crawl,",
         f"`{WDC['crawl']}`; the figures below are from [its statistics page]"
         f"({WDC['url']}),",
-        "read on 2026-09-25. It is two years older than this crawl, and it reads",
-        "differently: full RDFa rather than RDFa Lite, microformats one format",
-        "at a time, and JSON-LD only where it parses. Read the two columns side",
-        "by side, never as one series.",
+        "read on 2026-09-25. Its crawl is two years older than this one, and it",
+        "reads differently: full RDFa rather than RDFa Lite, microformats one",
+        "format at a time, and JSON-LD with Any23's own parser, which that page",
+        "does not say is lenient. Read the two columns side by side, never as",
+        "one series.",
         "",
     ]
     rows = [
@@ -1061,12 +1175,17 @@ def _wdc(counts: dict[str, Any]) -> list[str]:
             f"{WDC['stated_share']}, and its per-format table's total is "
             f"{_n(WDC['overall_row_urls'])})",
             _share(counts["any"].get("about_things", 0), pages),
-        ]
+        ],
+        [
+            "… the same, microformats only microformats2's own vocabularies",
+            "",
+            _share(counts["any"].get("about_things_mf2_vocabulary", 0), pages),
+        ],
     ]
     for name, (label, urls) in WDC["formats"].items():
         what = READERS[name]
         if name == "microformats":
-            what = "microformats (any; WDC's commonest, hCard, alone)"
+            what = "microformats (any, here; WDC's commonest format, hCard, alone)"
         rows.append(
             [
                 f"{what} -- WDC's `{label}`",

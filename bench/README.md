@@ -199,6 +199,32 @@ held-out test here: Sluicer's rules were made while the pages of the other
 scoreboards and of the drift benchmark were read ([`PREREG.md`](PREREG.md)
 says which).
 
+## What pages declare, on Common Crawl
+
+[`docs/state-of-declared-data.md`](../docs/state-of-declared-data.md) is not a
+scoreboard: nothing is labelled, and no tool is scored. It counts what the
+HTML pages answered 200 in four WARC files of one Common Crawl declare about
+themselves, as Sluicer reads them: which vocabularies, which types, where two
+vocabularies describe one thing, where one page answers a question twice with
+two meanings, how many JSON-LD blocks are not JSON, what normalises, the
+canonicals and alternates, the robots and TDMRep declarations.
+
+```bash
+.venv/bin/python bench/declared_report.py --pin          # apply the rule, download, pin
+.venv/bin/python bench/declared_report.py                # count, then the report
+.venv/bin/python bench/declared_report.py --report-only  # the report from the counts
+```
+
+The crawl, the rule that picks the files and every count were fixed in
+[`PREREG.md`](PREREG.md) before a file was downloaded. `--pin` applied the
+rule once and wrote `declared-manifest.json`: the listing's SHA-256, and each
+file's path, size and SHA-256. A plain run downloads what the manifest pins
+from `data.commoncrawl.org`, one file at a time, into `bench/commoncrawl/`
+(about 3.7 GB, never committed), stops if a file does not hash to its pin, and
+reads every page, each file in a process of its own. The counts,
+`declared-counts.json`, are committed, so the report can be written again, and
+checked by a test, without the files.
+
 ## Before a release: the floors
 
 [`PREREG.md`](PREREG.md) says what every scoreboard fixes before it is run:

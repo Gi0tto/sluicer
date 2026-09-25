@@ -179,7 +179,12 @@ def test_vocabularies_are_counted_by_page_and_by_host(counts):
         "microdata": 1,
         "opengraph": 3,
     }
-    assert counts["any"] == {"about_things": 3, "anything": 3, "nothing": 1}
+    assert counts["any"] == {
+        "about_things": 3,
+        "about_things_mf2_vocabulary": 3,
+        "anything": 3,
+        "nothing": 1,
+    }
     assert counts["combinations"] == {
         "jsonld + opengraph": 2,
         "jsonld + microdata + opengraph": 1,
@@ -354,3 +359,34 @@ def test_the_published_report_is_the_one_the_committed_counts_write():
     counts = json.loads(report.COUNTS.read_text(encoding="utf-8"))
     manifest = json.loads(report.MANIFEST.read_text(encoding="utf-8"))
     assert report.REPORT.read_text(encoding="utf-8") == report.render(counts, manifest)
+
+
+# -- microformats, and the classes that only look like them ----------------------
+
+
+def test_microformats_are_split_by_whether_their_types_are_microformats2s(tmp_path):
+    # A real entry, Tailwind's height class, and a classic root that says
+    # nothing: microformats2's rules take all three for roots.
+    entry = b"""<html><body><article class="h-entry"><h1 class="p-name">Rain</h1>
+    </article></body></html>"""
+    tailwind = b"""<html><body><div class="h-full"><p>Hello there</p></div>
+    </body></html>"""
+    silent = b"""<html><body><div class="hentry"></div></body></html>"""
+    path = tmp_path / "mf.warc.gz"
+    path.write_bytes(
+        b"".join(
+            gzip.compress(record("response", http(body), f"https://{name}.example/"))
+            for name, body in (("a", entry), ("b", tailwind), ("c", silent))
+        )
+    )
+    counts = report.count_file(path).counts()
+    assert counts["vocabularies"]["pages"] == {"microformats": 3}
+    assert counts["microformats"] == {
+        "vocabulary": 1,
+        "other_types_only": 1,
+        "no_field": 1,
+        "types": {"h-entry": 1, "h-full": 1},
+    }
+    assert counts["any"]["about_things"] == 3
+    assert counts["any"]["about_things_mf2_vocabulary"] == 1
+    assert counts["any_hosts"]["about_things_mf2_vocabulary"] == 1
