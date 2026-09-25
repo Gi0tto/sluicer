@@ -5,10 +5,10 @@ extractor is learnt on an old Wayback Machine capture of a listing page
 and replayed on a later one. An oracle that does not use the extractor's
 code judges the result. Losses come first.
 
-Regenerated on 2026-09-24 from commit
-`fef7c90` (sluicer 0.7.0, Scrapling 0.4.15) with
+Regenerated on 2026-09-25 from commit
+`6c75306` (sluicer 0.7.1, Scrapling 0.4.15) with
 `uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`, in
-18 seconds from the cache.
+6 seconds from the cache.
 
 !!! warning "Read this before the numbers"
     This is 44 pairs on 25 sites,
