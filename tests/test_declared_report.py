@@ -158,6 +158,10 @@ def test_only_html_answered_200_is_a_page_and_the_rest_is_counted_by_reason(coun
         "not HTML": 1,
         "status 2xx but not 200": 1,
         "revisit": 1,
+        # Records that are no page are counted too, by kind: PREREG says every
+        # record left out is, and they were dropped unsaid. Found by review.
+        "warcinfo record": 1,
+        "request record": 1,
     }
     assert counts["truncated"] == 1
     assert counts["hosts"] == 4
@@ -390,3 +394,46 @@ def test_microformats_are_split_by_whether_their_types_are_microformats2s(tmp_pa
     assert counts["any"]["about_things"] == 3
     assert counts["any"]["about_things_mf2_vocabulary"] == 1
     assert counts["any_hosts"]["about_things_mf2_vocabulary"] == 1
+
+
+def test_a_context_s_terms_and_value_objects_are_no_typed_nodes():
+    """A term definition's ``@type`` and a value object's datatype were counted
+    as typed JSON-LD nodes. Found by review."""
+    block = {
+        "@context": {"image": {"@id": "schema:image", "@type": "@id"}},
+        "@type": "Article",
+        "datePublished": {"@value": "2026-09-25", "@type": "Date"},
+        "author": {"@type": "Person", "name": "A"},
+    }
+
+    assert sorted(report._typed(block)) == [["Article"], ["Person"]]
+
+
+def test_a_json_null_block_is_valid_and_not_lost():
+    """``null`` is JSON and declares nothing: it was counted lost and not
+    JSON. Found by review."""
+    assert report._block_kind("null") == ("valid", None)
+    assert report._block_kind("{not json at all")[0] == "lost"
+
+
+def test_the_types_table_holds_schema_org_s_types_alone():
+    """PREREG's item 2 is schema.org's types; microformats' roots (Tailwind's
+    ``h-full`` among them) and other vocabularies' addresses were counted
+    too. Found by review."""
+    from types import SimpleNamespace
+
+    def record(source, *names):
+        return SimpleNamespace(source=source, types=list(names))
+
+    tally = report.Tally()
+    tally._types(
+        SimpleNamespace(
+            records=[
+                record("microformats", "h-entry", "h-full"),
+                record("rdfa", "http://xmlns.com/foaf/0.1/Person", "Person"),
+                record("jsonld", "Product", "schema-less:Thing"),
+            ]
+        )
+    )
+
+    assert sorted(tally.types) == ["Person", "Product"]

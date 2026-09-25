@@ -8,7 +8,7 @@ Sluicer's two RDFa readers, and extruct's, on the RDFa test suite the W3C's RDFa
 
 What `extract()`'s reader leaves out on purpose -- links, `about`, typed literals, languages, the page as a subject -- is in [Known limits](known-limits.md); every test it fails is filed below under one of those, or listed as not explained.
 
-Regenerated on 2026-09-25 from commit `6ed235f` by `uv run bench/rdfa_conformance.py`, with Sluicer 0.7.1, extruct 0.18.0 and rdflib 7.6.0 on Python 3.14, against the suite at `b388107da890` of [`rdfa/rdfa.github.io`](https://github.com/rdfa/rdfa.github.io), which is distributed under both the W3C Test Suite License and the W3C 3-clause BSD License. A test passes when its query answers what the suite expects.
+Regenerated on 2026-09-25 from commit `354ef6b` by `uv run bench/rdfa_conformance.py`, with Sluicer 0.9.0, extruct 0.18.0 and rdflib 7.6.0 on Python 3.14, against the suite at `b388107da890` of [`rdfa/rdfa.github.io`](https://github.com/rdfa/rdfa.github.io), which is distributed under both the W3C Test Suite License and the W3C 3-clause BSD License. A test passes when its query answers what the suite expects.
 
 | set | tests | Sluicer's reader | `sluicer.compat.extruct` | extruct 0.18.0 |
 |---|---|---|---|---|
@@ -18,17 +18,27 @@ Regenerated on 2026-09-25 from commit `6ed235f` by `uv run bench/rdfa_conformanc
 | vocabulary expansion | 6 | 0 | 0 | 0 |
 | `role` | 3 | 0 | 2 | 2 |
 
+A test whose query expects false is passed by an answer with nothing in it, so the same without those tests, what each reader found:
+
+| set | tests expecting true | Sluicer's reader | `sluicer.compat.extruct` | extruct 0.18.0 |
+|---|---|---|---|---|
+| RDFa 1.1 | 166 | 3 | 133 | 129 |
+| RDFa 1.1 Lite | 51 | 2 | 27 | 27 |
+| processor graph | 3 | 0 | 0 | 0 |
+| vocabulary expansion | 6 | 0 | 0 | 0 |
+| `role` | 3 | 0 | 2 | 2 |
+
 extruct raises on 5 of the 237 documents (rdfa1.1/0122, rdfa1.1/0297, rdfa1.1/0298, rdfa1.1/0299, rdfa1.1/0300); each is counted as failed. Sluicer's readers raise on none.
 
 ## Values, subjects aside
 
-Each answer held against the graph the suite expects, its `.ttl`, subjects aside: every triple is a predicate and a value -- a literal's words, spaces collapsed, its type and language left out; an address; or a node, for a resource the graph describes -- and a value is right when the expected graph has it, wrong when it does not, and missing when only the expected graph has it. `rdfa:usesVocabulary` is left out, and so are the tests asking for an option and the 2 whose expected graph rdflib cannot parse (0281 (RDFa 1.1 Lite), 0282 (RDFa 1.1 Lite)).
+Each answer held against the graph the suite expects, its `.ttl`, subjects aside: every triple is a predicate and a value -- a literal's words, spaces collapsed, its type and language left out; an address; or a node, for a resource the graph describes -- and a value is right when the expected graph has it, wrong when it does not, and missing when only the expected graph has it. `rdfa:usesVocabulary` is left out, and so are the tests asking for an option and the 2 whose expected graph rdflib cannot parse (0281 (RDFa 1.1 Lite), 0282 (RDFa 1.1 Lite)). A reader's tests are those it answered: a document it raised on gives no values, and is left out of its row, not counted missing.
 
 | set | tests | reader | right | wrong | missing |
 |---|---|---|---|---|---|
 | RDFa 1.1 | 170 | Sluicer's reader | 99 | 1 | 248 |
 | RDFa 1.1 | 170 | `sluicer.compat.extruct` | 333 | 13 | 14 |
-| RDFa 1.1 | 170 | extruct | 327 | 13 | 20 |
+| RDFa 1.1 | 165 | extruct | 327 | 13 | 14 |
 | RDFa 1.1 Lite | 45 | Sluicer's reader | 51 | 0 | 72 |
 | RDFa 1.1 Lite | 45 | `sluicer.compat.extruct` | 116 | 8 | 7 |
 | RDFa 1.1 Lite | 45 | extruct | 116 | 8 | 7 |

@@ -323,6 +323,9 @@ def _typed(value: object) -> Iterator[list[str]]:
         if isinstance(item, list):
             pending.extend(reversed(item))
         elif isinstance(item, dict):
+            if "@value" in item:
+                # A value object's @type is its datatype, not a thing's.
+                continue
             declared = item.get("@type")
             names = declared if isinstance(declared, list) else [declared]
             found = [
@@ -332,7 +335,10 @@ def _typed(value: object) -> Iterator[list[str]]:
             ]
             if found:
                 yield list(dict.fromkeys(found))
-            pending.extend(reversed(list(item.values())))
+            # A context's term definitions carry @type too, and are no nodes.
+            pending.extend(
+                reversed([value for key, value in item.items() if key != "@context"])
+            )
 
 
 def _block_kind(raw: str) -> tuple[str, object | None]:
@@ -347,7 +353,9 @@ def _block_kind(raw: str) -> tuple[str, object | None]:
         except (ValueError, RecursionError):
             kind = "recovered"
     parsed = _parse(raw)
-    if parsed is None:
+    if parsed is None and kind != "valid":
+        # A block of JSON ``null`` is valid and declares nothing; only a block
+        # Sluicer cannot read at all is lost.
         return "lost", None
     return kind, parsed
 
@@ -471,12 +479,16 @@ class Tally:
         return own
 
     def _types(self, found: Extraction) -> None:
+        # PREREG item 2: schema.org's types. A type of another vocabulary keeps
+        # its address (a colon or a slash), and microformats' roots are not
+        # schema.org's however they are spelt.
         self.types.update(
             {
                 name
                 for record in found.records
-                if record.source in ABOUT_A_THING
+                if record.source in ABOUT_A_THING and record.source != "microformats"
                 for name in record.types
+                if ":" not in name and "/" not in name
             }
         )
 
@@ -573,10 +585,12 @@ class Tally:
                 ],
             )
         if "tdm_reservation" in rights:
+            self.rights["tdm_reservation_pages"] += 1
             self._directives("tdm_reservation", [rights["tdm_reservation"]])
         if "tdm_policy" in rights:
             self.rights["tdm_policy"] += 1
         if "tdm_reservation" in http:
+            self.rights["http_tdm_reservation_pages"] += 1
             self._directives("http_tdm_reservation", [http["tdm_reservation"]])
         if "tdm_policy" in http:
             self.rights["http_tdm_policy"] += 1
@@ -704,8 +718,10 @@ class Tally:
                 "x_robots_tag": self.rights["x_robots_tag"],
                 "x_robots_directives": top(self._said("x_robots_directives"), 15),
                 "tdm_reservation": top(self._said("tdm_reservation"), 5),
+                "tdm_reservation_pages": self.rights["tdm_reservation_pages"],
                 "tdm_policy": self.rights["tdm_policy"],
                 "http_tdm_reservation": top(self._said("http_tdm_reservation"), 5),
+                "http_tdm_reservation_pages": self.rights["http_tdm_reservation_pages"],
                 "http_tdm_policy": self.rights["http_tdm_policy"],
                 "license": self.rights["license"],
             },
@@ -778,6 +794,11 @@ def count_file(path: Path) -> Tally:
     except WarcError as broken:
         tally.failed[f"file broke off: {broken}"] += 1
     tally.left_out.update(skipped.reasons)
+    # PREREG: every record left out is counted by why, the ones that are no
+    # page at all too.
+    tally.left_out.update(
+        {f"{kind} record": count for kind, count in skipped.passed_over.items()}
+    )
     return tally
 
 
@@ -1206,12 +1227,12 @@ def _types(counts: dict[str, Any]) -> list[str]:
         "",
         "## Types",
         "",
-        "The types of the records Sluicer reads from the vocabularies about",
-        f"things, by the pages declaring each: {_n(types['distinct'])} distinct "
-        "types, the",
-        "twenty-five commonest. A schema.org type is written by its name",
-        "whatever the page wrote (`http://schema.org/Product`, `schema:Product`);",
-        "any other keeps its whole IRI, and microformats their class.",
+        "The schema.org types of the records Sluicer reads from the",
+        "vocabularies about things, by the pages declaring each:",
+        f"{_n(types['distinct'])} distinct types, the twenty-five commonest.",
+        "A schema.org type is written by its name whatever the page wrote",
+        "(`http://schema.org/Product`, `schema:Product`); another vocabulary's,",
+        "which keeps its whole IRI, and microformats' classes are not counted.",
         "",
     ]
     out += _table(
@@ -1220,7 +1241,8 @@ def _types(counts: dict[str, Any]) -> list[str]:
     )
     out += [
         "",
-        "Every typed object in every JSON-LD block, nested ones included, as",
+        "Every typed object in every JSON-LD block, nested ones included --",
+        "not a context's term definitions, not a value's datatype -- as",
         f"written and before references are resolved: {_n(typed)} typed objects, the",
         "twenty commonest classes, beside the share of Web Data Commons' "
         f"{_n(WDC['jsonld_entities'])} JSON-LD entities",
@@ -1263,6 +1285,9 @@ def _merging(counts: dict[str, Any]) -> list[str]:
         f"{_n(folded)} ({_share(folded, several)} of those) one record",
         "holds fields from two or more: the fold added what the first",
         "vocabulary left out. A fold that added no field is not seen here.",
+        "Microformats count here with every root, `h-full` and `h-auto`",
+        "among them, as the first count had them; only What pages declare",
+        "splits them.",
         "",
     ]
     out += _table(
@@ -1495,8 +1520,6 @@ def _links_and_rights(counts: dict[str, Any]) -> list[str]:
         "not read here.",
         "",
     ]
-    reserved = rights["tdm_reservation"]
-    http_reserved = rights["http_tdm_reservation"]
     out += _table(
         ["declares", "pages", "share"],
         [
@@ -1512,8 +1535,8 @@ def _links_and_rights(counts: dict[str, Any]) -> list[str]:
             ],
             [
                 "`tdm-reservation` in the page",
-                _n(sum(reserved.values())),
-                _share(sum(reserved.values()), pages),
+                _n(rights["tdm_reservation_pages"]),
+                _share(rights["tdm_reservation_pages"], pages),
             ],
             [
                 "`tdm-policy` in the page",
@@ -1522,8 +1545,8 @@ def _links_and_rights(counts: dict[str, Any]) -> list[str]:
             ],
             [
                 "`TDM-Reservation` in the headers",
-                _n(sum(http_reserved.values())),
-                _share(sum(http_reserved.values()), pages),
+                _n(rights["http_tdm_reservation_pages"]),
+                _share(rights["http_tdm_reservation_pages"], pages),
             ],
             [
                 "`TDM-Policy` in the headers",

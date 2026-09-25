@@ -14,18 +14,48 @@ Dates are the day the work landed. Anything not listed here did not happen.
   asked the test's own SPARQL query by rdflib, in an environment of its own
   (`bench/requirements/rdflib.txt`) that no install of Sluicer needs. On RDFa
   1.1's 170 tests `sluicer.compat.extruct` passes 137 and extruct 132, which
-  raises on five documents that write `about="[]"` or `resource="[]"`;
+  raises on five documents that write `about="[]"` or `resource="[]"`.
   `extract()`'s reader, which reads RDFa Lite into records that name no
-  subject, passes 7, and 21 of the 162 runs that name a subject when the
-  names are set aside. Held against the suite's expected graphs, subjects
-  aside, that reader gives 99 of RDFa 1.1's values right and 1 wrong, a
-  term with no `vocab` read as schema.org's, and misses 248, where
-  `compat.extruct` gives 333 right and 13 wrong, extruct's own 13. The
+  subject, passes 7, and 4 of them are tests whose query expects false,
+  which an answer with nothing in it passes: of the 166 that expect true it
+  passes 3, `compat.extruct` 133 and extruct 129. Of all 237 runs, 162 ask
+  for a subject by its address, which the records never carry; with those
+  addresses set aside the reader passes 21. Held against the suite's
+  expected graphs, subjects aside, that reader gives 99 of RDFa 1.1's values
+  right and 1 wrong, a term with no `vocab` read as schema.org's, and misses
+  248, where `compat.extruct` gives 333 right and 13 wrong, and extruct, on
+  the 165 documents it does not raise on, 327 right and 13 wrong. The
   scoreboard files each test under a feature and says, for every test the
   reader fails, which part of RDFa it leaves out on purpose;
   `docs/known-limits.md` now names each of those parts.
+- `docs/state-of-declared-data.md`: what pages declare about themselves,
+  counted on every HTML page of four Common Crawl WARC files of
+  `CC-MAIN-2026-39`, chosen by a rule `bench/PREREG.md` fixed before any was
+  downloaded: the vocabularies, the types, the records folded across
+  vocabularies, the conflicts, the JSON-LD blocks that are not JSON and how
+  many Sluicer still reads, what normalises, canonicals and `hreflang`, robots
+  and TDMRep declarations, each rate with its Wilson interval, beside Web Data
+  Commons' counts for October 2024 where they measure the same thing.
+  Written by `bench/declared_report.py` from its counts,
+  `bench/declared-counts.json`; the files are pinned by SHA-256 in
+  `bench/declared-manifest.json`.
+- `sluicer.warc.Skipped.passed_over` counts the records that are no page --
+  `request`, `metadata`, `warcinfo` -- by kind, beside `reasons`, for a
+  caller that accounts for every record of a file; what `sluicer warc`
+  reports is unchanged.
 
 ### Fixed
+- The Docker MCP Catalog entry lists all twelve tools: Docker's build lists a
+  server's tools with each variable set to its example, and the example
+  `SLUICER_MCP_TOOLS=extract_declared,page_markdown` offered two. Its example
+  is empty, which offers every tool. Found by running the catalog's own CI.
+- The npm release names the package it publishes as `./sluicer-VERSION.tgz`,
+  a file, where npm can read a bare `name/file.tgz` as a GitHub repository.
+- RDFa: an empty `content` is the property's value, which is none, and no
+  longer the words under the element: `<body typeof="Product"
+  property="name" content="">` made the whole page's text the product's
+  name, and the summary's title. No answer over the 4,319 cached pages of
+  the benchmark corpora changes. Found by review.
 - RDFa: a property on an element whose `rel` or `rev` names a term takes the
   element's words, not its address, which is the link's: data-vocabulary.org's
   breadcrumbs, `<a href="/" rel="v:url" property="v:title">Home</a>`, gave
@@ -37,7 +67,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - RDFa: a `typeof` element whose `property` has `content` or `datatype` is a
   subject holding that property, as RDFa Core's processing rules say and the
   W3C suite's test 0317 checks; it was read as a link to an empty subject and
-  dropped. A `datatype` asks for the words, never the element's address.
+  dropped. Where the element also has a `rel` or `rev` naming a term, the
+  `typeof` types the link's object and the property is the enclosing
+  subject's, as those rules have it. A `datatype` asks for the words, never the element's address.
   Drupal 7 writes a node's author and tags this way, `<span
   typeof="sioc:UserAccount" property="foaf:name" datatype="">`: over the
   3,976 cached corpus pages, 8 pages gain 36 records -- 13 accounts and

@@ -75,9 +75,16 @@ class WarcPage:
 
 @dataclass
 class Skipped:
-    """What a run left out, by reason, in the order first met."""
+    """What a run left out, by reason, in the order first met.
+
+    ``reasons`` holds the page-like records left out, and is what a run
+    reports; ``passed_over`` counts the records that are no page by kind --
+    ``request``, ``metadata`` and the like -- for a caller that accounts for
+    every record of a file.
+    """
 
     reasons: Counter[str] = field(default_factory=Counter)
+    passed_over: Counter[str] = field(default_factory=Counter)
 
     def add(self, reason: str) -> None:
         self.reasons[reason] += 1
@@ -256,6 +263,7 @@ def _page(
         skipped.add("revisit")
         return None
     if kind not in ("response", "resource"):
+        skipped.passed_over[kind or "(no WARC-Type)"] += 1
         return None
     if block is None:
         skipped.add("too large")

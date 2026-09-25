@@ -462,3 +462,30 @@ def test_prefixes_are_read_once_not_once_for_each_property():
     found = read_rdfa(doc)
     assert time.perf_counter() - started < 1.5
     assert found[0]["http://e.example/1/x"] == ["v"] * 8_000
+
+
+def test_an_empty_content_is_the_value_and_never_the_words_under_it():
+    """``content=""`` on a subject holding its own property made the text of
+    everything under it the name, and that became the page's title: RDFa's
+    answer is the empty string, which is no value. Found by review."""
+    doc = load(
+        '<html><body vocab="https://schema.org/" typeof="Product" property="name"'
+        ' content=""><nav>Home Cart</nav><p>The whole body.</p></body></html>',
+        url="https://shop.example/",
+    )
+
+    assert read_rdfa(doc) == [{"@type": "Product"}]
+
+
+def test_a_literal_on_an_element_that_links_belongs_to_the_subject_around_it():
+    """With a CURIE ``rel``, ``typeof`` types the link's object and the literal
+    property is the enclosing subject's, as RDFa Core's processing rules have
+    it; the name went to a Person of its own. Found by review."""
+    doc = load(
+        '<html><body><div vocab="http://schema.org/" typeof="Article">'
+        '<a rel="schema:author" href="/u" typeof="Person" property="name"'
+        ' datatype="">Ann</a></div></body></html>',
+        url="https://site.example/a",
+    )
+
+    assert read_rdfa(doc) == [{"@type": "Article", "name": "Ann"}]

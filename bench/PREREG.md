@@ -478,3 +478,17 @@ thirteen vocabularies the microformats wiki lists as microformats2's
 record of one of those types, one whose records are all of other types, or
 one whose roots gave no field at all; and the commonest microformats types
 are listed. Nothing else changed, and the first count's other numbers stand.
+
+**Corrected after the counts were read** (2026-09-25, after 0.9.0's review).
+Five places where the script did not do what this section fixed, each put
+right to what it says, none chosen by what it moved: every WARC record left
+out is counted by why, the records that are no page (`request`, `metadata`,
+`warcinfo`) by their kind, where they were dropped unsaid; item 2's types are
+schema.org's, where every reader's were counted, microformats' roots and
+other vocabularies' addresses among them; a JSON-LD context's term
+definitions and a value object's datatype are no typed nodes; a block of
+JSON `null` is valid, not lost; and the pages declaring `tdm-reservation` are
+counted one by one, not summed from its five commonest values. Item 3's
+merging counts keep every microformats root, as the first count did, since
+the split above was added for the pages with any vocabulary alone; the
+report says so where it gives them.

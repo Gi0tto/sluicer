@@ -92,6 +92,10 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     scopes = _Scopes()
     found: list[dict[str, Any]] = []
     for subject in doc.tree.xpath("//*[@typeof]"):
+        if not left[0]:
+            # The page's budget is spent: reading more subjects, each
+            # walking its words, would cost what no answer can hold.
+            break
         is_a_property = subject.get("property") is not None and not _own(subject)
         if is_a_property and _nearest_subject(subject) is not None:
             continue
@@ -120,11 +124,17 @@ def _subject(
         item["@type"] = types[0] if len(types) == 1 else types
     repeated: set[str] = set()
     for prop in _properties(subject):
+        if not left[0]:
+            break
         names = _names(prop, prop.get("property"), scopes)
         if not names:
             continue
         value: Any
-        if prop is not subject and prop.get("typeof") is not None:
+        if (
+            prop is not subject
+            and prop.get("typeof") is not None
+            and not _types_its_link(prop)
+        ):
             if depth >= _MAX_DEPTH:
                 continue
             before = left[0]
@@ -188,7 +198,28 @@ def _own(element: HtmlElement) -> bool:
     return (
         element.get("typeof") is not None
         and element.get("property") is not None
-        and (element.get("content") is not None or element.get("datatype") is not None)
+        and _asks_literal(element)
+        and not _links(element)
+    )
+
+
+def _asks_literal(element: HtmlElement) -> bool:
+    """Whether ``element``'s property asks for a literal: ``content`` or
+    ``datatype``."""
+    return element.get("content") is not None or element.get("datatype") is not None
+
+
+def _types_its_link(element: HtmlElement) -> bool:
+    """Whether ``element``'s ``typeof`` types the object of its ``rel`` or
+    ``rev``, and its literal property belongs to the subject around it: as
+    RDFa Core's processing rules have it, ``<a rel="schema:author" href="/u"
+    typeof="Person" property="name" datatype="">Ann</a>`` names the enclosing
+    subject ``Ann`` and makes ``/u`` a Person."""
+    return (
+        element.get("typeof") is not None
+        and element.get("property") is not None
+        and _asks_literal(element)
+        and _links(element)
     )
 
 
@@ -221,7 +252,8 @@ def _value(doc: Document, element: HtmlElement) -> str:
     ``x``. The words are kept and the type is not.
     """
     content: str | None = element.get("content")
-    if content:
+    if content is not None:
+        # Empty is still the page's answer: the words under it are not.
         return content.strip()
     literal = element.get("datatype") is not None or _links(element)
     resource = trimmed(element.get("resource"))

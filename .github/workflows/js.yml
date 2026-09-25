@@ -168,4 +168,4 @@ jobs:
       # is stored anywhere, and --provenance links the package to this run.
       # Configure it once at https://www.npmjs.com/package/sluicer/access
       - name: Publish, with provenance
-        run: npm publish --provenance --access public "sluicer-${GITHUB_REF_NAME#v}.tgz"
+        run: npm publish --provenance --access public "./sluicer-${GITHUB_REF_NAME#v}.tgz"

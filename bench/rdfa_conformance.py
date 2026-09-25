@@ -400,6 +400,20 @@ def scoreboard(run: dict[str, Any], commit: str, today: str) -> str:
         rows = [t for t in tests if t["version"] == version]
         cells = [str(sum(t["passed"][r] for t in rows)) for r in READERS]
         lines.append(f"| {name} | {len(rows)} | " + " | ".join(cells) + " |")
+    # A query that expects false is passed by an empty answer, so the passes
+    # are also counted without those tests: what a reader answered.
+    lines += [
+        "",
+        "A test whose query expects false is passed by an answer with nothing "
+        "in it, so the same without those tests, what each reader found:",
+        "",
+        header.replace("| tests |", "| tests expecting true |"),
+        "|---|---|---|---|---|",
+    ]
+    for version, name in SETS.items():
+        rows = [t for t in tests if t["version"] == version and t["expected"] is True]
+        cells = [str(sum(t["passed"][r] for t in rows)) for r in READERS]
+        lines.append(f"| {name} | {len(rows)} | " + " | ".join(cells) + " |")
     raised = sorted(
         t["key"]
         for t in tests
@@ -451,7 +465,8 @@ def _values_section(tests: list[dict[str, Any]]) -> list[str]:
             if broken
             else ""
         )
-        + ".",
+        + ". A reader's tests are those it answered: a document it raised on "
+        "gives no values, and is left out of its row, not counted missing.",
         "",
         "| set | tests | reader | right | wrong | missing |",
         "|---|---|---|---|---|---|",
@@ -461,12 +476,14 @@ def _values_section(tests: list[dict[str, Any]]) -> list[str]:
         if not rows:
             continue
         for reader in READERS:
-            right = sum(t["values"][reader]["right"] for t in rows)
-            wrong = sum(len(t["values"][reader]["wrong"]) for t in rows)
-            missing = sum(t["values"][reader]["missing"] for t in rows)
+            # A reader that raised gave no answer, which is no value missing.
+            answered = [t for t in rows if not _raised(t, reader)]
+            right = sum(t["values"][reader]["right"] for t in answered)
+            wrong = sum(len(t["values"][reader]["wrong"]) for t in answered)
+            missing = sum(t["values"][reader]["missing"] for t in answered)
             lines.append(
-                f"| {name} | {len(rows)} | {NAMES[reader]} | {right} | {wrong} | "
-                f"{missing} |"
+                f"| {name} | {len(answered)} | {NAMES[reader]} | {right} | "
+                f"{wrong} | {missing} |"
             )
     lines += ["", "Every wrong value, by reader:", ""]
     wrong = {
@@ -491,6 +508,11 @@ def _values_section(tests: list[dict[str, Any]]) -> list[str]:
         )
         lines.append(f"- {name}: " + (listed or "none") + ".")
     return [*lines, ""]
+
+
+def _raised(test: dict[str, Any], reader: str) -> bool:
+    answer = test["results"][reader]
+    return isinstance(answer, str) and answer.startswith("raised")
 
 
 def _short_iri(iri: str) -> str:

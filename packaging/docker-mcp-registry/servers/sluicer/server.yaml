@@ -20,7 +20,9 @@ config:
   description: Choose which of Sluicer's twelve tools to offer
   env:
     - name: SLUICER_MCP_TOOLS
-      example: extract_declared,page_markdown
+      # Empty: Docker's build lists the tools with each variable set to its
+      # example, and an example naming two tools listed two of twelve.
+      example: ""
       value: "{{sluicer.tools}}"
   parameters:
     type: object

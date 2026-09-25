@@ -112,9 +112,12 @@ sit on 205 pages, and most are `<meta property="description">`, `stylesheet`,
 `about`, `inlist`, property copying (`rdfa:copy`), `role`, datatypes and
 languages are not read: a `datatype` keeps the words it types, a `<time>` its
 `datetime`, and a `rel` or `rev` naming a term only says the address is the
-link's and not the property's. The [RDFa scoreboard](scoreboard-rdfa.md) runs
-the W3C RDFa test suite through the reader and files every test it fails under
-one of these. Anyone who needs the full graph is better served by a triple store
+link's and not the property's; with a `typeof` and a literal property on
+the same element, the `typeof` types the link's object, which is not kept, and
+the property is the enclosing record's. Nor are the processor graph and
+vocabulary expansion offered, the two options the suite's tests ask of a
+processor. The [RDFa scoreboard](scoreboard-rdfa.md) runs the W3C RDFa test
+suite through the reader and files every test it fails under one of these. Anyone who needs the full graph is better served by a triple store
 than by this pretending, or by `sluicer.compat.extruct`, which builds one.
 
 **Microformats is off unless you ask, and flattened when you do.** It is the
