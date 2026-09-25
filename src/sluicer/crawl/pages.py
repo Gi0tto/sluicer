@@ -31,6 +31,7 @@ from sluicer.crawl.schedule import (
     CONCURRENCY,
     DEFAULT_DELAY_SECONDS,
     MAX_DELAY_SECONDS,
+    MAX_RETRIES,
     RETRIES,
     Politeness,
     Queue,
@@ -263,9 +264,11 @@ def crawl(
         max_bytes: the most one page may weigh.
         web: how sites are reached; the real web by default.
         clock, sleep: the time, injected so a test can pace a crawl.
-        headers, cookies: ``fetch``'s, sent with every request of the crawl
-            -- pages, robots.txt, sitemaps -- to the origin it asks, and with
-            no hop a redirect takes elsewhere. Never a ``User-Agent``.
+        headers, cookies: ``fetch``'s, sent with the crawl's requests for the
+            origin of ``start`` -- scheme, host and port -- pages and
+            sitemaps, and with no other: not the site's ``www.`` twin, not
+            its pages over plain http, not a robots.txt, which is read as
+            anyone reads it. Never a ``User-Agent``.
 
     Returns:
         A ``Crawl`` to iterate for its ``Page``s.
@@ -304,6 +307,7 @@ def crawl(
         headers,
         cookies,
         max_delay,
+        [first],
     )
     deadline = None if time_budget is None else clock() + time_budget
     visitor = _Visitor(
@@ -370,8 +374,56 @@ def extract_many(
     ``state``, an address the file already holds is skipped, and every new
     page is appended. The other arguments are ``crawl``'s; ``headers`` and
     ``cookies`` go to every address's own origin, as a list of addresses
-    handed to ``curl -H`` has them sent to each.
+    handed to ``curl -H`` has them sent to each -- to the origins of the
+    addresses given, and not to one a redirect's target, read in its own
+    turn, is on.
     """
+    given = [normalise(address) or address.strip() for address in urls]
+    return _extract_listed(
+        given,
+        given,
+        state=state,
+        induce=induce,
+        respect_tdm=respect_tdm,
+        min_delay=min_delay,
+        max_delay=max_delay,
+        concurrency=concurrency,
+        retries=retries,
+        time_budget=time_budget,
+        allow_private=allow_private,
+        resolve=resolve,
+        max_bytes=max_bytes,
+        web=web,
+        clock=clock,
+        sleep=sleep,
+        headers=headers,
+        cookies=cookies,
+    )
+
+
+def _extract_listed(
+    given: list[str],
+    send_to: Sequence[str],
+    *,
+    state: str | Path | None,
+    induce: bool,
+    respect_tdm: bool,
+    min_delay: float,
+    max_delay: float,
+    concurrency: int,
+    retries: int,
+    time_budget: float | None,
+    allow_private: bool,
+    resolve: Callable[[str], Iterable[str]],
+    max_bytes: int,
+    web: Web | None,
+    clock: Callable[[], float],
+    sleep: Callable[[float], None],
+    headers: Mapping[str, str] | None,
+    cookies: Mapping[str, str] | None,
+) -> Crawl:
+    """``extract_many`` of ``given``, normalised, sending ``headers`` and
+    ``cookies`` to the origins of ``send_to`` alone."""
     _sendable(web, headers, cookies)
     queue = Queue()
     queued: set[str] = set()
@@ -389,8 +441,8 @@ def extract_many(
             queued.add(address)
             queue.add(address, found_on=found_on)
 
-    for given in urls:
-        add(normalise(given) or given.strip())
+    for address in given:
+        add(address)
     for target in targets:
         add(normalise(target) or target)
 
@@ -409,6 +461,7 @@ def extract_many(
         headers,
         cookies,
         max_delay,
+        send_to,
     )
     deadline = None if time_budget is None else clock() + time_budget
     visitor = _Visitor(
@@ -447,12 +500,14 @@ def _reach(
     headers: Mapping[str, str] | None = None,
     cookies: Mapping[str, str] | None = None,
     max_delay: float = MAX_DELAY_SECONDS,
+    send_to: Iterable[str] = (),
 ) -> tuple[Politeness, Web]:
     """The pacing and the web it paces, each built with the other.
 
     The real web asks the pacing about every redirect hop, and the pacing
     reads robots.txt through the web; the reader is looked up when first
-    called, by which time both exist.
+    called, by which time both exist. ``send_to`` is the addresses the caller
+    named, whose origins alone are sent ``headers`` and ``cookies``.
     """
     reached: list[Web] = []
     polite = Politeness(
@@ -472,9 +527,18 @@ def _reach(
             polite.hop,
             headers=headers,
             cookies=cookies,
+            send_to=send_to,
         )
     )
     return polite, reached[0]
+
+
+def _check_retries(retries: int) -> None:
+    """Refuse, before anything is asked, retries a crawl does not make."""
+    if not 0 <= retries <= MAX_RETRIES:
+        raise ValueError(
+            f"retries must be 0 or more and at most {MAX_RETRIES}, not {retries}"
+        )
 
 
 def _sendable(
@@ -565,8 +629,7 @@ class _Visitor:
         retries: int = RETRIES,
         deadline: float | None = None,
     ) -> None:
-        if retries < 0:
-            raise ValueError(f"retries must be 0 or more, not {retries}")
+        _check_retries(retries)
         self.web = web
         self.polite = polite
         self.rungs = polite.paced(web.rungs)
@@ -684,7 +747,7 @@ class _Visitor:
         except PaymentRequired as unpaid:
             return failed("payment_required", str(unpaid))
         except FetchFailed as failure:
-            return failed("fetch_failed", str(failure), retryable=True)
+            return failed("fetch_failed", str(failure), retryable=failure.transient)
         finally:
             self.polite.ended(task.url)
         if self.memory is not None and not fetched.climbs:
@@ -781,10 +844,13 @@ def asking_again(
 
 def _worth_asking_again(page: Page) -> str | None:
     """What ``page`` came to, when asking again later may bring back more:
-    a fetch that failed -- the page or its robots.txt did not answer -- or a
-    429 or a 5xx. None for any other answer."""
+    a fetch that failed in a way that may pass -- the page or its robots.txt
+    did not answer, or its answer was cut short (``FetchFailed.transient``)
+    -- or a 429 or a 5xx. None for any other answer: a redirect loop, an
+    encoding the fetch cannot read, a 404 are asked again for the same."""
     if page.error is not None:
-        return page.error.message if page.error.code == "fetch_failed" else None
+        retry = page.error.code == "fetch_failed" and page.error.retryable
+        return page.error.message if retry else None
     if page.status is not None and (page.status == 429 or page.status >= 500):
         return f"it answered {page.status}"
     return None

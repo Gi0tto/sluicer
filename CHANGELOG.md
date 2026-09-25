@@ -617,6 +617,133 @@ Dates are the day the work landed. Anything not listed here did not happen.
   Dockerfile copied LICENSE alone: 0.7.0's image shipped schema.org's and
   CLDR's data with neither their licences nor the notice saying which files
   they cover.
+- The HTTP rung never returns part of a body as the page. A server that
+  announced a `Content-Length` and closed the connection before sending it
+  all had what came returned with its status, 200, and kept by `--cache` as
+  the page: the standard library's `read1()` answers an empty read at the end
+  of the connection, which was taken for the end of the body. It is a
+  `ProtocolError`, and that connection is not kept.
+- A body whose gzip, deflate or zstd stream ends before its end -- the
+  framing whole, the compressed stream cut -- is a `ProtocolError`, not the
+  page it began. 0.7.1 returned the words it held as the page too.
+- A raw deflate body whose first read brought one byte is decoded: whether
+  deflate is zlib's or raw was decided on that byte, which is no zlib header
+  yet, and the next read failed zlib's check.
+- A body of thousands of gzip or zstd members is read in a loop: each member
+  was read by a call inside the last one's, and 3,000 empty gzip members,
+  60 KB, raised `RecursionError`.
+- A caller's headers and cookies go to the origin the caller named, fixed
+  before the first request, and to no other. The ladder read the robots.txt
+  of the origin a redirect landed on through the rung built with them, which
+  took that robots.txt for the address asked and sent it the caller's
+  `Authorization` and cookies. A crawl sent them to every address of the
+  site, so a crawl of an https site followed its http links and sent the
+  cookie in clear text, and to its `www.` twin; a map sent them to a sitemap
+  robots.txt names on any host; a batch sent them to a redirect's target,
+  read in its own turn. Now a fetch sends them to the origin of its address,
+  a crawl, a map and the pages of a sitemap to the origin they start at, a
+  batch to the origins of the addresses it is given; in the browser a cookie
+  set for an https origin is sent over https alone.
+- robots.txt is read without the caller's headers and cookies, as anyone
+  reads it: the answer is kept for the site for a day and given to every
+  caller, so an answer read behind one login was given to every other
+  caller, with that login or without it.
+- The robots.txt of the origin a redirect lands on is read when only the
+  port differs: a redirect from `https://example.com/` to
+  `https://example.com:8443/` was taken for the same origin, and that
+  server's robots.txt was never asked.
+- A rung remembered for a site whose page is one to climb past -- a
+  refusal, a challenge, an empty shell -- is forgotten, and the ladder starts
+  again from plain HTTP, the remembered rung's page kept rather than asked
+  for twice. The memory was dropped only when the remembered rung raised:
+  measured with a real browser, once a site's script-drawn page had taught
+  it the browser, its articles, which plain HTTP read whole and the browser
+  was refused, came back as the browser's 403, every one of them, and a
+  crawl's parts did the same.
+- A crawl asks a page again only when what failed may pass: a connection
+  refused or reset, a timeout, an answer cut short, a name the resolver could
+  not look up for now, a robots.txt nobody could read, or a 429 or a 5xx.
+  Every failed fetch was asked again: measured, a redirect loop was followed
+  three times over, 33 requests, before the site was taken for failing, and
+  so was an encoding the fetch cannot read. `FetchFailed.transient` says
+  which it is, and a crawled page's `retryable`, and the MCP tools' and the
+  HTTP API's, is false for one that would fail again.
+- An empty 4xx or 5xx is that status's answer about the address, as the same
+  status with a body is: the HTTP rung reported an empty 404 as a rung that
+  failed, so a crawl asked for it three times and ended `fetch_failed`, not
+  404, and the ladder climbed past an empty 404 to the browser.
+- A `Retry-After` of digits that are not ASCII's -- `²`, which is a digit to
+  Python's `str.isdigit` and not to `float` -- raised out of the crawl and
+  ended a whole run of many sites at the first site that sent it. It is no
+  `Retry-After`, as RFC 9110's grammar has it, and a wait is read as a year
+  at most.
+- A cache entry stored at a time still to come, or at none (`NaN`, text), is
+  no entry: its age read as 0, so under `--max-age` it was given back without
+  asking its site for as long as that lasted, forever for one planted a
+  thousand years ahead. An entry whose status, headers or address are not
+  what the cache writes is no entry either. Also in 0.7.1.
+- A proxy address Sluicer cannot use is named without its password: the
+  whole address was in the message, and so in the MCP server's log. The MCP
+  server and `sluicer serve` refuse a `SLUICER_PROXY` they cannot use when
+  they start, exit 2 and one line, where the first tool that fetched answered
+  `internal_error` and logged the traceback.
+- A map queues each sitemap once, however often its indexes name it, and
+  reads a repeated address once: fifty indexes each naming the next and
+  itself 20,000 times took 10.7 s to map, every repeat queued, taken off the
+  front of a list and normalised, and 1.7 s now on the same machine.
+- `sluicer map --time-budget SECONDS` stops asking for sitemaps once the time
+  is spent, as `map_site(time_budget=)` and the MCP tool already did; the
+  command line had no bound but the fifty sitemaps, each after the site's
+  delay of up to a minute.
+- The Shopify template reads a products.json nested past any shop: a
+  product whose tags nested 5,000 lists deep raised `RecursionError` out of
+  the crawl, and 100,000 did so from the JSON parser. What nests deeper than
+  a page's JSON-LD is read is left out, and JSON too deep to parse is not a
+  products.json.
+- The browser rung launches Chromium in its sandbox. Playwright passes
+  `--no-sandbox` unless told otherwise, and the browser that renders any page
+  it is sent ran its renderers unsandboxed. A sandbox that cannot start --
+  Docker's default seccomp profile, an Ubuntu that restricts user namespaces
+  -- fails the launch with a message that says what to allow, or that
+  `SLUICER_BROWSER_SANDBOX=0` runs it without one; SECURITY.md and the
+  Dockerfile say what a container needs. `tests/live/browser_check.py` fails
+  when the browser it starts has `--no-sandbox`.
+- The guarded browser reaches no private address by the requests it makes
+  for a page, which no route of the page sees. Measured with the guard
+  installed, a speculation rule's prefetch and prerender -- written in the
+  page, sent in a `Speculation-Rules` header, added by a script, aimed at
+  another site -- and a WebRTC connection to a STUN or a TURN server each
+  reached a private address. Every connection of a guarded page now goes
+  through a proxy on this machine's loopback (`sluicer.fetch.browser_proxy`)
+  that judges each host and port as the HTTP rung does and connects only to
+  the addresses it checked, a proxy the caller asked for its way out;
+  Chromium is told not to pass loopback by it, WebRTC's UDP, which no proxy
+  carries, is off, and a page has no WebRTC. So the browser resolves no name
+  itself, and DNS rebinding reaches nothing new through it either, as
+  through the HTTP rung. A browser driven elsewhere (`SLUICER_CDP_URL`)
+  cannot reach that proxy and is judged by the routes alone, as SECURITY.md
+  says. `tests/live/guard_check.py` tries thirteen routes, these among them.
+- `sluicer serve` closes a connection that has not sent a request's line and
+  headers within ten seconds of opening, or of its last answer
+  (`HEAD_SECONDS`). uvicorn times a connection out only between two
+  requests: 64 connections that sent nothing held every one it serves at
+  once, and every later request, `/health` included, was answered 503 for as
+  long as they stayed. `tests/live/mcp_http_check.py` holds 64 open.
+- A CSV cell is judged as a spreadsheet may read it: behind the spaces,
+  line breaks and no-break spaces it may trim, with a fullwidth `＝` or `＋`
+  as the sign it looks like, and with a number made of ASCII digits. Only
+  the first character was looked at, so ` =1+1`, `\n=1+1` and `＝1+1` were
+  written as they came.
+- The private-address filter refuses what Python's `is_global` counts as
+  global and the web is not: multicast (`224.0.0.0/4`, `ff00::/8`), SIIT's
+  IPv4-translated addresses (`::ffff:0:a.b.c.d`), judged by the IPv4 address
+  they carry as a mapped one is, SRv6's segment identifiers (`5f00::/16`)
+  and the deprecated site-local range (`fec0::/10`). Also in 0.7.1.
+- A crawl asks 32 sites at once at most (`MAX_CONCURRENCY`) and a page ten
+  more times at most (`MAX_RETRIES`), whether `--jobs` and `--retries`, the
+  library's `concurrency=` and `retries=`, or a `sluicer.toml` asks for more:
+  a file in a directory above is read by every command run below it, and one
+  asking for a million jobs started a thread for every site of a batch.
 
 ## 0.7.1 - 2026-09-25
 

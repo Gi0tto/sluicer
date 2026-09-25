@@ -9,6 +9,7 @@ from __future__ import annotations
 import click
 
 from sluicer.cli.exits import _fail
+from sluicer.fetch.wire import UnusableProxy
 from sluicer.http_api import (
     DEFAULT_HOST,
     DEFAULT_PORT,
@@ -58,7 +59,7 @@ def serve(host: str, port: int, timeout: float, allow_unauthenticated: bool) -> 
         serve_http(
             host, port, timeout=timeout, allow_unauthenticated=allow_unauthenticated
         )
-    except (ApiExtraMissing, Unprotected) as refused:
+    except (ApiExtraMissing, Unprotected, UnusableProxy) as refused:
         _fail(str(refused), refused)
 
 

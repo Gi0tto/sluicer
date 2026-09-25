@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import csv
 import re
+import unicodedata
 from collections.abc import Callable, Mapping
 from typing import IO, Any
 
@@ -61,19 +62,30 @@ SITE_URL_COLUMNS: tuple[str, ...] = ("url", "lastmod", "sitemap")
 """The columns of a map's row: one address, as ``sluicer.crawl.SiteUrl``."""
 
 _FORMULA = ("=", "+", "-", "@", "\t", "\r")
-_NUMBER = re.compile(r"[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:[eE][+-]?\d+)?")
+_NUMBER = re.compile(r"[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:[eE][+-]?\d+)?", re.ASCII)
+# What a spreadsheet may trim off a cell before it reads it: spaces and line
+# breaks, a no-break space and the other Unicode spaces among them.
+_SPACE = re.compile(r"^[\s\u00a0\u2000-\u200b\u202f\u205f\u3000\ufeff]+")
 
 
 def cell(value: Any) -> str:
     """``value`` as one cell: text, ``true``/``false``, empty for None, and
-    never a formula."""
+    never a formula.
+
+    A cell is judged as a spreadsheet may read it: behind the spaces it may
+    trim, and with a fullwidth equals or plus sign (U+FF1D, U+FF0B) as the
+    sign it looks like. A
+    number is ASCII's: a minus before digits of another script is a formula.
+    """
     if value is None:
         return ""
     if isinstance(value, bool):
         return "true" if value else "false"
     text = str(value)
-    if text.startswith(_FORMULA) and not _NUMBER.fullmatch(text):
-        return "'" + text
+    read = unicodedata.normalize("NFKC", _SPACE.sub("", text))
+    for seen in (text, read):
+        if seen.startswith(_FORMULA) and not _NUMBER.fullmatch(seen):
+            return "'" + text
     return text
 
 

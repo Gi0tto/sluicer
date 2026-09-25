@@ -910,6 +910,19 @@ def test_an_error_pages_links_and_canonical_are_not_the_sites():
         ({"retry-after": "soon"}, None),
         ({"retry-after": "-5"}, None),
         ({}, None),
+        # Digits that are not ASCII's: "²" raised ValueError out of the crawl,
+        # ending a run of many sites at the first site that sent it.
+        ({"retry-after": "\u00b2"}, None),
+        ({"retry-after": "\u0661\u0662"}, None),
+        # A wait no site means is held to a year.
+        ({"retry-after": "9" * 400}, 365 * 24 * 60 * 60.0),
+        (
+            {
+                "retry-after": "Fri, 31 Dec 9999 23:59:59 GMT",
+                "date": "Wed, 23 Sep 2026 10:00:00 GMT",
+            },
+            365 * 24 * 60 * 60.0,
+        ),
     ],
 )
 def test_a_retry_after_is_read_as_rfc_9110_writes_it(headers, seconds):
@@ -1158,6 +1171,14 @@ def test_a_page_is_asked_three_times_at_most_and_is_then_what_it_last_was():
     assert len(requests_of(fake, f"{ROOT}/c/1")) == 3
 
 
+def test_a_crawl_asks_a_page_again_no_more_than_its_bound():
+    from sluicer.crawl.schedule import MAX_RETRIES
+
+    fake = FakeWeb(shop())
+    with pytest.raises(ValueError, match=f"at most {MAX_RETRIES}"):
+        run(fake, retries=MAX_RETRIES + 1)
+
+
 def test_no_retries_asks_once():
     pages = shop()
     pages[f"{ROOT}/c/1"] = ConnectionError("connection reset")
@@ -1181,6 +1202,67 @@ def test_a_client_error_is_the_page_s_answer_and_never_asked_again():
     assert result[f"{ROOT}/c/1"].retries == result[f"{ROOT}/c/2"].retries == ()
     assert len(requests_of(fake, f"{ROOT}/c/1")) == 1
     assert len(requests_of(fake, f"{ROOT}/c/2")) == 1
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "TooManyRedirects",
+        "UnreadableEncoding",
+        "EmptyBody",
+    ],
+)
+def test_a_failure_that_asking_again_cannot_change_is_asked_once(failure):
+    """Measured on 0.8.0: a redirect loop was followed three times over, 33
+    requests, and the site was then treated as failing; every failure was
+    retried, whatever it was."""
+    from sluicer.fetch.http_rung import TooManyRedirects
+    from sluicer.fetch.result import EmptyBody
+    from sluicer.fetch.wire import UnreadableEncoding
+
+    raised = {
+        "TooManyRedirects": TooManyRedirects("it redirected more than 10 times"),
+        "UnreadableEncoding": UnreadableEncoding(f"{ROOT}/c/1", "br"),
+        "EmptyBody": EmptyBody(f"{ROOT}/c/1", "http", 200),
+    }[failure]
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = raised
+    fake = FakeWeb(pages)
+
+    again = {p.url: p for p in run(fake)}[f"{ROOT}/c/1"]
+
+    assert again.error.code == "fetch_failed"
+    assert not again.error.retryable
+    assert again.retries == ()
+    assert len(requests_of(fake, f"{ROOT}/c/1")) == 1
+
+
+def test_a_page_cut_short_or_timed_out_is_asked_again():
+    from sluicer.fetch.http_rung import ProtocolError
+
+    pages = shop()
+    pages[f"{ROOT}/c/1"] = [ProtocolError("cut short"), pages[f"{ROOT}/c/1"]]
+    pages[f"{ROOT}/c/2"] = [TimeoutError("took too long"), pages[f"{ROOT}/c/2"]]
+    fake = FakeWeb(pages)
+
+    result = {p.url: p for p in run(fake)}
+
+    assert [len(result[f"{ROOT}/c/{n}"].retries) for n in (1, 2)] == [1, 1]
+    assert result[f"{ROOT}/c/1"].ok and result[f"{ROOT}/c/2"].ok
+
+
+def test_an_empty_404_is_the_page_s_answer_and_asked_once(monkeypatch):
+    """Measured on 0.8.0: an empty 404 was the HTTP rung failing, not a 404;
+    asked three times, it ended fetch_failed."""
+    from fake_wire import fake_http
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    seen = fake_http(monkeypatch, [(404, b"", {}), (404, b"", {})])
+
+    pages = list(extract_many([f"{ROOT}/gone"], min_delay=0))
+
+    assert [(p.status, p.error) for p in pages] == [(404, None)]
+    assert [r.target for r in seen.requests] == ["/robots.txt", "/gone"]
 
 
 def test_a_robots_file_that_did_not_answer_is_asked_again():
@@ -1295,3 +1377,96 @@ def test_a_fast_site_is_still_asked_no_sooner_than_its_crawl_delay():
     list(run(fake, max_pages=3))
 
     assert fake.gaps("example.com") == [4.0, 4.0, 4.0]
+
+
+def test_a_crawls_login_goes_to_the_origin_it_started_at_and_no_other(monkeypatch):
+    """Measured on 0.8.0: a crawl of https://site.test/ with a cookie followed
+    an http:// link of the same site and sent the cookie in clear text. The
+    site is its host with or without www., over http or https; a login is
+    for the one origin the caller named."""
+    from fake_wire import fake_http
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    home = (
+        b"<html><body>" + b"<p>words of the home page</p>" * 20 + b"<a href="
+        b"'http://example.com/plain'>plain</a><a href='https://www.example.com/w'>"
+        b"w</a><a href='/same'>same</a></body></html>"
+    )
+    leaf = b"<html><body>" + b"<p>words of a page</p>" * 20 + b"</body></html>"
+    nothing = (404, b"", {})
+    seen = fake_http(
+        monkeypatch,
+        [nothing, (200, home, {}), nothing, (200, leaf, {}), nothing]
+        + [(200, leaf, {})] * 2,
+    )
+
+    pages = list(
+        crawl(
+            "https://example.com/",
+            max_pages=4,
+            min_delay=0,
+            headers={"Authorization": "Bearer t"},
+            cookies={"s": "1"},
+        )
+    )
+
+    assert [p.error for p in pages] == [None] * 4
+    asked = [
+        (seen.targets[r.connection].scheme, seen.targets[r.connection].host, r.target)
+        for r in seen.requests
+    ]
+    logged_in = [
+        target
+        for target, r in zip(asked, seen.requests, strict=True)
+        if "authorization" in r.headers or "cookie" in r.headers
+    ]
+    assert sorted(logged_in) == [
+        ("https", "example.com", "/"),
+        ("https", "example.com", "/same"),
+    ]
+    assert len(asked) == 7
+
+
+def test_a_batchs_login_does_not_follow_a_redirect_into_another_sites_turn(
+    monkeypatch,
+):
+    """A redirect to another site is read in that site's own turn, as an
+    address of its own; asked that way it was sent the login meant for the
+    address given."""
+    from fake_wire import fake_http
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    leaf = b"<html><body>" + b"<p>words of a page</p>" * 20 + b"</body></html>"
+    nothing = (404, b"", {})
+    seen = fake_http(
+        monkeypatch,
+        [
+            nothing,
+            (302, b"", {"location": "https://other.example/q"}),
+            nothing,
+            (200, leaf, {}),
+        ],
+    )
+
+    pages = list(
+        extract_many(
+            ["https://example.com/p"], min_delay=0, headers={"Authorization": "t"}
+        )
+    )
+
+    assert [p.error.code if p.error else None for p in pages] == [
+        "redirected_off_site",
+        None,
+    ]
+    assert [r.target for r in seen.requests] == [
+        "/robots.txt",
+        "/p",
+        "/robots.txt",
+        "/q",
+    ]
+    assert ["authorization" in r.headers for r in seen.requests] == [
+        False,
+        True,
+        False,
+        False,
+    ]

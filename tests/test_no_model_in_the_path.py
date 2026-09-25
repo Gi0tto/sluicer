@@ -56,11 +56,17 @@ FORBIDDEN_FAMILIES = ("langchain", "llama_index", "llama_cpp")
 # The exceptions, and why. Telling whether an address is on the public internet
 # means asking what a name resolves to: ``getaddrinfo`` opens no connection and
 # sends nothing of the page's. And the HTTP rung is the one client: its
-# sockets, TLS and proxies in ``wire``, the protocol in ``http_rung``. Nothing
-# else in the package opens a connection.
+# sockets, TLS and proxies in ``wire``, the protocol in ``http_rung``; the
+# browser's connections, when it is guarded, go through ``browser_proxy``,
+# which connects the way ``wire`` does. Nothing else in the package opens a
+# connection.
 ALLOWED = {
     ("sluicer/fetch/address.py", "socket"),
     ("sluicer/fetch/wire.py", "socket"),
+    # The guard proxy a guarded browser page's every connection goes
+    # through, on loopback, judged as the HTTP rung judges and connected
+    # through wire's own dialling.
+    ("sluicer/fetch/browser_proxy.py", "socket"),
     ("sluicer/fetch/http_rung.py", "http.client"),
 }
 

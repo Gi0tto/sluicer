@@ -539,6 +539,30 @@ def test_the_filter_reads_a_host_the_way_the_client_will():
     assert why_not_public("https://bücher.example/", public) is None
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        # Multicast: no web page is there, and Python calls it global.
+        "http://224.0.0.1/",
+        "http://239.255.255.250/",
+        "http://[ff02::1]/",
+        "http://[ff0e::1]/",
+        # SIIT's IPv4-translated addresses carry an IPv4 one, as a mapped
+        # address does: this one is 127.0.0.1, that one 10.0.0.1.
+        "http://[::ffff:0:7f00:1]/",
+        "http://[::ffff:0:a00:1]/",
+        # SRv6's segment identifiers, and the deprecated site-local range.
+        "http://[5f00::1]/",
+        "http://[fec0::1]/",
+    ],
+)
+def test_the_filter_refuses_what_python_calls_global_and_the_web_is_not(url):
+    """Measured on 0.8.0: each was counted as public, as ``is_global`` says."""
+    from sluicer.fetch.address import why_not_public
+
+    assert why_not_public(url, lambda host: []) is not None
+
+
 def test_a_malformed_address_is_a_failed_fetch_not_a_traceback():
     from sluicer.fetch import FetchFailed, fetch
 

@@ -61,7 +61,7 @@ a log, one line a page.
   `www.`, over http or https, with its port when that is not the default:
   `www.example.com` and `example.com` are usually the same machines, and
   pacing them apart would ask them twice as often. Several sites are asked at
-  once, four by default (`--jobs`, `concurrency=`), never more than once
+  once, four by default and 32 at most (`--jobs`, `concurrency=`), never more than once
   each. One at a time holds for
   the whole process, not only for one crawl: two crawls of one site, a map
   beside them, or an agent's parallel `extract_declared` calls wait for each
@@ -104,14 +104,19 @@ a log, one line a page.
   request after a page that took 2.0 s waited 1.01 s, the next 0.51 s, then
   0.31 s. A redirect hop's rest is not counted as the site's slowness.
 - **Asked again, a few times and later each time.** A page whose request
-  did not answer -- a connection reset, a timeout, a name that did not
-  resolve, a `robots.txt` nobody could read -- or answered 429 or a 5xx is
-  asked again, twice at most by default (`--retries`, `retries=`; 0 asks
+  did not answer -- a connection refused or reset, a timeout, an answer cut
+  short, a name the resolver could not look up for now, a `robots.txt`
+  nobody could read -- or answered 429 or a 5xx is
+  asked again, twice at most by default and ten at most at all (`--retries`,
+  `retries=`; 0 asks
   once): the first time twice the site's delay after the failed request
   ended, the second four times it, or the site's `Retry-After` when that is
   longer, never more than `max_delay` and never past the time budget. A 4xx
-  other than 429 is the site's answer about the page, and is never asked
-  again. A site whose page failed through all its retries is asked once a
+  other than 429 is the site's answer about the page, with a body or empty,
+  and is never asked again; nor is a failure asking again would meet again,
+  a redirect loop, an encoding the fetch cannot read, a page with nothing in
+  it, whose line says `fetch_failed` with `retryable` false. A site whose
+  page failed through all its retries is asked once a
   page until one of its pages answers, so a site that is down costs its
   retries once, not once a page. The page's line says each time in
   `retries`, `[{"reason": "it answered 503", "after": 1.0}]`, and is what its
@@ -142,7 +147,9 @@ a log, one line a page.
 - **Under our own name.** Every request says `Sluicer/<version>`. The stealth
   rung is never part of a crawl. `--header` and `--cookie` (`headers=`,
   `cookies=`) add to what a crawl sends -- a site's own login, for a site you
-  may read behind it -- and never replace the name.
+  may read behind it -- and never replace the name. They go to the origin the
+  crawl starts at alone, scheme, host and port: its pages on `www.` or over
+  plain http, a robots.txt, a sitemap on another host are asked without them.
 
 Measured by the site being crawled, not by the crawler: `tests/live/crawl_check.py`
 serves a local site whose `robots.txt` asks for a `Crawl-delay` of 0.5 s and
@@ -348,7 +355,9 @@ JSON line and not in the table. True and false are `true` and `false`, and
 nothing is an empty cell. The pages are other people's, and a cell that
 begins with `=`, `+`, `-`, `@`, a tab or a carriage return would run as a
 formula in a spreadsheet: it is written after a `'`, as OWASP advises, unless
-it is a number. A table holds no page's links, so it cannot be resumed:
+it is a number of ASCII digits. It is judged behind the spaces, line breaks
+and no-break spaces a spreadsheet may trim, and with a fullwidth `＝` or `＋`
+read as the sign it looks like. A table holds no page's links, so it cannot be resumed:
 `--resume` refuses it; crawl as JSON Lines and make the table after.
 `sluicer map --format csv` is a row per address: `url`, `lastmod`,
 `sitemap`. From Python, `sluicer.crawl.table.page_row()` flattens a page's
@@ -385,9 +394,12 @@ a line, is read too. A soft 404, the site's HTML where a sitemap was expected,
 is reported as not a sitemap.
 
 Every bound is stated: at most 50 sitemap files per map and 50,000 addresses,
-the protocol's own limit for one file, and a sitemap listing more says so. The
-answer's `truncated` is true whenever a bound -- the limit, the number of
-sitemaps, the time -- stopped the map before the sitemaps were read out.
+the protocol's own limit for one file, and a sitemap listing more says so; a
+sitemap named again and again is asked for once. `sluicer map --time-budget
+SECONDS` (`time_budget=`) asks for no further sitemap once the time is spent;
+none by default, and a minute for the MCP tool. The answer's `truncated` is
+true whenever a bound -- the limit, the number of sitemaps, the time --
+stopped the map before the sitemaps were read out.
 
 ## For an agent
 

@@ -29,7 +29,13 @@ oversight. A header or cookie you hand a fetch (`headers=`, `cookies=`,
 `--header`, `--cookie`) is sent to the origin you asked for -- scheme, host and
 port -- and left off every hop a redirect takes elsewhere; in the browser, a
 cookie is set for the host asked and follows the browser's cookie rules, under
-which a cookie belongs to a host, not a port. It is never written to disk: the
+which a cookie belongs to a host, not a port, and one set for https is sent
+over https alone. The origin is the one you named, fixed before the first
+request: a crawl sends it to the origin it starts at and to no other address
+of the site -- not its `www.` twin, not its pages over plain http -- a batch
+to the origins of the addresses you list, and no robots.txt, nor a sitemap
+another host serves, is sent it. robots.txt is read as anyone reads it. It
+is never written to disk: the
 page cache keys a page fetched with one by a digest of what was sent. The MCP
 server and the HTTP API take none.
 
@@ -51,8 +57,16 @@ redirect to any other scheme -- `file://`, `gopher://`, `dict://` -- is refused
 before it is asked, whoever the caller is, and the client speaks nothing else.
 With the `browser` extra, a page plain HTTP brings back as an empty shell is
 rendered in Playwright's Chromium, which executes page JavaScript in its own
-process, in a new context per page. Treat fetching an untrusted URL with the
-same care you would treat opening it in your own browser. The `stealth` extra
+process, in a new context per page, in Chromium's sandbox. Playwright launches
+Chromium with `--no-sandbox` unless told otherwise, and until 0.8 it was not
+told. The sandbox needs unprivileged user namespaces: a container needs a
+seccomp profile that allows them (or `--cap-add SYS_ADMIN`), and Ubuntu 23.10
+and later lets only the programs AppArmor names have them
+(`sysctl kernel.apparmor_restrict_unprivileged_userns=0`). Where it cannot
+start, the browser rung fails and says so; `SLUICER_BROWSER_SANDBOX=0` runs
+the browser without it, the machine or the container then its only boundary.
+Treat fetching an untrusted URL with the same care you would treat opening it
+in your own browser. The `stealth` extra
 (scrapling's patched Chromium) runs only for one page a person asked for with
 `--stealth`, never for the MCP server, the HTTP API or a crawl.
 
@@ -70,7 +84,7 @@ Before any request it reads the host the way the client will -- an octal,
 hex or percent-encoded host, a backslash before an `@`, an IPv4 address
 inside an IPv6 one -- resolves it, and refuses `localhost`, `.local` and
 `.internal` names and any address that is not on the public internet:
-loopback, private ranges, link-local, `169.254.169.254` among them. Every
+loopback, private ranges, link-local, `169.254.169.254`, multicast among them. Every
 redirect is judged the same way before it is followed. The HTTP rung then
 connects only to the addresses it checked, so a name that resolves differently
 the second time (DNS rebinding) reaches nothing new; a connection it keeps open
@@ -78,14 +92,26 @@ for the site's next request is used again only while the address it reached is
 still among the ones checked. The browser rung sends
 every request the page makes -- images, frames, `fetch()`, websockets, and each
 hop of a redirect -- through the same judgement, and gives pages no service
-workers. What it does not stop, and cannot from inside a library: the browser
-resolves names itself, so DNS rebinding is still possible through the browser
-rung. `tests/live/guard_check.py` shows a real Chromium reaching a private
-server by six routes without the guard and by none with it. A browser driven
-over the DevTools protocol (`SLUICER_CDP_URL`) runs elsewhere: the guard still
-judges every request by this machine's resolver, and "private" then means
-private as seen from here, not from the browser's network. Set
-`SLUICER_ALLOW_PRIVATE=1` to turn the filter off.
+workers and no WebRTC. The browser also makes requests for a page that no
+route of the page sees: until 0.8, a speculation rule's prefetch and
+prerender -- written in the page, sent in a `Speculation-Rules` header, added
+by a script, aimed at another site -- and a WebRTC connection to a STUN or a
+TURN server reached a private address with the guard installed. So every
+connection of a guarded page, the browser's own for it included, goes
+through a proxy Sluicer runs on this machine's loopback, which judges each
+host and port by the same rule and connects only to the addresses it
+checked; Chromium is told not to pass loopback by it, and WebRTC's UDP, which
+no proxy carries, is off. The browser then resolves no name itself, so a name
+that answers differently the second time (DNS rebinding) reaches nothing new
+through it either. `tests/live/guard_check.py` has a real Chromium try
+thirteen routes to a private server -- six reach it without the guard -- and
+none does. A browser driven over the DevTools protocol (`SLUICER_CDP_URL`)
+runs elsewhere and cannot reach this machine's loopback, so it is given no
+guard proxy: the routes still judge every request the page makes, by this
+machine's resolver -- "private" then means private as seen from here, not
+from the browser's network -- but a speculation rule's requests, and a name
+that rebinds, reach past them there. Set `SLUICER_ALLOW_PRIVATE=1` to turn
+the filter off.
 
 No proxy is used unless one is asked for. Until 0.7.1 a fetch went through
 whatever proxy the environment named (libcurl read `HTTPS_PROXY` itself), the

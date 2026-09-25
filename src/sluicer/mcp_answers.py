@@ -53,9 +53,10 @@ class ErrorDetail(TypedDict, total=False):
     """Why a tool could not answer.
 
     ``retryable`` is true only for ``fetch_failed``, and on a crawled page for
-    ``rate_limited``: the same call may work later. The others need something
-    to change first -- an install, an input, or the caller's mind about a site
-    that said no.
+    ``rate_limited``: the same call may work later. Not every ``fetch_failed``
+    is: a redirect loop, or an encoding this install cannot read, would be
+    met again. The others need something to change first -- an install, an
+    input, or the caller's mind about a site that said no.
     """
 
     code: Required[ErrorCode]

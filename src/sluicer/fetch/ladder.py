@@ -12,8 +12,10 @@ What a site needed is remembered for the process (``RungMemory``): once a
 page of a site came back only from a costlier rung, because the cheaper one's
 page was a refusal, a challenge or a shell, the site's next pages start at
 that rung, and say so in their first climb. A rung that failed teaches
-nothing; a remembered rung that fails is forgotten, and the ladder starts
-again from the bottom. The stealth rung is never remembered.
+nothing; a remembered rung that fails, or whose page is itself one to climb
+past -- a refusal, a challenge, a shell -- is forgotten, and the ladder starts
+again from the bottom, its page kept so that it is not asked for twice. The
+stealth rung is never remembered.
 
 The site's robots.txt is asked before any rung runs. A refusal raises
 ``RobotsRefused`` rather than returning an empty ``Fetched``: "the site said
@@ -61,6 +63,7 @@ from sluicer.fetch.result import (
     Rung,
 )
 from sluicer.fetch.rules import challenge_marker, why_climb
+from sluicer.fetch.wire import passing
 
 __all__ = [
     "AddressRefused",
@@ -96,14 +99,49 @@ class FetchFailed(Exception):
     not be read. The message names what each rung said, and the last rung's
     own exception is the ``__cause__``. One type to catch whatever library a
     rung is built on: a browser's timeout, for one, is not an ``OSError``.
+
+    ``transient`` says whether asking again later may bring something else.
+    The ladder sets it false when every rung was answered with what it would
+    be answered again -- a redirect loop, an encoding this install cannot
+    read, an empty page -- or the address is not one; true when a rung's
+    failure was one of ``transient``'s -- a connection or a name lookup that
+    failed, time that ran out, a body cut short -- or the robots.txt could not
+    be read. True unless it is known not to be.
     """
 
-    def __init__(self, url: str, climbs: list[Climb], last: str) -> None:
+    def __init__(
+        self, url: str, climbs: list[Climb], last: str, transient: bool = True
+    ) -> None:
         said = "; ".join(f"{c.from_rung}: {c.reason}" for c in climbs)
         before = f" (before that, {said})" if said else ""
         super().__init__(f"Could not fetch {url}: {last}{before}")
         self.url = url
         self.climbs = climbs
+        self.transient = transient
+
+
+_PASSING_BROWSER_ERRORS = re.compile(
+    r"net::ERR_(?:CONNECTION_\w+|TIMED_OUT|EMPTY_RESPONSE|NETWORK_CHANGED"
+    r"|INTERNET_DISCONNECTED)"
+)
+
+
+def transient(error: BaseException) -> bool:
+    """Whether ``error`` is one asking again later may not meet.
+
+    A connection refused, reset or closed, a body cut short (``ProtocolError``
+    is a ``ConnectionError``), time that ran out, a name the resolver could
+    not look up for now, a robots.txt that could not be read; the browser's
+    own timeouts and connection failures by the names Playwright and Chromium
+    give them. Anything else is taken for the site's answer, which asking
+    again would be given again: a crawl retries only these.
+    """
+    if isinstance(error, RobotsUnreachable) or passing(error):
+        return True
+    if type(error).__name__ == "TimeoutError":
+        # Playwright's, which is not the built-in one.
+        return True
+    return bool(_PASSING_BROWSER_ERRORS.search(str(error)))
 
 
 class SiteRefused(FetchFailed):
@@ -118,7 +156,7 @@ class SiteRefused(FetchFailed):
     """
 
     def __init__(self, url: str, climbs: list[Climb], reason: str) -> None:
-        super().__init__(url, climbs, f"the site refused it: {reason}")
+        super().__init__(url, climbs, f"the site refused it: {reason}", transient=False)
         self.reason = reason
 
 
@@ -137,6 +175,7 @@ class PaymentRequired(FetchFailed):
             url,
             climbs,
             "the site answered 402 Payment Required; Sluicer does not pay",
+            transient=False,
         )
 
 
@@ -304,7 +343,7 @@ def fetch(
             the page, any climb -- a second after anyone's last request to it.
             Injected rungs are the caller's to pace, as a crawl paces its own.
         obey_robots: ask the site's robots.txt first (the default), and again
-            for the host a redirect ended on.
+            for the origin -- scheme, host and port -- a redirect ended on.
         stealth: append the stealth rung, which does not announce itself.
             Never automatic; it needs the ``stealth`` extra.
         robots_reader: how robots.txt is read; built from the cheapest rung
@@ -324,7 +363,9 @@ def fetch(
         headers: sent with every request for the origin asked -- scheme,
             host and port -- and left off any hop a redirect takes elsewhere:
             an ``Authorization``, a header an API wants. Never ``User-Agent``:
-            Sluicer always says who it is, so a site can refuse it.
+            Sluicer always says who it is, so a site can refuse it. Nor with
+            a robots.txt, which is read as anyone reads it: its answer is the
+            site's, kept for every caller.
         cookies: sent as one ``Cookie`` header the same way, and set in the
             browser's context for the host asked, where a browser's own
             cookie rules apply (a cookie belongs to a host, not a port).
@@ -369,6 +410,7 @@ def fetch(
             "the stealth rung sends no headers or cookies of yours: it does not "
             "say who is asking, and a login would"
         )
+    plain: Rung | None = None
     if rungs is None:
         from sluicer.fetch.rungs import default_rungs
 
@@ -379,7 +421,13 @@ def fetch(
             proxy=proxy,
             headers=headers,
             cookies=cookies,
+            send_to=[url],
         )
+        if sending:
+            # robots.txt is read as anyone reads it, whatever login the page
+            # is asked with: the answer is the site's, kept for a day for
+            # every caller, and a redirect's other origin is sent nothing.
+            plain = default_rungs(allow_private, resolve, max_bytes, proxy=proxy)[0][1]
     if stealth:
         from sluicer.fetch.stealth import stealth_rung
 
@@ -390,7 +438,7 @@ def fetch(
         urlsplit(url).port  # noqa: B018 -- parsing is the check
     except ValueError as invalid:
         raise FetchFailed(
-            url, [], f"{url!r} is not a valid address: {invalid}"
+            url, [], f"{url!r} is not a valid address: {invalid}", transient=False
         ) from None
 
     refused = why_not_web(url)
@@ -400,7 +448,9 @@ def fetch(
         raise AddressRefused(url, refused)
 
     read = (
-        robots_reader if robots_reader is not None else robots_reader_from(rungs[0][1])
+        robots_reader
+        if robots_reader is not None
+        else robots_reader_from(plain if plain is not None else rungs[0][1])
     )
     if memory is None and gated:
         memory = STICKY
@@ -456,18 +506,28 @@ def _climb(
     best_refused: str | None = None
     # Why the cheapest rung's page was not enough, for ``memory`` to learn.
     needed: str | None = None
+    # The remembered rung's page, once the ladder started again below it:
+    # its place on the ladder and the page, which is not asked for twice.
+    asked: tuple[int, Fetched] | None = None
+    # Whether a rung failed in a way asking again later may not meet.
+    passing = False
     last = len(rungs) - 1
     index = start
     while index <= last:
         name, rung = rungs[index]
         started = time.monotonic()
         try:
-            result = rung(url)
+            if asked is not None and asked[0] == index:
+                result = asked[1]
+            else:
+                result = rung(url)
+                result.seconds = time.monotonic() - started
             if len(result.html) > max_bytes:
                 raise ResponseTooLarge(result.url, max_bytes)
         except Exception as e:
             seconds = time.monotonic() - started
             failure = f"the rung raised {type(e).__name__}: {e}"
+            passing = passing or transient(e)
             # A refusal or a page too heavy is the page's answer, not the
             # rung's: the next rung would be told the same, at a higher cost.
             final = isinstance(e, (AddressRefused, RedirectRefused, ResponseTooLarge))
@@ -494,13 +554,12 @@ def _climb(
             if best is None:
                 if final:
                     raise
-                raise FetchFailed(url, climbs, failure) from e
+                raise FetchFailed(url, climbs, failure, transient=passing) from e
             best.climbs = [*climbs, Climb(name, best.rung, failure, seconds=seconds)]
             if best_refused is not None:
                 raise SiteRefused(url, best.climbs, best_refused) from e
             return _checked(best, url, allow_private, resolve, obey_robots, read)
 
-        result.seconds = time.monotonic() - started
         result.climbs = list(climbs)
         if result.status == _PAYMENT_REQUIRED:
             raise PaymentRequired(url, result.climbs)
@@ -523,6 +582,22 @@ def _climb(
                     memory.learn(url, name, known.reason)
             return checked
         challenge = challenge_marker(result.html, found_records=found) is not None
+        if index == start > 0 and memory is not None:
+            # What the site needed brought back a page to climb past: the
+            # site may read whole over plain HTTP now, and refuse a browser.
+            # Forgotten, and the ladder starts again from its cheapest rung.
+            memory.forget(url)
+            climbs.append(
+                Climb(
+                    name,
+                    names[0],
+                    f"{reason}; starting again from {names[0]}",
+                    seconds=result.seconds,
+                )
+            )
+            asked = (index, result)
+            start = index = 0
+            continue
         if index == last:
             checked = _checked(result, url, allow_private, resolve, obey_robots, read)
             if challenge:
@@ -568,12 +643,15 @@ def _robots(url: str, read: Callable[[str], str | None]) -> str | None:
     try:
         return robots_refusal(url, read=read)
     except RobotsUnreachable as unreachable:
-        raise FetchFailed(url, [], str(unreachable)) from unreachable
+        raise FetchFailed(url, [], str(unreachable), transient=True) from unreachable
 
 
-def _origin(url: str) -> tuple[str, str]:
+def _origin(url: str) -> tuple[str, str, int | None]:
+    """A URL's scheme, host and port: whose robots.txt governs it."""
     try:
         parts = urlsplit(url)
-        return parts.scheme.lower(), (parts.hostname or "").lower()
+        scheme = parts.scheme.lower()
+        port = parts.port or (443 if scheme == "https" else 80)
+        return scheme, (parts.hostname or "").lower(), port
     except ValueError:
-        return "", url
+        return "", url, None

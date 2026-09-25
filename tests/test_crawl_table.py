@@ -3,6 +3,8 @@
 import csv
 import io
 
+import pytest
+
 from fake_site import FakeWeb, page
 from sluicer.crawl import crawl
 from sluicer.crawl.table import PAGE_COLUMNS, SITE_URL_COLUMNS, page_row, write_csv
@@ -63,6 +65,37 @@ def test_a_cell_a_spreadsheet_would_run_as_a_formula_is_written_as_text():
     assert row["summary.title"] == '\'=HYPERLINK("https://evil.example")'
     assert row["summary.sku"] == "'@sku"
     assert row["summary.price"] == "-3.50"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        " =1+1",
+        "\n=1+1",
+        "\u00a0=1+1",
+        "\u3000@SUM(A1)",
+        # Fullwidth, which a spreadsheet may take for the sign it looks like.
+        "\uff1d1+1",
+        "\uff0bcmd",
+        # A minus before digits that are not ASCII is no number a
+        # spreadsheet reads: a formula.
+        "-\u0663",
+    ],
+)
+def test_a_formula_behind_a_space_or_in_another_width_is_written_as_text(value):
+    """Measured on 0.8.0: only the first character was looked at, so a
+    spreadsheet that trims a cell, or reads a fullwidth equals sign as one,
+    was handed the formula."""
+    from sluicer.crawl.table import cell
+
+    assert cell(value) == "'" + value
+
+
+@pytest.mark.parametrize("value", [" -5", "\u00a012.50", "Home", " plain text"])
+def test_what_a_spreadsheet_would_not_run_is_left_as_it_is(value):
+    from sluicer.crawl.table import cell
+
+    assert cell(value) == value
 
 
 def test_write_csv_writes_the_header_once_and_a_row_per_line():

@@ -38,7 +38,9 @@ from sluicer.fetch import (
     SiteRefused,
 )
 from sluicer.fetch.archive import NotArchived
+from sluicer.fetch.http_rung import PROXY_ENV, chosen_proxy
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
+from sluicer.fetch.wire import Proxy, UnusableProxy
 from sluicer.isolated import TookTooLong, isolated
 from sluicer.markdown import to_markdown
 from sluicer.selectors import (
@@ -153,7 +155,8 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
     challenge page on every rung: nor that), ``payment_required`` (a 402,
     which Sluicer never pays), ``refused_address`` (a
     private address, refused by default), ``fetch_failed`` (worth trying
-    later: the only retryable one, unless the archive holds no capture),
+    later: the only retryable one, unless the archive holds no capture or
+    what failed would fail again, a redirect loop for one),
     ``too_large`` and ``bad_input``. Raised
     instead, each reached the agent as the SDK's bare "Error executing tool".
 
@@ -184,7 +187,9 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
             # Asking again will not make the archive have held the page.
             return _error("fetch_failed", missing, url=missing.url)
         except FetchFailed as failed:
-            return _error("fetch_failed", failed, retryable=True, url=failed.url)
+            return _error(
+                "fetch_failed", failed, retryable=failed.transient, url=failed.url
+            )
         except _BadInput as bad:
             return _error("bad_input", bad)
         except TookTooLong as slow:
@@ -354,7 +359,17 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
+
+    A ``SLUICER_PROXY`` it cannot use is an ``UnusableProxy``, raised here
+    rather than by the first tool that fetches: there it was an internal
+    error, and its traceback wrote the proxy's password into the log.
     """
+    through = chosen_proxy()
+    if through is not None:
+        try:
+            Proxy.parse(through)
+        except UnusableProxy as unusable:
+            raise UnusableProxy(f"{PROXY_ENV}: {unusable}") from None
     wanted = None if tools is None else list(tools)
     seen: list[str] = []
     server_class = _server_class()
@@ -1316,7 +1331,7 @@ def main(tools: Iterable[str] | None = None) -> None:
         # the one line that says what to install is ever written.
         print(str(missing), file=sys.stderr, flush=True)
         raise SystemExit(1) from missing
-    except UnknownTool as unknown:
+    except (UnknownTool, UnusableProxy) as unknown:
         print(str(unknown), file=sys.stderr, flush=True)
         raise SystemExit(2) from unknown
     # scrapling logs every request at INFO into the server's stderr, and sets

@@ -424,7 +424,9 @@ from the browser, the process starts that site's next pages at the browser for
 whose pages differ -- a listing that needs a script, articles that do not --
 has its articles fetched by a browser too, which costs time and nothing else;
 a site that moved back to rendering on the server is asked of plain HTTP again
-the next day, or after the remembered rung fails once.
+the next day, or as soon as the remembered rung fails, or brings back a page
+to climb past -- a refusal, a challenge, a shell: its page is kept, the
+ladder starts again from plain HTTP, and the browser is not asked twice.
 
 **One browser, one page at a time.** The process keeps one Chromium and loads
 pages in it one after another, each in a context of its own, so pages that
@@ -433,13 +435,26 @@ parallel MCP calls -- wait in line, each for at most three minutes
 (`WAIT_SECONDS`), then fail. A browser elsewhere (`SLUICER_CDP_URL`) is driven
 the same way.
 
+**The browser needs its sandbox to start.** Chromium is launched in its
+sandbox, which needs unprivileged user namespaces: Docker's default seccomp
+profile refuses them, and Ubuntu 23.10 and later lets only the programs
+AppArmor names have them. There the browser rung fails, saying what to allow,
+and a page that needed it comes back from plain HTTP; `SLUICER_BROWSER_SANDBOX=0`
+runs Chromium without the sandbox, which is how Playwright runs it by default.
+
 **A caller's headers and cookies go to the origin asked.** Scheme, host and
 port, for the HTTP rung and for the headers a browser sends; a hop elsewhere
 is sent none. A cookie in the browser follows the browser's own rules, under
-which a cookie belongs to a host, not to a port. A crawl or a batch sends them
-to every page's own origin, as `curl -H` sends them to every address it is
-given, so a batch of several sites gives each site the same cookie. The
-archive (`--at`) and the stealth rung are sent none.
+which a cookie belongs to a host, not to a port; one set for an https origin
+is sent over https alone. A crawl, a map and the pages of a sitemap send them
+to the origin they start at, and to no other: a site's `www.` twin and its
+pages over plain http are part of the crawl and are asked without them. A
+batch sends them to the origin of every address it is given, as `curl -H`
+sends them to every address, so a batch of several sites gives each site the
+same cookie; a redirect's target, read in its own turn, is sent none.
+robots.txt is always read without them, so its answer is the site's for
+every caller, and so is a sitemap on another origin. The archive (`--at`)
+and the stealth rung are sent none.
 
 **The cache serves single pages.** `--cache` is read by `extract`, `inspect`,
 `markdown`, `audit` and `diff`, not by `crawl` or `batch`, whose state file is
@@ -612,9 +627,14 @@ The HTTP rung connects only to the addresses it checked, so DNS rebinding
 reaches nothing there. The browser rung routes every request the page makes --
 images, frames, `fetch()`, websockets -- through the same judgement and never
 lets the browser follow a redirect itself, and pages get no service workers,
-which fetch outside any route. What remains: the browser resolves names in its
-own network stack, so a name that answers differently between the check and the
-connection is reached from there. SECURITY.md says so too.
+which fetch outside any route, and no WebRTC. The requests the browser makes
+for a page, which no route sees -- a speculation rule's prefetch and prerender
+-- go with every other connection of a guarded page through a proxy on
+loopback that judges them and connects only where it checked, so the
+browser's names are resolved there too. What remains: a browser elsewhere
+(`SLUICER_CDP_URL`) cannot reach that proxy, and is judged by the routes
+alone, which a speculation rule and a name that rebinds reach past. SECURITY.md
+says so too.
 
 **A page is bounded at 16 MiB, and one answer to an agent at 75,000 bytes.**
 Claude Code puts an answer over 25,000 tokens in a file rather than the

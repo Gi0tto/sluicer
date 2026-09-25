@@ -44,6 +44,7 @@ def default_web(
     redirects: Redirects | None = None,
     headers: Mapping[str, str] | None = None,
     cookies: Mapping[str, str] | None = None,
+    send_to: Iterable[str] = (),
 ) -> Web:
     """The real web: the default ladder, with ``redirects`` asked of every hop a
     page's redirect makes, and plain HTTP for robots.txt and sitemaps.
@@ -52,19 +53,30 @@ def default_web(
     across hosts, and a crawl kept to its site still owes the site's robots.txt
     a reading wherever the site keeps it.
 
-    ``headers`` and ``cookies`` go with every request -- pages, robots.txt,
-    sitemaps -- to the origin asked, as ``fetch`` sends them.
+    ``headers`` and ``cookies`` go with the requests for the origins of
+    ``send_to`` -- scheme, host and port: the addresses the caller named --
+    pages and sitemaps, and with no other: a crawl follows links to its site
+    over http and on ``www.``, a robots.txt names sitemaps anywhere, and none
+    of those is where the caller said to send a login. robots.txt is read
+    without them, as anyone reads it, as ``fetch`` reads it.
     """
     from sluicer.fetch.http_rung import http_responses, http_rung
     from sluicer.fetch.identity import outgoing
     from sluicer.fetch.rungs import default_rungs
 
     send = outgoing(headers, cookies)
+    named = tuple(send_to)
     rungs = default_rungs(
-        allow_private, resolve, max_bytes, redirects, headers=headers, cookies=cookies
+        allow_private,
+        resolve,
+        max_bytes,
+        redirects,
+        headers=headers,
+        cookies=cookies,
+        send_to=named,
     )
-    plain = http_rung(allow_private, resolve, max_bytes, send=send)
-    get = http_responses(allow_private, resolve, max_bytes, send=send)
+    plain = http_rung(allow_private, resolve, max_bytes)
+    get = http_responses(allow_private, resolve, max_bytes, send=send, send_to=named)
     return Web(rungs=rungs, read=robots_reader_from(plain), get=get, memory=STICKY)
 
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 import io
 import time
 import zlib
+from collections import deque
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -296,6 +297,10 @@ def map_site(
         max_bytes: the most a sitemap, inflated, or a page may weigh.
         web: how the site is reached; the real web by default.
         clock, sleep: the time, injected so a test can pace a map.
+        headers, cookies: ``fetch``'s, sent with the requests for the origin
+            of ``url`` -- its sitemaps and its page -- and with no other: a
+            sitemap robots.txt names on another host is asked without them,
+            and robots.txt is read as anyone reads it.
 
     Returns:
         A ``SiteMap``, with every sitemap tried and what became of it.
@@ -309,7 +314,9 @@ def map_site(
     """
     start = normalise(url)
     if start is None:
-        raise FetchFailed(url, [], f"{url!r} is not an http(s) address")
+        raise FetchFailed(
+            url, [], f"{url!r} is not an http(s) address", transient=False
+        )
     if not allow_private:
         refused = why_not_public(start, resolve)
         if refused is not None:
@@ -321,19 +328,42 @@ def map_site(
         web
         if web is not None
         else default_web(
-            allow_private, resolve, max_bytes, headers=headers, cookies=cookies
+            allow_private,
+            resolve,
+            max_bytes,
+            headers=headers,
+            cookies=cookies,
+            send_to=[start],
         )
     )
     polite = Politeness(web.read, min_delay, clock, sleep, ceiling=max_delay)
     deadline = None if time_budget is None else clock() + time_budget
     site = site_of(start)
     try:
-        waiting = robots_sitemaps(start, polite.reader, now=clock)
+        named = robots_sitemaps(start, polite.reader, now=clock)
     except RobotsUnreachable as unreachable:
         raise FetchFailed(start, [], str(unreachable)) from unreachable
+    # Each sitemap is queued once, however often it is named: an index that
+    # names one 20,000 times queued it 20,000 times, each taken off the front
+    # of a list, and fifty such indexes took 12 s.
+    waiting: deque[str] = deque()
+    queued: set[str] = set()
+
+    def queue(address: str) -> None:
+        if address not in queued:
+            queued.add(address)
+            waiting.append(address)
+
+    for sitemap in named:
+        queue(sitemap)
     origin = "{0.scheme}://{0.netloc}".format(urlsplit(start))
     guesses = [] if waiting else [origin + path for path in GUESSES]
     reads: list[SitemapRead] = []
+    off_site: set[str] = set()
+    # Every loc already met, as written, in an index or in a list of pages:
+    # met again there, it comes to the same, and normalising it again was
+    # most of what a file of repeats cost.
+    met: set[tuple[str, str]] = set()
     asked: set[str] = set()
     kept: dict[str, SiteUrl] = {}
     truncated = False
@@ -351,13 +381,17 @@ def map_site(
         if found.broken is not None and found.broken.startswith("it lists more"):
             truncated = True
         for loc, lastmod in found.entries:
+            if (found.kind, loc) in met:
+                continue
+            met.add((found.kind, loc))
             listed = normalise(loc)
             if listed is None:
                 continue
             if found.kind == "sitemapindex":
                 if site_of(listed) == site:
-                    waiting.append(listed)
-                else:
+                    queue(listed)
+                elif listed not in off_site:
+                    off_site.add(listed)
                     reads.append(SitemapRead(listed, error=_OFF_SITE))
             elif site_of(listed) == site and listed not in kept:
                 if len(kept) >= limit:
@@ -374,7 +408,7 @@ def map_site(
         ):
             truncated = True
             break
-        address = normalise(waiting.pop(0)) if waiting else guesses.pop(0)
+        address = normalise(waiting.popleft()) if waiting else guesses.pop(0)
         if address is None or address in asked:
             continue
         asked.add(address)

@@ -35,14 +35,15 @@ from sluicer.crawl.pages import (
     PageError,
     StateMismatch,
     _appending,
+    _check_retries,
     _cut_unfinished,
+    _extract_listed,
     _lines,
     _patterns,
     _reach,
     _sendable,
     _write,
     asking_again,
-    extract_many,
 )
 from sluicer.crawl.schedule import (
     CONCURRENCY,
@@ -54,12 +55,13 @@ from sluicer.crawl.schedule import (
 from sluicer.crawl.sitemaps import MAX_SITEMAP_URLS, map_site
 from sluicer.crawl.urls import normalise
 from sluicer.crawl.web import Web
-from sluicer.declared.merge import Field, JsonValue, Record
+from sluicer.declared.merge import MAX_DEPTH, Field, JsonValue, Record
 from sluicer.document import load
 from sluicer.fetch import AddressRefused, Fetched, ResponseTooLarge
 from sluicer.fetch.address import _resolve, why_not_public
 from sluicer.fetch.identity import RobotsUnreachable, robots_refusal
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
+from sluicer.fetch.wire import passing
 from sluicer.summary import FIELDS, SummaryField
 
 TEMPLATES = ("sitemap", "shopify")
@@ -136,8 +138,11 @@ def sitemap_pages(
         and not any(p.search(address.url) for p in unwanted)
     ]
     left = None if time_budget is None else time_budget - (clock() - started)
-    inner = extract_many(
-        chosen[:max_pages],
+    # The login goes to the origin the caller named, not to every address of
+    # the site a sitemap lists: its www. twin, its pages over plain http.
+    inner = _extract_listed(
+        [normalise(address) or address for address in chosen[:max_pages]],
+        [url],
         state=state,
         induce=induce,
         respect_tdm=respect_tdm,
@@ -205,8 +210,8 @@ def shopify_products(
     ``crawl``'s.
 
     Raises:
-        ValueError: ``url`` is not an http(s) address, or ``per_page`` is
-            not positive.
+        ValueError: ``url`` is not an http(s) address, ``per_page`` is not
+            positive, or ``retries`` is past ``MAX_RETRIES``.
         StateMismatch: ``state`` holds another shop's products, or not a
             crawl's output.
     """
@@ -215,6 +220,7 @@ def shopify_products(
         raise ValueError(f"{url!r} is not an http(s) address a crawl can start at")
     if per_page < 1:
         raise ValueError(f"per_page must be 1 or more, not {per_page}")
+    _check_retries(retries)
     _sendable(web, headers, cookies)
     parts = urlsplit(start)
     origin = f"{parts.scheme}://{parts.netloc}"
@@ -247,6 +253,7 @@ def shopify_products(
         headers,
         cookies,
         max_delay,
+        [start],
     )
     deadline = None if time_budget is None else clock() + time_budget
     reader = _Listing(web, polite, allow_private, resolve, max_delay)
@@ -318,7 +325,7 @@ class _Listing:
 
     def take(self, address: str) -> _Answer:
         def failed(code: str, message: str, again: str | None = None) -> _Answer:
-            error = PageError(code, message, retryable=code == "fetch_failed")
+            error = PageError(code, message, retryable=again is not None)
             return _Answer(error=error, again=again)
 
         refused = None if self.allow_private else why_not_public(address, self.resolve)
@@ -353,11 +360,12 @@ class _Listing:
         except AddressRefused as refused_address:
             return failed("refused_address", str(refused_address))
         # Deliberately blind, as the ladder is about its rungs: every way a
-        # transport can fail to bring the page back is one event, worth
-        # asking again, and the sentence says which.
+        # transport can fail to bring the page back is one event, and the
+        # sentence says which; asked again only when it may pass.
         except Exception as failure:  # noqa: BLE001
             said = f"Could not fetch {address}: {type(failure).__name__}: {failure}"
-            return failed("fetch_failed", said, again=said)
+            again = said if passing(failure) else None
+            return failed("fetch_failed", said, again=again)
         seconds = self.polite.clock() - began
         self.polite.slow_down(
             address,
@@ -375,7 +383,8 @@ class _Listing:
             )
         try:
             products = json.loads(response.body)["products"]
-        except (ValueError, KeyError, TypeError):
+        # RecursionError: JSON nested deeper than the parser's stack.
+        except (ValueError, KeyError, TypeError, RecursionError):
             products = None
         if not isinstance(products, list):
             return failed("bad_input", f"{address} is not a Shopify products.json")
@@ -516,14 +525,21 @@ def _text(value: Any) -> str | None:
     return text.strip() if isinstance(text, str) and text.strip() else None
 
 
-def _as_text(value: Any) -> JsonValue | None:
+def _as_text(value: Any, depth: int = 0) -> JsonValue | None:
     """``value`` with every leaf as text, as a record's fields hold them, and
-    every null left out, as a page's JSON-LD nulls are."""
+    every null left out, as a page's JSON-LD nulls are.
+
+    What nests deeper than ``MAX_DEPTH`` is left out, as a page's JSON-LD is:
+    no shop nests so far, and a product 5,000 lists deep raised
+    ``RecursionError`` out of the crawl."""
+    if depth > MAX_DEPTH:
+        return None
     if isinstance(value, dict):
-        kept = {str(key): _as_text(one) for key, one in value.items()}
+        kept = {str(key): _as_text(one, depth + 1) for key, one in value.items()}
         return {key: one for key, one in kept.items() if one is not None}
     if isinstance(value, list):
-        return [one for one in map(_as_text, value) if one is not None]
+        items = (_as_text(one, depth + 1) for one in value)
+        return [one for one in items if one is not None]
     if isinstance(value, bool):
         return "true" if value else "false"
     if value is None:

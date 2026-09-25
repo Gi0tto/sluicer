@@ -41,6 +41,7 @@ def default_rungs(
     proxy: str | None = None,
     headers: Mapping[str, str] | None = None,
     cookies: Mapping[str, str] | None = None,
+    send_to: Iterable[str] | None = None,
 ) -> list[tuple[str, Rung]]:
     """Return the ladder a caller gets without asking for anything more.
 
@@ -59,10 +60,14 @@ def default_rungs(
     ``proxy`` is ``http_rung``'s, for both rungs: ``SLUICER_PROXY`` when None.
     ``headers`` and ``cookies`` are the caller's, sent to the origin asked
     for and nowhere else; a ``User-Agent`` among them is a ``ValueError``.
+    ``send_to`` fixes that origin: the addresses the caller named, whose
+    scheme, host and port alone are sent them, whatever address a rung is
+    later handed. None leaves it to each address a rung is handed.
     """
     from sluicer.fetch.browser import browser_rung, browser_wanted
 
     send = outgoing(headers, cookies)
+    named = None if send_to is None else tuple(send_to)
     rungs: list[tuple[str, Rung]] = [
         (
             "http",
@@ -73,6 +78,7 @@ def default_rungs(
                 redirects,
                 proxy=proxy,
                 send=send,
+                send_to=named,
             ),
         )
     ]
@@ -88,6 +94,7 @@ def default_rungs(
                     proxy,
                     {k: v for k, v in send.items() if k.lower() != "cookie"},
                     _crumbs(send),
+                    send_to=named,
                 ),
             )
         )

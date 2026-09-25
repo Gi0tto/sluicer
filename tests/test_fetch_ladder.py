@@ -822,3 +822,197 @@ def test_the_stealth_rung_is_not_asked_to_carry_a_login():
     """It does not say who is asking; a cookie or a token would."""
     with pytest.raises(ValueError, match="stealth rung"):
         fetch("https://example.com/p", stealth=True, cookies={"session": "abc"})
+
+
+# -- a remembered rung whose page is worse ------------------------------------------
+
+
+def _remembering_the_browser(memory, http, browser):
+    """``memory`` taught that shop.example needs the browser, by a page whose
+    plain HTTP answer was a shell."""
+    learnt = {"http": rung("http", SHELL), "browser": rung("browser", RICH)}
+    fetch(
+        "https://shop.example/1",
+        rungs=[("http", learnt["http"]), ("browser", learnt["browser"])],
+        memory=memory,
+        obey_robots=False,
+    )
+    assert memory.recall("https://shop.example/2").rung == "browser"
+    return [("http", http), ("browser", browser)]
+
+
+def test_a_remembered_rung_whose_page_is_refused_is_forgotten_for_plain_http():
+    """Measured on 0.8.0 with a real browser: once a site's script-drawn page
+    had taught it the browser, its articles, which plain HTTP read whole and
+    the browser was refused (403), came back as the 403, and so did every
+    later article: the memory was dropped only when the browser raised."""
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    http = rung("http", RICH)
+    browser = rung("browser", REFUSED, status=403)
+    ladder = _remembering_the_browser(memory, http, browser)
+
+    second = fetch(
+        "https://shop.example/2", rungs=ladder, memory=memory, obey_robots=False
+    )
+    third = fetch(
+        "https://shop.example/3", rungs=ladder, memory=memory, obey_robots=False
+    )
+
+    assert (second.rung, second.status) == ("http", 200)
+    assert [(c.from_rung, c.to_rung) for c in second.climbs] == [
+        ("http", "browser"),
+        ("browser", "http"),
+    ]
+    assert "status 403; starting again from http" in second.climbs[1].reason
+    assert memory.recall("https://shop.example/4") is None
+    assert (third.rung, third.climbs) == ("http", [])
+    assert browser.calls == ["https://shop.example/2"]
+
+
+def test_a_remembered_rung_whose_page_is_a_shell_is_forgotten_too():
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    ladder = _remembering_the_browser(
+        memory, rung("http", RICH), rung("browser", SHELL)
+    )
+
+    page = fetch(
+        "https://shop.example/2", rungs=ladder, memory=memory, obey_robots=False
+    )
+
+    assert (page.rung, page.html) == ("http", RICH)
+    assert memory.recall("https://shop.example/2") is None
+
+
+def test_a_remembered_challenge_is_not_the_last_word_when_plain_http_reads_the_page():
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    challenge = "<html><head><title>Just a moment...</title></head></html>"
+    ladder = _remembering_the_browser(
+        memory, rung("http", RICH), rung("browser", challenge)
+    )
+
+    page = fetch(
+        "https://shop.example/2", rungs=ladder, memory=memory, obey_robots=False
+    )
+
+    assert page.rung == "http"
+
+
+def test_the_remembered_rungs_page_is_kept_and_not_asked_for_twice():
+    """Plain HTTP no better than the browser was: the ladder would climb to
+    the browser, whose page it already has, and gives that back."""
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    http = rung("http", SHELL)
+    browser = rung("browser", REFUSED, status=403)
+    ladder = _remembering_the_browser(memory, http, browser)
+
+    page = fetch(
+        "https://shop.example/2", rungs=ladder, memory=memory, obey_robots=False
+    )
+
+    assert (page.rung, page.status) == ("browser", 403)
+    assert browser.calls == ["https://shop.example/2"]
+    assert http.calls == ["https://shop.example/2"]
+    assert [(c.from_rung, c.to_rung) for c in page.climbs] == [
+        ("http", "browser"),
+        ("browser", "http"),
+        ("http", "browser"),
+    ]
+
+
+def test_past_the_remembered_rung_the_ladder_climbs_on_without_asking_it_again():
+    from sluicer.fetch.ladder import RungMemory
+
+    memory = RungMemory()
+    browser = rung("browser", REFUSED, status=403)
+    stealth = rung("stealth", RICH)
+    ladder = [
+        *_remembering_the_browser(memory, rung("http", SHELL), browser),
+        ("stealth", stealth),
+    ]
+
+    page = fetch(
+        "https://shop.example/2", rungs=ladder, memory=memory, obey_robots=False
+    )
+
+    assert page.rung == "stealth"
+    assert browser.calls == ["https://shop.example/2"]
+
+
+def test_a_crawls_part_forgets_a_rung_whose_page_is_refused():
+    from sluicer.crawl.web import Parts
+    from sluicer.fetch.ladder import RungMemory
+
+    site = RungMemory()
+    parts = Parts(site)
+    http = rung("http", RICH)
+    browser = rung("browser", REFUSED, status=403)
+    ladder = _remembering_the_browser(parts, http, browser)
+
+    page = fetch(
+        "https://shop.example/2", rungs=ladder, memory=parts, obey_robots=False
+    )
+
+    assert page.rung == "http"
+    assert parts.recall("https://shop.example/3") is None
+    assert site.recall("https://shop.example/3") is None
+
+
+# -- whether a failure may be different later ---------------------------------------
+
+
+def _failing(error):
+    def go(url):
+        raise error
+
+    return go
+
+
+@pytest.mark.parametrize(
+    ("error", "transient"),
+    [
+        (ConnectionResetError("reset"), True),
+        (TimeoutError("took too long"), True),
+        (ValueError("the browser rung returned no HTML"), False),
+        (RuntimeError("redirected more than 10 times"), False),
+    ],
+)
+def test_a_failure_says_whether_asking_again_may_bring_something_else(error, transient):
+    with pytest.raises(FetchFailed) as failed:
+        fetch(
+            "https://example.com/p",
+            rungs=[("http", _failing(error))],
+            obey_robots=False,
+        )
+
+    assert failed.value.transient is transient
+
+
+def test_one_rung_that_may_answer_later_makes_the_failure_transient():
+    ladder = [
+        ("http", _failing(ConnectionRefusedError("refused"))),
+        ("browser", _failing(ValueError("the browser rung returned no HTML"))),
+    ]
+
+    with pytest.raises(FetchFailed) as failed:
+        fetch("https://example.com/p", rungs=ladder, obey_robots=False)
+
+    assert failed.value.transient
+
+
+def test_a_robots_txt_that_did_not_answer_is_transient():
+    """Whatever the rung that read it raised: RFC 9309 counts every way of
+    not reaching it as one event, and it may answer later."""
+    ladder = [("http", _failing(ValueError("the browser rung returned no HTML")))]
+
+    with pytest.raises(FetchFailed, match=r"robots\.txt") as failed:
+        fetch("https://example.com/p", rungs=ladder)
+
+    assert failed.value.transient

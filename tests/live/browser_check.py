@@ -16,8 +16,11 @@ from __future__ import annotations
 
 import contextlib
 import http.server
+import ipaddress
+import os
 import socket
 import socketserver
+import subprocess
 import sys
 import threading
 import time
@@ -52,6 +55,40 @@ def _serve(handler: type[http.server.BaseHTTPRequestHandler]) -> int:
 
 
 OTHER = _serve(_handler("other", ""))
+
+
+class _Mixed(http.server.BaseHTTPRequestHandler):
+    """A site whose /app page a script draws and whose /news pages are plain
+    HTML, and which refuses a browser -- one that says it is Chromium --
+    with 403."""
+
+    def log_message(self, *args: object) -> None:
+        pass
+
+    def do_GET(self) -> None:
+        said = {k.lower() for k in self.headers}
+        if self.path.startswith("/app"):
+            status, body = (
+                200,
+                (
+                    "<html><body><div id=root></div><script>document.getElementById"
+                    "('root').innerHTML='<p>'+'drawn words '.repeat(40)+'</p>'"
+                    "</script></body></html>"
+                ),
+            )
+        elif "sec-ch-ua" in said:
+            status, body = 403, "<html><body>no browsers</body></html>"
+        else:
+            status, body = 200, "<html><body>" + "<p>the article</p>" * 30
+        data = body.encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+MIXED = _serve(_Mixed)
 PAGE = (
     "<html><body><p>" + "Words the page says. " * 20 + "</p>"
     "<script>fetch('/api').catch(() => 0);"
@@ -70,10 +107,30 @@ def _judged_public() -> None:
 
     def by_port(url: str, resolve: object) -> tuple[str | None, list[object]]:
         if urlsplit(url.replace("ws://", "http://", 1)).port in (ASKED, OTHER):
-            return None, []
+            # With the address, which the guard proxy connects to.
+            return None, [ipaddress.ip_address("127.0.0.1")]
         return judge(url, resolve)  # type: ignore[arg-type]
 
     address._judge = by_port  # type: ignore[assignment]
+
+
+def _chromium_launched() -> list[str]:
+    """The command lines of the browsers this process's Playwright started:
+    its driver is a child of this process, and the browser the driver's."""
+    table = subprocess.run(
+        ["ps", "-axo", "pid=,ppid=,command="],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    ).stdout
+    rows = []
+    for line in table.splitlines():
+        pid, ppid, command = [*line.strip().split(None, 2), "", "", ""][:3]
+        if pid.isdigit() and ppid.isdigit():
+            rows.append((int(pid), int(ppid), command))
+    drivers = {pid for pid, ppid, _ in rows if ppid == os.getpid()}
+    return [command for _, ppid, command in rows if ppid in drivers]
 
 
 def main() -> int:
@@ -111,6 +168,43 @@ def main() -> int:
             if "x-team" in request or "cookie" in request:
                 failures.append(f"{mode}: the other site was sent {request}")
 
+    # Built for one origin and handed an address on another -- as a crawl
+    # hands it the site's www. twin or its pages over http -- it sends that
+    # address nothing of the login.
+    heard["asked"].clear()
+    elsewhere = browser_rung(
+        headers={"X-Team": "reader"},
+        cookies={"session": "s3cret"},
+        send_to=[f"http://localhost:{ASKED}/"],
+    )
+    elsewhere(url)
+    time.sleep(0.3)
+    if not heard["asked"]:
+        failures.append("the page of another origin was never asked; nothing tested")
+    for request in heard["asked"]:
+        if "x-team" in request or "cookie" in request:
+            failures.append(f"a login fixed for another origin was sent {request}")
+
+    # A site remembered for the browser, whose next page the browser is
+    # refused and plain HTTP reads whole: the page comes from plain HTTP, and
+    # the memory is forgotten.
+    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.ladder import RungMemory, fetch
+
+    memory = RungMemory()
+    ladder = [("http", http_rung()), ("browser", browser_rung())]
+    mixed = f"http://127.0.0.1:{MIXED}"
+    app = fetch(f"{mixed}/app", rungs=ladder, memory=memory, obey_robots=False)
+    news = fetch(f"{mixed}/news/1", rungs=ladder, memory=memory, obey_robots=False)
+    if app.rung != "browser":
+        failures.append(f"the drawn page was not the browser's: {app.rung}")
+    if (news.rung, news.status) != ("http", 200):
+        failures.append(
+            f"the remembered browser's 403 was the page: {news.rung} {news.status}"
+        )
+    if memory.recall(f"{mixed}/news/2") is not None:
+        failures.append("a browser refused was still remembered for the site")
+
     # A proxy asked for is the one used: a socket that notes what reaches it.
     proxy = socket.create_server(("127.0.0.1", 0))
     told: list[bytes] = []
@@ -129,6 +223,16 @@ def main() -> int:
         through("http://nowhere.invalid/page")
     if not any(b"nowhere.invalid" in line for line in told):
         failures.append(f"the proxy asked for was not used: {told}")
+    # Guarded, the page's connections go through the guard proxy, and the
+    # guard proxy's through the proxy asked for.
+    told.clear()
+    guarded_through = browser_rung(
+        allow_private=False, proxy=f"http://127.0.0.1:{proxy.getsockname()[1]}"
+    )
+    with contextlib.suppress(Exception):
+        guarded_through(f"http://127.0.0.1:{ASKED}/page")
+    if not any(f"127.0.0.1:{ASKED}".encode() in line for line in told):
+        failures.append(f"guarded, the proxy asked for was not used: {told}")
 
     started = time.monotonic()
     plain = browser_rung()
@@ -138,12 +242,19 @@ def main() -> int:
     if HOST.launched != 1:
         failures.append(f"{HOST.launched} browsers were started for one process")
 
+    unsandboxed = [line for line in _chromium_launched() if "--no-sandbox" in line]
+    if unsandboxed:
+        failures.append(
+            f"Chromium was launched without its sandbox: {unsandboxed[0][:120]}"
+        )
+
     for failure in failures:
         print("FAIL:", failure)
     if not failures:
         print(
             "browser: headers and cookies to the site asked and no other, guarded "
-            f"and not; the proxy asked for; one browser, {each:.2f} s a page"
+            "and not; a remembered browser refused is forgotten; the proxy asked "
+            f"for; one browser, in its sandbox, {each:.2f} s a page"
         )
     return 1 if failures else 0
 

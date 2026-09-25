@@ -49,12 +49,23 @@ SLOWING_STATUSES = frozenset({429, 503})
 CONCURRENCY = 4
 """How many sites are asked at the same moment, never more than once each."""
 
+MAX_CONCURRENCY = 32
+"""The most sites a crawl asks at once: a thread each. A ``sluicer.toml`` in a
+directory above is read by every command below it, and one asking for a
+million started a thread for every site of a batch."""
+
 RETRIES = 2
 """How many times a crawl asks again for a page whose request may succeed
-later: one that did not answer -- a connection reset, a timeout, a name that
-did not resolve, a robots.txt that could not be read -- or answered 429 or a
-5xx. Never a 4xx but 429: a 404 or a 403 is the site's answer about the page,
-and asking again gets it again."""
+later: one that did not answer -- a connection refused or reset, a timeout,
+an answer cut short, a name the resolver could not look up for now, a
+robots.txt that could not be read -- or answered 429 or a 5xx. Never a 4xx
+but 429: a 404 or a 403 is the site's answer about the page, and asking
+again gets it again; nor a failure that asking again would meet again, a
+redirect loop or an encoding the fetch cannot read."""
+
+MAX_RETRIES = 10
+"""The most times a crawl asks again for one page; the tenth waits 1,024
+times the site's delay, or ``max_delay``."""
 
 LOOKAHEAD = 256
 """How far past the first unfinished task a free site may be served from.
@@ -337,25 +348,34 @@ class Politeness:
                 self._failing.discard(site_of(url))
 
 
+LONGEST_RETRY_AFTER = 365 * 24 * 60 * 60.0
+"""The longest wait a ``Retry-After`` is read as asking for: a year."""
+
+
 def retry_after(headers: dict[str, str]) -> float | None:
     """The seconds a response's ``Retry-After`` asks for, or None.
 
     RFC 9110 allows a number of seconds or a date. A date is counted from the
     response's own ``Date``, so the wait is the one the server meant whatever
     this machine's clock says; with no ``Date`` it cannot be counted, and is
-    None, as is anything that is neither. A moment already past is 0.
+    None, as is anything that is neither. A moment already past is 0, and
+    none is longer than ``LONGEST_RETRY_AFTER``.
+
+    The seconds are ASCII digits, as RFC 9110's grammar writes them: ``"²"``
+    is a digit to ``str.isdigit`` and not to ``float``, and raised out of a
+    crawl, ending a run of many sites at the first one that sent it.
     """
     written = (headers.get("retry-after") or "").strip()
-    if written.isdigit():
-        return float(written)
+    if written.isascii() and written.isdigit():
+        return min(float(written), LONGEST_RETRY_AFTER)
     try:
         then = email.utils.parsedate_to_datetime(written)
         sent = email.utils.parsedate_to_datetime(headers.get("date") or "")
-    except (TypeError, ValueError, IndexError):
+    except (TypeError, ValueError, IndexError, OverflowError):
         return None
     if then.tzinfo is None or sent.tzinfo is None:
         return None
-    return max(0.0, (then - sent).total_seconds())
+    return min(max(0.0, (then - sent).total_seconds()), LONGEST_RETRY_AFTER)
 
 
 class Queue:
@@ -428,6 +448,11 @@ class Schedule(Generic[_Result]):
     ) -> None:
         if concurrency < 1:
             raise ValueError("A schedule needs room for at least one request.")
+        if concurrency > MAX_CONCURRENCY:
+            raise ValueError(
+                f"A schedule asks at most {MAX_CONCURRENCY} sites at once, "
+                f"not {concurrency}."
+            )
         self.visit = visit
         self.politeness = politeness
         self.concurrency = concurrency

@@ -728,6 +728,27 @@ def test_a_fetch_that_failed_says_what_failed_rather_than_raising(monkeypatch):
     assert "connection refused" in result["error"]["message"]
 
 
+def test_a_fetch_that_would_fail_again_is_not_retryable(monkeypatch):
+    """A redirect loop, asked again, loops again: an agent told retryable
+    would ask for it again and again."""
+    from sluicer.fetch import FetchFailed
+
+    registered = fake_mcp(monkeypatch)
+    fake_fetch(
+        monkeypatch,
+        raises=FetchFailed(
+            "https://example.com/p", [], "a redirect loop", transient=False
+        ),
+    )
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    result = registered["fetch_page"]("https://example.com/p")
+
+    assert result["error"]["code"] == "fetch_failed"
+    assert result["error"]["retryable"] is False
+
+
 def test_a_real_bug_below_the_fetch_is_still_not_swallowed(monkeypatch):
     registered = fake_mcp(monkeypatch)
     fake_fetch(monkeypatch, raises=KeyError("a bug"))
@@ -1654,6 +1675,23 @@ def test_the_server_reads_the_tools_asked_for_from_its_environment(monkeypatch):
     server_module.main()
     server_module.main(tools=["read_feed"])
     assert asked == [["extract_declared", "map_site"], None, ["read_feed"]]
+
+
+def test_a_proxy_it_cannot_use_stops_the_server_in_one_line(monkeypatch, capsys):
+    """Measured on 0.8.0: SLUICER_PROXY of a kind it does not speak was found
+    at the first tool call, which answered internal_error and wrote the
+    proxy's password into the server's log."""
+    fake_mcp(monkeypatch)
+    monkeypatch.setenv("SLUICER_PROXY", "https://alice:HUNTER2@proxy.invalid:3128")
+    import sluicer.mcp_server as server_module
+
+    with pytest.raises(SystemExit) as raised:
+        server_module.main()
+
+    assert raised.value.code == 2
+    said = capsys.readouterr().err
+    assert "SLUICER_PROXY" in said and "not a proxy Sluicer speaks to" in said
+    assert "HUNTER2" not in said and "Traceback" not in said
 
 
 def test_a_tool_that_does_not_exist_stops_the_server_in_one_line(monkeypatch, capsys):

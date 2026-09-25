@@ -117,9 +117,9 @@ Options:
                               x>=0]
   --retries INTEGER RANGE     Ask a page again this many times when it did not answer,
                               or answered 429 or a 5xx, each time twice as late; never a
-                              4xx.  [default: 2; x>=0]
+                              4xx.  [default: 2; 0<=x<=10]
   --jobs INTEGER RANGE        How many sites are asked at once, each still one request
-                              at a time.  [default: 4; x>=1]
+                              at a time.  [default: 4; 1<=x<=32]
   --induce / --no-induce      Also read the rows a page repeats when it declares nothing
                               about them.
   --respect [tdm]             Give a page whose rights are reserved as an error, not its
@@ -216,9 +216,9 @@ Options:
                                 x>=0]
   --retries INTEGER RANGE       Ask a page again this many times when it did not answer,
                                 or answered 429 or a 5xx, each time twice as late; never
-                                a 4xx.  [default: 2; x>=0]
+                                a 4xx.  [default: 2; 0<=x<=10]
   --jobs INTEGER RANGE          How many sites are asked at once, each still one request
-                                at a time.  [default: 4; x>=1]
+                                at a time.  [default: 4; 1<=x<=32]
   --induce / --no-induce        Also read the rows a page repeats when it declares
                                 nothing about them.
   --respect [tdm]               Give a page whose rights are reserved as an error, not
@@ -476,6 +476,9 @@ Options:
   --plain / --no-plain        One address a line, for `sluicer batch -`.
   --format [json|csv]         json: the map as one object; csv: a row per address (url,
                               lastmod, sitemap).  [default: json]
+  --time-budget SECONDS       Ask for no further sitemap once this many seconds have
+                              passed; the map is then cut short. None by default.
+                              [x>=0]
   --proxy URL                 Fetch through this proxy (http://host:port,
                               socks5h://host:port); the environment's HTTPS_PROXY is
                               never used. Same as SLUICER_PROXY.

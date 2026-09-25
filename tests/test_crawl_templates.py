@@ -184,6 +184,28 @@ def test_what_is_not_products_json_says_so():
     assert "not a Shopify products.json" in answer.error.message
 
 
+@pytest.mark.parametrize("depth", [5_000, 100_000])
+def test_a_products_json_nested_past_any_shop_is_read_without_recursion(depth):
+    """Measured on 0.8.0: a product whose tags nested 5,000 lists deep raised
+    RecursionError out of the crawl, and 100,000 did so from the parser."""
+    deep = "[" * depth + "]" * depth
+    body = (
+        '{"products": [{"id": 1, "handle": "ok", "title": "Fine", "tags": '
+        + deep
+        + "}]}"
+    )
+    fake = FakeWeb({products_url(1): (200, body, {"content-type": "application/json"})})
+
+    [answer] = list(shop(fake))
+
+    if depth == 5_000:
+        assert answer.ok and answer.url == f"{SHOP}/products/ok"
+        json.dumps(answer.to_json())
+    else:
+        assert answer.error.code == "bad_input"
+        assert "not a Shopify products.json" in answer.error.message
+
+
 def test_a_json_page_that_fails_is_asked_again_as_a_page_is():
     fake = FakeWeb(
         {products_url(1): [ConnectionResetError("reset"), json_page(listing(1))]}

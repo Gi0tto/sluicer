@@ -225,11 +225,14 @@ why, in the shape the MCP tools use: `{"code", "message", "retryable"}`, with
 | `misdirected` | 421 | door | Listening on loopback, it answers only requests addressed to `localhost`, `127.0.0.1` or `[::1]`. |
 | `internal_error` | 500 | door | A bug. The message is generic; the traceback is in the server's log. |
 | `missing_extra` | 501 | tool | An extra this call needs is not installed; `extra` names it. |
-| `fetch_failed` | 502 | tool | Every rung failed. Retryable. |
+| `fetch_failed` | 502 | tool | Every rung failed. Retryable, unless what failed would fail again: a redirect loop, an encoding this install cannot read. |
 | `timed_out` | 504 | door | The request ran past `--timeout`. At `/mcp`, a body that took longer to arrive; a tool call past it is a failed call. Retryable. |
 
 `retryable` is true for `fetch_failed` and `timed_out` only: the same call may
-work later. Every other code needs something to change first.
+work later. Not every `fetch_failed` is: one whose every rung was answered
+with what it would be answered again -- a redirect loop, an encoding this
+install cannot read, an empty page -- is not retryable. Every other code
+needs something to change first.
 
 ### A page that drifted is a 200
 
@@ -285,6 +288,16 @@ machinery in between.
   workers of its own (`MAX_READS`). Before, four slow sites held every worker,
   and `extract_declared` on HTML handed in waited behind them for about 65
   seconds of HTTP, browser and robots.txt deadlines.
+
+- **A connection that sends nothing is closed.** One that has not sent a
+  whole request's line and headers ten seconds after it opened, or after its
+  last answer (`HEAD_SECONDS`), is closed. uvicorn times a connection out only
+  between two requests: measured, 64 connections that sent nothing held
+  every one it serves at once, and every later request, `/health` included,
+  was answered 503 for as long as they stayed. A client that sends its
+  headers a byte at a time for longer is cut off too; one that sends them
+  and then a slow body is not, and beyond loopback a reverse proxy in front
+  is still what bounds that.
 
 The body bound and the workers are arguments of
 `sluicer.http_api.build_app` (`max_body`, `max_calls`, `max_reads`), and the 64 connections

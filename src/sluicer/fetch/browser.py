@@ -20,7 +20,12 @@ stands then.
 
 With ``allow_private`` false, every request the page makes goes through
 ``sluicer.fetch.browser_guard``, installed on the page's context before it
-navigates; a guard that did not install fails the rung.
+navigates; a guard that did not install fails the rung. And every connection
+the browser makes for the page -- a speculation rule's prefetch, a WebRTC
+TURN server, which no route sees -- goes through
+``sluicer.fetch.browser_proxy``, the context's proxy, which judges each one
+by the same rule and connects only to the addresses it checked. WebRTC's UDP,
+which no proxy carries, is off.
 
 Backends, chosen by the environment:
 
@@ -42,7 +47,7 @@ import contextlib
 import os
 import queue
 import threading
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import Future, TimeoutError as FutureTimeout
 from dataclasses import dataclass, field
 from typing import Any
@@ -69,6 +74,11 @@ BROWSER_ENV = "SLUICER_BROWSER"
 CDP_ENV = "SLUICER_CDP_URL"
 """The address of a running Chromium to drive over the DevTools protocol,
 instead of launching one."""
+
+SANDBOX_ENV = "SLUICER_BROWSER_SANDBOX"
+"""``0`` (or ``off``, ``no``, ``false``) launches Chromium without its
+sandbox. It is on otherwise: Playwright's own default is off, and the browser
+renders pages sent by anyone."""
 
 BROWSER_TIMEOUT_MS = 30_000
 """How long the browser rung waits for one page, in Playwright's milliseconds.
@@ -209,12 +219,44 @@ def _open(playwright: Any) -> Any:
     """The browser: the one at ``SLUICER_CDP_URL``, or a Chromium launched.
 
     Launched with no proxy of its own, so neither the system's nor the
-    environment's is used; a page's context is given the one asked for.
+    environment's is used; a page's context is given the one asked for. And
+    in its sandbox, unless ``SLUICER_BROWSER_SANDBOX`` turns it off: Playwright
+    passes ``--no-sandbox`` by default, and a renderer that a page's code
+    breaks out of would then be this process's user. A sandbox that cannot
+    start -- a container whose seccomp profile refuses the namespaces it
+    needs, an Ubuntu that restricts them -- fails the launch with a message
+    that says so.
     """
     remote = os.environ.get(CDP_ENV, "").strip()
     if remote:
         return playwright.chromium.connect_over_cdp(remote)
-    return playwright.chromium.launch(args=["--no-proxy-server"])
+    sandboxed = os.environ.get(SANDBOX_ENV, "").strip().lower() not in {
+        "0",
+        "off",
+        "no",
+        "false",
+    }
+    try:
+        return playwright.chromium.launch(
+            args=[
+                "--no-proxy-server",
+                # WebRTC over UDP goes past any proxy, the guard's included:
+                # measured, a page reached a STUN server on a private address.
+                "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            ],
+            chromium_sandbox=sandboxed,
+        )
+    except Exception as failure:
+        if sandboxed and "sandbox" in str(failure).lower():
+            raise RuntimeError(
+                "Chromium could not start its sandbox here. In a container, run "
+                "it with a seccomp profile that allows user namespaces (or "
+                "--cap-add SYS_ADMIN); on Ubuntu 23.10 and later, allow them "
+                "(sysctl kernel.apparmor_restrict_unprivileged_userns=0). Or set "
+                f"{SANDBOX_ENV}=0 to run the browser without it, the machine or "
+                f"the container then its only boundary. Chromium said: {failure}"
+            ) from failure
+        raise
 
 
 HOST = BrowserHost()
@@ -222,9 +264,17 @@ HOST = BrowserHost()
 atexit.register(HOST.close)
 
 
-def _context_options(proxy: str | None) -> dict[str, Any]:
-    """A page's context: our name, no service workers, the proxy asked for."""
+def _context_options(proxy: str | None, through: str | None = None) -> dict[str, Any]:
+    """A page's context: our name, no service workers, the proxy asked for.
+
+    ``through`` is a guard proxy's address, which is then the context's proxy,
+    loopback included -- Chromium passes loopback by a proxy unless its
+    bypass list says ``<-loopback>`` -- and the one asked for its way out.
+    """
     options: dict[str, Any] = {"user_agent": USER_AGENT, "service_workers": "block"}
+    if through is not None:
+        options["proxy"] = {"server": through, "bypass": "<-loopback>"}
+        return options
     chosen = chosen_proxy(proxy)
     if chosen is not None:
         named = Proxy.parse(chosen)
@@ -243,19 +293,27 @@ def _load(
     guard: Guard | None,
     headers: Mapping[str, str],
     cookies: Mapping[str, str],
-    asked: str,
+    asked: Sequence[str],
     proxy: str | None,
+    through: str | None = None,
 ) -> Job:
-    """The job that loads ``url`` in a new context of the browser."""
+    """The job that loads ``url`` in a new context of the browser.
+
+    ``cookies`` are set for each origin in ``asked``: for its host alone, and
+    over https only when it is https's -- Playwright marks a cookie set for
+    an https address ``Secure``.
+    """
 
     def job(browser: Any) -> Loaded | None:
-        context = browser.new_context(**_context_options(proxy))
+        context = browser.new_context(**_context_options(proxy, through))
         try:
             if cookies:
-                parts = urlsplit(asked)
-                origin = f"{parts.scheme}://{parts.netloc}"
                 context.add_cookies(
-                    [{"name": k, "value": v, "url": origin} for k, v in cookies.items()]
+                    [
+                        {"name": k, "value": v, "url": origin}
+                        for origin in dict.fromkeys(_origin_of(a) for a in asked)
+                        for k, v in cookies.items()
+                    ]
                 )
             if guard is not None:
                 guard.setup(context)
@@ -288,13 +346,19 @@ def _load(
     return job
 
 
-def _adding(headers: Mapping[str, str], asked: str) -> Callable[[Any], None]:
-    """A route that adds the caller's headers to requests for the origin asked,
-    and to none elsewhere: the page's other hosts are not the caller's."""
+def _origin_of(address: str) -> str:
+    parts = urlsplit(address)
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def _adding(headers: Mapping[str, str], asked: Sequence[str]) -> Callable[[Any], None]:
+    """A route that adds the caller's headers to requests for the origins
+    asked, and to none elsewhere: the page's other hosts are not the
+    caller's."""
 
     def route(handled: Any) -> None:
         request = handled.request
-        if same_origin(request.url, asked):
+        if any(same_origin(request.url, one) for one in asked):
             handled.continue_(headers={**request.headers, **headers})
         else:
             handled.continue_()
@@ -311,6 +375,7 @@ def browser_rung(
     headers: Mapping[str, str] | None = None,
     cookies: Mapping[str, str] | None = None,
     host: BrowserHost | None = None,
+    send_to: Iterable[str] | None = None,
 ) -> Rung:
     """Build the browser rung.
 
@@ -326,19 +391,27 @@ def browser_rung(
         headers: sent with the requests for the origin asked, and no other.
         cookies: set in the page's context for the origin asked.
         host: the browser; the process's by default.
+        send_to: the addresses whose origins -- scheme, host and port --
+            ``headers`` and ``cookies`` are for, fixed here; None, the origin
+            of each address the rung is handed.
     """
     sent = dict(headers or {})
     crumbs = dict(cookies or {})
     driver = host if host is not None else HOST
+    fixed = tuple(send_to) if send_to is not None else None
 
     def rung(url: str) -> Fetched:
+        asked = fixed if fixed is not None else (url,)
         if allow_private:
-            loaded = driver.run(_load(url, None, sent, crumbs, url, proxy))
+            loaded = driver.run(_load(url, None, sent, crumbs, asked, proxy))
             return _as_fetched(loaded, url, max_bytes)
+        through = _guard_proxy(resolve, proxy)
         current = url
         for _ in range(MAX_REDIRECTS + 1):
-            guard = Guard(resolve, send=sent, asked=url)
-            loaded = driver.run(_load(current, guard, sent, crumbs, url, proxy))
+            guard = Guard(resolve, send=sent, asked=asked)
+            loaded = driver.run(
+                _load(current, guard, sent, crumbs, asked, proxy, through)
+            )
             if not guard.installed:
                 raise RuntimeError(
                     "the browser rung could not guard the page's requests, so it "
@@ -359,6 +432,20 @@ def browser_rung(
         raise RuntimeError(f"{url} redirected more than {MAX_REDIRECTS} times")
 
     return rung
+
+
+def _guard_proxy(
+    resolve: Callable[[str], Iterable[str]], proxy: str | None
+) -> str | None:
+    """The address of the guard proxy a guarded page's context goes through,
+    the proxy asked for its way out; None for a browser elsewhere
+    (``SLUICER_CDP_URL``), which cannot reach this machine's loopback, and
+    whose pages the guard's routes alone judge."""
+    if os.environ.get(CDP_ENV, "").strip():
+        return None
+    from sluicer.fetch.browser_proxy import guard_proxy
+
+    return guard_proxy(resolve, chosen_proxy(proxy)).address
 
 
 def _as_fetched(loaded: Loaded | None, url: str, max_bytes: int) -> Fetched:

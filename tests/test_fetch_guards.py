@@ -53,6 +53,129 @@ def test_a_chunked_body_is_read_to_its_end(monkeypatch):
     assert http_rung()("https://example.com/p").html == "<p>ok</p>"
 
 
+def test_a_body_cut_short_of_its_length_is_not_a_page(monkeypatch):
+    """The server announced 2000 bytes and closed after 11: what came is a
+    fragment of the page, and handed back with 200 it was taken, and kept by
+    a cache, as the page. curl called it error 18; so is it here."""
+    cut = b"HTTP/1.1 200 OK\r\nContent-Length: 2000\r\n\r\n<html>half"
+    seen = fake_http(monkeypatch, [cut])
+    from sluicer.fetch.http_rung import ProtocolError, http_rung
+
+    with pytest.raises(ProtocolError, match="cut short"):
+        http_rung()("https://example.com/p")
+
+    assert seen.sockets[0].closed, "a connection that ended mid-body is not kept"
+    assert seen.pool._idle == []
+
+
+def test_a_page_cut_short_fails_the_ladder_and_is_not_cached(monkeypatch, tmp_path):
+    from sluicer.fetch.cache import Cache, fetch_cached
+    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.ladder import FetchFailed
+
+    cut = b"HTTP/1.1 200 OK\r\nContent-Length: 2000\r\n\r\n<html>half"
+    fake_http(monkeypatch, [cut])
+    cache = Cache(tmp_path)
+
+    with pytest.raises(FetchFailed, match="cut short"):
+        fetch_cached(
+            "https://example.com/p",
+            cache,
+            rungs=[("http", http_rung())],
+            obey_robots=False,
+        )
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def _cut(body: bytes) -> bytes:
+    return body[: len(body) // 2]
+
+
+@pytest.mark.parametrize(
+    ("encoding", "encode"),
+    [
+        ("gzip", lambda body: _cut(gzip.compress(body))),
+        ("deflate", lambda body: _cut(zlib.compress(body))),
+        ("deflate", lambda body: _cut(zlib.compress(body)[2:-4])),
+        # The stream is whole and the gzip trailer that checks it is missing.
+        ("gzip", lambda body: gzip.compress(body)[:-8]),
+    ],
+)
+def test_a_compressed_body_cut_short_is_not_a_page(monkeypatch, encoding, encode):
+    """The framing was whole -- the length said, every byte came -- and the
+    compressed stream inside it ended before its end: half a page, which
+    inflated to the words it held and was returned as the page."""
+    page = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
+    fake_http(monkeypatch, [(200, encode(page), {"Content-Encoding": encoding})])
+    from sluicer.fetch.http_rung import ProtocolError, http_responses
+
+    with pytest.raises(ProtocolError, match="cut short"):
+        http_responses()("https://example.com/p")
+
+
+@pytest.mark.skipif(wire.ZSTD is None, reason="this Python has no zstd")
+def test_a_zstd_body_cut_short_is_not_a_page(monkeypatch):
+    page = b"<html><body>" + b"words and more words " * 500 + b"</body></html>"
+    cut = _cut(wire.ZSTD.compress(page))
+    fake_http(monkeypatch, [(200, cut, {"Content-Encoding": "zstd"})])
+    from sluicer.fetch.http_rung import ProtocolError, http_responses
+
+    with pytest.raises(ProtocolError, match="cut short"):
+        http_responses()("https://example.com/p")
+
+
+def test_an_empty_body_announced_as_compressed_is_empty(monkeypatch):
+    """No bytes at all is no stream to have cut short: a 204 or an empty 404
+    sent with the site's usual Content-Encoding."""
+    fake_http(monkeypatch, [(404, b"", {"Content-Encoding": "gzip"})])
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == b""
+
+
+def test_raw_deflate_whose_first_read_is_one_byte_is_decoded():
+    """Whether deflate is zlib's or raw was decided on the first read, and one
+    byte is no zlib header yet: the second read then failed the check."""
+    page = b"<html><body>" + b"hello world " * 200 + b"</body></html>"
+    squeeze = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+    raw = squeeze.compress(page) + squeeze.flush()
+    for first in (1, 2, 3):
+        decoder = wire.Decoder("https://example.com/p", "deflate")
+        out = decoder.feed(raw[:first], 1 << 20) + decoder.feed(raw[first:], 1 << 20)
+        assert out + decoder.finish(1 << 20) == page
+
+
+def test_zlib_deflate_read_a_byte_at_a_time_is_decoded(monkeypatch):
+    page = b"<html><body>" + b"hello world " * 200 + b"</body></html>"
+    fake_http(
+        monkeypatch,
+        [(200, zlib.compress(page), {"Content-Encoding": "deflate"})],
+        chunk=1,
+    )
+    from sluicer.fetch.http_rung import http_responses
+
+    assert http_responses()("https://example.com/p").body == page
+
+
+@pytest.mark.skipif(wire.ZSTD is None, reason="this Python has no zstd")
+@pytest.mark.parametrize("encoding", ["gzip", "zstd"])
+def test_thousands_of_empty_members_are_read_without_recursion(encoding):
+    """Each member after the first was read by a call inside the last one's:
+    3,000 empty gzip members, 60 KB, raised RecursionError."""
+    member = gzip.compress(b"") if encoding == "gzip" else wire.ZSTD.compress(b"")
+    decoder = wire.Decoder("https://example.com/p", encoding)
+    body = member * 3000 + (
+        gzip.compress(b"<p>end</p>")
+        if encoding == "gzip"
+        else wire.ZSTD.compress(b"<p>end</p>")
+    )
+
+    out = decoder.feed(body, 1 << 20) + decoder.finish(1 << 20)
+
+    assert out == b"<p>end</p>"
+
+
 def test_a_length_announced_past_the_bound_is_refused_unread(monkeypatch):
     """What curl's own bound did: the length is read before the body is."""
     seen = fake_http(monkeypatch, [(200, b"x" * 5000, {})])
@@ -391,6 +514,24 @@ def test_a_proxy_of_a_kind_it_does_not_speak_is_refused_when_built():
         http_rung(proxy="ftp://proxy.example:21")
 
 
+@pytest.mark.parametrize(
+    "address",
+    [
+        "https://alice:HUNTER2@proxy.example:3128",
+        "http://alice:HUNTER2@proxy.example:notaport",
+        "socks5://alice:HUNTER2@",
+    ],
+)
+def test_a_proxy_refused_is_not_repeated_with_its_password(address):
+    """Measured on 0.8.0: the whole address, password and all, was in the
+    message, and so in the MCP server's log."""
+    with pytest.raises(ValueError) as refused:
+        wire.Proxy.parse(address)
+
+    assert "HUNTER2" not in str(refused.value)
+    assert "alice" in str(refused.value) or "proxy" in str(refused.value)
+
+
 def test_plain_http_through_an_http_proxy_names_the_whole_address(monkeypatch):
     seen = fake_http(monkeypatch, [PAGE])
     from sluicer.fetch.http_rung import http_rung
@@ -620,6 +761,124 @@ def test_an_address_with_a_user_and_password_sends_them_as_basic(monkeypatch):
     http_rung()("https://me:p%40ss@example.com/p")
 
     assert seen.requests[0].headers["authorization"] == "Basic bWU6cEBzcw=="
+
+
+LOGIN = {"headers": {"Authorization": "Bearer t"}, "cookies": {"session": "1"}}
+NOTHING = (404, b"", {})
+
+
+def _sent_a_login(request):
+    return "authorization" in request.headers or "cookie" in request.headers
+
+
+@pytest.fixture
+def plain_ladder(monkeypatch):
+    """The default ladder without a browser, the gate not waiting."""
+    from sluicer.fetch.gate import GATE
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    monkeypatch.setattr(GATE, "min_delay", 0.0)
+
+
+def test_the_robots_txt_a_redirect_lands_on_is_not_sent_the_login(
+    monkeypatch, plain_ladder
+):
+    """Measured on 0.8.0: the other origin's robots.txt was read through the
+    ladder's own rung, which took the robots.txt address for the one asked
+    and sent it the caller's Authorization and cookies."""
+    seen = fake_http(
+        monkeypatch,
+        [NOTHING, (302, b"", {"location": "https://other.example/q"}), PAGE, NOTHING],
+    )
+
+    landed = fetch("https://example.com/p", **LOGIN)
+
+    assert landed.url == "https://other.example/q"
+    assert [(seen.targets[r.connection].host, r.target) for r in seen.requests] == [
+        ("example.com", "/robots.txt"),
+        ("example.com", "/p"),
+        ("other.example", "/q"),
+        ("other.example", "/robots.txt"),
+    ]
+    assert [_sent_a_login(r) for r in seen.requests] == [False, True, False, False]
+
+
+def test_robots_txt_is_read_as_anyone_reads_it(monkeypatch, plain_ladder):
+    """One answer per site, whoever asks: read with a login, the answer was
+    kept for the site and given to every caller for a day, with that login
+    or without it."""
+    from sluicer.fetch.identity import _CACHE
+
+    seen = fake_http(monkeypatch, [(200, b"User-agent: *\nAllow: /\n", {}), PAGE])
+
+    fetch("https://example.com/p", **LOGIN)
+
+    assert [r.target for r in seen.requests] == ["/robots.txt", "/p"]
+    assert [_sent_a_login(r) for r in seen.requests] == [False, True]
+    assert list(_CACHE) == ["https://example.com"]
+
+
+def test_a_redirect_to_another_port_reads_that_ports_robots_txt(
+    monkeypatch, plain_ladder
+):
+    """An origin is its scheme, host and port: a redirect from :443 to :8443
+    lands on a server whose robots.txt had not been read."""
+    seen = fake_http(
+        monkeypatch,
+        [
+            NOTHING,
+            (302, b"", {"location": "https://example.com:8443/q"}),
+            PAGE,
+            (200, b"User-agent: *\nDisallow: /q\n", {}),
+        ],
+    )
+    from sluicer.fetch.ladder import RobotsRefused
+
+    with pytest.raises(RobotsRefused):
+        fetch("https://example.com/p")
+
+    assert [r.target for r in seen.requests] == [
+        "/robots.txt",
+        "/p",
+        "/q",
+        "/robots.txt",
+    ]
+    assert seen.targets[-1].port == 8443
+
+
+def test_the_login_is_not_sent_back_over_plain_http(monkeypatch):
+    """The origin a login goes to is the one the caller named: an https page
+    that redirects to its own host over http is asked there without it."""
+    seen = fake_http(
+        monkeypatch, [(302, b"", {"location": "http://example.com/q"}), PAGE]
+    )
+    from sluicer.fetch.http_rung import http_rung
+
+    send = {"Authorization": "Bearer t", "Cookie": "session=1"}
+    http_rung(send=send, send_to=["https://example.com/"])("https://example.com/p")
+
+    assert [_sent_a_login(r) for r in seen.requests] == [True, False]
+
+
+def test_a_transport_given_its_origins_sends_the_login_to_them_alone(monkeypatch):
+    """Built for the addresses a caller named, it is handed others -- a link,
+    a sitemap another host serves -- and sends those nothing of the login."""
+    seen = fake_http(monkeypatch, [PAGE] * 4)
+    from sluicer.fetch.http_rung import http_responses
+
+    get = http_responses(
+        send={"Authorization": "Bearer t"},
+        send_to=["https://example.com/start", "https://shop.example:8443/"],
+    )
+    for url in (
+        "https://example.com/other",
+        "https://shop.example:8443/p",
+        "https://www.example.com/",
+        "https://cdn.example/sitemap.xml",
+    ):
+        get(url)
+
+    assert [_sent_a_login(r) for r in seen.requests] == [True, True, False, False]
 
 
 # -- proxies, on the wire --------------------------------------------------------
@@ -1040,11 +1299,13 @@ def test_the_ladder_says_how_long_each_rung_took():
     assert [climb.seconds >= 0 for climb in result.climbs] == [True]
 
 
-def test_the_guard_installs_its_route_its_socket_route_and_no_service_workers():
+def test_the_guard_installs_its_routes_and_no_service_workers_nor_webrtc():
+    """WebRTC connects past every route: measured on 0.8.0, a page reached a
+    STUN and a TURN server on a private address with the guard installed."""
     calls = []
     page = types.SimpleNamespace(
         add_init_script=lambda script: calls.append(
-            ("script", "serviceWorker" in script)
+            ("script", "serviceWorker" in script or "RTCPeerConnection" in script)
         ),
         route=lambda pattern, handler: calls.append(("route", pattern)),
         route_web_socket=lambda pattern, handler: calls.append(("socket", pattern)),
@@ -1054,7 +1315,95 @@ def test_the_guard_installs_its_route_its_socket_route_and_no_service_workers():
     guard.setup(page)
 
     assert guard.installed
-    assert calls == [("script", True), ("route", "**/*"), ("socket", "**/*")]
+    assert calls == [
+        ("script", True),
+        ("script", True),
+        ("route", "**/*"),
+        ("socket", "**/*"),
+    ]
+
+
+# -- the guard proxy ----------------------------------------------------------------
+
+
+def test_the_guard_proxy_reads_a_tunnel_and_a_plain_request():
+    from sluicer.fetch.browser_proxy import asked_of
+
+    tunnel = asked_of(b"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443")
+    six = asked_of(b"CONNECT [2001:db8::1]:8443 HTTP/1.1")
+    plain = asked_of(
+        b"GET http://example.com:8080/a?b=1 HTTP/1.1\r\nHost: example.com:8080\r\n"
+        b"Proxy-Connection: keep-alive\r\nAccept: */*"
+    )
+
+    assert (tunnel.tunnel, tunnel.host, tunnel.port) == (True, "example.com", 443)
+    assert (six.host, six.port, six.url) == (
+        "2001:db8::1",
+        8443,
+        "http://[2001:db8::1]:8443/",
+    )
+    assert (plain.host, plain.port, plain.path) == ("example.com", 8080, "/a?b=1")
+    assert plain.head(absolute=False) == (
+        b"GET /a?b=1 HTTP/1.1\r\nHost: example.com:8080\r\nAccept: */*\r\n"
+        b"Connection: close\r\n\r\n"
+    )
+    assert plain.head(absolute=True, authorization="Basic dTpw").startswith(
+        b"GET http://example.com:8080/a?b=1 HTTP/1.1\r\n"
+    )
+    assert b"Proxy-Authorization: Basic dTpw" in plain.head(True, "Basic dTpw")
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        b"GET /relative HTTP/1.1",
+        b"GET https://example.com/ HTTP/1.1",
+        b"CONNECT example.com HTTP/1.1",
+        b"CONNECT example.com:99999 HTTP/1.1",
+        b"CONNECT example.com:\xb2 HTTP/1.1",
+        b"GET ftp://example.com/ HTTP/1.1",
+        b"BREW coffee HTCPCP/1.0",
+    ],
+)
+def test_the_guard_proxy_serves_nothing_else(head):
+    from sluicer.fetch.browser_proxy import asked_of
+
+    assert asked_of(head) is None
+
+
+def test_a_guarded_pages_context_goes_through_the_guard_proxy(monkeypatch):
+    """Every connection the browser makes for the page, loopback included:
+    Chromium passes loopback by a proxy unless told ``<-loopback>``."""
+    monkeypatch.delenv("SLUICER_CDP_URL", raising=False)
+    monkeypatch.setattr(
+        "sluicer.fetch.browser_proxy.guard_proxy",
+        lambda resolve, upstream: types.SimpleNamespace(
+            address=f"http://127.0.0.1:1/ via {upstream}"
+        ),
+    )
+    host = FakeHost({"https://example.com/p": "<p>hi</p>"})
+    from sluicer.fetch.browser import browser_rung
+
+    browser_rung(allow_private=False, resolve=public, host=host, proxy="socks5://p:1")(
+        "https://example.com/p"
+    )
+
+    assert host.contexts[0].options["proxy"] == {
+        "server": "http://127.0.0.1:1/ via socks5://p:1",
+        "bypass": "<-loopback>",
+    }
+
+
+def test_a_browser_elsewhere_is_given_no_guard_proxy_it_cannot_reach(monkeypatch):
+    monkeypatch.setenv("SLUICER_CDP_URL", "ws://browser.example:9222/")
+    host = FakeHost({"https://example.com/p": "<p>hi</p>"})
+    from sluicer.fetch.browser import browser_rung
+
+    browser_rung(allow_private=False, resolve=public, host=host)(
+        "https://example.com/p"
+    )
+
+    assert "proxy" not in host.contexts[0].options
 
 
 def test_the_guard_ends_a_subresource_redirect_loop():
@@ -1111,6 +1460,19 @@ def test_an_empty_robots_txt_is_judged_by_its_status(monkeypatch, status, fetche
     else:
         with pytest.raises(FetchFailed, match="status 503"):
             fetch("https://example.com/p", rungs=ladder)
+
+
+@pytest.mark.parametrize("status", [404, 410, 403, 500, 503])
+def test_an_empty_error_page_is_that_statuses_answer(monkeypatch, status):
+    """An empty 404 is a 404: the site's answer about the address, which the
+    rung reported as a rung that failed, so the ladder climbed and a crawl
+    asked again."""
+    fake_http(monkeypatch, [(status, b"", {})])
+    from sluicer.fetch.http_rung import http_rung
+
+    page = http_rung()("https://example.com/p")
+
+    assert (page.status, page.html) == (status, "")
 
 
 def test_an_empty_page_is_still_a_rung_that_failed(monkeypatch):

@@ -83,6 +83,23 @@ class Server(http.server.BaseHTTPRequestHandler):
                 "/to-file": "file:///etc/hosts",
             }
             self._send(302, Location=targets[self.path])
+        elif self.path == "/cut":
+            # Announces the whole page and closes after a part of it.
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", "4000")
+            self.end_headers()
+            self.wfile.write(b"<html><body><p>the start of a page")
+            self.wfile.flush()
+            self.close_connection = True
+        elif self.path == "/cut-gzip":
+            whole = gzip.compress(b"<html><body>" + b"<p>words</p>" * 400)
+            self._send(
+                200,
+                whole[: len(whole) // 2],
+                Content_Type="text/html",
+                Content_Encoding="gzip",
+            )
         elif self.path == "/announced":
             self._send(200, b"a" * BIG, Content_Type="text/html")
         elif self.path == "/bomb":
@@ -126,7 +143,7 @@ def _record() -> None:
 def main() -> int:
     from sluicer.fetch import address
     from sluicer.fetch.address import AddressRefused
-    from sluicer.fetch.http_rung import http_rung
+    from sluicer.fetch.http_rung import ProtocolError, http_rung
     from sluicer.fetch.identity import USER_AGENT
     from sluicer.fetch.result import ResponseTooLarge
     from sluicer.fetch.wire import ACCEPT_ENCODING
@@ -178,6 +195,15 @@ def main() -> int:
     time.sleep(0.2)
     if reached:
         failures.append(f"a redirect off the web reached a socket with {reached}")
+
+    for path in ("/cut", "/cut-gzip"):
+        try:
+            cut = rung(base + path)
+            failures.append(f"{path}: a body cut short came back: {cut.html[:40]!r}")
+        except ProtocolError:
+            pass
+        except Exception as other:  # noqa: BLE001 -- any other answer is a failure
+            failures.append(f"{path}: a body cut short raised {other!r}")
 
     for path in ("/announced", "/chunked", "/bomb"):
         try:
@@ -256,7 +282,8 @@ def main() -> int:
     if not failures:
         print(
             "http: charset, identity, one connection for twenty pages, redirects, "
-            "the web only, the deadline, heavy bodies, the pin and no proxy "
+            "the web only, the deadline, bodies cut short, heavy bodies, the pin "
+            "and no proxy "
             "unasked all hold"
         )
     return 1 if failures else 0

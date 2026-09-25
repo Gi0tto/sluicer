@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import threading
+import types
 from typing import get_args
 
 import pytest
@@ -793,7 +794,68 @@ def uvicorn_run(monkeypatch):
     module = types.ModuleType("uvicorn")
     module.run = lambda app, **options: ran.update(app=app, **options)
     monkeypatch.setitem(sys.modules, "uvicorn", module)
+    # What serve's protocol is built on, by name.
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn.protocols.http.h11_impl",
+        types.SimpleNamespace(H11Protocol=object),
+    )
     return ran
+
+
+def test_a_connection_that_sends_no_request_is_closed_in_time():
+    """Measured on 0.8.0: 64 connections that sent nothing held every one
+    uvicorn serves at once, and every later request, /health included, was
+    answered 503 for as long as they stayed; uvicorn times a connection out
+    only between two requests."""
+    pytest.importorskip("uvicorn")
+    from uvicorn.config import Config
+    from uvicorn.server import ServerState
+
+    closed = []
+
+    class Loop:
+        def __init__(self):
+            self.timers = []
+
+        def call_later(self, seconds, callback):
+            timer = types.SimpleNamespace(
+                seconds=seconds, callback=callback, cancelled=False
+            )
+            timer.cancel = lambda: setattr(timer, "cancelled", True)
+            self.timers.append(timer)
+            return timer
+
+    class Transport:
+        def get_extra_info(self, name, default=None):
+            return ("127.0.0.1", 1234) if name in ("peername", "sockname") else None
+
+        def is_closing(self):
+            return bool(closed)
+
+        def close(self):
+            closed.append(True)
+
+        def pause_reading(self):
+            pass
+
+        def resume_reading(self):
+            pass
+
+        def write(self, data):
+            pass
+
+    config = Config(app=lambda scope, receive, send: None, lifespan="off")
+    config.load()
+    loop = Loop()
+    protocol = http_api._head_timed()(config, ServerState(), {}, _loop=loop)
+
+    protocol.connection_made(Transport())
+    (timer,) = loop.timers
+    assert timer.seconds == http_api.HEAD_SECONDS
+    timer.callback()
+
+    assert closed == [True]
 
 
 def test_serve_refuses_to_listen_beyond_loopback_without_a_token(
@@ -832,6 +894,7 @@ def test_serve_listens_where_it_is_safe_or_told_to(
 
     assert uvicorn_run["host"] == host and uvicorn_run["port"] == 8123
     assert uvicorn_run["limit_concurrency"] == http_api.MAX_CONNECTIONS
+    assert uvicorn_run["http"].__name__ == "HeadTimed"
     http = TestClient(uvicorn_run["app"], base_url="http://sluicer.example")
     health = http.get("/health")
     listing = http.get("/v1/tools", headers=AUTHORISED if token else {})

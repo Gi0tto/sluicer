@@ -22,7 +22,13 @@ from sluicer.cli.options import _sent, _with_fetch_options, _with_proxy
 from sluicer.cli.source import _read_source
 from sluicer.crawl import Crawl, crawl as crawl_site, extract_many
 from sluicer.crawl.pages import MAX_DEPTH, MAX_PAGES
-from sluicer.crawl.schedule import CONCURRENCY, DEFAULT_DELAY_SECONDS, RETRIES
+from sluicer.crawl.schedule import (
+    CONCURRENCY,
+    DEFAULT_DELAY_SECONDS,
+    MAX_CONCURRENCY,
+    MAX_RETRIES,
+    RETRIES,
+)
 from sluicer.crawl.sitemaps import MAX_SITEMAP_URLS, map_site
 from sluicer.crawl.table import (
     PAGE_COLUMNS,
@@ -58,8 +64,17 @@ from sluicer.fetch.rungs import FetchExtraMissing
     show_default=True,
     help="json: the map as one object; csv: a row per address (url, lastmod, sitemap).",
 )
+@click.option(
+    "--time-budget",
+    type=click.FloatRange(min=0),
+    metavar="SECONDS",
+    help="Ask for no further sitemap once this many seconds have passed; the "
+    "map is then cut short. None by default.",
+)
 @_with_proxy
-def map_command(url: str, limit: int, plain: bool, output_format: str) -> None:
+def map_command(
+    url: str, limit: int, plain: bool, output_format: str, time_budget: float | None
+) -> None:
     """List a site's addresses, from its sitemaps or its start page's links.
 
     Each sitemap is asked politely, through robots.txt and after the site's
@@ -68,7 +83,7 @@ def map_command(url: str, limit: int, plain: bool, output_format: str) -> None:
     if plain and output_format != "json":
         raise click.UsageError("--plain is one address a line; --format is another")
     try:
-        found = map_site(url, limit=limit, **_sent())
+        found = map_site(url, limit=limit, time_budget=time_budget, **_sent())
     except (
         FetchExtraMissing,
         RobotsRefused,
@@ -128,7 +143,7 @@ _many_options = [
     ),
     click.option(
         "--retries",
-        type=click.IntRange(min=0),
+        type=click.IntRange(min=0, max=MAX_RETRIES),
         default=RETRIES,
         show_default=True,
         help="Ask a page again this many times when it did not answer, or "
@@ -136,7 +151,7 @@ _many_options = [
     ),
     click.option(
         "--jobs",
-        type=click.IntRange(min=1),
+        type=click.IntRange(min=1, max=MAX_CONCURRENCY),
         default=CONCURRENCY,
         show_default=True,
         help="How many sites are asked at once, each still one request at a time.",

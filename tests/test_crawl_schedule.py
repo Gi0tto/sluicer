@@ -15,6 +15,20 @@ def test_a_schedule_needs_room_for_one_request():
         Schedule(lambda task: task, Politeness(lambda url: None), concurrency=0)
 
 
+def test_a_schedule_asks_no_more_sites_at_once_than_its_bound():
+    """Unbounded, a sluicer.toml in a directory above -- which every command
+    reads -- that set jobs to a million started a thread for every site of a
+    batch."""
+    from sluicer.crawl.schedule import MAX_CONCURRENCY
+
+    with pytest.raises(ValueError, match=f"at most {MAX_CONCURRENCY}"):
+        Schedule(
+            lambda task: task,
+            Politeness(lambda url: None),
+            concurrency=MAX_CONCURRENCY + 1,
+        )
+
+
 def test_a_bug_in_a_visit_is_raised_not_turned_into_a_page():
     clock = Clock()
     queue = Queue()

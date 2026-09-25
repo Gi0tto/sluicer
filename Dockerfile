@@ -74,6 +74,13 @@ print('sluicer', sluicer.__version__, 'with', sorted(names))"
 
 # Chromium's system libraries arrive through apt, so this runs as root, before
 # the switch below, and into a path the unprivileged user can read.
+#
+# The browser rung runs Chromium in its sandbox, which needs user namespaces
+# that Docker's default seccomp profile refuses: run a browser image with a
+# profile that allows them (Chromium's own, or --cap-add SYS_ADMIN), or with
+# -e SLUICER_BROWSER_SANDBOX=0 to run it unsandboxed, the container its only
+# boundary. Without either, a page that needs the browser comes back from
+# plain HTTP, its climb failed and saying why.
 RUN if [ "$WITH_BROWSER" = "1" ]; then \
         playwright install --with-deps chromium \
         && rm -rf /var/lib/apt/lists/*; \
