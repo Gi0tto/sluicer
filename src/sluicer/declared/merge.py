@@ -364,6 +364,6 @@ def _types(declared: object, terms: Terms | None = None) -> tuple[str, ...]:
         found
         for name in declared
         if isinstance(name, str)
-        and (found := type_name(name if terms is None else terms.name(name)))
+        and (found := type_name(name) if terms is None else terms.type(name))
         is not None
     )

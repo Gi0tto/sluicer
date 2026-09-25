@@ -542,3 +542,67 @@ def test_the_audit_reads_the_word_written_as_its_own_name_too():
         },
         terms=Terms(),
     ) == {"@type": ["Offer"], "price": "5"}
+
+
+def test_a_vocabulary_is_read_through_the_contexts_around_it_not_its_own():
+    """Found by review: ``{"@vocab": "ex:", "ex": ...}`` was read through
+    its own context's ``ex``, where JSON-LD 1.1 reads ``@vocab`` before the
+    terms beside it are defined (PyLD 3.3 gives ``ex:name``); a prefix or a
+    term of a context around it is read, as PyLD reads it."""
+    for context, named in (
+        ('{"@vocab": "ex:", "ex": "http://example.com/"}', "ex:"),
+        ('[{"ex": "http://example.com/"}, {"@vocab": "ex:"}]', "http://example.com/"),
+        ('[{"v": "http://example.com/"}, {"@vocab": "v"}]', "http://example.com/"),
+    ):
+        record = _record(f'{{"@context": {context}, "@type": "Thing", "name": "N"}}')
+        assert (record.type, list(record.fields)) == (
+            named + "Thing",
+            [named + "name"],
+        ), context
+
+
+def test_schema_org_s_namespace_with_a_fragment_is_schema_org_s():
+    """Found by review: ``@vocab`` written ``http://schema.org/#`` named every
+    word ``http://schema.org/#name`` and lost the title 0.7.1 read."""
+    from sluicer import extract
+
+    found = extract(
+        _page(
+            '{"@context": {"@vocab": "http://schema.org/#"}, "@type": "Article",'
+            ' "headline": "H"}'
+        )
+    )
+
+    assert (found.records[0].type, list(found.records[0].fields)) == (
+        "Article",
+        ["headline"],
+    )
+    assert found.summary["title"].value == "H"
+
+
+def test_schema_is_schema_org_s_prefix_only_where_the_context_leaves_it_so():
+    """Suspected by review: ``schema:Product`` was schema.org's Product
+    though the block's context defines ``schema`` as a word that is no
+    prefix, making ``schema:Product`` an address of its own (PyLD 3.3 keeps
+    it). Where the context says nothing of ``schema`` it is schema.org's, as
+    pages mean it."""
+    for context in (
+        '{"schema": "http://example.com/v"}',
+        '{"schema": {"@id": "http://example.com/"}}',
+    ):
+        record = _record(
+            f'{{"@context": {context}, "@type": "schema:Product", "schema:name": "N"}}'
+        )
+        assert (record.type, list(record.fields)) == (
+            "schema:Product",
+            ["schema:name"],
+        ), context
+    for block in (
+        '{"@type": "schema:Product", "schema:name": "N"}',
+        '{"@context": "https://w3id.org/x", "@type": "schema:Product",'
+        ' "schema:name": "N"}',
+        '{"@context": {"schema": "https://schema.org/"}, "@type": "schema:Product",'
+        ' "schema:name": "N"}',
+    ):
+        record = _record(block)
+        assert (record.type, list(record.fields)) == ("Product", ["name"]), block

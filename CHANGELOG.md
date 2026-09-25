@@ -391,7 +391,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the product's title, and `ex:foo` stayed a word no one could read. A word
   the context says nothing about is kept as written, as before: only
   schema.org's context is known, nothing is fetched, and a definition naming
-  no address is not followed. The audit names them the same way. Two words
+  no address is not followed. A context's `@vocab` is read as JSON-LD 1.1
+  and PyLD read it, through the prefixes and terms of the contexts around
+  it and never its own: `{"@vocab": "ex:", "ex": ...}` names `ex:name`.
+  schema.org's namespace is schema.org's however it is written, with a
+  fragment's `#` too (`"@vocab": "http://schema.org/#"`), and `schema:` is
+  schema.org's prefix unless the context defines `schema` as a word of its
+  own. The audit names them the same way. Two words
   of one object that name one property -- `price` and `schema:price` under
   schema.org's context -- give the value of the one written as the name
   itself, wherever the object lists it, as 0.7.1 and every reader that goes

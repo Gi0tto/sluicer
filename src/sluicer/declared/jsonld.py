@@ -341,8 +341,8 @@ def _size(value: Any) -> int:
 # --- the names a context gives ------------------------------------------------
 
 # schema.org's namespace, however a context writes it: without its slash too,
-# which one real page's ``@vocab`` leaves off.
-_SCHEMA_NAMESPACE = re.compile(r"(?i)https?://(?:www\.)?schema\.org/?")
+# which one real page's ``@vocab`` leaves off, or with a fragment's ``#``.
+_SCHEMA_NAMESPACE = re.compile(r"(?i)https?://(?:www\.)?schema\.org/?#?")
 # The addresses a block names schema.org's own context by.
 _SCHEMA_CONTEXT = re.compile(
     r"(?i)https?://(?:www\.)?schema\.org(?:/(?:docs/jsonldcontext\.jsonld?)?)?"
@@ -448,8 +448,19 @@ class Terms:
         iri = self._iri(word)
         if iri is None:
             return word
+        prefix, _, suffix = word.partition(":")
+        if iri is word and not suffix.startswith("//") and self._defines(prefix):
+            # ``schema:Product`` is schema.org's only where the context leaves
+            # ``schema`` alone: one it defines as no prefix makes it an
+            # address of its own, as JSON-LD reads it.
+            return word
         schema_org = _SCHEMA_ORG.fullmatch(iri)
         return schema_org.group(1) if schema_org else iri
+
+    def type(self, word: str) -> str | None:
+        """A declared type as records fold on it, or None for a blank one."""
+        token = word.strip()
+        return self.name(token) if token else None
 
     def _iri(self, word: str) -> str | None:
         """``word``'s address, or None where it has none to be named by. A
@@ -475,6 +486,15 @@ class Terms:
                 return layer.iris[word]
             layer = layer.outer
         return _UNDEFINED
+
+    def _defines(self, word: str) -> bool:
+        """Whether a context in force defines ``word``, to anything."""
+        layer: Terms | None = self
+        while layer is not None:
+            if word in layer.iris:
+                return True
+            layer = layer.outer
+        return False
 
     def _prefix(self, word: str) -> str | None:
         """The address ``word`` expands as a prefix, or None if it is none."""
@@ -510,13 +530,13 @@ class Terms:
             if reading.is_prefix(term, iri):
                 assert iri is not None
                 prefixes[term] = _SCHEMA if _SCHEMA_NAMESPACE.fullmatch(iri) else iri
-        # Where an undefined word's address would begin, JSON-LD 1.1's @vocab
-        # may itself be written through a prefix or a term.
+        # Where an undefined word's address would begin. JSON-LD 1.1 reads
+        # @vocab before the terms beside it, so it may be written through a
+        # prefix or a term of the contexts around, never of its own.
         vocab = self.vocab
         if "@vocab" in context:
             declared = context["@vocab"]
-            expanded = reading.expand(declared) if isinstance(declared, str) else None
-            vocab = expanded if isinstance(expanded, str) else None
+            vocab = self._iri(declared) if isinstance(declared, str) else None
             if vocab is not None and _SCHEMA_NAMESPACE.fullmatch(vocab):
                 vocab = _SCHEMA
         return Terms(vocab, iris, prefixes, self)
