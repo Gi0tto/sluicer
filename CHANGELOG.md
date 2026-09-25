@@ -397,7 +397,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   itself, wherever the object lists it, as 0.7.1 and every reader that goes
   by the key read it; failing that, the first written. A value's place
   points at the key the page wrote, `#/offers/schema:price`, never at the
-  name the record gives it. Over the
+  name the record gives it. Naming costs what the block's contexts cost:
+  each is read once, as a layer over those around it holding only what it
+  defines, never a copy of them, so a graph of 6,000 nodes each with a
+  context of its own under 6,000 terms is named in a tenth of a second, and
+  a word is looked up through at most 32 contexts, one declared past them
+  not being read. Over the
   3,976 cached corpus pages the summary, `normalised` and conflicts are
   unchanged; records change on 5 pages, each a word of another vocabulary now
   named by its address: Contao's `contao:` properties and `contao:Page` type
@@ -410,7 +415,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   tests e004, c004 and r004 showed it. A term a context defines as
   `{"@id": ...}` is no longer taken for a reference to a node, and a context
   is shared by the nodes it covers, never copied or paid for from the
-  reference budget. Over the 3,976 cached corpus pages, `extract()` and the
+  reference budget: the nodes of one graph that have no context of their own
+  share one list of the graphs' contexts, of which at most 32 are carried. Over the 3,976 cached corpus pages, `extract()` and the
   audit answer exactly as before; the reader's answer gains the context on
   624 of them.
 - `sluicer.compat.extruct` reads a JSON-LD block's text as extruct does:
