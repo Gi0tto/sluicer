@@ -388,6 +388,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- The page cache (`--cache`, `Cache`) keeps each page in a file only its
+  user can read (0600), in a directory it makes 0700, whatever the umask.
+  Under the usual umask they were 0644 and 0755, also in 0.7.1, so a page
+  fetched behind a login with `--header` or `--cookie` was readable by anyone
+  on the machine (the second security review's `cache_creds.py`). A cache
+  directory that exists already keeps its mode: it is the user's, and may be
+  shared on purpose. Each entry is written under a name of its own before it
+  is moved into place, so two writers of one page no longer share a partial
+  file. Windows has no such modes.
 - `--visible` chooses a page's text nodes in one pass. The XPath predicate it
   used, `string-length(normalize-space()) > 1`, cost libxml2 the square of a
   page's tail texts: 16,000 took 2.2 seconds, and four 3.6 MB pages held

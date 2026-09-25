@@ -36,8 +36,14 @@ of the site -- not its `www.` twin, not its pages over plain http -- a batch
 to the origins of the addresses you list, and no robots.txt, nor a sitemap
 another host serves, is sent it. robots.txt is read as anyone reads it. It
 is never written to disk: the
-page cache keys a page fetched with one by a digest of what was sent. The MCP
-server and the HTTP API take none.
+page cache keys a page fetched with one by a digest of what was sent. The page
+itself is kept, as every page the cache keeps, in a file only you can read
+(0600), in a directory it makes only yours (0700), whatever the umask; before,
+under the usual one, a page read behind a login was 0644 in a 0755 directory,
+readable by anyone on the machine. A cache directory that exists already keeps
+its mode, since it is yours and may be shared on purpose, and a page kept
+before stays as it was until it is written again. Windows has no such modes.
+The MCP server and the HTTP API take none.
 
 A configuration file (`sluicer.toml`, or `[tool.sluicer]` in
 `pyproject.toml`) is read by the command line only. One found by searching the

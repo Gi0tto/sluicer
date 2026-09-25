@@ -22,9 +22,12 @@ in ``Fetched.cached``, with its age.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import math
+import os
+import tempfile
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
@@ -150,12 +153,30 @@ class Cache:
         )
 
     def _put(self, url: str, entry: dict[str, Any]) -> None:
-        # Written aside and moved into place, so a reader never meets half.
-        self.directory.mkdir(parents=True, exist_ok=True)
+        """Write ``entry`` for ``url``, readable and writable by the user alone.
+
+        A page may have been read behind a login, so an entry is 0600 and a
+        directory made here 0700, whatever the umask: under the usual one
+        they were 0644 and 0755, readable by anyone on the machine. A
+        directory that exists already keeps its mode; it is the user's, and
+        may be shared on purpose. Written aside, under a name no other writer
+        uses, and moved into place, so a reader never meets half. Windows has
+        no such modes, and there the file is as the system makes it.
+        """
+        self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         path = self._path(url)
-        partial = path.with_suffix(".partial")
-        partial.write_text(json.dumps(entry, ensure_ascii=False), encoding="utf-8")
-        partial.replace(path)
+        # mkstemp's file is 0600 on POSIX, and its name is its own.
+        handle, partial = tempfile.mkstemp(
+            dir=self.directory, prefix=f"{path.stem}.", suffix=".partial"
+        )
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as file:
+                file.write(json.dumps(entry, ensure_ascii=False))
+            os.replace(partial, path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(partial)
+            raise
 
 
 def fetch_cached(

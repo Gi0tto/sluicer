@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
+import sys
 
 import pytest
 from click.testing import CliRunner
@@ -375,6 +378,64 @@ def test_a_page_fetched_with_a_login_is_kept_for_that_login_alone(tmp_path):
 
     assert site.pages == [URL, URL]
     assert kept.cached is not None
+
+
+@pytest.fixture
+def open_umask():
+    """The umask most systems start a shell with, whatever this one's is."""
+    was = os.umask(0o022)
+    yield
+    os.umask(was)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
+def test_a_cache_it_makes_and_every_page_in_it_are_the_users_alone(
+    tmp_path, open_umask
+):
+    """Measured on 0.8.0 (the second security review's cache_creds.py): a
+    page fetched behind a login was kept 0644 in a directory made 0755, so
+    anyone on the machine could read it."""
+    clock, site = Clock(), Site()
+    directory = tmp_path / "made" / "cache"
+    cache = Cache(directory, clock=clock)
+
+    site.fetch(cache, cookies={"session": "abc"})
+    clock.now += 600
+    site.fetch(cache, cookies={"session": "abc"})  # revalidated, written again
+
+    assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+    (entry,) = directory.iterdir()
+    assert entry.suffix == ".json"
+    assert stat.S_IMODE(entry.stat().st_mode) == 0o600
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
+def test_a_cache_directory_that_exists_keeps_its_mode(tmp_path, open_umask):
+    """A directory the user made is theirs to share; the pages in it are not."""
+    directory = tmp_path / "shared"
+    directory.mkdir(mode=0o755)
+    directory.chmod(0o755)
+
+    Site().fetch(Cache(directory, clock=Clock()))
+
+    assert stat.S_IMODE(directory.stat().st_mode) == 0o755
+    (entry,) = directory.iterdir()
+    assert stat.S_IMODE(entry.stat().st_mode) == 0o600
+
+
+def test_a_page_is_kept_whole_or_not_at_all(tmp_path, monkeypatch):
+    """Written aside and moved into place: a write that fails leaves
+    nothing behind, neither half an entry nor the file it was written to."""
+    cache = Cache(tmp_path, clock=Clock())
+    monkeypatch.setattr(
+        "sluicer.fetch.cache.json.dumps",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full")),
+    )
+
+    with pytest.raises(OSError, match="disk full"):
+        Site().fetch(cache)
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_a_revalidation_sends_the_callers_headers_beside_the_validators(tmp_path):

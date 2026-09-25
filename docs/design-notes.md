@@ -184,7 +184,9 @@ change it was running for, so nothing here is inferred from `Last-Modified`,
 and `Cache-Control` is not read. Only a 2xx page is kept, never a refusal or
 a challenge, and never the cookies that came with it; a page that changed
 into one a browser must fetch goes up the whole ladder again. Every answer
-from the cache says so, with its age.
+from the cache says so, with its age. A page may have been read behind a
+login, so each is kept in a file only its user can read (0600), in a
+directory the cache makes 0700; one that exists already keeps its mode.
 
 ## Politeness is the product
 
