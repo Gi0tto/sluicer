@@ -3,9 +3,16 @@
 The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on the pages trafilatura evaluates itself
 on, 990 saved with their scripts, 851 of them annotated for their metadata, and the main text beside them.
-Regenerated on 2026-09-24 from commit `430a05e` by
+Regenerated on 2026-09-25 from commit `4ec92b0` by
 `uv run bench/evaldata.py`, against trafilatura at `c852cae9708a`; the
 method is in [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
+
+!!! warning "Sluicer's rules were made on these pages"
+    Rules were written, measured on these pages and kept because the
+    numbers here rose (`bebff9d`, among others), so this measures
+    Sluicer on pages it was fitted to, not on pages it has never seen.
+    Of the scoreboards, only SWDE's held-out half is a held-out test;
+    [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md) says which pages each rule was made on.
 
 !!! warning "Read this before the numbers"
     trafilatura's authors annotated these pages to measure trafilatura,
@@ -22,16 +29,16 @@ Hit rate is hits over the pages that carry a label (845 titles, 538 authors, 728
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.7.0 | 0.776 | 0.468 | 0.584 | 97 | 39 |
+| sluicer 0.7.1 | 0.776 | 0.468 | 0.585 | 97 | 39 |
 | trafilatura 2.2.0 | 0.738 | 0.669 | 0.865 | 122 | 121 |
 | metascraper 5.58.1 | 0.699 | 0.662 | 0.663 | 153 | 62 |
 | newspaper4k 0.9.6 | 0.756 | 0.507 | 0.668 | 106 | 49 |
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.7.0 | title | 656 | 189 | 0 | 0 | 6 | 0.776 | 0.771 |
-| sluicer 0.7.0 | author | 252 | 47 | 239 | 216 | 97 | 0.468 | 0.636 |
-| sluicer 0.7.0 | date | 425 | 73 | 230 | 84 | 39 | 0.584 | 0.791 |
+| sluicer 0.7.1 | title | 656 | 189 | 0 | 0 | 6 | 0.776 | 0.771 |
+| sluicer 0.7.1 | author | 252 | 47 | 239 | 216 | 97 | 0.468 | 0.636 |
+| sluicer 0.7.1 | date | 426 | 72 | 230 | 84 | 39 | 0.585 | 0.793 |
 | trafilatura 2.2.0 | title | 624 | 221 | 0 | 0 | 6 | 0.738 | 0.733 |
 | trafilatura 2.2.0 | author | 360 | 74 | 104 | 191 | 122 | 0.669 | 0.647 |
 | trafilatura 2.2.0 | date | 630 | 97 | 1 | 2 | 121 | 0.865 | 0.743 |
@@ -48,10 +55,10 @@ Hit rate is hits over the pages that carry a label (845 titles, 538 authors, 728
 links and tables kept, so the page's text is trafilatura's by design;
 what this measures is what writing it as markdown costs. A link is
 written `[its text](its address)`, so a snippet that runs across one is
-not found as written; with the syntax taken out, roughly, the markdown
-holds nearly every snippet the text holds, and the rest is the rough
-cut, which also takes the underscore out of `Liebe_r`. Scored on all
-990 pages, as trafilatura scores itself.
+not found as written: the markdown finds 2,670 of the 2,951 snippets, and
+with its syntax taken out 2,767 of the 2,951, where trafilatura's text finds 2,785 of the 2,951.
+The syntax is taken out roughly, which also takes the underscore out
+of `Liebe_r`. Scored on all 990 pages, as trafilatura scores itself.
 
 | output | snippets found | snippets kept out | precision | recall | F1 |
 |---|---|---|---|---|---|
