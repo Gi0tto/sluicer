@@ -20,7 +20,7 @@ import cssselect
 from hypothesis import given, strategies as st
 from lxml import html
 
-from sluicer.selectors import selector
+from sluicer.selectors import HAS_READ, selector
 
 TAGS = ["div", "a", "p", "span", "li", "ul", "b"]
 CLASSES = ["x", "y"]
@@ -74,6 +74,10 @@ PSEUDO = [
     "[class~=y]",
     '[title^="x]"]',
 ]
+# cssselect before 1.5 translates :has() wrongly, and Sluicer refuses it
+# there (HAS_READ): the floors job runs 1.2, Pyodide ships 1.4.
+if not HAS_READ:
+    PSEUDO = [one for one in PSEUDO if ":has" not in one]
 
 
 @st.composite

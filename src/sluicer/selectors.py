@@ -117,6 +117,41 @@ def _css(text: str, guessed: bool = False) -> Selector:
         ) from None
 
 
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in re.findall(r"\d+", text)[:3])
+
+
+HAS_READ = _version(getattr(cssselect, "__version__", "0")) >= (1, 5)
+"""Whether this cssselect translates ``:has()`` right: 1.2 to 1.4 wrote
+``:has(b)`` as an XPath lxml refuses (``name() = 'b]'``), and Pyodide ships
+1.4. Before 1.5 a selector with ``:has()`` is refused, never half read."""
+
+
+def _uses_has(group: Any) -> bool:
+    """Whether any selector of a parsed group has a ``:has()``, at any depth."""
+    pending = [one.parsed_tree for one in group]
+    while pending:
+        node = pending.pop()
+        if type(node).__name__ == "Relation" or (
+            type(node).__name__ == "Function" and node.name == "has"
+        ):
+            return True
+        pending.extend(
+            value
+            for value in vars(node).values()
+            if hasattr(value, "__dict__")
+            and type(value).__module__.startswith("cssselect")
+        )
+        for value in vars(node).values():
+            if isinstance(value, list):
+                pending.extend(
+                    item
+                    for item in value
+                    if type(item).__module__.startswith("cssselect")
+                )
+    return False
+
+
 @functools.lru_cache(maxsize=512)
 def _translated(text: str) -> Selector:
     """A CSS selector, translated once: pages of one template ask the same."""
@@ -133,6 +168,13 @@ def _translated(text: str) -> Selector:
             "every selector of a group must read the same thing"
         )
     reads, attribute = reading.pop()
+    if not HAS_READ and _uses_has(group):
+        raise SelectorError(
+            f"{text!r} uses :has(), which cssselect {cssselect.__version__} "
+            "translates to an XPath lxml rejects or one that selects the "
+            "wrong elements; "
+            "it needs cssselect 1.5 or later"
+        )
     translator = cssselect.HTMLTranslator()
     try:
         paths = [

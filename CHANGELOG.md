@@ -397,6 +397,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A selector with `:has()` is refused where the installed cssselect is
+  older than 1.5, which the declared floor allows and Pyodide ships:
+  cssselect 1.2 to 1.4 translate `p + p:has(b)` to an XPath lxml
+  rejects, and `p:not(:has(b))` to one that selects every `p`. The error
+  says which cssselect it needs. Found by the CI job that runs the
+  declared minimum versions.
 - `--visible` reads a page whose boxes nest deep in step with its size.
   Each date asked every box round it whether it was hidden and whether it
   sat in a link, a `<time>` had its whole text read, every `<time>` inside

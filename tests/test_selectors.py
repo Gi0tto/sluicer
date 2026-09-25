@@ -360,3 +360,22 @@ def test_a_descendant_step_is_read_so_only_where_it_selects_the_same(path, read)
         assert "descendant-or-self::*/" not in _descendants(path).replace(
             "'/descendant-or-self::*/b'", ""
         )
+
+
+def test_has_is_refused_where_cssselect_translates_it_wrongly(monkeypatch):
+    """cssselect 1.2 to 1.4 wrote ``:has(b)`` as an XPath with ``name() = 'b]'``
+    in it: the CI's floors job found it, and Pyodide ships 1.4. There a
+    selector with ``:has()`` is refused, however deep, never half read."""
+    import pytest
+
+    from sluicer import selectors
+
+    monkeypatch.setattr(selectors, "HAS_READ", False)
+    selectors._translated.cache_clear()
+    try:
+        for written in ("div:has(b)", "div + div:has(> a)", "p:not(:has(b))"):
+            with pytest.raises(selectors.SelectorError, match=r"cssselect 1\.5"):
+                selectors.selector(written)
+        assert selectors.selector("div:is(p, b)")
+    finally:
+        selectors._translated.cache_clear()
