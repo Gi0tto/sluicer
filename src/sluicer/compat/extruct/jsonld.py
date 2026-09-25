@@ -35,9 +35,17 @@ from sluicer.declared.jsonld import _STRING, _TRAILING_COMMA, _is_ld_json
 # extruct's HTML_OR_JS_COMMENTLINE: a comment on the block's first line, and
 # only there, since neither ``^`` nor ``.`` crosses a line.
 _FIRST_LINE_COMMENT = re.compile(r"^\s*(//.*|<!--.*-->)")
-# jstyleson's comments: a line comment with the line's end, a block comment
-# closed. One left open at the end of the text is kept, and fails to parse.
-_CLOSED_COMMENT = re.compile(_STRING + r"|//[^\n]*\n|/\*.*?\*/", re.DOTALL)
+# jstyleson's comments, as jstyleson 0.0.2 ends them: a line comment at the
+# line's end, with it, and a block comment at the first "/" after any "*"
+# after its opening -- "/* 2*3 x/y */" ends at "x/", leaving "y */" to fail
+# the parse. One left open to the end of the text is kept, and fails to
+# parse; read to the end, so no character is scanned twice.
+_COMMENT = re.compile(
+    _STRING
+    + r"|//[^\n]*(?:(?P<line>\n)|\Z)"
+    + r"|/\*[^*]*(?:\*[^/]*(?:(?P<block>/)|\Z)|\Z)",
+    re.DOTALL,
+)
 
 
 class JsonLdExtractor:
@@ -91,8 +99,8 @@ def _as_extruct_reads(raw: str) -> object | None:
         return parsed
     text = _FIRST_LINE_COMMENT.sub("", raw)
     # Outside strings only, as jstyleson reads them; a comment is removed, not
-    # made a space.
-    text = _CLOSED_COMMENT.sub(lambda m: m[0] if m[0].startswith('"') else "", text)
+    # made a space, and one never ended is kept.
+    text = _COMMENT.sub(lambda m: "" if m["line"] or m["block"] else m[0], text)
     text = _TRAILING_COMMA.sub(lambda m: m[0] if m[0].startswith('"') else "", text)
     try:
         parsed = json.loads(text, strict=False)

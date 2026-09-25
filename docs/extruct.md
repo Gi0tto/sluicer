@@ -81,7 +81,9 @@ and the module named says how it is read.
   default `errors="strict"` that one block loses every syntax on the page; with
   `"log"` or `"ignore"` it loses every block of JSON-LD on the page. sluicer
   reads a block's text as extruct does -- `json.loads`, then without a comment
-  on its first line and without JavaScript's comments and trailing commas --
+  on its first line and without JavaScript's comments and trailing commas,
+  each comment ended where jstyleson ends it, a block comment at the first `/`
+  after any `*` in it --
   so a block extruct cannot read gives nothing here either, and it skips that
   block, keeping the rest. `sluicer.extract` forgives more: a comment or CDATA
   wrapper around the JSON, a byte order mark, a comment left open. extruct's

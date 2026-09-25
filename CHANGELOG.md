@@ -442,7 +442,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   refusal, failed. Such a block is now skipped and the page's other blocks
   kept, as a block that is not JSON already was; a block whose first line is
   a comment, which extruct reads, is now read too. `sluicer.extract` still
-  forgives every one of them.
+  forgives every one of them. A comment ends where jstyleson 0.0.2 ends it,
+  a block comment at the first `/` after any `*` in it, so
+  `{"a": /* x * y / 1 */ 2}`, which extruct refuses, is refused too: over a
+  million random blocks of brackets, strings, slashes and stars the answer
+  is extruct's. A comment never closed is read once, to the end of the
+  block: 60 KB of `/*a` took 2.6 seconds.
 - A crawl's `headers=` and `cookies=`, and `--header` and `--cookie` on
   `crawl`, `batch` and `map`, reached no request: the crawl's web was built
   without them. They now go with every page, robots.txt and sitemap, to the
