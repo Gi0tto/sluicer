@@ -271,6 +271,7 @@ def _modules() -> SimpleNamespace:
         transport_security=importlib.import_module("mcp.server.transport_security"),
         datastructures=importlib.import_module("starlette.datastructures"),
         exceptions=importlib.import_module("starlette.exceptions"),
+        requests=importlib.import_module("starlette.requests"),
         responses=importlib.import_module("starlette.responses"),
         routing=importlib.import_module("starlette.routing"),
     )
@@ -558,13 +559,47 @@ def build_app(
     async def mcp(scope: Any, receive: Any, send: Any) -> None:
         """``/mcp``, once the door lets the request through.
 
+        Only a POST. The transport's GET opens a stream for what a server
+        sends unasked, and a stateless one has nothing to send: the SDK kept
+        that stream open, empty, until the client left, one of uvicorn's
+        connections held for each, and the transport lets a server answer 405
+        instead. The body is read here, within the budget and the bound, and
+        handed to the SDK whole, so a client that sends a byte now and then
+        is a 504 like any request past its time.
+
         A refusal is a JSON-RPC error with no ``id``, as the transport's own
         are, with the door's code in its ``data``.
         """
         refused = barred(web.datastructures.Headers(scope=scope), origin=True)
+        if refused is None and scope["method"] != "POST":
+            refused = (
+                "method_not_allowed",
+                "this server answers MCP with a POST only; it keeps no session "
+                "and sends nothing unasked",
+                {"Allow": "POST"},
+            )
         if refused is None:
-            await streamable(scope, receive, send)
-            return
+            try:
+                body = await asyncio.wait_for(
+                    _body(web.requests.Request(scope, receive), max_body), timeout
+                )
+            except asyncio.TimeoutError:
+                refused = (
+                    "timed_out",
+                    f"the request body took longer than its {timeout:g} seconds "
+                    "to arrive",
+                    None,
+                )
+            else:
+                if body is None:
+                    refused = (
+                        "too_large",
+                        f"the request body is over {max_body} bytes",
+                        None,
+                    )
+                else:
+                    await streamable(scope, _replaying(body, receive), send)
+                    return
         code, message, headers = refused
         error = {"code": -32600, "message": message, "data": {"code": code}}
         answer = web.responses.JSONResponse(
@@ -602,6 +637,22 @@ def build_app(
         },
         lifespan=lifespan,
     )
+
+
+def _replaying(
+    body: bytes, receive: Callable[[], Awaitable[Any]]
+) -> Callable[[], Awaitable[Any]]:
+    """An ASGI ``receive`` that gives ``body`` whole, then what ``receive`` gives.
+
+    What follows the body is the client leaving, which the SDK still has to
+    hear about.
+    """
+    pending = [{"type": "http.request", "body": body, "more_body": False}]
+
+    async def replay() -> Any:
+        return pending.pop() if pending else await receive()
+
+    return replay
 
 
 class _Asgi:
