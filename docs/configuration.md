@@ -28,8 +28,9 @@ A key at the top applies to every command that takes that option, and the
 others ignore it: `json` above is for `fetch`, `diff` and `audit`. A command
 whose option takes other values ignores it too: `format = "jsonl"` at the top
 is for `crawl` and `batch`, and `map`, which writes `json` or `csv`, keeps its
-own. A value that no command taking the key accepts is refused. A table
-named after a command is that command's own, and its keys win over the top's.
+own. A value that no command taking the key accepts is refused, even where
+each of their tables sets its own. A table named after a command is that
+command's own, and its keys win over the top's.
 A repeatable option is a list; a flag is `true` or `false`; `cache` is a
 directory, where `~` is your home and a relative path is taken from the file's
 directory, not from where you run the command.
@@ -61,8 +62,15 @@ fetch are kept, who can reach `sluicer serve`, and whether robots.txt is
 obeyed. Only a file you name, with `--config` or `SLUICER_CONFIG`, sets
 those; one found that tries is refused, naming the key and what to do. It must
 also be yours, and writable by you alone: one someone else can write, in a
-shared directory above yours or through a macOS access list, is refused too. A
-file you name is read as you named it.
+shared directory above yours or through a macOS access list, is refused too.
+`chmod go-w` takes the mode's write bits away; an access list is not in them,
+so `ls -le` shows its entries, `chmod -a# N` removes entry N and `chmod -N`
+the whole list. An entry that lets only you, the file's owner, write it is no
+reason to refuse it, and neither is a group whose only member is you: Ubuntu
+and Fedora give each user a group of their own and a umask of 002, so a file
+you make there is `-rw-rw-r--`, and it is read, as Debian's OpenSSH reads such
+an `authorized_keys`. A group anyone else is in, or has as their own, is
+others. A file you name is read as you named it.
 
 ## What wins
 

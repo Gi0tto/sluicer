@@ -6,9 +6,15 @@ promises.
   small gzip that inflates to gigabytes costs the bound and no more. A
   ``Content-Length`` past it is refused before the body is read.
 * **A whole body or none.** A body that ends before the ``Content-Length``
-  its server announced, or whose gzip, deflate or zstd stream ends before
-  its end, is a ``ProtocolError``: the start of a page is never returned, or
-  kept by a cache, as the page, and its connection is not kept either.
+  its server announced or its last chunk, or whose gzip, deflate or zstd
+  stream a close cut before its end, is ``BodyCutShort``, a
+  ``ProtocolError``; a body whose framing came whole and whose stream stops
+  mid-way is ``BodyUnfinished``. The start of a page is never returned, or
+  kept by a cache, as the page, and its connection is not kept either. A
+  whole body whose stream lacks only its formal end -- gzip's trailer,
+  zlib's checksum, the final block after a flush -- is the page, as curl and
+  Chromium read it: the stream ends where a whole one could, and is checked
+  by its checksum where it has one.
 * **A deadline.** One fetch, every redirect hop and every byte of the body
   included, ends by ``HTTP_TIMEOUT_SECONDS``: a server that drips its body a
   few bytes a second is cut off there, not when it is done.
@@ -27,7 +33,10 @@ promises.
   A proxy is used only when given (``proxy``, or ``SLUICER_PROXY``).
 * **One connection per site, kept.** Requests go through the process's pool
   (``sluicer.fetch.wire.CONNECTIONS``), so the pages of a site are asked on
-  the connection the first one opened, while the server keeps it open.
+  the connection the first one opened, while the server keeps it open. An
+  interim answer -- a 102, a 103 Early Hints -- is read past to the answer it
+  precedes, and a connection is kept only once that answer is read to its
+  end: nothing of one answer is left on it for the next request to read.
 * **The caller's headers stay with the site asked.** Headers a caller sends
   -- a cookie, an authorization, a cache's validators -- go to the origin
   asked for, and are left off a hop a redirect takes elsewhere. Given
@@ -68,8 +77,11 @@ from sluicer.fetch.address import (
 from sluicer.fetch.identity import USER_AGENT, refused_header
 from sluicer.fetch.result import (
     MAX_RESPONSE_BYTES,
+    BodyCutShort,
+    BodyUnfinished,
     EmptyBody,
     Fetched,
+    ProtocolError,
     RedirectRefused,
     Redirects,
     ResponseTooLarge,
@@ -110,6 +122,8 @@ MAX_REDIRECTS = 10
 """How many redirects one fetch follows before it calls the chain a loop."""
 
 _REDIRECTS = frozenset({301, 302, 303, 307, 308})
+_SWITCHING = 101
+_NO_CONTENT = 204
 _CHUNK = 65536
 # What a path or a query may carry as it is: everything else is escaped, a
 # space or a letter outside ASCII as a browser would send it.
@@ -118,11 +132,6 @@ _SAFE = "!#$%&'()*+,/:;=?@[]~"
 
 class TooManyRedirects(Exception):
     """A chain of redirects longer than ``MAX_REDIRECTS``: a loop, most likely."""
-
-
-class ProtocolError(ConnectionError):
-    """The server's answer was not HTTP that could be read to its end: a body
-    cut short, a header line without end, more headers than any page has."""
 
 
 @dataclass(frozen=True)
@@ -349,6 +358,16 @@ def _exchange(
                 connection.putheader(name, value)
             connection.endheaders()
             response = connection.getresponse()
+            while 100 <= response.status < 200 and response.status != _SWITCHING:
+                # http.client skips a 100 and no other interim answer: a 103
+                # came back as the answer, empty, and the real one was left
+                # on the kept connection for the next request to read.
+                response = _after_interim(response)
+            if response.status < 200:
+                raise ProtocolError(
+                    f"{url} answered {response.status} {response.reason}, which "
+                    "nothing asked it for: a request here never asks to upgrade"
+                )
         except (ConnectionError, ssl.SSLEOFError):
             link.close()
             # A kept connection the server closed while it waited: the
@@ -364,6 +383,12 @@ def _exchange(
             raise
         try:
             body = _body(response, url, max_bytes)
+        except http.client.IncompleteRead as cut:
+            link.close()
+            raise BodyCutShort(
+                f"{url} sent a body cut short: the connection ended before "
+                f"its last chunk ({cut!r})"
+            ) from cut
         except http.client.HTTPException as unreadable:
             link.close()
             raise ProtocolError(
@@ -372,12 +397,52 @@ def _exchange(
         except BaseException:
             link.close()
             raise
-        if response.will_close:
+        if response.will_close or _announces_what_it_cannot_carry(response):
             link.close()
         else:
             pool.give(target, link)
         return response.status, response.msg, body
     raise AssertionError("a request was neither answered nor refused")
+
+
+class _Rest:
+    """The connection as the answer after an interim one reads it: from the
+    reader the interim answer was read from, with whatever it read ahead."""
+
+    def __init__(self, reader: Any) -> None:
+        self.reader = reader
+
+    def makefile(self, *args: Any, **kwargs: Any) -> Any:
+        return self.reader
+
+
+def _after_interim(interim: http.client.HTTPResponse) -> http.client.HTTPResponse:
+    """The answer that follows ``interim`` -- a 102, a 103 -- on its connection.
+
+    Read from the same reader: a new one would start past the bytes the first
+    had already taken from the socket, the next answer's among them.
+    """
+    reader = interim.fp
+    # Closing the interim answer, as its collection does, closes its reader.
+    interim.fp = None  # type: ignore[assignment]
+    rest: Any = _Rest(reader)
+    following = http.client.HTTPResponse(rest, method="GET")
+    following.begin()
+    return following
+
+
+def _announces_what_it_cannot_carry(response: http.client.HTTPResponse) -> bool:
+    """Whether a 204 names a length for a body, which RFC 9110 forbids it.
+
+    http.client reads no body for it, rightly, unless it is chunked; the bytes
+    such a server sends after its headers would be read by the next request
+    on the connection as the start of its own answer, so the connection is
+    not kept. A 304 may name the length the page would have had (RFC 9110,
+    8.6), and is kept.
+    """
+    if response.status != _NO_CONTENT or response.chunked:
+        return False
+    return (response.getheader("content-length") or "0").strip() != "0"
 
 
 def _request_headers(
@@ -411,6 +476,9 @@ def _request_headers(
 def _body(response: http.client.HTTPResponse, url: str, max_bytes: int) -> bytes:
     """The body of ``response``, decoded, and never past ``max_bytes``."""
     announced = response.length
+    # Whether the framing, not the close, says where the body ends: a length
+    # or chunks, read to their end below.
+    framed = bool(response.chunked) or announced is not None
     if announced is not None and announced > max_bytes:
         # What curl's own bound did: refused before the body is read.
         raise ResponseTooLarge(url, max_bytes)
@@ -425,15 +493,17 @@ def _body(response: http.client.HTTPResponse, url: str, max_bytes: int) -> bytes
         if response.length:
             # read1 answers b"" when the connection ends, however much of the
             # announced length never came: the count is left to its caller.
-            raise ProtocolError(
+            raise BodyCutShort(
                 f"{url} sent a body cut short: {response.length} bytes of the "
                 "length it announced never came"
             )
-        body += decoder.finish(max_bytes - len(body))
+        body += decoder.finish(max_bytes - len(body), framed)
     except Overflow:
         raise ResponseTooLarge(url, max_bytes) from None
     except Truncated as short:
-        raise ProtocolError(f"{url} sent a body cut short: {short}") from None
+        if framed:
+            raise BodyUnfinished(url, short.encoding) from None
+        raise BodyCutShort(f"{url} sent a body cut short: {short}") from None
     if len(body) > max_bytes:
         raise ResponseTooLarge(url, max_bytes)
     return bytes(body)

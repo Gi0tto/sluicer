@@ -397,6 +397,61 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A JSON-LD word a context defines as schema.org's namespace is schema.org's
+  prefix however the address is written: `{"schema": "http://schema.org"}`,
+  with no `/` to end in, and `{"schema": {"@id": "http://schema.org/"}}`,
+  with no `@prefix`, left `schema:Product` and `schema:name` as written, and
+  the page lost its type, title and price. JSON-LD 1.1
+  reads such a word as no prefix, so PyLD keeps `schema:Product` as an
+  address whose scheme is `schema` (in 1.0 it is `http://schema.orgProduct`):
+  neither is anything a reader goes by, and a page that writes it means
+  schema.org's. A word defined as any other address is a prefix only as
+  JSON-LD 1.1 says, as before. All 3,976 cached corpus pages answer as
+  before. Found by the second correctness review.
+- A JSON-LD `null` past the 32 contexts a word is named through still clears
+  them all. The contexts of nested graphs were cut to the outermost 32, so in
+  33 graphs around one whose context is `[null, "https://schema.org"]`, the
+  outermost naming FOAF's `name`, the Product's `name` was FOAF's and the
+  page had no title; the contexts from the last `null` on are carried now.
+  Past the 32, an object's words are kept as written, as under a context
+  elsewhere, instead of named through the 32 that were read, which one past
+  them could redefine; a context named by an address elsewhere counts toward
+  the 32, as each one carried beside a graph does. All 3,976 cached corpus
+  pages answer as before. Found by the second correctness review.
+- A found configuration file its owner's own group may write is read. Ubuntu
+  and Fedora give each user a group of their own and a umask of 002, so
+  every `sluicer.toml` made there is 664, and each was refused as writable by
+  others. A group counts as the owner's when every user whose primary group
+  it is, and every member it lists, is the owner, as Debian's OpenSSH reads
+  an `authorized_keys`; a group anyone else is in, a file writable by all, or
+  a Linux file with an access list, whose group bits are the list's mask, is
+  refused as before. Found by the second correctness review.
+- A found configuration file whose macOS access list lets only its owner
+  write it is read: `chmod +a "user:$(whoami) allow write"` counted as
+  others writing it. One whose list lets anyone else write it is refused as
+  before, now saying how to remove the entry (`chmod -a# N`, or `chmod -N`
+  for the whole list) instead of `chmod go-w`, which changes the mode bits
+  and leaves the list as it was. Found by the second correctness review.
+- A value at the top of a configuration file is judged by every command that
+  takes its key, whether or not the command's own table sets the key too.
+  `format = "jsonl"` with `[crawl]` and `[batch]` each setting `format =
+  "csv"` was refused, since map, which writes `json` or `csv`, was the only
+  command left to judge it; and `format = "xml"` was accepted wherever every
+  such command's table set its own. Found by the second correctness review.
+- `sluicer.compat.extruct`'s Dublin Core copies an element's attributes as
+  extruct does, pair by pair. Copied by key, an attribute a page names `{},`,
+  `{a}b` or `{` was read by lxml as a namespaced name and raised `KeyError` or
+  `ValueError`, or dropped the page's Dublin Core under `errors="ignore"`,
+  where extruct 0.18 reads the element with it. The compatibility bench's
+  pages answer exactly as before. Found by the second correctness review;
+  also in 0.7.1.
+- `extract(visible=True)`, `--visible` and the MCP tools' `visible` read a
+  page whose date sits in a link to an address that is not a URL -- an
+  unfilled template's `https://[domain]/story`, or `http://[::1` -- and a
+  page at such an address. `urlsplit` refuses those with a `ValueError`, which
+  was raised to the caller; such a link is now another page's, and such a
+  page's address gives no date. All 3,976 cached corpus pages answer as
+  before. Found by the second correctness review's fuzzer; also in 0.7.1.
 - The browser's guard proxy serves only the browser it was made for. It
   listened on 127.0.0.1 with no credentials, so any process on the machine
   could use it, and through it the caller's own proxy, whose credentials it
@@ -690,10 +745,20 @@ Dates are the day the work landed. Anything not listed here did not happen.
   all had what came returned with its status, 200, and kept by `--cache` as
   the page: the standard library's `read1()` answers an empty read at the end
   of the connection, which was taken for the end of the body. It is a
-  `ProtocolError`, and that connection is not kept.
-- A body whose gzip, deflate or zstd stream ends before its end -- the
-  framing whole, the compressed stream cut -- is a `ProtocolError`, not the
-  page it began. 0.7.1 returned the words it held as the page too.
+  `BodyCutShort`, a `ProtocolError` worth asking again, as is a chunked body
+  without its last chunk; that connection is not kept, and the ladder does
+  not climb past it: the browser, sent the same cut, returned half the page
+  with 200. `tests/live/browser_check.py` counts the requests.
+- A body whose framing came whole and whose gzip, deflate or zstd stream
+  stops mid-way is `BodyUnfinished`, not the page it began, and not worth
+  asking again at once: the server sent what it meant to. 0.7.1 returned the
+  words it held as the page too. A whole body whose stream lacks only its
+  formal end -- gzip's trailer or part of it, zlib's checksum, the final
+  block after a flush -- is the page, as 0.7.1 and curl read it and Chromium
+  does: it is taken when it ends where a whole stream could, checked by
+  gzip's and zlib's checksums against what it gave. Delimited only by the
+  close, the same stream is `BodyCutShort`, since nothing says the
+  connection did not lose its end; 0.7.1 returned it.
 - A raw deflate body whose first read brought one byte is decoded: whether
   deflate is zlib's or raw was decided on that byte, which is no zlib header
   yet, and the next read failed zlib's check.
@@ -812,6 +877,37 @@ Dates are the day the work landed. Anything not listed here did not happen.
   library's `concurrency=` and `retries=`, or a `sluicer.toml` asks for more:
   a file in a directory above is read by every command run below it, and one
   asking for a million jobs started a thread for every site of a batch.
+- The HTTP rung reads past an interim answer -- a 102, a 103 Early Hints --
+  to the answer it precedes. The standard library skips a 100 and no other:
+  a 103 came back as the answer, empty, its connection was kept with the
+  real answer unread on it, and the next request to the site was handed
+  that answer as its own -- in a crawl, `/p/p3` recorded Product p2 with no
+  error, and `fetch` returned the site's robots.txt as a page. A 101 nobody
+  asked for is a `ProtocolError`, and its connection is not kept. A 204 that
+  names a length for a body is not kept either: the bytes sent after its
+  headers were read by the next request as the start of its answer.
+  `tests/live/http_check.py` sends both in a segment of their own.
+- A network that failed for now is worth asking again: no route to the host
+  or its network (`EHOSTUNREACH`, `ENETUNREACH`), one of them down
+  (`ENETDOWN`, `EHOSTDOWN`), a connection the network dropped (`ENETRESET`),
+  a host with no address to connect to, and the browser's
+  `net::ERR_ADDRESS_UNREACHABLE`. None was counted as transient, so a crawl
+  never asked a page again when the network flapped once, and the MCP tools
+  said `retryable: false`. An aborted connection and a broken pipe already
+  were, as the `ConnectionError`s Python raises for them.
+- The failure a robots.txt's 5xx ends a fetch with says what the 5xx means:
+  RFC 9309 reads it as nothing allowed until the robots.txt answers
+  otherwise, and the robots.txt was asked without the caller's headers and
+  cookies, so a site that answers 500 to anyone not logged in has its
+  logged-in pages refused. It said only that the robots.txt answered 500.
+  Nothing on such a site is fetched, as in 0.7.1.
+- `run` and `heal` do not hold an extractor to a page the site answered
+  with a status outside 2xx: they exit 2, naming the status. An empty 503
+  was replayed as the page, and `run` exited 3 blaming the extractor's
+  contract and `heal` 3 for the fields it lost, neither naming the status.
+  `extract` on an empty error page names the status, where it suggested
+  `compile --want` on the site's error. A crawl and the MCP tools record
+  the status as before.
 
 ## 0.7.1 - 2026-09-25
 

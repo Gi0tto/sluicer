@@ -142,6 +142,28 @@ def test_the_permalink_round_a_date_is_the_page_itself() -> None:
     assert guess.value == "2025-02-02"
 
 
+@pytest.mark.parametrize(
+    "href", ["https://[domain]/story", "http://[::1", "http://[x/"]
+)
+@pytest.mark.parametrize(
+    "url", ["https://news.example/a/story", "https://[domain]/a/story", "http://[::1"]
+)
+def test_a_link_or_an_address_that_is_not_a_url_is_read(href: str, url: str) -> None:
+    # An unfilled template's "https://[domain]/..." round a date: urlsplit
+    # refuses it with a ValueError, and --visible raised it.
+    body = (
+        "<h1>Brake pads, tested</h1>"
+        f'<a href="{href}"><time datetime="2024-05-01">May 1, 2024</time></a>'
+    )
+    assert "published" not in read_visible(_page(body), url=url)
+    shown = sluicer.extract(_page(body), url=url, visible=True).visible
+    assert shown["title"].value == "Brake pads, tested"
+
+
+def test_an_address_that_is_not_a_url_gives_no_date() -> None:
+    assert read_visible(_page("<p>x</p>"), url="http://[::1/2024/05/06/story") == {}
+
+
 def test_a_listing_s_dates_are_read_only_by_its_heading() -> None:
     cards = "".join(
         f'<article><time datetime="2025-0{n}-01">x</time></article>'

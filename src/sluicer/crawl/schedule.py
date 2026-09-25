@@ -56,8 +56,9 @@ million started a thread for every site of a batch."""
 
 RETRIES = 2
 """How many times a crawl asks again for a page whose request may succeed
-later: one that did not answer -- a connection refused or reset, a timeout,
-an answer cut short, a name the resolver could not look up for now, a
+later: one that did not answer -- a connection refused or reset, no route
+to the host or its network for now, a timeout, an answer cut short, a name
+the resolver could not look up for now, a
 robots.txt that could not be read -- or answered 429 or a 5xx. Never a 4xx
 but 429: a 404 or a 403 is the site's answer about the page, and asking
 again gets it again; nor a failure that asking again would meet again, a

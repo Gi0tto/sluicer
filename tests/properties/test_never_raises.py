@@ -12,12 +12,14 @@ Hypothesis's own could not have found the ``RecursionError`` it was there for.
 
 from __future__ import annotations
 
+import html
 import importlib.util
 
 import pytest
 from hypothesis import given, settings, strategies as st
 from strategies import (
     a_callers_stack,
+    addresses,
     broken_pages,
     encoded_pages,
     page_urls,
@@ -27,6 +29,7 @@ from strategies import (
 
 from sluicer import extract, induce as induce_records
 from sluicer.document import load
+from sluicer.visible import read_visible
 
 
 def read(html: str | bytes, url: str | None = None, induce: bool = False) -> None:
@@ -71,6 +74,36 @@ def test_a_broken_page_is_read(page, induce):
 def test_a_page_in_any_encoding_declared_any_way_is_read(page, induce):
     html, url = page
     read(html, url=url, induce=induce)
+
+
+@given(pages(), styles(), st.booleans())
+def test_a_drawn_page_is_read_for_what_it_shows(page, style, induce):
+    with a_callers_stack():
+        extract(page.html(style), url=page.url, induce=induce, visible=True)
+
+
+# A date in a link is where --visible parses the link's address, to tell the
+# page's own permalink from another page's card; and an address with no date
+# written in the page is where it parses the page's own.
+_dated = st.sampled_from(
+    [
+        '<time datetime="2024-05-01">1 May 2024</time>',
+        "<span>Published: 1 May 2024</span>",
+        "1 May 2024",
+    ]
+)
+
+
+@given(st.lists(st.tuples(addresses, _dated), max_size=3), page_urls, st.booleans())
+def test_what_a_page_shows_is_read_whatever_its_links_and_address(links, url, dated):
+    anchors = "".join(
+        f'<a href="{html.escape(href, quote=True)}">{date}</a>' for href, date in links
+    )
+    body = f"<article><h1>A headline for the story</h1>{anchors}<p>Body.</p></article>"
+    page = f"<html><head><title>News</title></head><body>{body}</body></html>"
+    with a_callers_stack():
+        extract(page, url=url, visible=True)
+        read_visible(page, url=(url or "") + ("/2024/05/01/story" if dated else ""))
 
 
 @pytest.mark.skipif(

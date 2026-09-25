@@ -130,6 +130,14 @@ UNAVAILABLE = "sluicer: robots.txt unavailable"
 """The comment a reader's stand-in refusal carries when the site answered 5xx."""
 
 
+# Said after a robots.txt's 5xx, which is not the page's own answer: a site
+# that answers 500 to anyone not logged in has its logged-in pages refused.
+_UNAVAILABLE_MEANS = (
+    ", which RFC 9309 reads as nothing allowed until it answers otherwise; a "
+    "robots.txt is asked without the caller's headers and cookies"
+)
+
+
 class RobotsUnreachable(Exception):
     """The robots.txt could not be read -- no answer, or a 5xx -- so nothing is.
 
@@ -280,13 +288,16 @@ def _robots_text(
     if entry is None or now() - entry[0] >= ROBOTS_TTL_SECONDS:
         entry = (now(), read(robots_url_for(url)))
         first = entry[1].splitlines()[0] if entry[1] else ""
-        for marker, said in ((UNREACHABLE, ""), (UNAVAILABLE, "it answered ")):
+        for marker, said, why in (
+            (UNREACHABLE, "", ""),
+            (UNAVAILABLE, "it answered ", _UNAVAILABLE_MEANS),
+        ):
             if first.startswith(f"# {marker}: "):
                 # RFC 9309 puts a 5xx and a network error in one class, and
                 # neither is remembered: one bad minute must not keep a
                 # long-running server away from a site for a day.
                 store.pop(key, None)
-                raise RobotsUnreachable(url, said + first[len(marker) + 4 :])
+                raise RobotsUnreachable(url, said + first[len(marker) + 4 :] + why)
     # Written back even when it was only read: that is what keeps a site in
     # use from being the one a bounded cache forgets.
     store[key] = entry
