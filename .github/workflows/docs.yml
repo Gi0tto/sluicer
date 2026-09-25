@@ -6,8 +6,10 @@ on:
     # A release publishes the site. Path filters are not applied to tags.
     tags: ["v*"]
     # The site is built from more than docs/: it links the root's changelog,
-    # roadmap, contributing and security files, and scripts/docs_demo.py adds
-    # the examples' site. A change to any of them changes the published site.
+    # roadmap, contributing and security files, scripts/docs_demo.py adds
+    # the examples' site, and scripts/docs_try.py the wheel, built from src/,
+    # and the bridge the try page runs. A change to any of them changes the
+    # published site.
     paths:
       - "docs/**"
       - "mkdocs.yml"
@@ -17,7 +19,13 @@ on:
       - "CONTRIBUTING.md"
       - "SECURITY.md"
       - "examples/site/**"
+      - "examples/brake-pads.html"
       - "scripts/docs_demo.py"
+      - "scripts/docs_try.py"
+      - "src/**"
+      - "pyproject.toml"
+      - "js/bridge.py"
+      - "js/scripts/build_wheel.py"
   # CI skips a change to Markdown or docs alone, yet tests read the README and
   # the pages; a pull request that touches only them is checked here.
   pull_request:
@@ -31,7 +39,13 @@ on:
       - "CONTRIBUTING.md"
       - "SECURITY.md"
       - "examples/site/**"
+      - "examples/brake-pads.html"
       - "scripts/docs_demo.py"
+      - "scripts/docs_try.py"
+      - "src/**"
+      - "pyproject.toml"
+      - "js/bridge.py"
+      - "js/scripts/build_wheel.py"
   workflow_dispatch:
 
 permissions:

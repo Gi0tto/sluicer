@@ -15,6 +15,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   1.30 s and downloads 2.25 MB (lxml and click, from jsDelivr) the first time,
   1.14 s and nothing after, and a warm `extract()` of the brake-pads example
   0.78 ms (`docs/javascript.md`, `js/scripts/measure.mjs`).
+- A try page on the site (`try/`) that runs Sluicer in the reader's
+  browser, in Pyodide, on HTML they paste: the wheel of the commit the site is
+  built from, and the npm package's bridge. Nothing is sent anywhere: a
+  Content-Security-Policy lets the page connect to its own site and jsDelivr
+  only, every request it makes is made before Sluicer is ready, and a pasted
+  page is text, never rendered. `scripts/check_try_page.py` opens it in
+  Chromium, pastes 16 pages and requires the native answer on each; ready in
+  1.8 s with an empty cache, after 8.9 MB (8.5 MB of it Pyodide and lxml).
 
 ## 0.7.1
 

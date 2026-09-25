@@ -78,9 +78,11 @@ markdown_extensions:
   - smarty
   - toc: { permalink: true }
 
-# The examples' made-up site, published at demo/ for trying Sluicer on.
+# The examples' made-up site, published at demo/ for trying Sluicer on, and
+# the wheel, bridge and example the try page runs, published at try/.
 hooks:
   - scripts/docs_demo.py
+  - scripts/docs_try.py
 
 extra:
   social:
