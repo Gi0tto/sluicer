@@ -109,7 +109,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   seconds, and the sixteen mebibytes a fetch allows would have taken
   minutes; each now takes 0.02 to 0.1 s. The answers are the same, in the
   same order: `extract()` gives byte-identical output on the 5,976 cached
-  corpus pages.
+  corpus pages. A fifth, a page's oEmbed links, was found by review
+  and fixed the same way.
 - The scoreboards say which pages Sluicer's rules were made on. Five of the
   six, and the drift benchmark, had rules written, measured on their pages and
   kept because the numbers there rose -- `b86aa19` was "Measured on WCXB's
