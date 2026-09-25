@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
+## 0.8.0 - 2026-09-25
 
 ### Added
 - Every title, author and date scoreboard (WCXB, as served, news,
