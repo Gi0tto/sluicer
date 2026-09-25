@@ -61,6 +61,8 @@ Usage: sluicer audit [OPTIONS] SOURCE
 Options:
   --json             Print the audit as JSON.
   --no-site          Do not read the site's robots.txt and llms.txt for a URL.
+  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
+                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
   --stealth          Allow the stealth rung, which does not announce itself.
   --no-robots        Fetch even where the site's robots.txt says no.
   --url URL          The address a file or stdin came from, to resolve its links.
@@ -97,6 +99,9 @@ Options:
                        them.
   --respect [tdm]      Give a page whose rights are reserved as an error, not its data:
                        tdm reads TDMRep's tdmrep.json, headers and meta tags.
+  --proxy URL          Fetch through this proxy (http://host:port, socks5h://host:port);
+                       the environment's HTTPS_PROXY is never used. Same as
+                       SLUICER_PROXY.
   --help               Show this message and exit.
 ```
 
@@ -122,6 +127,9 @@ Options:
                             named.
   --stealth                 Allow the stealth rung.
   --no-robots               Fetch even where robots.txt says no.
+  --proxy URL               Fetch through this proxy (http://host:port,
+                            socks5h://host:port); the environment's HTTPS_PROXY is never
+                            used. Same as SLUICER_PROXY.
   --help                    Show this message and exit.
 ```
 
@@ -158,6 +166,9 @@ Options:
   --respect [tdm]            Give a page whose rights are reserved as an error, not its
                              data: tdm reads TDMRep's tdmrep.json, headers and meta
                              tags.
+  --proxy URL                Fetch through this proxy (http://host:port,
+                             socks5h://host:port); the environment's HTTPS_PROXY is
+                             never used. Same as SLUICER_PROXY.
   --help                     Show this message and exit.
 ```
 
@@ -172,10 +183,13 @@ Usage: sluicer diff [OPTIONS] BEFORE AFTER
   Wayback Machine captured it, so `sluicer diff URL URL --at 2024-01` is what changed
   since then. Exit codes are diff's: 0 when nothing differs, 1 when something does, 2
   when either could not be read. A value written differently with the same meaning
-  (41.90 and 41.9) is reported as rewritten.
+  (41.90 and 41.9) is reported as rewritten; a price in another currency (£41.90 and
+  $41.90) is changed.
 
 Options:
   --json             Print the differences as JSON.
+  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
+                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
   --stealth          Allow the stealth rung, which does not announce itself.
   --no-robots        Fetch even where the site's robots.txt says no.
   --url URL          The address a file or stdin came from, to resolve its links.
@@ -203,6 +217,8 @@ Options:
   --microformats     Also read microformats2 (needs sluicer[microformats]).
   --visible          Also guess the title, byline and dates the page shows, not in the
                      summary.
+  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
+                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
   --stealth          Allow the stealth rung, which does not announce itself.
   --no-robots        Fetch even where the site's robots.txt says no.
   --url URL          The address a file or stdin came from, to resolve its links.
@@ -229,6 +245,8 @@ Usage: sluicer feed [OPTIONS] SOURCE
   normalised. Exits 1 for a feed with no item, 2 for what is not a feed.
 
 Options:
+  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
+                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
   --stealth          Allow the stealth rung, which does not announce itself.
   --no-robots        Fetch even where the site's robots.txt says no.
   --url URL          The address a file or stdin came from, to resolve its links.
@@ -257,9 +275,12 @@ Usage: sluicer heal [OPTIONS] EXTRACTOR_FILE SOURCES...
 
 Options:
   -o, --output TEXT  Where to write the healed extractor.
-  --force            Write the healed extractor even when healing lost something.
+  --force            Write the healed extractor even when healing lost something; a lost
+                     listing is kept as it was.
   --stealth          Allow the stealth rung.
   --no-robots        Fetch even where robots.txt says no.
+  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
+                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
   --help             Show this message and exit.
 ```
 
@@ -280,6 +301,8 @@ Options:
   --microformats     Also read microformats2 (needs sluicer[microformats]).
   --visible          Also guess the title, byline and dates the page shows, not in the
                      summary.
+  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
+                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
   --stealth          Allow the stealth rung, which does not announce itself.
   --no-robots        Fetch even where the site's robots.txt says no.
   --url URL          The address a file or stdin came from, to resolve its links.
@@ -307,6 +330,9 @@ Usage: sluicer map [OPTIONS] URL
 Options:
   --limit INTEGER RANGE  The most addresses listed.  [default: 50000; x>=1]
   --plain                One address a line, for `sluicer batch -`.
+  --proxy URL            Fetch through this proxy (http://host:port,
+                         socks5h://host:port); the environment's HTTPS_PROXY is never
+                         used. Same as SLUICER_PROXY.
   --help                 Show this message and exit.
 ```
 
@@ -319,6 +345,8 @@ Usage: sluicer markdown [OPTIONS] SOURCE
 
 Options:
   --front-matter     Open with a YAML block of what the page declares, and where from.
+  --proxy URL        Fetch through this proxy (http://host:port, socks5h://host:port);
+                     the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
   --stealth          Allow the stealth rung, which does not announce itself.
   --no-robots        Fetch even where the site's robots.txt says no.
   --url URL          The address a file or stdin came from, to resolve its links.
@@ -361,6 +389,8 @@ Usage: sluicer run [OPTIONS] EXTRACTOR_FILE SOURCES...
 Options:
   --stealth    Allow the stealth rung.
   --no-robots  Fetch even where robots.txt says no.
+  --proxy URL  Fetch through this proxy (http://host:port, socks5h://host:port); the
+               environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.
   --help       Show this message and exit.
 ```
 

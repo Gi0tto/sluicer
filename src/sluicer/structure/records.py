@@ -12,7 +12,9 @@ hashes such as ``dcr-1t2r5md``) are skipped, since they change every deploy.
 
 Nothing repeated is dropped: three ``<span class="tag">`` in a card are
 ``span.tag1``, ``span.tag2``, ``span.tag3``, numbered once for the whole group
-from the member that holds the most.
+from the member that holds the most. No two slots share a name: where a number
+would spell another slot's name -- a card's own ``<span class="tag1">`` -- the
+numbers are written after a ``#``, ``span.tag#1``, ``span.tag#2``.
 
 A part can carry two facts: an anchor is a name and a link, an image its alt
 text and its source. The text takes the slot's name and the address takes the
@@ -23,6 +25,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import defaultdict
 from collections.abc import Iterator
 from itertools import pairwise
 from typing import TypeAlias
@@ -35,7 +38,10 @@ from sluicer.declared.merge import Field, Record
 # styled-jsx, a news site's own renderer, Svelte and Astro.
 _UTILITY = frozenset("[]>@:/!()")
 _TOOLING_PREFIXES = ("css-", "sc-", "jsx-", "dcr-", "svelte-", "astro-", "emotion-")
-_CSS_MODULE = re.compile(r"(.+?)__([A-Za-z0-9_-]{5,})")
+# What a CSS module appends to a class after ``__``: letters, digits, ``_``
+# and ``-``, five at least.
+_HASH = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+_HASH_LEAST = 5
 _INTERLEAVED = re.compile(r"[a-z]\d[a-z]|\d[a-z]\d", re.IGNORECASE)
 
 # Which attribute carries the address, per tag. Named without an underscore
@@ -48,10 +54,14 @@ ADDRESS = {"a": "href", "img": "src", "link": "href", "source": "src"}
 # see it. Every other element's text is the text inside it.
 _TEXT_ATTRIBUTE = {"img": "alt"}
 
-# One step of the path to a slot: the tag, the first hand-written class, and
-# which of the same-named siblings this is.
-_Step = tuple[str, str, int]
-_Path = tuple[_Step, ...]
+# A slot is where a part sits in its row, the same in every row of the group:
+# its parent's slot (``_ROW`` for the row itself), its tag, its first
+# hand-written class, and which of the same-named siblings it is. Each slot is
+# numbered the first time the group's walk meets it, so a part carries its
+# slot as one number rather than the whole path down to it: a path copied at
+# every level of a row two thousand deep was most of the time of a large page.
+_Slot = tuple[int, str, str, int]
+_ROW = -1
 # A slot's name as a link to its parent's and its own last step, spelt out only
 # for a part that carries a fact.
 _Trail: TypeAlias = "tuple[_Trail | None, str]"
@@ -118,6 +128,68 @@ def _facts(element: HtmlElement) -> list[tuple[str, str]]:
     return facts
 
 
+def holds_a_fact(
+    group: list[HtmlElement], below: dict[HtmlElement, tuple[bool, bool]]
+) -> bool:
+    """Whether a part of some member of ``group`` carries a fact: whether
+    ``records_from`` has anything to name.
+
+    Answered without reading any text, from what each element and the parts
+    under it hold, kept in ``below`` for the next group asked about. Groups
+    nest, and a caller that tries one group after another, as ``induce``
+    does, walked each group's rows in full to find nothing: listings nested a
+    thousand deep, with no text in them, took twenty seconds.
+    """
+    return any(
+        _below(child, below)[1]
+        for member in group
+        for child in member
+        if isinstance(child.tag, str)
+    )
+
+
+def _below(
+    element: HtmlElement, below: dict[HtmlElement, tuple[bool, bool]]
+) -> tuple[bool, bool]:
+    """Whether ``element``'s text holds a word, and whether it or a part under
+    it carries a fact, as ``_facts`` would find one.
+
+    Children first, with a stack of its own. A comment's own words are not
+    text, and what follows it is, as ``text_content`` reads them.
+    """
+    pending = [(element, False)]
+    while pending:
+        node, ready = pending.pop()
+        if node in below:
+            continue
+        if not ready:
+            pending.append((node, True))
+            pending.extend(
+                (child, False)
+                for child in node
+                if isinstance(child.tag, str) and child not in below
+            )
+            continue
+        worded = _worded(node.text)
+        fact = bool(address_of(node))
+        for child in node:
+            if isinstance(child.tag, str):
+                inner, deeper = below[child]
+                worded = worded or inner
+                fact = fact or deeper
+            worded = worded or _worded(child.tail)
+        attribute = _TEXT_ATTRIBUTE.get(str(node.tag))
+        said = _worded(node.get(attribute)) if attribute else worded
+        fact = fact or (said and not _carries_only_its_children(node))
+        below[node] = (worded, fact)
+    return below[element]
+
+
+def _worded(text: str | None) -> bool:
+    """Whether ``text`` holds more than whitespace."""
+    return bool(text and not text.isspace())
+
+
 def _label(element: HtmlElement) -> str:
     """The first class a person wrote on ``element``, or nothing."""
     for token in sorted((element.get("class") or "").split()):
@@ -142,12 +214,29 @@ def _written_by_a_person(token: str) -> str | None:
         # ``@container``: styling, not names, and characters a field name and
         # a path both use as separators.
         return None
-    module = _CSS_MODULE.fullmatch(token)
-    if module and _random(module.group(2)):
-        token = module.group(1)
+    module = _css_module(token)
+    if module and _random(module[1]):
+        token = module[0]
     if any(_random(segment) for segment in re.split(r"[-_]+", token)):
         return None
     return token
+
+
+def _css_module(token: str) -> tuple[str, str] | None:
+    """``token`` as a CSS module writes it, the name and the hash after the
+    first ``__`` that only a hash follows, or None.
+
+    Counted rather than matched: the pattern this was, ``(.+?)__([A-Za-z0-9_-]{5,})``,
+    tried every ``__`` and scanned to the end of the class from each, and a
+    90 KB class, thirty thousand ``a__``, took seven seconds to read.
+    """
+    # Where the run of hash characters that ends the class begins.
+    hashed = len(token.rstrip(_HASH))
+    # The name is one character at least, and the hash is all that follows it.
+    at = token.find("__", max(1, hashed - 2))
+    if at < 0 or len(token) - at - 2 < _HASH_LEAST:
+        return None
+    return token[:at], token[at + 2 :]
 
 
 def _random(segment: str) -> bool:
@@ -169,22 +258,27 @@ def _random(segment: str) -> bool:
     return segment.isalpha() and flips / len(segment) >= 0.5
 
 
-def _parts(parent: HtmlElement, path: _Path) -> Iterator[tuple[HtmlElement, _Path]]:
-    """Every element under ``parent``, each with the path that reaches it.
+def _parts(
+    parent: HtmlElement, slots: dict[_Slot, int]
+) -> Iterator[tuple[HtmlElement, int]]:
+    """Every element under ``parent``, each with the number of its slot.
 
     In document order, walked with a stack of its own: libxml2 nests elements
     two thousand deep, and a recursive walk ran out of Python's stack on a row
-    a thousand deep.
+    a thousand deep. ``slots`` numbers the slots met, and is shared by the
+    rows of one group.
     """
-    pending = list(reversed(_steps(parent, path)))
+    pending = list(reversed(_steps(parent, _ROW, slots)))
     while pending:
         child, here = pending.pop()
         yield child, here
-        pending.extend(reversed(_steps(child, here)))
+        pending.extend(reversed(_steps(child, here, slots)))
 
 
-def _steps(parent: HtmlElement, path: _Path) -> list[tuple[HtmlElement, _Path]]:
-    """``parent``'s element children, each with the path one step further."""
+def _steps(
+    parent: HtmlElement, slot: int, slots: dict[_Slot, int]
+) -> list[tuple[HtmlElement, int]]:
+    """``parent``'s element children, each with its slot, one step below ``slot``."""
     counts: dict[tuple[str, str], int] = {}
     steps = []
     for child in parent:
@@ -192,27 +286,66 @@ def _steps(parent: HtmlElement, path: _Path) -> list[tuple[HtmlElement, _Path]]:
             continue
         label = (child.tag, _label(child))
         counts[label] = counts.get(label, 0) + 1
-        steps.append((child, (*path, (*label, counts[label]))))
+        step = (slot, *label, counts[label])
+        number = slots.get(step)
+        if number is None:
+            number = slots[step] = len(slots)
+        steps.append((child, number))
     return steps
 
 
-def _repeated(walked: list[list[tuple[HtmlElement, _Path]]]) -> set[_Path]:
-    """The slots some member of the group fills more than once."""
-    return {
-        (*path[:-1], (path[-1][0], path[-1][1], 0))
-        for parts in walked
-        for _, path in parts
-        if path[-1][2] > 1
+def _segments(slots: dict[_Slot, int]) -> list[str]:
+    """The last step of each slot's name, by number.
+
+    A slot is numbered where the group needs it numbered: where some row fills
+    it more than once. Two slots under one parent never share a name, or one
+    value would overwrite the other: a numbered ``span.tag1`` is also what a
+    card's own ``<span class="tag1">`` is called, and twelve ``span.tag`` make
+    a ``span.tag12`` as two ``span.tag1`` do. The numbers of a slot whose name
+    would clash are written after a ``#``, ``span.tag#1``, and the class the
+    page wrote keeps its name. What still clashes -- libxml2 keeps any tag a
+    page writes, ``a@href`` and ``span.x`` among them -- takes ``~2``, ``~3``,
+    in the order the walk met it. A group whose names do not clash is named as
+    it always was.
+    """
+    steps = list(slots)
+    repeated = {
+        (parent, tag, label) for parent, tag, label, ordinal in steps if ordinal > 1
     }
+    segments = []
+    for parent, tag, label, ordinal in steps:
+        segment = f"{tag}.{label}" if label else tag
+        if (parent, tag, label) in repeated:
+            segment += str(ordinal)
+        segments.append(segment)
+    owners: dict[tuple[int, str], set[int]] = defaultdict(set)
+    for number, (parent, tag, _, _) in enumerate(steps):
+        for name in _names(segments[number], tag):
+            owners[parent, name].add(number)
+    clashing = {number for held in owners.values() if len(held) > 1 for number in held}
+    if not clashing:
+        return segments
+    renumbered = {steps[number][:3] for number in clashing} & repeated
+    taken: dict[int, set[str]] = defaultdict(set)
+    tried: dict[tuple[int, str], int] = {}
+    for number, (parent, tag, label, ordinal) in enumerate(steps):
+        segment = segments[number]
+        if (parent, tag, label) in renumbered:
+            segment = (f"{tag}.{label}" if label else tag) + f"#{ordinal}"
+        written, again = segment, tried.get((parent, segment), 1)
+        while any(name in taken[parent] for name in _names(written, tag)):
+            again += 1
+            written = f"{segment}~{again}"
+        tried[parent, segment] = again
+        taken[parent].update(_names(written, tag))
+        segments[number] = written
+    return segments
 
 
-def _last_step(path: _Path, repeated: set[_Path]) -> str:
-    """The last step of a slot's name, numbered where the group needs it numbered."""
-    tag, css_class, ordinal = path[-1]
-    segment = f"{tag}.{css_class}" if css_class else tag
-    if (*path[:-1], (tag, css_class, 0)) in repeated:
-        segment += str(ordinal)
-    return segment
+def _names(segment: str, tag: str) -> tuple[str, ...]:
+    """Every name a slot's facts can take: its text's, and its address's."""
+    attribute = ADDRESS.get(tag)
+    return (segment, f"{segment}@{attribute}") if attribute else (segment,)
 
 
 # What one group's records may hold -- every name and every value they copy --
@@ -227,20 +360,21 @@ _FLOOR = 10_000
 
 def records_from(group: list[HtmlElement]) -> list[Record]:
     """Return one record per member of ``group``, all named the same way."""
-    walked = [list(_parts(member, ())) for member in group]
-    repeated = _repeated(walked)
+    slots: dict[_Slot, int] = {}
+    walked = [list(_parts(member, slots)) for member in group]
+    segments = _segments(slots)
     left = max(_FLOOR, 10 * sum(_held(member) for member in group))
-    # Each part's name is its parent's and one step more: spelt out from the
+    # Each slot's name is its parent's and one step more: spelt out from the
     # whole path for every part, three rows a thousand deep took 2.5 seconds.
-    trails: dict[HtmlElement, _Trail] = {}
+    trails: list[_Trail] = []
+    for (parent, *_), segment in zip(slots, segments, strict=True):
+        # A slot is numbered after its parent's, so its parent's trail is made.
+        trails.append((trails[parent] if parent != _ROW else None, segment))
     records: list[Record] = []
     for parts in walked:
         record = Record(type=None, source="induced")
-        for part, path in parts:
-            trail = trails[part] = (
-                trails.get(part.getparent()),
-                _last_step(path, repeated),
-            )
+        for part, slot in parts:
+            trail = trails[slot]
             facts = _facts(part)
             if not facts:
                 continue

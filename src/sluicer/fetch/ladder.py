@@ -10,11 +10,14 @@ page is returned; if every rung failed, ``FetchFailed`` is raised.
 
 The site's robots.txt is asked before any rung runs. A refusal raises
 ``RobotsRefused`` rather than returning an empty ``Fetched``: "the site said
-no" and "the site had nothing" must never look alike.
+no" and "the site had nothing" must never look alike. For the same reason a
+challenge page is never returned as the page: when it is what the ladder is
+left with, ``SiteRefused`` is raised.
 """
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable, Iterable, Sequence
 from urllib.parse import urlsplit
@@ -22,7 +25,13 @@ from urllib.parse import urlsplit
 from sluicer.api import extract
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import load
-from sluicer.fetch.address import AddressRefused, _resolve, why_not_public
+from sluicer.fetch.address import (
+    AddressRefused,
+    _resolve,
+    why_not_public,
+    why_not_web,
+)
+from sluicer.fetch.gate import GATE, after
 from sluicer.fetch.identity import (
     UNAVAILABLE,
     UNREACHABLE,
@@ -38,14 +47,16 @@ from sluicer.fetch.result import (
     ResponseTooLarge,
     Rung,
 )
-from sluicer.fetch.rules import why_climb
+from sluicer.fetch.rules import challenge_marker, why_climb
 
 __all__ = [
     "AddressRefused",
     "FetchFailed",
+    "PaymentRequired",
     "RedirectRefused",
     "ResponseTooLarge",
     "RobotsRefused",
+    "SiteRefused",
     "fetch",
     "robots_reader_from",
 ]
@@ -81,6 +92,40 @@ class FetchFailed(Exception):
         self.climbs = climbs
 
 
+class SiteRefused(FetchFailed):
+    """The site answered with a challenge page, and no rung got past it.
+
+    A waiting room -- "Just a moment...", served in the content's place, often
+    with 200 -- is the site declining to be read, so it is raised, never
+    returned as the page. ``reason`` is the rule that saw it, naming its
+    marker. A ``FetchFailed``, so a caller that catches that catches this; but
+    not one worth retrying at once, since the same ladder is shown the same
+    page, and not one to work around.
+    """
+
+    def __init__(self, url: str, climbs: list[Climb], reason: str) -> None:
+        super().__init__(url, climbs, f"the site refused it: {reason}")
+        self.reason = reason
+
+
+class PaymentRequired(FetchFailed):
+    """The site answered 402 Payment Required: it asks to be paid to be read.
+
+    Sluicer never pays, and never asks the same question of another rung,
+    which would be asking again in the hope of not being charged. Raised, not
+    returned: a 402's body is the site's terms, not the page. A
+    ``FetchFailed``, so a caller that catches that catches this, but not one
+    worth retrying.
+    """
+
+    def __init__(self, url: str, climbs: list[Climb]) -> None:
+        super().__init__(
+            url,
+            climbs,
+            "the site answered 402 Payment Required; Sluicer does not pay",
+        )
+
+
 def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
     """Build a robots reader from the ladder's own cheapest rung.
 
@@ -95,9 +140,13 @@ def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
       a comment naming the reason; ``robots_refusal`` reads it, raises
       ``RobotsUnreachable`` and does not cache it.
 
-    The body goes through ``load(...).tree.text_content()`` because scrapling
-    wraps a plain-text robots.txt as ``<html><body>User-agent: ...``, and
-    protego, handed that, parses no rules and allows everything.
+    The body is the rules as they came, text and never markup, only a BOM
+    taken off: read through an HTML parser, ``Disallow: /a<b`` opened a tag
+    that swallowed every rule after it. The one exception is a body that is a
+    whole HTML document, which is how a browser shows a plain-text file; a
+    ladder that starts at a browser would hand protego ``<html><body>User-
+    agent: ...``, which it reads as no rules and allows everything, so its
+    text is taken out.
     """
 
     def read(url: str) -> str | None:
@@ -117,11 +166,25 @@ def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
             return _stay_out(UNAVAILABLE, f"status {response.status}")
         if response.status >= 400:
             return None
-        # str(...) because lxml ships no types: this asserts at runtime what
-        # the signature claims.
-        return str(load(response.html).tree.text_content())
+        return _rules_in(response.html)
 
     return read
+
+
+_DOCUMENT = re.compile(r"\s*<(?:!doctype\s+html|html)[\s>]", re.IGNORECASE)
+
+
+def _rules_in(body: str) -> str:
+    """The text of a robots.txt body: itself, or a browser's document's text."""
+    text = body.removeprefix("\ufeff")
+    if not _DOCUMENT.match(text):
+        return text
+    # str(...) because lxml ships no types: this asserts at runtime what the
+    # signature claims.
+    return str(load(text).tree.text_content())
+
+
+_PAYMENT_REQUIRED = 402
 
 
 def _stay_out(marker: str, reason: str) -> str:
@@ -137,13 +200,18 @@ def fetch(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
+    proxy: str | None = None,
 ) -> Fetched:
     """Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 
     Args:
         url: an http(s) address.
         rungs: ``(name, rung)`` pairs, cheapest first; plain HTTP then a
-            browser by default. Injected so tests stay off the network.
+            browser by default. Injected so tests stay off the network. The
+            default rungs are the real web, so a fetch with them holds the
+            site in ``sluicer.fetch.gate`` for its whole length -- robots.txt,
+            the page, any climb -- a second after anyone's last request to it.
+            Injected rungs are the caller's to pace, as a crawl paces its own.
         obey_robots: ask the site's robots.txt first (the default), and again
             for the host a redirect ended on.
         stealth: append the stealth rung, which does not announce itself.
@@ -157,6 +225,11 @@ def fetch(
         resolve: the name lookup ``allow_private`` decides with.
         max_bytes: the most a page may weigh; heavier is ``ResponseTooLarge``,
             and never a reason to climb.
+        proxy: the proxy the default rungs and the stealth rung go through;
+            ``SLUICER_PROXY`` when None, and none when that is unset. The
+            environment's ``HTTPS_PROXY`` is never used. Through a proxy the
+            private-network check still judges every address here, but the
+            connection is the proxy's: see SECURITY.md.
 
     Returns:
         The ``Fetched`` page, with every climb, the final URL, and how long
@@ -164,8 +237,10 @@ def fetch(
 
     Raises:
         RobotsRefused: the site's robots.txt disallows the URL.
-        AddressRefused: ``allow_private`` is false and the address, or one a
-            redirect led to, is private.
+        SiteRefused: the page the ladder was left with is a challenge page.
+        PaymentRequired: a rung was answered 402; no other rung is asked.
+        AddressRefused: the address, or one a redirect led to, is not http
+            or https; or ``allow_private`` is false and it is private.
         ResponseTooLarge: the page is heavier than ``max_bytes``.
         RedirectRefused: an injected rung was given a rule for redirects, and a
             hop broke it.
@@ -173,14 +248,15 @@ def fetch(
             could not be read.
         FetchExtraMissing: the ``fetch`` extra is not installed.
     """
+    gated = rungs is None
     if rungs is None:
         from sluicer.fetch.scrapling_rungs import default_rungs
 
-        rungs = default_rungs(allow_private, resolve, max_bytes)
+        rungs = default_rungs(allow_private, resolve, max_bytes, proxy=proxy)
     if stealth:
         from sluicer.fetch.scrapling_rungs import stealth_rung
 
-        rungs = [*rungs, stealth_rung(allow_private, resolve, max_bytes)]
+        rungs = [*rungs, stealth_rung(allow_private, resolve, max_bytes, proxy)]
     if not rungs:
         raise ValueError("A ladder needs at least one rung.")
     try:
@@ -190,14 +266,39 @@ def fetch(
             url, [], f"{url!r} is not a valid address: {invalid}"
         ) from None
 
-    if not allow_private:
+    refused = why_not_web(url)
+    if refused is None and not allow_private:
         refused = why_not_public(url, resolve)
-        if refused is not None:
-            raise AddressRefused(url, refused)
+    if refused is not None:
+        raise AddressRefused(url, refused)
 
     read = (
         robots_reader if robots_reader is not None else robots_reader_from(rungs[0][1])
     )
+    if not gated:
+        return _climb(url, rungs, obey_robots, read, allow_private, resolve, max_bytes)
+    with GATE.turn(url) as ready:
+        return _climb(
+            url,
+            [(name, after(ready, rung)) for name, rung in rungs],
+            obey_robots,
+            after(ready, read),
+            allow_private,
+            resolve,
+            max_bytes,
+        )
+
+
+def _climb(
+    url: str,
+    rungs: Sequence[tuple[str, Rung]],
+    obey_robots: bool,
+    read: Callable[[str], str | None],
+    allow_private: bool,
+    resolve: Callable[[str], Iterable[str]],
+    max_bytes: int,
+) -> Fetched:
+    """``fetch``'s requests: robots.txt, then the rungs, cheapest first."""
     if obey_robots:
         refusal = _robots(url, read)
         if refusal is not None:
@@ -205,6 +306,8 @@ def fetch(
 
     climbs: list[Climb] = []
     best: Fetched | None = None
+    # Why ``best`` is a challenge, when it is one: never a page to fall back to.
+    best_refused: str | None = None
     last = len(rungs) - 1
     for index, (name, rung) in enumerate(rungs):
         started = time.monotonic()
@@ -228,10 +331,14 @@ def fetch(
                     raise
                 raise FetchFailed(url, climbs, failure) from e
             best.climbs = [*climbs, Climb(name, best.rung, failure, seconds=seconds)]
+            if best_refused is not None:
+                raise SiteRefused(url, best.climbs, best_refused) from e
             return _checked(best, url, allow_private, resolve, obey_robots, read)
 
         result.seconds = time.monotonic() - started
         result.climbs = list(climbs)
+        if result.status == _PAYMENT_REQUIRED:
+            raise PaymentRequired(url, result.climbs)
         # What counts as having delivered is a field about a thing, the rule
         # induction uses: a theme-color in the head of an empty React shell is
         # not the page's data.
@@ -242,9 +349,15 @@ def fetch(
             for field in record.fields.values()
         )
         reason = why_climb(result.status, result.html, found_records=found)
-        if reason is None or index == last:
+        if reason is None:
             return _checked(result, url, allow_private, resolve, obey_robots, read)
-        best = result
+        challenge = challenge_marker(result.html, found_records=found) is not None
+        if index == last:
+            checked = _checked(result, url, allow_private, resolve, obey_robots, read)
+            if challenge:
+                raise SiteRefused(url, climbs, reason)
+            return checked
+        best, best_refused = result, reason if challenge else None
         climbs.append(Climb(name, rungs[index + 1][0], reason, seconds=result.seconds))
 
     raise AssertionError("the ladder ran out of rungs without returning a page")
@@ -259,10 +372,11 @@ def _checked(
     read: Callable[[str], str | None],
 ) -> Fetched:
     """``result``, once the address its redirects ended at is allowed too."""
-    if not allow_private:
+    refused = why_not_web(result.url)
+    if refused is None and not allow_private:
         refused = why_not_public(result.url, resolve)
-        if refused is not None:
-            raise AddressRefused(result.url, refused)
+    if refused is not None:
+        raise AddressRefused(result.url, refused)
     if obey_robots and _origin(result.url) != _origin(asked):
         refusal = _robots(result.url, read)
         if refusal is not None:

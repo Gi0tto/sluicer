@@ -213,6 +213,33 @@ def test_html_entities_written_into_json_ld_are_read_as_characters():
     assert _summary(html)["title"][0] == "Guide • Yoast & you"
 
 
+def test_a_json_ld_address_keeps_a_query_that_spells_a_legacy_entity():
+    """``&reg`` and ``&sect`` need no semicolon in HTML, but not before a letter.
+
+    Read as ``html.unescape`` reads text, ``?id=1&region=us&section=a`` was
+    ``?id=1\u00aeion=us\u00a7ion=a``: the HTML standard leaves such a
+    reference alone in an attribute when a letter, a digit or ``=`` follows,
+    which is how a browser reads the same address in an ``href``.
+    """
+    address = "https://shop.example/p?id=1&region=us&section=a&para=2&copy=3"
+    html = _page(
+        {
+            "@type": "Product",
+            "name": "Pad &amp; pen",
+            "url": address,
+            "image": address + "&not=4",
+            "description": "Ben &amp; Jerry&#39;s &copy 2024 &lt;b&gt; &amp",
+        }
+    )
+
+    summary = _summary(html)
+
+    assert summary["url"][0] == address
+    assert summary["image"][0] == address + "&not=4"
+    assert summary["title"][0] == "Pad & pen"
+    assert summary["description"][0] == "Ben & Jerry's \u00a9 2024 <b> &"
+
+
 def test_a_locale_becomes_a_language_tag_when_the_page_has_no_lang():
     html = _page(head='<meta property="og:locale" content="en_US">')
 
@@ -1011,3 +1038,46 @@ def test_the_names_content_systems_give_nobody_are_no_author():
         assert "author" not in extract(page).summary, placeholder
     named = '<html><head><meta name="author" content="Anna Admin"></head></html>'
     assert extract(named).summary["author"].value == "Anna Admin"
+
+
+def test_a_crumb_whose_position_is_not_a_number_is_placed_where_it_was_written():
+    """A NaN compares false with everything, and sorted() then keeps no order."""
+    html = _page(
+        {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {"@type": "ListItem", "position": "3", "name": "Pads"},
+                {"@type": "ListItem", "position": "NaN", "name": "Home"},
+                {"@type": "ListItem", "position": "2", "name": "Brakes"},
+                {"@type": "ListItem", "position": "inf", "name": "Front"},
+            ],
+        }
+    )
+
+    assert _summary(html)["breadcrumb"][0] == "Home > Brakes > Pads > Front"
+
+
+def test_an_icon_s_svg_title_is_not_the_page_s_title():
+    """libxml2's HTML parser has no namespaces: an SVG ``title`` looks like HTML's."""
+    icon = '<svg viewBox="0 0 8 8"><title>Close menu</title><path d="M0 0"/></svg>'
+    formula = "<math><title>x squared</title><mi>x</mi></math>"
+
+    untitled = extract(
+        f"<html><head></head><body>{icon}{formula}<p>Hi</p></body></html>"
+    )
+    titled = extract(
+        f"<html><body>{icon}<title>Brake pads</title><p>Hi</p></body></html>"
+    )
+
+    assert "title" not in untitled.summary
+    assert titled.summary["title"].value == "Brake pads"
+    assert titled.summary["title"].key == "<title>"
+
+
+def test_a_headline_is_weighed_against_the_page_s_title_not_an_icon_s():
+    html = _page(
+        {"@type": "Article", "headline": "hydraulic structure", "name": "Dam"},
+        head="<title>News</title>",
+    ).replace("<body>", "<body><svg><title>Dam</title></svg>")
+
+    assert _summary(html)["title"][0] == "hydraulic structure"

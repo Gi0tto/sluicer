@@ -30,6 +30,7 @@ from sluicer.declared.located import (
     Located,
     Place,
     Places,
+    Positions,
     Step,
     paid,
     place,
@@ -118,6 +119,10 @@ def merge(*, places: Places | None = None, **found: Any) -> list[Record]:
     if unknown:
         raise ValueError(f"no reader is called {', '.join(unknown)}")
     records: list[Record] = []
+    # Every place in the records is spelt here, from one count of each parent's
+    # children: counted by lxml for each place, a listing of four thousand
+    # items took each item's four thousand siblings over again.
+    positions: Positions = {}
 
     # A reader folds only into what earlier readers found, and each of those
     # records takes at most one item from it: one product described in two
@@ -127,14 +132,13 @@ def merge(*, places: Places | None = None, **found: Any) -> list[Record]:
     for reader in READERS:
         if not reader.about_things:
             continue
-        candidates = list(records)
+        candidates = _Candidates(records)
         for item in found.get(reader.name) or ():
-            record = _record_from(item, reader.name, places)
-            target = _fold_target(candidates, record)
+            record = _record_from(item, reader.name, places, positions)
+            target = candidates.take(record)
             if target is None:
                 records.append(record)
                 continue
-            candidates = [record for record in candidates if record is not target]
             for key, value in record.fields.items():
                 target.fields.setdefault(key, value)
 
@@ -160,24 +164,57 @@ def merge(*, places: Places | None = None, **found: Any) -> list[Record]:
     return records
 
 
-def _fold_target(records: list[Record], incoming: Record) -> Record | None:
-    """The first record sharing a type with ``incoming``, or None if none does."""
-    if not incoming.types:
-        return None
-    for record in records:
-        if set(record.types) & set(incoming.types):
-            return record
-    return None
+class _Candidates:
+    """The records one reader may fold into, each taken at most once.
+
+    Indexed by type, so finding the first record that shares a type with an
+    item costs what that item's types cost, not a walk over every record: a
+    page declaring four thousand products in JSON-LD and again in microdata
+    walked them for each of the other four thousand.
+    """
+
+    def __init__(self, records: list[Record]) -> None:
+        self.records = list(records)
+        self.taken = [False] * len(self.records)
+        self.by_type: dict[str, list[int]] = {}
+        for index, record in enumerate(self.records):
+            for name in dict.fromkeys(record.types):
+                self.by_type.setdefault(name, []).append(index)
+        # Where each type's list is still untaken from: a record once taken
+        # stays taken, so the start of a list only ever moves forward.
+        self.start: dict[str, int] = dict.fromkeys(self.by_type, 0)
+
+    def take(self, incoming: Record) -> Record | None:
+        """The first record in document order sharing a type with ``incoming``,
+        now taken, or None if none is left. A record with no type folds into
+        nothing: "unknown" is not an identity."""
+        first: int | None = None
+        for name in incoming.types:
+            held = self.by_type.get(name)
+            if held is None:
+                continue
+            at = self.start[name]
+            while at < len(held) and self.taken[held[at]]:
+                at += 1
+            self.start[name] = at
+            if at < len(held) and (first is None or held[at] < first):
+                first = held[at]
+        if first is None:
+            return None
+        self.taken[first] = True
+        return self.records[first]
 
 
-def _record_from(item: dict[str, Any], source: str, places: Places | None) -> Record:
+def _record_from(
+    item: dict[str, Any], source: str, places: Places | None, positions: Positions
+) -> Record:
     types = _types(item.get("@type"))
     at = item.at if isinstance(item, Located) else None
     record = Record(
         type=types[0] if types else None,
         types=types,
         source=source,
-        where=paid(places, lambda: spell(at)),
+        where=paid(places, lambda: spell(at, positions)),
     )
     for key, value in item.items():
         if key.startswith("@"):
@@ -188,7 +225,7 @@ def _record_from(item: dict[str, Any], source: str, places: Places | None) -> Re
         record.fields[key] = Field(
             value=normalised,
             source=source,
-            where=paid(places, partial(place, item, at, (key,))),
+            where=paid(places, partial(place, item, at, (key,), positions)),
         )
     return record
 

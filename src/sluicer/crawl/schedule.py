@@ -4,7 +4,9 @@ Politeness is what this module is for. A site is never asked twice at once, and
 never again sooner than its delay after its last request ended: at least
 ``DEFAULT_DELAY_SECONDS``, longer when its robots.txt asks. Every request
 counts -- its robots.txt, its sitemaps, its pages. Different sites are asked
-side by side, up to a bound.
+side by side, up to a bound. "Never twice at once" holds for the process, not
+only for one crawl: each request is made holding its site in
+``sluicer.fetch.gate``, which every other fetch holds too.
 
 Order is the other promise. Tasks are numbered as they are added, and the pages
 come back in that order whatever order they finished in, so the same crawl of
@@ -15,24 +17,24 @@ from __future__ import annotations
 
 import email.utils
 import math
-import threading
 import time
-from collections import OrderedDict
 from collections.abc import Callable, Iterator, MutableMapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cached_property, partial
 from typing import Generic, TypeVar
 
 from sluicer.crawl.urls import site_of
-from sluicer.fetch.identity import ROBOTS_CACHE_HOSTS, robots_delay
+from sluicer.fetch.gate import (
+    DEFAULT_DELAY_SECONDS as DEFAULT_DELAY_SECONDS,
+    ENDED,
+    GATE,
+    LOCK,
+    Gate,
+)
+from sluicer.fetch.identity import robots_delay
 from sluicer.fetch.result import Fetched, Rung
-
-DEFAULT_DELAY_SECONDS = 1.0
-"""The least time between two requests to one site, counted from the end of the
-first, so a slow answer is never a reason to ask again sooner. A second is the
-figure polite crawlers have long kept to; a site whose robots.txt asks for more
-gets more."""
 
 MAX_DELAY_SECONDS = 60.0
 """The longest wait between two requests to one site a crawl accepts. A site
@@ -56,25 +58,8 @@ this bounds how many are.
 _Result = TypeVar("_Result")
 
 
-class _Recent(OrderedDict[str, float]):
-    """A mapping that forgets its least recently written site past ``limit``."""
-
-    def __init__(self, limit: int) -> None:
-        super().__init__()
-        self.limit = limit
-
-    def __setitem__(self, key: str, value: float) -> None:
-        super().__setitem__(key, value)
-        self.move_to_end(key)
-        while len(self) > self.limit:
-            self.popitem(last=False)
-
-
-_ENDED = _Recent(ROBOTS_CACHE_HOSTS)
-"""When each site's last request ended, for the whole process, on the
-monotonic clock; bounded like the robots.txt answers, and for the same reason."""
-
-_LOCK = threading.Lock()
+_ENDED = ENDED
+"""When each site's last request ended, for the whole process: the gate's."""
 
 
 @dataclass(frozen=True)
@@ -107,7 +92,10 @@ class Politeness:
     the robots.txt answers are: a map and then a crawl of one site, or an agent
     calling the crawl tool twice, keep the delay between them too. Measured on
     scrapeme.live before, the first request of a batch followed the map's last
-    by 0.00 s.
+    by 0.00 s. Each request is made in a ``turn``, holding its site in
+    ``gate``, so a crawl running beside it, or a single fetch, waits for it to
+    end: measured before, two crawls of one site at once asked it 0.000 s
+    apart.
     """
 
     def __init__(
@@ -117,12 +105,14 @@ class Politeness:
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
         ended: MutableMapping[str, float] | None = None,
+        gate: Gate = GATE,
     ) -> None:
         self.min_delay = min_delay
         self.clock = clock
         self.sleep = sleep
+        self.gate = gate
         self._read = read
-        self._ended = _ENDED if ended is None else ended
+        self._ended = gate.ended if ended is None else ended
         self._delays: dict[str, float] = {}
         # What a site's own answers asked for: a delay it doubled by a 429 or
         # a 503 with no Retry-After, a moment a Retry-After named, and one it
@@ -130,16 +120,27 @@ class Politeness:
         self._slowed: dict[str, float] = {}
         self._not_before: dict[str, float] = {}
         self._refused_until: dict[str, float] = {}
-        self._lock = _LOCK
+        self._lock = LOCK
+
+    @contextmanager
+    def turn(self, url: str, delay: float | None = None) -> Iterator[None]:
+        """Make one request to ``url``'s site: holding it, after ``delay`` (the
+        delay known for it by default), and counted when the block ends."""
+        with self.gate.hold(url):
+            if delay is None:
+                self.rest(url)
+            else:
+                self.wait(url, delay)
+            try:
+                yield
+            finally:
+                self.ended(url)
 
     def reader(self, url: str) -> str | None:
         """Read the robots.txt at ``url`` as a request to its site: after the
         site's delay, and counted when it ends."""
-        self.rest(url)
-        try:
+        with self.turn(url):
             return self._read(url)
-        finally:
-            self.ended(url)
 
     def hop(self, current: str, target: str) -> str | None:
         """The rule each hop of a page's redirect is asked before it is requested.
@@ -164,11 +165,8 @@ class Politeness:
 
         def pace(rung: Rung) -> Rung:
             def paced(url: str) -> Fetched:
-                self.rest(url)
-                try:
+                with self.turn(url):
                     return rung(url)
-                finally:
-                    self.ended(url)
 
             return paced
 

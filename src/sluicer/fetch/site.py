@@ -18,8 +18,9 @@ from sluicer.audit.report import Site, SiteFile
 from sluicer.declared.tdmrep import WELL_KNOWN
 from sluicer.extras import import_extra
 from sluicer.fetch.address import AddressRefused, _resolve
+from sluicer.fetch.gate import GATE, after
 from sluicer.fetch.http_rung import http_rung
-from sluicer.fetch.identity import USER_AGENT, robots_url_for
+from sluicer.fetch.identity import PRODUCT_TOKEN, robots_url_for
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge, Rung
 from sluicer.fetch.scrapling_rungs import FetchExtraMissing
 
@@ -51,14 +52,22 @@ def read_site(
         AddressRefused: ``allow_private`` is false and the site is private.
         FetchExtraMissing: the ``fetch`` extra is not installed.
     """
-    if rung is None:
-        rung = http_rung(
-            allow_private,
-            resolve,
-            MAX_RESPONSE_BYTES,
-            error=FetchExtraMissing,
-            allow_empty=True,
-        )
+    if rung is not None:
+        return _read_site(url, rung, obey_robots)
+    plain = http_rung(
+        allow_private,
+        resolve,
+        MAX_RESPONSE_BYTES,
+        error=FetchExtraMissing,
+        allow_empty=True,
+    )
+    # The site's files, asked in its turn: one after another, as one visit.
+    with GATE.turn(url) as ready:
+        return _read_site(url, after(ready, plain), obey_robots)
+
+
+def _read_site(url: str, rung: Rung, obey_robots: bool) -> Site:
+    """``read_site``, through ``rung``."""
     robots = _read(rung, robots_url_for(url))
     parts = urlsplit(url)
     files = []
@@ -90,14 +99,21 @@ def read_tdmrep_file(
         AddressRefused: ``allow_private`` is false and the site is private.
         FetchExtraMissing: the ``fetch`` extra is not installed.
     """
-    if rung is None:
-        rung = http_rung(
-            allow_private,
-            resolve,
-            MAX_RESPONSE_BYTES,
-            error=FetchExtraMissing,
-            allow_empty=True,
-        )
+    if rung is not None:
+        return _read_tdmrep(url, rung, obey_robots)
+    plain = http_rung(
+        allow_private,
+        resolve,
+        MAX_RESPONSE_BYTES,
+        error=FetchExtraMissing,
+        allow_empty=True,
+    )
+    with GATE.turn(url) as ready:
+        return _read_tdmrep(url, after(ready, plain), obey_robots)
+
+
+def _read_tdmrep(url: str, rung: Rung, obey_robots: bool) -> SiteFile:
+    """``read_tdmrep_file``, through ``rung``."""
     parts = urlsplit(url)
     address = urlunsplit((parts.scheme, parts.netloc, WELL_KNOWN, "", ""))
     if obey_robots:
@@ -138,6 +154,6 @@ def _refusal(address: str, robots: SiteFile) -> str | None:
         doing="Reading a site's robots.txt",
         error=FetchExtraMissing,
     )
-    if protego.Protego.parse(robots.text or "").can_fetch(address, USER_AGENT):
+    if protego.Protego.parse(robots.text or "").can_fetch(address, PRODUCT_TOKEN):
         return None
     return "not fetched: the site's robots.txt disallows it"

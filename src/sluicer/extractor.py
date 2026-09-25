@@ -20,13 +20,16 @@ extractor, and the same page always gives the same verdict.
 
 from __future__ import annotations
 
+import bisect
 import itertools
 import json
 import re
 import unicodedata
+import weakref
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -34,7 +37,7 @@ from lxml import etree
 from lxml.html import HtmlElement
 
 from sluicer import __version__
-from sluicer.api import extract
+from sluicer.api import _extract_document
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import Document, base_url, join, load
 from sluicer.normalise import amount, iso_date
@@ -57,6 +60,10 @@ _SAMPLES = 5
 
 # The fewest values a shape is learnt from and checked on.
 _SHAPE_EVIDENCE = 5
+
+# The share of one column's old values a group must hold to be where a listing
+# chosen by examples went.
+_HELD_AGAIN = 0.5
 
 # A field learnt in at least this share of rows must not vanish from all of them.
 _COMMON = 0.5
@@ -120,6 +127,12 @@ class Listing:
     chosen: bool = False
     """The columns were chosen by examples (``compile --want``): ``heal``
     finds the listing again by the values its columns held, and adds none."""
+    siblings: tuple[int | None, ...] = ()
+    """For each step of ``container`` below ``<html>``, how many elements
+    matched it on every page learnt, or None where the pages differed. A
+    numbered step, ``section.box[2]``, is only the second box while there are
+    as many boxes: a box of the same kind inserted before it makes another
+    the second. Empty for a file from before 0.7.1, which learnt none."""
 
 
 @dataclass(frozen=True)
@@ -156,6 +169,12 @@ class PageField:
     """Set when the pages given contradicted the place, or no element held the
     value alone: the field is then read by its label, and ``path`` is where the
     example was."""
+    label: str | None = None
+    """For a field read by its place, the text every page it was learnt from
+    put right before its value, once: a page that says it once, before
+    something else, moved the value -- a table's rows in another order -- and
+    fails. None when one page taught it, or the value is an attribute, or the
+    pages put different words before it."""
 
 
 @dataclass(frozen=True)
@@ -199,6 +218,11 @@ class Extractor:
                 "rows": list(self.listing.rows),
                 "empty": self.listing.empty,
                 **({"chosen": True} if self.listing.chosen else {}),
+                **(
+                    {"siblings": list(self.listing.siblings)}
+                    if self.listing.siblings
+                    else {}
+                ),
                 "fields": [
                     {
                         "name": f.name,
@@ -224,6 +248,7 @@ class Extractor:
                         if f.anchor
                         else {}
                     ),
+                    **({"label": f.label} if f.label else {}),
                 }
                 for f in self.fields
             ]
@@ -256,62 +281,142 @@ def _extractor_of(body: Any) -> Extractor:
         )
     listing = None
     if body["listing"] is not None:
-        raw = body["listing"]
-        rows = [int(n) for n in raw["rows"]]
-        if len(rows) != 2:
-            raise ValueError("a listing's rows are the fewest and the most")
-        listing = Listing(
-            container=_text(raw["container"]),
-            member=_text(raw["member"]),
-            rows=(rows[0], rows[1]),
-            # Absent from a 0.2 file, which learnt nothing about empty rows.
-            empty=float(raw.get("empty", 0.0)),
-            chosen=raw.get("chosen", False) is True,
-            fields=tuple(
-                ListingField(
-                    name=_text(f["name"]),
-                    path=_text(f["path"]),
-                    missing=float(f["missing"]),
-                    shape=None if f["shape"] is None else _text(f["shape"]),
-                    # Absent from a 0.3 file, which learnt no reading.
-                    reads=_reading(f.get("reads")),
-                    samples=tuple(_text(v) for v in f["samples"]),
-                )
-                for f in raw["fields"]
-            ),
-        )
-        if not listing.fields:
-            raise ValueError("a listing with no fields checks nothing")
+        listing = _listing_of_file(body["listing"])
     summary = body["summary"]
     if not isinstance(summary, dict):
         raise ValueError("the summary is a mapping of question to shape")
-    return Extractor(
-        learnt_from=tuple(_text(v) for v in body["learnt_from"]),
-        summary={
-            _text(q): None if shp is None else _text(shp) for q, shp in summary.items()
-        },
-        types=tuple(_text(v) for v in body["types"]),
-        listing=listing,
-        notes=tuple(_text(v) for v in body.get("notes", [])),
-        version=str(body.get("sluicer", "")),
+    fields = tuple(
+        PageField(
+            name=_text(f["name"]),
+            path=_path(f["path"], attribute=True),
+            shape=_shape(f["shape"]),
+            reads=_reading(f.get("reads")),
+            samples=tuple(_text(v) for v in _list(f["samples"], "samples")),
+            anchor=_anchor_of(f.get("anchor")),
+            # Absent from a file before 0.7.1, which learnt none.
+            label=None if f.get("label") is None else _text(f["label"]),
+        )
         # Absent from a file with none, and from every file before 0.4.
+        for f in _list(body.get("fields", []), "fields")
+    )
+    _unique(f.name for f in fields)
+    return Extractor(
+        learnt_from=tuple(_text(v) for v in _list(body["learnt_from"], "learnt_from")),
+        summary={_text(q): _shape(shp) for q, shp in summary.items()},
+        types=tuple(_text(v) for v in _list(body["types"], "types")),
+        listing=listing,
+        notes=tuple(_text(v) for v in _list(body.get("notes", []), "notes")),
+        version=str(body.get("sluicer", "")),
+        fields=fields,
+    )
+
+
+def _listing_of_file(raw: Any) -> Listing:
+    """A listing as its file holds it, every value checked: a value no check
+    can be true of -- ``"missing": "nan"`` -- turns the check off without a
+    word, and a run then passes a page it should fail."""
+    rows = _list(raw["rows"], "rows")
+    if (
+        len(rows) != 2
+        or any(type(n) is not int for n in rows)
+        or not 0 <= rows[0] <= rows[1]
+    ):
+        raise ValueError(f"a listing's rows are the fewest and the most, not {rows!r}")
+    container = _path(raw["container"])
+    member = _text(raw["member"])
+    if not _MEMBER.fullmatch(member):
+        raise ValueError(f"{member!r} is not a row's kind, a tag and its classes")
+    chosen = raw.get("chosen", False)
+    if type(chosen) is not bool:
+        raise ValueError(f"chosen is true or false, not {chosen!r}")
+    siblings = _list(raw.get("siblings", []), "siblings")
+    if siblings and (
+        len(siblings) != container.count(">")
+        or any(n is not None and (type(n) is not int or n < 1) for n in siblings)
+    ):
+        raise ValueError(
+            "siblings are a count of one or more, or null, for each step of the "
+            f"container below html, not {siblings!r}"
+        )
+    listing = Listing(
+        container=container,
+        member=member,
+        rows=(rows[0], rows[1]),
+        # Absent from a 0.2 file, which learnt nothing about empty rows.
+        empty=_share(raw.get("empty", 0.0), "empty"),
+        chosen=chosen,
+        siblings=tuple(siblings),
         fields=tuple(
-            PageField(
+            ListingField(
                 name=_text(f["name"]),
                 path=_text(f["path"]),
-                shape=None if f["shape"] is None else _text(f["shape"]),
+                missing=_share(f["missing"], "missing"),
+                shape=_shape(f["shape"]),
+                # Absent from a 0.3 file, which learnt no reading.
                 reads=_reading(f.get("reads")),
-                samples=tuple(_text(v) for v in f["samples"]),
-                anchor=_anchor_of(f.get("anchor")),
+                samples=tuple(_text(v) for v in _list(f["samples"], "samples")),
             )
-            for f in body.get("fields", [])
+            for f in _list(raw["fields"], "fields")
         ),
     )
+    if not listing.fields:
+        raise ValueError("a listing with no fields checks nothing")
+    _unique(f.name for f in listing.fields)
+    return listing
+
+
+# A step of a path: a tag and its first class, and [n] when it was one of n.
+_STEP = r"[^\s\[\]>@]+(?:\[[1-9][0-9]*\])?"
+_PATH = re.compile(rf"{_STEP}(?:>{_STEP})*")
+_MEMBER = re.compile(r"[^\s\[\]>@.]+(?:\.[^\s\[\]>@.]+)*")
+
+
+def _path(value: Any, attribute: bool = False) -> str:
+    """A place as ``path_of`` writes it, and ``@name`` after it when allowed."""
+    text = _text(value)
+    where, at, name = text.partition("@") if attribute else (text, "", "")
+    if not _PATH.fullmatch(where) or (at and not re.fullmatch(r"[\w:-]+", name)):
+        raise ValueError(f"{text!r} is not a path to an element")
+    return text
+
+
+def _share(value: Any, what: str) -> float:
+    """A share learnt of the rows, a number from 0 to 1."""
+    if type(value) not in (int, float) or not 0 <= value <= 1:
+        raise ValueError(f"{what} is a share from 0 to 1, not {value!r}")
+    return float(value)
+
+
+def _shape(value: Any) -> str | None:
+    """A shape as ``shape`` writes it, or None for none."""
+    if value is None:
+        return None
+    text = _text(value)
+    if not set(text) <= set("LNPS"):
+        raise ValueError(f"a shape is made of L, N, P and S, not {text!r}")
+    return text
+
+
+def _list(value: Any, what: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise ValueError(f"{what} is a list, not {value!r}")
+    return value
+
+
+def _unique(names: Any) -> None:
+    """Two fields of one name would read as one, the second over the first."""
+    seen: set[str] = set()
+    for name in names:
+        if name in seen:
+            raise ValueError(f"two fields named {name!r}")
+        seen.add(name)
 
 
 def _anchor_of(raw: Any) -> Anchor | None:
     if raw is None:
         return None
+    if not isinstance(raw, dict):
+        raise ValueError(f"a label is read after or as a prefix, not {raw!r}")
     anchor = Anchor(label=_text(raw["label"]), kind=_text(raw["kind"]))
     if anchor.kind not in ("after", "prefix") or not anchor.label:
         raise ValueError(f"a label is read after or as a prefix, not {raw!r}")
@@ -378,7 +483,9 @@ def shape(text: str) -> str:
     """The character classes a value is made of: L letters, N digits,
     P punctuation, S symbols such as currency signs, in that order.
 
-    ``£51.77`` is ``NPS``, ``In stock`` is ``L``, ``2026-09-22`` is ``NP``.
+    ``£51.77`` is ``NPS``, ``In stock`` is ``L``, ``2026-09-22`` is ``NP``. A
+    value of none of them -- a combining accent alone -- is the empty shape,
+    which says nothing, and no field or answer is learnt with it.
     """
     classes = {unicodedata.category(char)[0] for char in text if not char.isspace()}
     return "".join(c for c in "LNPS" if c in classes)
@@ -409,8 +516,9 @@ def compile_extractor(
         names: what to call each page in ``learnt_from``; its address by default.
         want: example values, by the name each is to have: ``{"price":
             "41.90", "title": "Brake pad set"}``. When a repeated group's rows
-            hold every one -- the first such group, in page order -- they
-            choose the listing and its columns, which are only the ones named.
+            hold every one, each in a column of its own -- the first such
+            group, in page order -- they choose the listing and its columns,
+            which are only the ones named.
             When no one group holds them all, or with ``listing=False``, they
             are the page's own values, a product page's price and title, each
             learnt where it sits on the page, the page's own place before its
@@ -426,9 +534,18 @@ def compile_extractor(
         raise NothingToLearn("an extractor needs at least one page")
     if want is not None and (not want or any(not name.strip() for name in want)):
         raise ValueError("every example needs a name and a value: name=value")
-    docs = [load(html, url=url) for html, url in pages]
-    results = [extract(html, url=url) for html, url in pages]
-    summary = _learn_summary([r.summary for r in results], len(pages))
+    return _compiled([load(html, url=url) for html, url in pages], listing, names, want)
+
+
+def _compiled(
+    docs: list[Document],
+    listing: bool | None,
+    names: Sequence[str] | None,
+    want: Mapping[str, str] | None,
+) -> Extractor:
+    """``compile_extractor`` of pages parsed once, for it and for ``heal``."""
+    results = [_extract_document(doc, {}) for doc in docs]
+    summary = _learn_summary([r.summary for r in results], len(docs))
     types = _common(
         [
             {
@@ -468,10 +585,7 @@ def compile_extractor(
             "these pages declare nothing and repeat nothing an extractor could keep"
         )
     return Extractor(
-        learnt_from=tuple(
-            (names[n - 1] if names else None) or url or f"page {n}"
-            for n, (_, url) in enumerate(pages, 1)
-        ),
+        learnt_from=_learnt_from(docs, names),
         summary=summary,
         types=tuple(sorted(types)),
         listing=learnt,
@@ -489,7 +603,7 @@ def run_extractor(
     nobody could have earned.
     """
     doc = load(html, url=url)
-    result = extract(html, url=url)
+    result = _extract_document(doc, {})
     run = Run(url=url, ok=True, summary={k: v.value for k, v in result.summary.items()})
     for question, learnt_shape in extractor.summary.items():
         answer = result.summary.get(question)
@@ -558,32 +672,31 @@ def heal(
         NothingToLearn: the new pages hold nothing an extractor could be
             learnt from -- no declared answer, no type, no listing.
     """
+    docs = [load(html, url=url) for html, url in pages]
     old_listing = extractor.listing
     if old_listing is not None and old_listing.chosen:
-        found = _learn_by_values(
-            [load(html, url=url) for html, url in pages], old_listing
-        )
+        # Where it was, while it still keeps its contract there: a listing's
+        # items change from one visit to the next, and a sidebar that lists
+        # some of the same ones is not where it went.
+        found = _still_listed(docs, old_listing) or _learn_by_values(docs, old_listing)
         try:
-            fresh = compile_extractor(pages, listing=False, names=names)
+            fresh = _compile_again(docs, False, names)
         except NothingToLearn:
             if found is None:
                 raise
-            fresh = Extractor(
-                learnt_from=tuple(
-                    (names[n - 1] if names else None) or url or f"page {n}"
-                    for n, (_, url) in enumerate(pages, 1)
-                ),
-                summary={},
-                types=(),
-                listing=None,
-            )
+            fresh = _learnt_nothing(docs, names)
         fresh = Extractor(
             fresh.learnt_from, fresh.summary, fresh.types, found, fresh.notes
         )
     else:
-        fresh = compile_extractor(
-            pages, listing=True if extractor.listing else None, names=names
-        )
+        try:
+            fresh = _compile_again(docs, True if extractor.listing else None, names)
+        except NothingToLearn:
+            # Page fields are looked for by their own values, on pages that
+            # declare nothing and repeat nothing as much as on any other.
+            if not extractor.fields:
+                raise
+            fresh = _learnt_nothing(docs, names)
     changes: list[Change] = []
     for question in extractor.summary:
         if question not in fresh.summary:
@@ -597,16 +710,17 @@ def heal(
     for name in fresh.types:
         if name not in extractor.types:
             changes.append(Change("type-gained", None, name))
-    fields, field_changes = _heal_fields(
-        extractor.fields, [load(html, url=url) for html, url in pages]
-    )
+    fields, field_changes = _heal_fields(extractor.fields, docs)
     changes.extend(field_changes)
     listing = fresh.listing
     if extractor.listing is not None and listing is not None:
-        listing, listing_changes = _heal_listing(extractor.listing, listing, pages)
+        listing, listing_changes = _heal_listing(extractor.listing, listing, docs)
         changes.extend(listing_changes)
     elif extractor.listing is not None:
         changes.append(Change("listing-lost", extractor.listing.container, None))
+        # Kept as it was, so a run keeps failing where it is not: an
+        # extractor written without it, with --force, would pass every page.
+        listing = extractor.listing
     healed = Extractor(
         learnt_from=fresh.learnt_from,
         summary=fresh.summary,
@@ -616,6 +730,33 @@ def heal(
         fields=fields,
     )
     return healed, changes
+
+
+def _compile_again(
+    docs: list[Document], listing: bool | None, names: Sequence[str] | None
+) -> Extractor:
+    """``compile_extractor`` as heal asks it, on pages it has parsed already."""
+    if not docs:
+        raise NothingToLearn("an extractor needs at least one page")
+    return _compiled(docs, listing, names, None)
+
+
+def _learnt_from(docs: list[Document], names: Sequence[str] | None) -> tuple[str, ...]:
+    """What each page is called: its name, else its address, else its place."""
+    return tuple(
+        (names[n - 1] if names else None) or doc.url or f"page {n}"
+        for n, doc in enumerate(docs, 1)
+    )
+
+
+def _learnt_nothing(docs: list[Document], names: Sequence[str] | None) -> Extractor:
+    """An extractor of ``docs`` that learnt nothing from them."""
+    return Extractor(
+        learnt_from=_learnt_from(docs, names),
+        summary={},
+        types=(),
+        listing=None,
+    )
 
 
 # -- learning -----------------------------------------------------------------
@@ -639,7 +780,7 @@ def _learn_summary(
     for question in (q for q in summaries[0] if q in answered):
         shapes = {shape(s[question].value) for s in summaries}
         keep = pages >= 2 and len(shapes) == 1 and question in _SHAPED
-        learnt[question] = shapes.pop() if keep else None
+        learnt[question] = (shapes.pop() or None) if keep else None
     return learnt
 
 
@@ -680,7 +821,12 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
         _profile(path, path, [row.get(path) for row in rows]) for path in paths
     )
     rows_range = (min(counts), max(counts))
-    return Listing(container, member, rows_range, fields, empty), notes
+    siblings = _siblings(
+        [doc for c, m, _, doc in found if (c, m) == (container, member)], container
+    )
+    return Listing(
+        container, member, rows_range, fields, empty, siblings=siblings
+    ), notes
 
 
 def _learn_wanted(
@@ -689,15 +835,18 @@ def _learn_wanted(
     """The listing whose rows hold every example, and only the columns named.
 
     Groups are taken in each page's order, as ``repeating_groups`` ranks them;
-    the first whose rows hold every example, on any page, is the listing, and
-    each example's column is the first field, in row order, that held it.
+    the first whose rows hold every example, each in a column of its own, on
+    any page, is the listing, and each example's column is the first field, in
+    row order, that held it and no example before it needs. Two examples one
+    column holds are no listing's: a product's table has its price and its SKU
+    in two rows of one ``td``, and read as a listing both would be that ``td``.
     """
     chosen: tuple[str, str] | None = None
     columns: dict[str, str] = {}
     ambiguous: dict[str, list[str]] = {}
     missing: set[str] = set(want)
     for doc in docs:
-        for group in repeating_groups(doc.tree, furniture_too=True):
+        for group in _groups(doc):
             group_rows = _rows_of(group, doc)
             if not group_rows:
                 continue
@@ -705,9 +854,10 @@ def _learn_wanted(
                 name: _holding(group_rows, example) for name, example in want.items()
             }
             missing &= {name for name, paths in held.items() if not paths}
-            if all(held.values()):
+            own = _columns_of(held) if all(held.values()) else None
+            if own is not None:
                 chosen = (path_of(group[0].getparent()), kind(group[0]))
-                columns = {name: paths[0] for name, paths in held.items()}
+                columns = own
                 ambiguous = {n: p for n, p in held.items() if len(p) > 1}
                 break
         if chosen is not None:
@@ -717,7 +867,8 @@ def _learn_wanted(
         raise NothingToLearn(
             f"no repeated group on these pages holds {said}"
             if missing
-            else "no one repeated group holds every example together"
+            else "no one repeated group holds every example together, "
+            "each in a column of its own"
         )
     container, member = chosen
     rows: list[dict[str, str]] = []
@@ -734,7 +885,11 @@ def _learn_wanted(
         empty = max(empty, round(1 - len(page_rows) / len(members), 4))
     notes = [
         f"{name}={want[name]!r} was in {len(paths)} places in a row; "
-        f"the first, {paths[0]}, was taken"
+        + (
+            f"the first, {paths[0]}, was taken"
+            if columns[name] == paths[0]
+            else f"{columns[name]}, the first no other example needs, was taken"
+        )
         for name, paths in ambiguous.items()
     ]
     if len(counts) < len(docs):
@@ -747,28 +902,89 @@ def _learn_wanted(
         for name, path in columns.items()
     )
     listing = Listing(
-        container, member, (min(counts), max(counts)), fields, empty, chosen=True
+        container,
+        member,
+        (min(counts), max(counts)),
+        fields,
+        empty,
+        chosen=True,
+        siblings=_siblings(docs, container),
     )
     return listing, notes
+
+
+def _columns_of(held: Mapping[str, list[str]]) -> dict[str, str] | None:
+    """Each example's column, none shared, or None when they cannot all have
+    one. Each takes, in turn, the first of the places that held it, in row
+    order, that is free, else one an example before it can give up for
+    another of its own: a matching, found in polynomial time however the
+    places overlap."""
+    owner: dict[str, str] = {}
+
+    def claim(name: str, seen: set[str]) -> bool:
+        free = next((p for p in held[name] if p not in owner), None)
+        if free is not None:
+            owner[free] = name
+            return True
+        for path in held[name]:
+            if path in seen:
+                continue
+            seen.add(path)
+            if claim(owner[path], seen):
+                owner[path] = name
+                return True
+        return False
+
+    for name in held:
+        if not claim(name, set()):
+            return None
+    column = {name: path for path, name in owner.items()}
+    return {name: column[name] for name in held}
+
+
+def _still_listed(docs: list[Document], old: Listing) -> Listing | None:
+    """``old`` learnt again where it is, when every page given that has its
+    place replays it with no check failed, and one page at least does."""
+    held = False
+    for doc in docs:
+        if _find(doc, old.container, old.siblings)[0] is None:
+            continue
+        checks: list[Check] = []
+        _replay_listing(old, doc, checks)
+        if not all(check.ok for check in checks):
+            return None
+        held = True
+    return _listing_at(docs, old.container, old.member) if held else None
 
 
 def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
     """The listing, every column of it, whose rows hold most of ``old``'s values.
 
     How a listing learnt from examples is found again: by what it held, as it
-    was first found, and in the furniture too. None when no group holds any.
+    was first found, and in the furniture too. A group qualifies only when it
+    holds at least half of one column's old values: one related product that
+    costs what a book used to is a coincidence, not where the books went.
+    None when no group qualifies.
     """
     samples = {sample for f in old.fields for sample in f.samples}
+    columns = [set(f.samples) for f in old.fields if f.samples]
     best: tuple[int, str, str] | None = None
     for doc in docs:
-        for group in repeating_groups(doc.tree, furniture_too=True):
+        for group in _groups(doc):
             held = {value for row in _rows_of(group, doc) for value in row.values()}
             score = len(samples & held)
-            if score and (best is None or score > best[0]):
+            again = any(len(c & held) >= _HELD_AGAIN * len(c) for c in columns)
+            if score and again and (best is None or score > best[0]):
                 best = (score, path_of(group[0].getparent()), kind(group[0]))
     if best is None:
         return None
     _score, container, member = best
+    return _listing_at(docs, container, member)
+
+
+def _listing_at(docs: list[Document], container: str, member: str) -> Listing:
+    """The listing at ``container``, rows of ``member``, every column of it, as
+    the pages that have it hold it. One of them must."""
     rows: list[dict[str, str]] = []
     counts: list[int] = []
     empty = 0.0
@@ -785,7 +1001,14 @@ def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
     fields = tuple(
         _profile(path, path, [row.get(path) for row in rows]) for path in paths
     )
-    return Listing(container, member, (min(counts), max(counts)), fields, empty)
+    return Listing(
+        container,
+        member,
+        (min(counts), max(counts)),
+        fields,
+        empty,
+        siblings=_siblings(docs, container),
+    )
 
 
 # Elements whose text is not the page's: a script's JSON can hold the price,
@@ -826,6 +1049,7 @@ def _learn_fields(
                 f"no element on these pages holds {name}={example!r}{also}"
             )
         anchor = None
+        label = None
         if anchored is not None:
             anchor, where = anchored
             texts = [_text_nodes(doc) for doc in docs]
@@ -850,6 +1074,7 @@ def _learn_fields(
                 notes.append(
                     f"{name} is at {path} on {len(values)} of {len(docs)} pages"
                 )
+            label = _label_before(docs, path)
         present = list(dict.fromkeys(values))
         shapes = {shape(value) for value in values}
         reads = next(
@@ -859,12 +1084,13 @@ def _learn_fields(
             PageField(
                 name=name,
                 path=path,
-                shape=shapes.pop()
+                shape=(shapes.pop() or None)
                 if len(shapes) == 1 and len(values) >= _SHAPE_EVIDENCE
                 else None,
                 samples=tuple(present[:_SAMPLES]),
                 reads=None if anchor is None and _is_address(path) else reads,
                 anchor=anchor,
+                label=label,
             )
         )
     return tuple(fields), notes
@@ -873,6 +1099,78 @@ def _learn_fields(
 # The longest text taken for a label: a label names a value, and a sentence
 # that happens to stand before one on every page is not one.
 _LABEL_MOST = 40
+
+
+def _label_before(docs: list[Document], path: str) -> str | None:
+    """The text every page given puts right before the value at ``path``, when
+    it is one text, said once on each of them, and no longer than a label.
+
+    Two pages at least must hold the value: one page cannot tell its
+    template's words from its own. An attribute has no text before it."""
+    where, _, attribute = path.partition("@")
+    if len(docs) < 2 or attribute:
+        return None
+    texts = [_text_nodes(doc) for doc in docs]
+    said: set[str] = set()
+    held = 0
+    for doc, nodes in zip(docs, texts, strict=True):
+        element, _found = _find(doc, where)
+        if element is None:
+            continue
+        first = _first_text_in(nodes, element)
+        if not first or not _a_label(*nodes[first - 1]):
+            return None
+        said.add(nodes[first - 1][0])
+        held += 1
+    if held < 2 or len(said) != 1:
+        return None
+    label = said.pop()
+    once = all(sum(1 for text, _ in nodes if text == label) == 1 for nodes in texts)
+    return label if once and len(label) <= _LABEL_MOST else None
+
+
+# The elements HTML gives a label, a table's header cell, a term's name.
+_LABELLING = frozenset({"th", "dt", "label"})
+
+
+def _a_label(text: str, owner: HtmlElement) -> bool:
+    """Whether a text is written as a label: it ends with a colon, or HTML's
+    own element for a label holds it. The text before a value on every page
+    is often something else the template says -- a link to change the ZIP
+    code, "Write a Review" -- and a line the page adds between the two moves
+    nothing."""
+    return text.endswith((":", "\uff1a")) or owner.tag in _LABELLING
+
+
+def _first_text_in(
+    nodes: list[tuple[str, HtmlElement]], element: HtmlElement
+) -> int | None:
+    """Where the first of ``element``'s own text is among a page's text nodes."""
+    inside = set(element.iter())
+    return next((n for n, (_, owner) in enumerate(nodes) if owner in inside), None)
+
+
+def _label_moved(
+    f: PageField, doc: Document, nodes: list[tuple[str, HtmlElement]]
+) -> str | None:
+    """What stands after ``f``'s label, when the page says the label once and
+    something other than the value at ``f``'s place follows it; None when the
+    label is right, or the page does not say it once, which says nothing."""
+    if f.label is None:
+        return None
+    at = [n for n, (text, _) in enumerate(nodes) if text == f.label]
+    if len(at) != 1:
+        return None
+    element, _found = _find(doc, f.path.partition("@")[0])
+    if element is None:
+        return None
+    if at[0] + 1 >= len(nodes):
+        return f"nothing after {f.label!r}"
+    text, owner = nodes[at[0] + 1]
+    if owner is element or any(up is element for up in owner.iterancestors()):
+        return None
+    held = _value_at(doc, f.path)
+    return f"{f.label!r} is now before {text!r}, and the place holds {held!r}"
 
 
 def _contradicted(docs: list[Document], path: str, example: str) -> str | None:
@@ -891,9 +1189,36 @@ def _contradicted(docs: list[Document], path: str, example: str) -> str | None:
     return None
 
 
+# What learning and healing work out once per page and read many times, for
+# each example and each field: the groups the page repeats, furniture too, and
+# its text nodes. Kept while the page is, since a Document never changes.
+_GROUPS: weakref.WeakKeyDictionary[Document, list[list[HtmlElement]]] = (
+    weakref.WeakKeyDictionary()
+)
+_TEXTS: weakref.WeakKeyDictionary[Document, list[tuple[str, HtmlElement]]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _groups(doc: Document) -> list[list[HtmlElement]]:
+    """``repeating_groups`` of the page, furniture too, worked out once."""
+    found = _GROUPS.get(doc)
+    if found is None:
+        found = _GROUPS[doc] = repeating_groups(doc.tree, furniture_too=True)
+    return found
+
+
 def _text_nodes(doc: Document) -> list[tuple[str, HtmlElement]]:
     """The page's text, node by node in document order, spaces collapsed, with
-    the element each belongs to -- scripts, styles and the head left out."""
+    the element each belongs to -- scripts, styles and the head left out.
+    Worked out once per page; the list is shared, and never changed."""
+    found = _TEXTS.get(doc)
+    if found is None:
+        found = _TEXTS[doc] = _read_text_nodes(doc)
+    return found
+
+
+def _read_text_nodes(doc: Document) -> list[tuple[str, HtmlElement]]:
     nodes: list[tuple[str, HtmlElement]] = []
     skipping = 0
     for event, element in itertools.islice(
@@ -922,11 +1247,50 @@ def _text_nodes(doc: Document) -> list[tuple[str, HtmlElement]]:
     return nodes
 
 
+@dataclass(frozen=True)
+class _TextIndex:
+    """Where each of a page's texts is among its text nodes, and the texts in
+    order, so a label is looked up rather than searched for."""
+
+    at: dict[str, list[int]]
+    ordered: list[str]
+
+    @classmethod
+    def of(cls, nodes: list[tuple[str, HtmlElement]]) -> _TextIndex:
+        at: dict[str, list[int]] = {}
+        for n, (text, _) in enumerate(nodes):
+            at.setdefault(text, []).append(n)
+        return cls(at, sorted(at))
+
+    def opening(self, label: str) -> list[int]:
+        """Every node whose text starts with ``label`` and says more."""
+        found: list[int] = []
+        for text in itertools.islice(
+            self.ordered, bisect.bisect_left(self.ordered, label), None
+        ):
+            if not text.startswith(label):
+                break
+            if len(text) > len(label):
+                found.extend(self.at[text])
+        return sorted(found)
+
+
 def _value_after(
-    nodes: list[tuple[str, HtmlElement]], anchor: Anchor
+    nodes: list[tuple[str, HtmlElement]],
+    anchor: Anchor,
+    index: _TextIndex | None = None,
 ) -> tuple[str | None, str]:
-    """The value ``anchor`` points at among a page's text nodes, and why not."""
-    if anchor.kind == "after":
+    """The value ``anchor`` points at among a page's text nodes, and why not.
+
+    ``index`` is the nodes' own, for a caller that looks up many labels on
+    one page: each is then found at once, not by reading the whole page."""
+    if index is not None:
+        at = (
+            index.at.get(anchor.label, [])
+            if anchor.kind == "after"
+            else index.opening(anchor.label)
+        )
+    elif anchor.kind == "after":
         at = [n for n, (text, _) in enumerate(nodes) if text == anchor.label]
     else:
         at = [
@@ -958,20 +1322,17 @@ def _anchor_for(docs: list[Document], example: str) -> tuple[Anchor, str] | None
     if len(docs) < 2:
         return None
     wanted = " ".join(example.split())
-    worth = amount(wanted)
-
-    def same(text: str | None) -> bool:
-        if text is None:
-            return False
-        return text == wanted or (worth is not None and amount(text) == worth)
-
+    same = _says(example)
     pages = [_text_nodes(doc) for doc in docs]
     once = [
         {text for text, count in Counter(t for t, _ in nodes).items() if count == 1}
         for nodes in pages
     ]
     labels = set.intersection(*once) if once else set()
-    for nodes in pages:
+    # Every candidate label is checked on every page: looked up, since a page
+    # of a thousand labelled rows has a thousand candidates.
+    indexes = [_TextIndex.of(nodes) for nodes in pages]
+    for p, nodes in enumerate(pages):
         best: tuple[int, Anchor, str] | None = None
         for n, (text, owner) in enumerate(nodes):
             candidates: list[tuple[int, Anchor]] = []
@@ -986,10 +1347,11 @@ def _anchor_for(docs: list[Document], example: str) -> tuple[Anchor, str] | None
                 if label and len(label) <= _LABEL_MOST and same(text[cut:].strip()):
                     candidates.append((0, Anchor(label, "prefix")))
             for near, anchor in candidates:
-                values = [_value_after(page, anchor)[0] for page in pages]
-                if any(v is None for v in values) or not same(
-                    _value_after(nodes, anchor)[0]
-                ):
+                values = [
+                    _value_after(page, anchor, index)[0]
+                    for page, index in zip(pages, indexes, strict=True)
+                ]
+                if any(v is None for v in values) or not same(values[p]):
                     continue
                 if best is None or near < best[0]:
                     best = (near, anchor, path_of(owner))
@@ -1008,20 +1370,18 @@ def _up_to_meet(label: HtmlElement, value: HtmlElement) -> int:
     return len(shared)
 
 
-def _places(doc: Document, example: str) -> list[str]:
+def _places(doc: Document, example: str, own: bool = False) -> list[str]:
     """Every place on the page whose value is ``example``, the deepest first.
 
     An element's text counts when it is the whole of the element's text; an
     ancestor that holds nothing else says the same, and is passed over for
-    the element it holds. Then the attributes, in document order.
+    the element it holds. Then the attributes, in document order. With
+    ``own``, only the page's own places: none in its furniture, its
+    breadcrumb trail or its listings.
     """
     wanted = " ".join(example.split())
-    worth = amount(wanted)
+    same = _says(example)
     base = base_url(doc)
-
-    def same(text: str) -> bool:
-        said = " ".join(text.split())
-        return said == wanted or (worth is not None and amount(said) == worth)
 
     # Children before their parents, so a parent whose child's text is already
     # longer than the example -- the body, every wrapper up to it -- is passed
@@ -1049,7 +1409,7 @@ def _places(doc: Document, example: str) -> list[str]:
         elif element not in no_text and same(text):
             texts.append(element)
     texts.sort(key=order.__getitem__)
-    attributes: list[str] = []
+    attributes: list[tuple[HtmlElement, str]] = []
     for element in elements:
         if not isinstance(element.tag, str) or element in no_text:
             continue
@@ -1060,7 +1420,7 @@ def _places(doc: Document, example: str) -> list[str]:
             if attribute in ("href", "src"):
                 value = join(base, value)
             if same(value):
-                attributes.append(f"{path_of(element)}@{attribute}")
+                attributes.append((element, attribute))
     holding = set(texts)
     deepest = [
         element
@@ -1070,11 +1430,7 @@ def _places(doc: Document, example: str) -> list[str]:
     # The page's own place first: a product's title is also its breadcrumb's
     # last step and a related strip's link, both earlier in the document, and
     # neither is where a person pointing at the title means.
-    repeated = {
-        member
-        for group in repeating_groups(doc.tree, furniture_too=True)
-        for member in group
-    }
+    repeated = {member for group in _groups(doc) for member in group}
 
     def aside(element: HtmlElement) -> tuple[bool, bool]:
         climb = [element, *element.iterancestors()]
@@ -1083,8 +1439,13 @@ def _places(doc: Document, example: str) -> list[str]:
             any(node in repeated for node in climb),
         )
 
+    if own:
+        deepest = [element for element in deepest if not any(aside(element))]
+        attributes = [(e, a) for e, a in attributes if not any(aside(e))]
     ranked = sorted(range(len(deepest)), key=lambda n: (*aside(deepest[n]), n))
-    return [path_of(deepest[n]) for n in ranked] + attributes
+    return [path_of(deepest[n]) for n in ranked] + [
+        f"{path_of(element)}@{attribute}" for element, attribute in attributes
+    ]
 
 
 def _a_trail(element: HtmlElement) -> bool:
@@ -1138,6 +1499,17 @@ def _replay_fields(
         )
         if value is None:
             continue
+        if f.label is not None:
+            texts = _text_nodes(doc) if texts is None else texts
+            moved = _label_moved(f, doc, texts)
+            checks.append(
+                Check(
+                    "field",
+                    f"{f.name} right after {f.label!r}, as on the pages learnt",
+                    moved or "yes",
+                    moved is None,
+                )
+            )
         values[f.name] = value
         if f.reads:
             read = _READERS[f.reads]
@@ -1164,15 +1536,38 @@ def _replay_fields(
 
 def _holding(rows: list[dict[str, str]], example: str) -> list[str]:
     """Every field path, in row order, whose value is ``example`` in some row."""
-    wanted = " ".join(example.split())
-    worth = amount(wanted)
+    same = _says(example)
     found: dict[str, None] = {}
     for row in rows:
         for path, value in row.items():
-            said = " ".join(value.split())
-            if said == wanted or (worth is not None and amount(said) == worth):
+            if same(value):
                 found.setdefault(path)
     return list(found)
+
+
+def _says(example: str) -> Callable[[str | None], bool]:
+    """Whether a text says what ``example`` says: the same with its spaces
+    collapsed, or the same amount, compared as a number -- ``8`` is ``£8.00``,
+    which ``amount`` gives back as ``8.00``.
+
+    The one comparison every example is found by, on the page, in a listing's
+    rows and after a label."""
+    wanted = " ".join(example.split())
+    worth = _worth(wanted)
+
+    def says(text: str | None) -> bool:
+        if text is None:
+            return False
+        said = " ".join(text.split())
+        return said == wanted or (worth is not None and _worth(said) == worth)
+
+    return says
+
+
+def _worth(text: str) -> Decimal | None:
+    """``text`` as a number, when ``amount`` reads it as one."""
+    read = amount(text)
+    return None if read is None else Decimal(read)
 
 
 def _first_index(
@@ -1198,7 +1593,7 @@ def _profile(name: str, path: str, values: list[str | None]) -> ListingField:
         name=name,
         path=path,
         missing=round(1 - len(present) / len(values), 4) if values else 1.0,
-        shape=shapes.pop() if shaped and not _is_address(path) else None,
+        shape=(shapes.pop() or None) if shaped and not _is_address(path) else None,
         samples=tuple(dict.fromkeys(present))[:_SAMPLES],
         reads=_reads(present) if not _is_address(path) else None,
     )
@@ -1244,14 +1639,22 @@ def path_of(element: HtmlElement) -> str:
         parent = node.getparent()
         label = _step_label(node)
         if parent is not None:
-            same = [
-                c for c in parent if isinstance(c.tag, str) and _step_label(c) == label
-            ]
+            same = [c for c in parent if _steps_to(c, label)]
             if len(same) > 1:
                 label += f"[{same.index(node) + 1}]"
         steps.append(label)
         node = parent
     return ">".join(reversed(steps))
+
+
+def _steps_to(element: HtmlElement, label: str) -> bool:
+    """Whether ``element``'s step is ``label``. Its tag is tried first: a step
+    begins with its tag, and working out an element's class reads all of
+    them, for every sibling of every step of a path."""
+    tag = element.tag
+    return (
+        isinstance(tag, str) and label.startswith(tag) and _step_label(element) == label
+    )
 
 
 def _step_label(element: HtmlElement) -> str:
@@ -1263,28 +1666,57 @@ def _step_label(element: HtmlElement) -> str:
     return f"{element.tag}.{written}" if written else str(element.tag)
 
 
-def _find(doc: Document, path: str) -> tuple[HtmlElement | None, str]:
+def _find(
+    doc: Document, path: str, siblings: Sequence[int | None] = ()
+) -> tuple[HtmlElement | None, str]:
     """The element at ``path``, or None and why.
 
     A step written without ``[n]`` was the only one of its kind when learnt, so
     it must still be the only one: a second listing of the same kind inserted
-    before it -- a sponsored strip -- is ambiguous, not the first match.
+    before it -- a sponsored strip -- is ambiguous, not the first match. A
+    step written with one is held to ``siblings``, how many of its kind there
+    were at each step, where known: a strip inserted before the second of two
+    boxes makes three, and another box the second.
     """
     steps = path.split(">")
     root = doc.tree
     if _step_label(root) != steps[0].split("[")[0]:
         return None, "not found"
     node = root
-    for step in steps[1:]:
+    for depth, step in enumerate(steps[1:]):
         label, _, ordinal = step.partition("[")
-        same = [c for c in node if isinstance(c.tag, str) and _step_label(c) == label]
+        same = [c for c in node if _steps_to(c, label)]
         if not ordinal and len(same) > 1:
             return None, f"{len(same)} places that match {label}, where there was one"
+        learnt = siblings[depth] if depth < len(siblings) else None
+        if ordinal and same and learnt is not None and len(same) != learnt:
+            matching = "place that matches" if len(same) == 1 else "places that match"
+            return None, f"{len(same)} {matching} {label}, where there were {learnt}"
         index = int(ordinal.rstrip("]")) - 1 if ordinal else 0
         if index >= len(same):
             return None, "not found"
         node = same[index]
     return node, "found"
+
+
+def _siblings(docs: Sequence[Document], path: str) -> tuple[int | None, ...]:
+    """How many elements match each step of ``path`` below ``<html>``, on the
+    pages that have it: the number where they agree, None where they do not."""
+    seen: list[list[int]] = []
+    for doc in docs:
+        if _find(doc, path)[0] is None:
+            continue
+        counts, node = [], doc.tree
+        for step in path.split(">")[1:]:
+            label, _, ordinal = step.partition("[")
+            same = [c for c in node if _steps_to(c, label)]
+            counts.append(len(same))
+            node = same[int(ordinal.rstrip("]")) - 1 if ordinal else 0]
+        seen.append(counts)
+    return tuple(
+        column[0] if len(set(column)) == 1 else None
+        for column in zip(*seen, strict=True)
+    )
 
 
 def _members(container: HtmlElement, member: str) -> list[HtmlElement]:
@@ -1402,7 +1834,7 @@ def _unnumbered(path: str) -> str:
 def _replay_listing(
     listing: Listing, doc: Document, checks: list[Check]
 ) -> list[dict[str, str]]:
-    container, found = _find(doc, listing.container)
+    container, found = _find(doc, listing.container, listing.siblings)
     if container is None:
         checks.append(
             Check("listing", f"the listing at {listing.container}", found, False)
@@ -1509,14 +1941,20 @@ def _heal_fields(
     """Each page field where it still is, or where its old values are now.
 
     A field stays when its place still holds a value that reads as it did;
-    otherwise it moves to where the new pages show one of its old values, the
-    page's own place first, as it was learnt; a field found in neither way is
-    vanished and kept out, since a guess would read the wrong value under the
-    old name.
+    otherwise it moves to where the new pages show one of its old values, and
+    only among the page's own places: in a related products strip the same
+    price is another product's. A field found in neither way is vanished and
+    kept out, since a guess would read the wrong value under the old name; one
+    two own places claim, reading different values, is ambiguous, for a
+    person to decide.
     """
     kept: list[PageField] = []
     changes: list[Change] = []
-    texts = [_text_nodes(doc) for doc in docs] if any(f.anchor for f in old) else []
+    texts = (
+        [_text_nodes(doc) for doc in docs]
+        if any(f.anchor or f.label for f in old)
+        else []
+    )
     for f in old:
         read = _READERS[f.reads] if f.reads else None
         if f.anchor is not None:
@@ -1538,29 +1976,58 @@ def _heal_fields(
                 continue
         else:
             values = [v for doc in docs if (v := _value_at(doc, f.path))]
-            if values and (read is None or all(read(v) for v in values)):
-                kept.append(_relearnt(f, f.path, values))
+            moved_away = f.label is not None and any(
+                _label_moved(f, doc, nodes)
+                for doc, nodes in zip(docs, texts, strict=True)
+            )
+            if (
+                values
+                and not moved_away
+                and (read is None or all(read(v) for v in values))
+            ):
+                kept.append(_relearnt(f, f.path, values, label=f.label))
                 continue
-        moved = next(
+            if moved_away and f.label is not None:
+                # The place holds another row's value, and the label every
+                # learnt page put before this one says where it went.
+                anchor = Anchor(f.label, "after")
+                found = [v for nodes in texts if (v := _value_after(nodes, anchor)[0])]
+                if found and (read is None or all(read(v) for v in found)):
+                    changes.append(Change("moved", f.name, f"after {f.label!r}"))
+                    kept.append(_relearnt(f, f.path, found, anchor))
+                    continue
+        claimed = next(
             (
-                place
+                places
                 for sample in f.samples
                 for doc in docs
-                if (place := next(iter(_places(doc, sample)), None))
+                if (places := _places(doc, sample, own=True))
             ),
             None,
         )
-        if moved is None:
+        if claimed is None:
             changes.append(Change("vanished", f.name, None))
             continue
-        found = [v for doc in docs if (v := _value_at(doc, moved))]
+        moved = claimed[0]
+        read_there = [_value_at(doc, moved) for doc in docs]
+        if any(
+            [_value_at(doc, other) for doc in docs] != read_there
+            for other in claimed[1:]
+        ):
+            changes.append(Change("ambiguous", f.name, moved))
+            continue
+        found = [v for v in read_there if v]
         changes.append(Change("moved", f.name, moved))
-        kept.append(_relearnt(f, moved, found))
+        kept.append(_relearnt(f, moved, found, label=_label_before(docs, moved)))
     return tuple(kept), changes
 
 
 def _relearnt(
-    f: PageField, path: str, values: list[str], anchor: Anchor | None = None
+    f: PageField,
+    path: str,
+    values: list[str],
+    anchor: Anchor | None = None,
+    label: str | None = None,
 ) -> PageField:
     """``f`` at ``path``, or after ``anchor``, its samples those of the new
     pages, its reading kept."""
@@ -1568,17 +2035,18 @@ def _relearnt(
     return PageField(
         name=f.name,
         path=path,
-        shape=shapes.pop()
+        shape=(shapes.pop() or None)
         if f.shape and len(shapes) == 1 and len(values) >= _SHAPE_EVIDENCE
         else None,
         samples=tuple(dict.fromkeys(values))[:_SAMPLES] or f.samples,
         reads=f.reads,
         anchor=anchor,
+        label=label,
     )
 
 
 def _heal_listing(
-    old: Listing, new: Listing, pages: Sequence[Page]
+    old: Listing, new: Listing, docs: list[Document]
 ) -> tuple[Listing, list[Change]]:
     changes: list[Change] = []
     if old.container != new.container:
@@ -1586,8 +2054,7 @@ def _heal_listing(
     if old.member != new.member:
         changes.append(Change("member", old.member, new.member))
     values: dict[str, list[str]] = {f.path: [] for f in new.fields}
-    for html, url in pages:
-        doc = load(html, url=url)
+    for doc in docs:
         container, _found = _find(doc, new.container)
         if container is None:
             continue
@@ -1705,7 +2172,13 @@ def _heal_listing(
         sorted(fields, key=lambda f: (position.get(f.name, len(position)), f.name))
     )
     listing = Listing(
-        new.container, new.member, new.rows, fields, new.empty, chosen=old.chosen
+        new.container,
+        new.member,
+        new.rows,
+        fields,
+        new.empty,
+        chosen=old.chosen,
+        siblings=new.siblings,
     )
     return listing, changes
 

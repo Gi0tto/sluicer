@@ -210,7 +210,10 @@ A currency symbol or code around the number is dropped. When both a point
 and a comma appear, the last one is the decimal separator. When only one
 appears once, it is the decimal separator unless exactly three digits follow
 it: ``1,299`` and ``1.299`` are refused, since each is a thousand somewhere
-and a little over one somewhere else (``0.999`` is not ambiguous).
+and a little over one somewhere else (``0.999`` is not ambiguous). Digits
+grouped by a separator, a space or an apostrophe are grouped in thousands,
+``1 299,00`` or ``1'299.00``, or the text is refused: ``12 50`` is not 1250.
+A number JSON writes with an exponent, ``1.5e3``, is the amount it names.
 
 ### `sluicer.normalise.currency`
 
@@ -248,6 +251,7 @@ fetch(
     allow_private: bool = True,
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = 16777216,
+    proxy: str | None = None,
 ) -> Fetched
 ```
 
@@ -256,13 +260,14 @@ Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 **Arguments**
 
 - `url`: an http(s) address.
-- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default. Injected so tests stay off the network.
+- `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default. Injected so tests stay off the network. The default rungs are the real web, so a fetch with them holds the site in ``sluicer.fetch.gate`` for its whole length -- robots.txt, the page, any climb -- a second after anyone's last request to it. Injected rungs are the caller's to pace, as a crawl paces its own.
 - `obey_robots`: ask the site's robots.txt first (the default), and again for the host a redirect ended on.
 - `stealth`: append the stealth rung, which does not announce itself. Never automatic.
 - `robots_reader`: how robots.txt is read; built from the cheapest rung by default.
 - `allow_private`: when false, refuse addresses off the public internet: the one asked for before any request, and every one a redirect or the page itself names before it is requested. The MCP server sets it.
 - `resolve`: the name lookup ``allow_private`` decides with.
 - `max_bytes`: the most a page may weigh; heavier is ``ResponseTooLarge``, and never a reason to climb.
+- `proxy`: the proxy the default rungs and the stealth rung go through; ``SLUICER_PROXY`` when None, and none when that is unset. The environment's ``HTTPS_PROXY`` is never used. Through a proxy the private-network check still judges every address here, but the connection is the proxy's: see SECURITY.md.
 
 **Returns**
 
@@ -271,7 +276,9 @@ The ``Fetched`` page, with every climb, the final URL, and how long each rung to
 **Raises**
 
 - `RobotsRefused`: the site's robots.txt disallows the URL.
-- `AddressRefused`: ``allow_private`` is false and the address, or one a redirect led to, is private.
+- `SiteRefused`: the page the ladder was left with is a challenge page.
+- `PaymentRequired`: a rung was answered 402; no other rung is asked.
+- `AddressRefused`: the address, or one a redirect led to, is not http or https; or ``allow_private`` is false and it is private.
 - `ResponseTooLarge`: the page is heavier than ``max_bytes``.
 - `RedirectRefused`: an injected rung was given a rule for redirects, and a hop broke it.
 - `FetchFailed`: every rung failed, the URL is invalid, or its robots.txt could not be read.
@@ -318,7 +325,7 @@ Learn an extractor from pages of one template.
 - `pages`: the pages, each as ``(html, url)``.
 - `listing`: learn the listing the pages repeat. None, the default, learns one unless a page declares its own subject -- a product, an article -- whose page it is; True looks for one anyway.
 - `names`: what to call each page in ``learnt_from``; its address by default.
-- `want`: example values, by the name each is to have: ``{"price": "41.90", "title": "Brake pad set"}``. When a repeated group's rows hold every one -- the first such group, in page order -- they choose the listing and its columns, which are only the ones named. When no one group holds them all, or with ``listing=False``, they are the page's own values, a product page's price and title, each learnt where it sits on the page, the page's own place before its furniture and its listings. A value matches when it says the same with its spaces collapsed, or is the same amount.
+- `want`: example values, by the name each is to have: ``{"price": "41.90", "title": "Brake pad set"}``. When a repeated group's rows hold every one, each in a column of its own -- the first such group, in page order -- they choose the listing and its columns, which are only the ones named. When no one group holds them all, or with ``listing=False``, they are the page's own values, a product page's price and title, each learnt where it sits on the page, the page's own place before its furniture and its listings. A value matches when it says the same with its spaces collapsed, or is the same amount.
 
 **Raises**
 

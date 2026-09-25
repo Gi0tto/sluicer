@@ -248,6 +248,7 @@ def fake_fetch(
         allow_private=True,
         resolve=None,
         max_bytes=None,
+        proxy=None,
     ):
         fetch.calls.append({"url": url, "allow_private": allow_private})
         if raises is not None:
@@ -591,6 +592,45 @@ def test_a_refusal_reaches_every_tool_as_an_answer_it_can_read(monkeypatch):
             result["error"]["url"] == url
             and result["error"]["code"] == "refused_by_robots"
         ), f"{name}: {result!r}"
+
+
+def test_a_challenge_page_is_answered_as_the_site_refusing(monkeypatch):
+    """The last rung's challenge page came back ok: true, a waiting room's
+    words read as the page's."""
+    from sluicer.fetch import SiteRefused
+
+    registered = fake_mcp(monkeypatch)
+    url = "https://example.com/p"
+    reason = "the response is a challenge page, not the content: 'just a moment'"
+    fake_fetch(monkeypatch, raises=SiteRefused(url, [], reason))
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    for name in ("extract_declared", "page_markdown", "fetch_page"):
+        answer = registered[name](url)
+        assert answer["ok"] is False, name
+        assert answer["error"]["code"] == "refused_by_site", name
+        assert answer["error"]["retryable"] is False, name
+        assert answer["error"]["url"] == url, name
+        assert "just a moment" in answer["error"]["message"], name
+
+
+def test_a_site_that_asks_to_be_paid_is_answered_so(monkeypatch):
+    from sluicer.fetch import PaymentRequired
+
+    registered = fake_mcp(monkeypatch)
+    url = "https://example.com/p"
+    fake_fetch(monkeypatch, raises=PaymentRequired(url, []))
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered["extract_declared"](url)
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "payment_required"
+    assert answer["error"]["retryable"] is False
+    assert "402" in answer["error"]["message"]
 
 
 def test_a_refusal_and_a_missing_extra_can_be_told_apart(monkeypatch):

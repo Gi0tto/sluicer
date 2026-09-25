@@ -90,6 +90,15 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
     return None
 
 
+def challenge_marker(html: str, found_records: bool) -> str | None:
+    """The marker that makes ``html`` a challenge page, or None when it is not.
+
+    ``why_climb``'s first rule, alone: whatever the status, a page that is
+    this is the site standing in front of the content, never the content.
+    """
+    return _challenge(html, _TAGS.sub(" ", html).strip(), found_records)
+
+
 def _challenge(html: str, text: str, found_records: bool) -> str | None:
     """The marker that makes ``html`` a challenge page, or None when it is not.
 

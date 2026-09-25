@@ -55,20 +55,33 @@ def read_microdata(doc: Document) -> list[dict[str, Any]]:
     than as a record of its own. A property declared more than once is a list
     in document order; declared once, it is its value.
     """
+    scopes = doc.tree.xpath("//*[@itemscope]")
+    if not scopes:
+        # Most pages: no item, so no index of ids and no order of the elements,
+        # which were a fifth of the time a page without microdata took.
+        return []
+    referring = doc.tree.xpath("//*[@itemref]")
     by_id: dict[str | None, HtmlElement] = {}
-    for element in doc.tree.xpath("//*[@id]"):
-        # The standard's first element with an id, not the last.
-        by_id.setdefault(element.get("id"), element)
+    if referring:
+        for element in doc.tree.xpath("//*[@id]"):
+            # The standard's first element with an id, not the last.
+            by_id.setdefault(element.get("id"), element)
     referenced = {
         by_id[ref]
-        for scope in doc.tree.xpath("//*[@itemref]")
+        for scope in referring
         for ref in (scope.get("itemref") or "").split()
         if ref in by_id
     }
-    order = {element: index for index, element in enumerate(doc.tree.iter())}
+    # Only an item gathering from other elements by itemref needs its
+    # properties sorted; with nothing referenced, none does.
+    order = (
+        {element: index for index, element in enumerate(doc.tree.iter())}
+        if referenced
+        else {}
+    )
     left = [max(_PAGE_FLOOR, 10 * len(doc.html))]
     found: list[dict[str, Any]] = []
-    for scope in doc.tree.xpath("//*[@itemscope]"):
+    for scope in scopes:
         if scope.get("itemprop") is not None and (
             _nearest_scope(scope) is not None or _inside(scope, referenced)
         ):
@@ -226,6 +239,9 @@ def _properties(scope: HtmlElement, context: _Context) -> list[HtmlElement]:
                 found.append(element)
             if element.get("itemscope") is None:
                 pending.extend(reversed(element))
+    if len(roots) == 1:
+        # One root, walked depth first from its first child: document order.
+        return found
     return sorted(found, key=lambda element: context.order.get(element, 0))
 
 
