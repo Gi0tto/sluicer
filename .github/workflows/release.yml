@@ -93,7 +93,7 @@ jobs:
           persist-credentials: false
       - name: Build the image
         run: docker build -t sluicer:release .
-      - name: A client lists its eleven tools over stdio
+      - name: A client lists its twelve tools over stdio
         # A real MCP handshake with the image, as an agent's client starts it:
         # an image that installs but cannot answer tools/list stops here.
         run: python3 packaging/mcp_smoke.py -- docker run -i --rm sluicer:release
@@ -176,7 +176,7 @@ jobs:
           version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
           npx -y @anthropic-ai/mcpb@2.1.2 validate assets/mcpb
           npx -y @anthropic-ai/mcpb@2.1.2 pack assets/mcpb "assets/sluicer-${version}.mcpb"
-      - name: A client lists its eleven tools from the packed bundle
+      - name: A client lists its twelve tools from the packed bundle
         # Unpacked and started as a host does, with uv and the manifest's own
         # command. PyPI does not serve this version yet, so the wheel this
         # workflow built and tested stands in for it.

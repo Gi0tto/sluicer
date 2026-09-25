@@ -109,8 +109,9 @@ uv pip install "sluicer[browser,markdown,mcp]"
 
 `pip install` works the same way, and `uv tool install` gives you the command
 in an environment of its own. The base install, `uv pip install sluicer`, reads
-HTML you already have and fetches pages over plain HTTP, with `lxml`, `click`
-and `protego` (robots.txt) alone, and `tomli` on Python 3.10 to read a
+HTML you already have and fetches pages over plain HTTP, with `lxml`, `click`,
+`cssselect` (CSS selectors) and `protego` (robots.txt) alone, and `tomli` on
+Python 3.10 to read a
 [configuration file](https://gi0tto.github.io/sluicer/configuration/): the
 HTTP client is Python's own.
 
@@ -139,6 +140,7 @@ HTTP still works, and a page that needed a browser says so.
 |---|---|---|
 | a page, as HTML or a URL | `sluicer extract page.html` | every record it declares, a summary that answers 25 questions, its conflicts, each value with where it came from |
 | many pages of one template | `sluicer compile ... --want price=41.90`, then `sluicer run` | the fields you gave an example of, from every page, checked |
+| the selectors you already know | `sluicer compile --select price='span.price::text' ...`, then `sluicer run` | the fields you named, held to the same checks: a selector a redesign broke fails the run |
 | a page that declares nothing | `sluicer extract page.html --induce` | the rows its markup repeats: a listing's cards, a table's lines |
 | a whole site | `sluicer map URL`, `sluicer crawl URL -o site.jsonl` | its addresses from its sitemaps, or every page it links to, read politely |
 | a list of URLs, a web archive | `sluicer batch urls.txt`, `sluicer warc crawl.warc.gz` | one JSON line per page |
@@ -159,8 +161,8 @@ claude mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp   # Claude Code
 codex mcp add sluicer -- uvx --with "sluicer[mcp]" sluicer mcp    # Codex
 ```
 
-The MCP server has eleven read-only tools, among them `extract_declared`,
-`compile_extractor`, `run_extractor` and `heal_extractor`. Every answer carries
+The MCP server has twelve read-only tools, among them `extract_declared`,
+`select_values`, `compile_extractor`, `run_extractor` and `heal_extractor`. Every answer carries
 `ok`, true only when it can be used as it is. The server does not fetch
 localhost, private networks or cloud metadata addresses unless it is started
 with `SLUICER_ALLOW_PRIVATE=1`.

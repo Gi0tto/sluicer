@@ -66,10 +66,11 @@ TOOLS = {
     "map_site",
     "crawl_site",
     "extract_many",
+    "select_values",
 }
 
 
-def test_the_server_registers_its_eleven_tools(monkeypatch):
+def test_the_server_registers_its_twelve_tools(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
@@ -931,6 +932,72 @@ def test_an_agent_heals_an_extractor_after_a_redesign(monkeypatch):
     }
 
 
+def test_an_agent_selects_values_and_sees_where_each_is(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    prices = registered["select_values"](_drift("shop_v1.html"), "span.price::text")
+    links = registered["select_values"](_drift("shop_v1.html"), "//li[1]/a/@href")
+    nothing = registered["select_values"](_drift("shop_v1.html"), "table")
+    broken = registered["select_values"](_drift("shop_v1.html"), "td[")
+
+    assert prices["ok"] is True and prices["count"] == 6
+    assert prices["values"][0] == {
+        "value": "£51.77",
+        "where": "/html/body/div[1]/ol[1]/li[1]/span[1]",
+    }
+    assert links["values"] == [
+        {"value": "/book/1", "where": "/html/body/div[1]/ol[1]/li[1]/a[1]"}
+    ]
+    assert nothing["ok"] is True and nothing["values"] == [] and nothing["count"] == 0
+    assert broken["ok"] is False and broken["error"]["code"] == "bad_input"
+    assert "'td['" in broken["error"]["message"]
+
+
+def test_values_past_the_bound_are_left_out_and_counted(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    rows = "".join(f"<li>{'word ' * 40}{n}</li>" for n in range(2_000))
+
+    got = registered["select_values"](f"<ul>{rows}</ul>", "li")
+
+    assert got["ok"] is True and got["count"] == 2_000
+    assert got["values_left_out"] == 2_000 - len(got["values"]) > 0
+    assert len(json.dumps(got).encode()) <= 75_000
+
+
+def test_an_agent_writes_an_extractor_by_selectors(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    written = registered["compile_extractor"](
+        [_drift("shop_v1.html")],
+        select={"title": "a.title", "price": "span.price"},
+        rows="li.product",
+    )
+    good = registered["run_extractor"](written["extractor"], _drift("shop_v1.html"))
+    bad = registered["run_extractor"](
+        written["extractor"], _drift("shop_redesigned.html")
+    )
+    healed = registered["heal_extractor"](
+        written["extractor"], [_drift("shop_redesigned.html")]
+    )
+    bare = registered["compile_extractor"]([], select={"name": "h1"})
+    unread = registered["compile_extractor"]([], select={"name": "h1["})
+
+    assert written["extractor"]["format"] == 3
+    assert good["ok"] is True and good["rows"][0]["price"] == "£51.77"
+    assert bad["ok"] is False and bad["failed"][0]["name"] == "listing"
+    assert healed["ok"] is False and healed["lost"] is True
+    assert [c["kind"] for c in healed["changes"]] == ["broken"]
+    assert bare["ok"] is True
+    assert unread["error"]["code"] == "bad_input"
+
+
 def test_a_bad_extractor_or_no_page_is_a_bad_input(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
@@ -1479,7 +1546,7 @@ def test_a_tool_that_leaves_a_parameter_unexplained_is_not_registered():
 
 def test_only_the_tools_asked_for_are_registered(monkeypatch):
     """Every tool registered costs an agent context whether it is called or
-    not; a client that wants two of the eleven can have only those."""
+    not; a client that wants two of the twelve can have only those."""
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
@@ -1488,7 +1555,7 @@ def test_only_the_tools_asked_for_are_registered(monkeypatch):
     assert set(registered["__tool_options__"]) == {"extract_declared", "page_markdown"}
 
 
-def test_a_tool_asked_for_that_does_not_exist_is_named_with_the_eleven_that_do(
+def test_a_tool_asked_for_that_does_not_exist_is_named_with_the_twelve_that_do(
     monkeypatch,
 ):
     fake_mcp(monkeypatch)

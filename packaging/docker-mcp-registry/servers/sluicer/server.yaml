@@ -17,7 +17,7 @@ source:
   project: https://github.com/Gi0tto/sluicer
   commit: TAGGED_COMMIT # build_assets.py --commit writes the tagged one
 config:
-  description: Choose which of Sluicer's eleven tools to offer
+  description: Choose which of Sluicer's twelve tools to offer
   env:
     - name: SLUICER_MCP_TOOLS
       example: extract_declared,page_markdown
@@ -27,4 +27,4 @@ config:
     properties:
       tools:
         type: string
-        description: Comma-separated tool names, such as extract_declared,page_markdown. Empty offers all eleven.
+        description: Comma-separated tool names, such as extract_declared,page_markdown. Empty offers all twelve.

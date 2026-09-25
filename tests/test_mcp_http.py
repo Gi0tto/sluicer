@@ -130,7 +130,7 @@ def test_the_tools_listed_over_http_are_the_servers_own(mcp, mode):
     listed = mcp(http_api.build_app(server), act, mode=mode)
 
     assert listed == over_stdio
-    assert len(listed) == 11
+    assert len(listed) == 12
     for tool in listed:
         assert tool["annotations"]["readOnlyHint"] is True, tool["name"]
         assert tool["outputSchema"]["required"] == ["ok"], tool["name"]
@@ -325,7 +325,7 @@ def test_the_servers_own_origin_and_none_at_all_are_answered(mcp):
 
     for answer in mcp(http_api.build_app(), act, connect=False):
         assert answer.status_code == 200, answer.text
-        assert len(answer.json()["result"]["tools"]) == 11
+        assert len(answer.json()["result"]["tools"]) == 12
 
 
 @pytest.mark.parametrize(
@@ -378,7 +378,7 @@ def test_beyond_loopback_any_host_is_answered_with_the_token(mcp):
         base_url="http://sluicer.example",
     )
 
-    assert len(tools) == 11
+    assert len(tools) == 12
 
 
 def test_a_body_over_the_bound_is_refused_before_it_is_read(mcp, monkeypatch):

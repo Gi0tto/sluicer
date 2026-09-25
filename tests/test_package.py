@@ -138,6 +138,17 @@ def test_the_base_install_declares_everything_a_fetch_uses():
         assert not any(absent in line for line in base), base
 
 
+def test_the_base_install_declares_the_translator_css_selectors_are_read_by():
+    """cssselect arrived with ``scrapling`` alone, so a base install that read
+    a CSS selector would have found it only beside the stealth extra: it is
+    the base install's since selectors are, in 0.8."""
+    from importlib import metadata
+
+    base = [line for line in metadata.requires("sluicer") if "extra ==" not in line]
+
+    assert any(line.startswith("cssselect") for line in base), base
+
+
 def test_the_structure_package_has_a_surface_of_its_own():
     """`induce` the function shadowed `sluicer.induce` the package, and won.
 

@@ -104,8 +104,8 @@ header or a cookie.
 file that says so: a default nobody sees on the command line is one to
 repeat. Some options cannot be set in a file, because each belongs to one run:
 `-o`/`--output` and `--out`, `--resume`, `--url`, `--at`, `--want`,
-`--listing`, `--force`, `--stealth` (the stealth rung is asked for page by
-page), `--any-site`, `crawl --template` and `serve --allow-unauthenticated`. A file that sets one
+`--select`, `--rows`, `--listing`, `--force`, `--stealth` (the stealth rung
+is asked for page by page), `--any-site`, `crawl --template` and `serve --allow-unauthenticated`. A file that sets one
 is refused and says why.
 
 ## When the file is wrong

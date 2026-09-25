@@ -1,10 +1,11 @@
 """Sluicer as a tool an agent can call, over the Model Context Protocol.
 
-Eleven tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``,
+Twelve tools -- ``extract_declared``, ``page_markdown``, ``fetch_page``,
 ``compile_extractor``, ``run_extractor``, ``heal_extractor``, ``audit_page``,
-``read_feed``, ``map_site``, ``crawl_site`` and ``extract_many`` -- expose
-what the library does and add no logic of their own beyond bounds: a map, a
-crawl or a list of pages an agent starts is small and has a clock.
+``read_feed``, ``map_site``, ``crawl_site``, ``extract_many`` and
+``select_values`` -- expose what the library does and add no logic of their
+own beyond bounds: a map, a crawl or a list of pages an agent starts is small
+and has a clock.
 Run it with ``sluicer-mcp``; it needs the ``mcp`` extra.
 
 Every answer carries ``ok``, true exactly when it can be used as it is, and has
@@ -39,6 +40,11 @@ from sluicer.fetch import (
 from sluicer.fetch.archive import NotArchived
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
 from sluicer.markdown import to_markdown
+from sluicer.selectors import (
+    SelectorError,
+    parse as parse_page,
+    selector as read_selector,
+)
 
 MOST_CHARS = 60_000
 """The most characters of a page, or of its markdown, one answer carries.
@@ -112,7 +118,7 @@ class McpExtraMissing(MissingExtra):
 
 
 class UnknownTool(ValueError):
-    """A tool asked for by name is not one of the eleven."""
+    """A tool asked for by name is not one of the twelve."""
 
 
 def _server_class() -> Any:
@@ -334,11 +340,11 @@ def _page_of(
 
 
 def build_server(tools: Iterable[str] | None = None) -> Any:
-    """Build the server with its eleven tools registered.
+    """Build the server with its twelve tools registered.
 
     ``tools`` names the ones to register, when a client wants fewer: each
     registered tool costs an agent context whether it is called or not. A
-    name that is not one of the eleven is an ``UnknownTool``, a ``ValueError``,
+    name that is not one of the twelve is an ``UnknownTool``, a ``ValueError``,
     that lists them.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
@@ -592,6 +598,8 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         pages: list[str],
         listing: bool | None = None,
         want: dict[str, str] | None = None,
+        select: dict[str, str] | None = None,
+        rows: str | None = None,
     ) -> answers.CompileAnswer:
         """Learn an extractor from pages of one template, to replay later for free.
 
@@ -604,6 +612,13 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         column is to have, as {"price": "41.90", "title": "Brake pad set"}:
         they choose the listing and the columns, and only those columns are
         kept. A value that no row holds is an error that names it.
+        select: instead of want, each field by a CSS or XPath selector you
+        write, as {"title": "h1", "price": "span.price::text"}; pages may
+        then be empty. Where the fields are is not learnt; what the pages
+        show of them is, and a run fails when a selector finds nothing. Try
+        a selector first with select_values.
+        rows: with select, the selector of a listing's rows ("li.product"),
+        each field then read inside each row.
 
         Returns {"ok", "extractor"}: keep that object and hand it to
         run_extractor. It holds what the pages declared, the listing's place,
@@ -611,12 +626,18 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         than one answer may be, 75,000 bytes, is too_large: sluicer compile
         writes it to a file.
         """
-        if not pages:
+        if not pages and select is None:
             raise _BadInput("compile_extractor needs at least one page")
+        if select is not None or rows is not None:
+            try:
+                # Every selector read before any page is fetched.
+                extractor_module.compile_extractor([], select=select, rows=rows)
+            except ValueError as unread:
+                raise _BadInput(str(unread)) from unread
         read = [_html_of(one)[:2] for one in pages]
         try:
             learnt = extractor_module.compile_extractor(
-                read, listing=listing, want=want
+                read, listing=listing, want=want, select=select, rows=rows
             )
         except (extractor_module.NothingToLearn, ValueError) as nothing:
             raise _BadInput(str(nothing)) from nothing
@@ -672,7 +693,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         columns, and its change carries the evidence: how many of the values it
         was learnt with were found in the new place. "lost" is true when a
         change is data the page no longer has -- vanished, summary-lost,
-        type-lost, listing-lost -- and then ok is false: the old extractor,
+        type-lost, listing-lost, or broken: a selector written by hand that
+        the pages no longer bear out, which heal never rewrites -- and then
+        ok is false: the old extractor,
         which keeps failing, is the safer one to keep until a person looks.
         A healed extractor heavier than 75,000 bytes is too_large.
         """
@@ -954,6 +977,49 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         )
         return cast(answers.ManyAnswer, answer)
 
+    @tool("Select values on a page")
+    @_answers_instead_of_raising
+    def select_values(
+        html_or_url: str, selector: str, respect_tdm: bool = False
+    ) -> answers.SelectAnswer:
+        """Say what a CSS or XPath selector gives on a page, and where each value is.
+
+        html_or_url: an http(s) URL to fetch, or the HTML itself.
+        selector: CSS, with ::text for an element's own text and
+        ::attr(name) for an attribute ("span.price::text", "a::attr(href)"),
+        or XPath ("//h1", "//a/@href"), told apart by how it begins: an XPath
+        begins with /, ./, ( or @, or is written after "xpath:".
+        respect_tdm: answer tdm_reserved when the site reserves its text and
+        data mining rights (TDMRep).
+
+        Returns {"ok", "url", "values", "count"}, and "fetch" for a URL:
+        values are {"value", "where"}, the text or attribute read, spaces
+        collapsed, links resolved, and the XPath of its element; count is
+        how many the selector gave. A selector that cannot be read is
+        bad_input naming it; one that gives nothing is ok with no values.
+        Past 75,000 bytes the last values are left out, counted in
+        values_left_out. Use it to try the selectors compile_extractor's
+        select takes.
+        """
+        try:
+            read_selector(selector)
+        except SelectorError as unread:
+            raise _BadInput(str(unread)) from unread
+        html, url, fetched, headers = _page_of(html_or_url)
+        if respect_tdm:
+            _respect_tdm(html, url, fetched, headers)
+        found = parse_page(html, url, headers).select(selector)
+        answer: dict[str, Any] = {
+            "ok": True,
+            "url": url,
+            "values": [{"value": one.value, "where": one.where} for one in found],
+            "count": len(found),
+        }
+        if fetched is not None:
+            answer["fetch"] = fetched
+        _bounded(answer, _cut_list("values"))
+        return cast(answers.SelectAnswer, answer)
+
     unknown = [name for name in wanted or () if name not in seen]
     if unknown:
         raise UnknownTool(
@@ -1198,8 +1264,8 @@ def main(tools: Iterable[str] | None = None) -> None:
     """Run the server over stdio, or explain a missing ``mcp`` extra in one line.
 
     ``tools`` names the tools to register, or ``SLUICER_MCP_TOOLS`` does; all
-    eleven when neither says. A name that is not a tool exits 2, as a wrong
-    option does, with the list of the eleven. A broken install, as opposed to a
+    twelve when neither says. A name that is not a tool exits 2, as a wrong
+    option does, with the list of the twelve. A broken install, as opposed to a
     missing one, keeps its traceback.
     """
     if tools is None and os.environ.get(TOOLS_ENV, "").strip():

@@ -73,6 +73,10 @@
     {
       "name": "extract_many",
       "description": "Several pages' declared data, each site asked in turn."
+    },
+    {
+      "name": "select_values",
+      "description": "What a CSS or XPath selector gives on a page, and where."
     }
   ],
   "keywords": [
@@ -105,7 +109,7 @@
     "tools": {
       "type": "string",
       "title": "Tools to offer",
-      "description": "Comma-separated tool names, to offer only some of the eleven, such as extract_declared,page_markdown. Empty offers all eleven.",
+      "description": "Comma-separated tool names, to offer only some of the twelve, such as extract_declared,page_markdown. Empty offers all twelve.",
       "default": "",
       "required": false
     }
