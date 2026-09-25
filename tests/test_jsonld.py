@@ -178,15 +178,20 @@ def test_a_block_at_the_edge_of_the_parser_never_escapes_as_a_recursion_error():
         extract(html)
 
 
-def test_a_block_can_be_read_with_its_numbers_as_json_reads_them():
+def test_a_number_is_read_as_the_text_the_page_wrote():
     raw = '{"price": 41.90, "count": 3, "ratio": NaN}'
 
     assert _parse(raw) == {"price": "41.90", "count": "3", "ratio": None}
-    parsed = _parse(raw, as_written=False)
+
+
+def test_the_extruct_layer_reads_numbers_as_json_reads_them():
+    from sluicer.compat.extruct.jsonld import _as_extruct_reads
+
+    parsed = _as_extruct_reads('{"price": 41.90, "count": 3, "ratio": NaN}')
     assert isinstance(parsed, dict)
     assert (parsed["price"], parsed["count"]) == (41.9, 3)
     assert parsed["ratio"] != parsed["ratio"]  # NaN, as json.loads reads it
-    assert _parse('{"a": 1,}', as_written=False) == {"a": 1}
+    assert _as_extruct_reads('{"a": 1,}') == {"a": 1}
 
 
 def test_a_node_holding_a_graph_beside_its_own_properties_is_a_node_too():
@@ -220,10 +225,74 @@ def test_a_node_holding_a_graph_beside_its_own_properties_is_a_node_too():
 
 
 def test_a_graph_s_own_identifier_or_context_is_no_node():
+    """Its context is its nodes': see the test below."""
     assert _one(
         '{"@context": "https://schema.org", "@id": "https://shop.example/#graph",'
         ' "@graph": [{"@type": "Product", "name": "Pad"}]}'
-    ) == [{"@type": "Product", "name": "Pad"}]
+    ) == [{"@context": "https://schema.org", "@type": "Product", "name": "Pad"}]
+
+
+def test_a_node_read_out_of_a_graph_keeps_the_context_it_was_written_in():
+    """The W3C JSON-LD suite's tests e004, c004 and r004.
+
+    Read out of its graph without the block's context, ``ex:foo`` no longer
+    said ``http://example.com/foo``: to a processor it was an address with the
+    scheme ``ex``, and nothing could tell it from a word of any vocabulary. A
+    node that has a context of its own keeps it, after the graph's; a graph
+    inside a graph passes on both.
+    """
+    found = _one(
+        '{"@context": {"ex": "http://example.com/"}, "@graph": ['
+        '{"ex:foo": "a"},'
+        ' {"@context": {"b": "http://b.example/"}, "b:x": "y"},'
+        ' {"@context": ["https://schema.org"], "@graph": [{"ex:bar": "c"}]}]}'
+    )
+
+    assert found == [
+        {"@context": {"ex": "http://example.com/"}, "ex:foo": "a"},
+        {
+            "@context": [{"ex": "http://example.com/"}, {"b": "http://b.example/"}],
+            "b:x": "y",
+        },
+        {
+            "@context": [{"ex": "http://example.com/"}, "https://schema.org"],
+            "ex:bar": "c",
+        },
+    ]
+    assert [node.where for node in found] == [
+        "/html/head/script[1]#/@graph/0",
+        "/html/head/script[1]#/@graph/1",
+        "/html/head/script[1]#/@graph/2/@graph/0",
+    ]
+
+
+def test_a_node_beside_a_graph_is_in_the_context_of_the_graph_around_it():
+    found = _one(
+        '{"@context": {"ex": "http://example.com/"}, "@graph": ['
+        '{"@type": "Brand", "ex:name": "Only", "@graph": [{"ex:foo": "a"}]}]}'
+    )
+
+    assert found == [
+        {"@context": {"ex": "http://example.com/"}, "ex:foo": "a"},
+        {
+            "@context": {"ex": "http://example.com/"},
+            "@type": "Brand",
+            "ex:name": "Only",
+        },
+    ]
+
+
+def test_a_term_a_context_defines_is_never_resolved_as_a_reference():
+    """A term defined as ``{"@id": ...}`` is not a reference to a node."""
+    found = _one(
+        '{"@context": {"@vocab": "https://schema.org/", "maker": {"@id": "#me"}},'
+        ' "@graph": [{"@id": "#me", "@type": "Person", "name": "Ann"},'
+        ' {"@type": "Product", "maker": {"@id": "#me"}}]}'
+    )
+
+    context = {"@vocab": "https://schema.org/", "maker": {"@id": "#me"}}
+    assert found[1]["@context"] == context
+    assert found[1]["maker"]["name"] == "Ann"
 
 
 def test_a_node_holding_a_graph_comes_after_the_nodes_in_it():
@@ -234,3 +303,156 @@ def test_a_node_holding_a_graph_comes_after_the_nodes_in_it():
     )
 
     assert [item["name"] for item in found] == ["Shirt", "Top", "Only"]
+
+
+# --- what a block's context names ----------------------------------------------
+
+
+def _record(block: str):
+    from sluicer import extract
+
+    records = extract(
+        f'<html><head><script type="application/ld+json">{block}</script></head></html>'
+    ).records
+    assert len(records) == 1
+    return records[0]
+
+
+def test_a_word_a_context_gives_another_vocabulary_is_named_by_its_address():
+    """A record names a schema.org property by its own name and any other by
+    its full address, as RDFa's are named: a FOAF ``name`` read as schema.org's
+    was the product's title."""
+    record = _record(
+        '{"@context": ["https://schema.org", {"name": "http://xmlns.com/foaf/0.1/name",'
+        ' "ex": "http://example.com/"}],'
+        ' "@type": "Product", "name": "Ann", "ex:colour": "red", "sku": "BP-1"}'
+    )
+
+    assert list(record.fields) == [
+        "http://xmlns.com/foaf/0.1/name",
+        "http://example.com/colour",
+        "sku",
+    ]
+    assert record.fields["http://example.com/colour"].where == (
+        "/html/head/script[1]#/ex:colour"
+    )
+
+
+def test_the_w3c_graph_s_prefixed_words_are_named_by_their_addresses():
+    """The W3C JSON-LD suite's e004: ``ex:foo`` is http://example.com/foo."""
+    from sluicer import extract
+
+    page = (
+        '<script type="application/ld+json">{"@context": {"foo": {"@id":'
+        ' "http://example.com/foo", "@container": "@list"}},'
+        ' "foo": [{"@value": "bar"}]}</script>'
+        '<script type="application/ld+json">{"@context": {"ex": "http://example.com/"},'
+        ' "@graph": [{"ex:foo": {"@value": "foo"}}, {"ex:bar": {"@value": "bar"}}]}'
+        "</script>"
+    )
+
+    assert [
+        {name: field.value for name, field in record.fields.items()}
+        for record in extract(page).records
+    ] == [
+        {"http://example.com/foo": ["bar"]},
+        {"http://example.com/foo": "foo"},
+        {"http://example.com/bar": "bar"},
+    ]
+
+
+def test_a_type_a_context_gives_another_vocabulary_is_named_by_its_address():
+    record = _record(
+        '{"@context": {"@vocab": "http://example.com/"}, "@type": "Product",'
+        ' "name": "Pad"}'
+    )
+
+    assert (record.type, list(record.fields)) == (
+        "http://example.com/Product",
+        ["http://example.com/name"],
+    )
+
+
+def test_schema_org_s_words_keep_their_names_however_they_are_written():
+    for block in (
+        '{"@context": "https://schema.org", "@type": "Product", "name": "Pad"}',
+        '{"@context": "http://schema.org/", "@type": "schema:Product",'
+        ' "schema:name": "Pad"}',
+        '{"@context": {"@vocab": "http://schema.org"}, "@type": "Product",'
+        ' "name": "Pad"}',
+        '{"@context": {"s": "https://schema.org/"}, "@type": "s:Product",'
+        ' "s:name": "Pad"}',
+        '{"@type": "http://schema.org/Product", "http://schema.org/name": "Pad"}',
+        '{"@type": "Product", "name": "Pad"}',
+    ):
+        record = _record(block)
+        assert (record.type, list(record.fields)) == ("Product", ["name"]), block
+
+
+def test_a_word_a_context_does_not_define_to_an_address_is_kept_as_written():
+    """A remote context not schema.org's is not fetched, a word it would
+    define is not known, and a definition naming no address -- one real page
+    maps ``articleId`` and ``topics`` to ``"Text"`` -- is not followed."""
+    for block, names in (
+        ('{"@context": "https://w3id.org/x", "@type": "T", "name": "a"}', ["name"]),
+        (
+            '{"@context": {"@vocab": "http://schema.org", "articleId":'
+            ' {"@id": "Text", "@type": "@id"}}, "@type": "Article", "articleId": "7",'
+            ' "headline": "h"}',
+            ["articleId", "headline"],
+        ),
+        ('{"@context": {"ex": "http://example.com/"}, "@type": "T", "a": "1"}', ["a"]),
+        ('{"@context": {"a": null}, "@type": "T", "a": "1"}', ["a"]),
+    ):
+        assert list(_record(block).fields) == names, block
+
+
+def test_a_word_no_address_can_hold_is_kept_as_written():
+    """Two real pages: AP News types a node ``JW Videos``, and another writes
+    ``"description "``; neither became an address under schema.org's."""
+    record = _record(
+        '{"@context": "https://schema.org", "@type": "JW Videos",'
+        ' "description ": "d", "a/b": "c"}'
+    )
+
+    assert (record.type, list(record.fields)) == ("JW Videos", ["description ", "a/b"])
+
+
+def test_a_nested_node_s_words_are_named_in_its_own_context():
+    record = _record(
+        '{"@context": "https://schema.org", "@type": "Product", "name": "Pad",'
+        ' "offers": {"@context": {"ex": "http://example.com/"}, "@type": "Offer",'
+        ' "price": "41.90", "ex:note": "n"}}'
+    )
+
+    assert record.fields["offers"].value == {
+        "@type": "Offer",
+        "price": "41.90",
+        "http://example.com/note": "n",
+    }
+
+
+def test_a_prefix_is_a_word_whose_address_ends_where_a_name_can_begin():
+    """JSON-LD 1.1: ``foo:bar`` expands through ``foo`` only when foo's
+    address ends in ``/``, ``#`` or another delimiter."""
+    record = _record(
+        '{"@context": {"foo": "http://example.com/foo", "ex": "http://example.com/"},'
+        ' "@type": "T", "foo:bar": "1", "ex:bar": "2"}'
+    )
+
+    assert list(record.fields) == ["foo:bar", "http://example.com/bar"]
+
+
+def test_a_context_of_terms_defined_through_each_other_costs_a_bounded_amount():
+    """Five thousand terms, each the one before with ``:x/``: followed to its
+    end, every term walked the chain, past Python's recursion limit. A term
+    more than a few definitions from an address is kept as written."""
+    import json
+
+    context = {"t0": "http://example.com/"}
+    context.update({f"t{n}": f"t{n - 1}:x/" for n in range(1, 5000)})
+    record = _record(
+        json.dumps({"@context": context, "@type": "T", "t4999": "v", "t2": "w"})
+    )
+
+    assert list(record.fields) == ["t4999", "http://example.com/x/x/"]

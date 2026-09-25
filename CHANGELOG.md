@@ -351,6 +351,47 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- The records' documentation says what a JSON-LD number becomes: the text
+  the page wrote, `"41.90"` and not `41.9`, as every value in a record is
+  text (`Field`, the getting-started guide). It always was, on purpose, and
+  was said only in the reader's docstring. The W3C conformance page says it
+  too; none of the suite's HTML pages writes a number.
+- A JSON-LD record names its properties and types through the block's
+  `@context`, as RDFa's are named through `vocab` and `prefix`: a schema.org
+  word by its own name, however it is written (`schema:name`,
+  `http://schema.org/name`, a prefix of the block's own), and another
+  vocabulary's by its full address. A word a context mapped elsewhere kept
+  its bare spelling, so a `name` defined as FOAF's was schema.org's `name`,
+  the product's title, and `ex:foo` stayed a word no one could read. A word
+  the context says nothing about is kept as written, as before: only
+  schema.org's context is known, nothing is fetched, and a definition naming
+  no address is not followed. The audit names them the same way. Over the
+  3,976 cached corpus pages the summary, `normalised` and conflicts are
+  unchanged; records change on 5 pages, each a word of another vocabulary now
+  named by its address: Contao's `contao:` properties and `contao:Page` type
+  (2 pages), Parse.ly's `asciiDescription` (2), a CSV on the Web table's
+  `csvw:` words (1).
+- A node the JSON-LD reader takes out of a `@graph` keeps the block's
+  `@context`, before any context of its own. Taken out without it, a term the
+  block defined -- `ex:foo` under `{"ex": "http://example.com/"}` -- named
+  nothing, to a JSON-LD processor or to sluicer: the W3C JSON-LD suite's
+  tests e004, c004 and r004 showed it. A term a context defines as
+  `{"@id": ...}` is no longer taken for a reference to a node, and a context
+  is shared by the nodes it covers, never copied or paid for from the
+  reference budget. Over the 3,976 cached corpus pages, `extract()` and the
+  audit answer exactly as before; the reader's answer gains the context on
+  624 of them.
+- `sluicer.compat.extruct` reads a JSON-LD block's text as extruct does:
+  `json.loads`, then without a comment on its first line and without
+  JavaScript's comments and trailing commas. It read blocks as
+  `sluicer.extract` reads them, so a comment wrapped around the JSON, one
+  never closed or never opened, a CDATA wrapper, a byte order mark or a
+  comment left open at the end gave objects where extruct raises, and the W3C
+  JSON-LD suite's tests e014 to e016 and r014 to r016, which want that
+  refusal, failed. Such a block is now skipped and the page's other blocks
+  kept, as a block that is not JSON already was; a block whose first line is
+  a comment, which extruct reads, is now read too. `sluicer.extract` still
+  forgives every one of them.
 - A crawl's `headers=` and `cookies=`, and `--header` and `--cookie` on
   `crawl`, `batch` and `map`, reached no request: the crawl's web was built
   without them. They now go with every page, robots.txt and sitemap, to the

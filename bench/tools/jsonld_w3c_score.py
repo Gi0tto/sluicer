@@ -189,7 +189,15 @@ def why(test: dict[str, Any], html: str, answer: list[Any] | None) -> tuple[str,
         )
     wanted = _as_read(found)
     if answer is not None and not same(answer, wanted):
-        if any(_graph_split(value, answer) for value in wanted):
+        split = [_graph_split(value, answer) for value in wanted]
+        if "with its context" in split:
+            return "graph", (
+                "The reader answers the nodes of a script's `@graph` one by one, "
+                "each with the script's `@context`: the same statements, in the "
+                "page's default graph, where a processor given every script "
+                "puts them in a graph of their own."
+            )
+        if "without its context" in split:
             return "graph", (
                 "The reader answers the nodes of a script's `@graph` one by one, "
                 "without the script's `@context`, so their terms no longer "
@@ -202,14 +210,27 @@ def why(test: dict[str, Any], html: str, answer: list[Any] | None) -> tuple[str,
     return "differs", "The result differs from the expected one."
 
 
-def _graph_split(value: Any, answer: list[Any]) -> bool:
+def _graph_split(value: Any, answer: list[Any]) -> str | None:
     """Whether ``answer`` holds ``value``'s ``@graph`` nodes as values of
-    their own, and not ``value`` itself."""
+    their own, and not ``value`` itself: "with its context" when each holds
+    the script's ``@context`` as well, "without its context" when none does,
+    None otherwise."""
     if not (isinstance(value, dict) and isinstance(value.get("@graph"), list)):
-        return False
+        return None
     if any(same(value, given) for given in answer):
-        return False
-    return all(any(same(node, given) for given in answer) for node in value["@graph"])
+        return None
+    nodes = [node for node in value["@graph"] if isinstance(node, dict)]
+    if len(nodes) != len(value["@graph"]):
+        return None
+    if all(any(same(node, given) for given in answer) for node in nodes):
+        return "without its context"
+    if "@context" in value and all(
+        any(same({"@context": value["@context"], **node}, given) for given in answer)
+        for node in nodes
+        if "@context" not in node
+    ):
+        return "with its context"
+    return None
 
 
 def _first_difference(answer: list[Any], wanted: list[Any]) -> str:

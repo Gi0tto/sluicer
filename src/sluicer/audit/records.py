@@ -20,6 +20,7 @@ from typing import Any
 from sluicer.audit import google, values
 from sluicer.audit.report import FeatureVerdict, Finding, RecordAudit
 from sluicer.audit.schema_org import below
+from sluicer.declared.jsonld import Terms
 from sluicer.declared.merge import _scalar, _types
 
 AUDITED_READERS = ("jsonld", "microdata", "rdfa")
@@ -43,12 +44,13 @@ TRUE_REPRESENTATION = (
 representation of the page content."."""
 
 
-def normalise(value: object, depth: int = 0) -> Any:
+def normalise(value: object, depth: int = 0, terms: Terms | None = None) -> Any:
     """``value`` as the audit reads it, or None when it carries nothing.
 
     As ``sluicer.declared.merge`` does -- a value object is its value, a
-    boolean is "true" or "false", blank text is no value -- but an object keeps
-    its ``@id`` and its ``@type``, the type spelt the way records spell it, and
+    boolean is "true" or "false", blank text is no value, a JSON-LD word is
+    named through ``terms`` as a record names it -- but an object keeps its
+    ``@id`` and its ``@type``, the type spelt the way records spell it, and
     an object that declares only a type is kept: an ``Offer`` with nothing in
     it is exactly what a requirement should be asked of.
     """
@@ -56,16 +58,20 @@ def normalise(value: object, depth: int = 0) -> Any:
         return None
     if isinstance(value, list):
         items = [
-            found for item in value if (found := normalise(item, depth + 1)) is not None
+            found
+            for item in value
+            if (found := normalise(item, depth + 1, terms)) is not None
         ]
         return items or None
     if not isinstance(value, dict):
         return _scalar(value)
     for keyword in ("@value", "@list", "@set"):
         if keyword in value:
-            return normalise(value[keyword], depth + 1)
+            return normalise(value[keyword], depth + 1, terms)
+    if terms is not None and "@context" in value:
+        terms = terms.within(value["@context"])
     out: dict[str, Any] = {}
-    types = _types(value.get("@type"))
+    types = _types(value.get("@type"), terms)
     if types:
         out["@type"] = list(types)
     identifier = _scalar(value.get("@id"))
@@ -74,9 +80,9 @@ def normalise(value: object, depth: int = 0) -> Any:
     for key, item in value.items():
         if key.startswith("@"):
             continue
-        found = normalise(item, depth + 1)
+        found = normalise(item, depth + 1, terms)
         if found is not None:
-            out[key] = found
+            out.setdefault(key if terms is None else terms.name(key), found)
     return out or None
 
 

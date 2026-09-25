@@ -677,3 +677,15 @@ def test_two_offers_are_not_one_fact():
     result = audit(page(jsonld) + microdata)
 
     assert [f for f in result.page if f.code == "conflict"] == []
+
+
+def test_a_json_ld_record_is_audited_under_the_names_its_context_gives():
+    """A Product of another vocabulary is not held to schema.org's rules."""
+    block = {"@context": {"@vocab": "http://example.com/"}, "@type": "Product"}
+
+    result = audit(page(block))
+
+    assert [record.types for record in result.records] == [
+        ["http://example.com/Product"]
+    ]
+    assert findings(result, "missing-required") == []

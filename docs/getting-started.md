@@ -79,7 +79,7 @@ from the web Sluicer knows that already.
 | `summary` | one answer per question -- `title`, `price`, `author`, `published` and 21 more -- each with where it came from |
 | `normalised` | what the summary's dates, prices and currencies mean, when that is certain: ISO 8601, a decimal, an ISO 4217 code |
 | `conflicts` | every question the page answers two ways that mean different things |
-| `records` | everything the page declared, one record per thing, every field with its source and place |
+| `records` | everything the page declared, one record per thing, every field with its source and place; every value is text, a JSON-LD number as the page wrote it (`"41.90"`, not `41.9`) |
 | `sources` | the vocabularies that declared something, in the order they are trusted |
 | `links`, `rights` | where else the page lives -- canonical, languages, feeds -- and what it says about how it may be used |
 
