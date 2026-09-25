@@ -52,7 +52,7 @@ Measured with extruct 0.18.0 on Python 3.14, by `bench/extruct_compat.py`. A cel
 | uniform microformats | 360 / 360 | 140 / 140 | 20 / 20 |
 | uniform Dublin Core | 47 / 360 | 6 / 140 | 19 / 20 |
 
-`extruct.extract(html, base_url=url)`, every argument else at its default, raises on 4 of the 520 pages; sluicer's raises on none. The same call over every page takes 27.5 s in extruct and 21.1 s in sluicer, the median of five passes measured as [speed and weight](speed.md) says.
+`extruct.extract(html, base_url=url)`, every argument else at its default, raises on 4 of the 520 pages; sluicer's raises on none. The same call over every page takes 27.0 s in extruct and 19.2 s in sluicer, the median of five passes measured as [speed and weight](speed.md) says.
 
 Every difference, by what explains it:
 
