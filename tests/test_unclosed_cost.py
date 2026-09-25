@@ -145,3 +145,46 @@ def test_a_page_of_many_short_lines_is_read_for_its_bylines_in_a_moment():
     )
 
     assert _seconds(lambda: extract(page, visible=True)) < 20
+
+
+def test_a_page_of_deeply_nested_dates_is_read_in_a_moment():
+    """Measured while checking the second security review's author item: a
+    chain of <time> nested 2,000 deep, as deep as the parser nests, cost the
+    square of its depth twice over. Each <time> walked every box round it,
+    to learn whether it was hidden and whether it sat in a link, and its
+    whole text was read, which holds every <time> inside it. 30 KB of such a
+    chain took 1.3 s, and a page of 35 of them, 1 MiB, 46 s; 1.1 s now."""
+    from sluicer import extract
+
+    chain = "<time>x " * 2_000 + "</time>" * 2_000
+    page = "<html><body><h1>t</h1>" + chain * 35 + "</body></html>"
+
+    assert _seconds(lambda: extract(page, visible=True)) < 5
+
+
+def test_a_time_that_holds_a_dozen_elements_is_a_container_not_a_date():
+    """As an element named as a date's is: none of the 11,062 <time>
+    elements on the 3,988 cached corpus pages holds more than seven."""
+    from sluicer import read_visible
+
+    def published(inside):
+        page = (
+            f"<html><body><h1>t</h1><time>{inside}1 January 2020</time></body></html>"
+        )
+        return read_visible(page).get("published")
+
+    assert published("<b></b>" * 12).value == "2020-01-01"
+    assert published("<b></b>" * 13) is None
+
+
+def test_a_page_of_deeply_nested_by_lines_is_read_in_a_moment():
+    """Measured with the dates above: each "By" line in a chain of boxes
+    nested 2,000 deep read the whole text of the boxes round it to learn it
+    was longer than a byline, and each holds every box inside it: 2 MiB of
+    such chains took 10.4 s, and 1.1 s now."""
+    from sluicer import extract
+
+    chain = "<div>By Ann Lee " * 2_000 + "</div>" * 2_000
+    page = "<html><body><h1>t</h1>" + chain * 48 + "</body></html>"
+
+    assert _seconds(lambda: extract(page, visible=True)) < 5

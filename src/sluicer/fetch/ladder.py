@@ -31,7 +31,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import urlsplit
 
 from sluicer.api import extract
@@ -40,6 +40,7 @@ from sluicer.document import load
 from sluicer.fetch.address import (
     AddressRefused,
     _resolve,
+    shown,
     why_not_public,
     why_not_web,
 )
@@ -63,6 +64,7 @@ from sluicer.fetch.result import (
     RedirectRefused,
     ResponseTooLarge,
     Rung,
+    shown_fetched,
 )
 from sluicer.fetch.rules import challenge_marker, why_climb
 from sluicer.fetch.wire import passing
@@ -89,9 +91,9 @@ class RobotsRefused(Exception):
     """
 
     def __init__(self, url: str, reason: str = "its robots.txt disallows it") -> None:
-        super().__init__(f"{url} is refused: {reason}")
-        self.url = url
-        self.reason = reason
+        super().__init__(shown(f"{url} is refused: {reason}"))
+        self.url = shown(url)
+        self.reason = shown(reason)
 
 
 class FetchFailed(Exception):
@@ -115,10 +117,11 @@ class FetchFailed(Exception):
     def __init__(
         self, url: str, climbs: list[Climb], last: str, transient: bool = True
     ) -> None:
+        climbs = [replace(c, reason=shown(c.reason)) for c in climbs]
         said = "; ".join(f"{c.from_rung}: {c.reason}" for c in climbs)
         before = f" (before that, {said})" if said else ""
-        super().__init__(f"Could not fetch {url}: {last}{before}")
-        self.url = url
+        super().__init__(shown(f"Could not fetch {url}: {last}{before}"))
+        self.url = shown(url)
         self.climbs = climbs
         self.transient = transient
 
@@ -380,7 +383,9 @@ def fetch(
 
     Returns:
         The ``Fetched`` page, with every climb, the final URL, and how long
-        each rung took.
+        each rung took. A password in the URL is sent to the origin it names
+        and never repeated: the ``url`` handed back, a climb's reason and
+        every exception raised here write it ``***`` (``address.shown``).
 
     Raises:
         RobotsRefused: the site's robots.txt disallows the URL.
@@ -459,11 +464,13 @@ def fetch(
     if memory is None and gated:
         memory = STICKY
     if not gated:
-        return _climb(
-            url, rungs, obey_robots, read, allow_private, resolve, max_bytes, memory
+        return shown_fetched(
+            _climb(
+                url, rungs, obey_robots, read, allow_private, resolve, max_bytes, memory
+            )
         )
     with GATE.turn(url) as ready:
-        return _climb(
+        landed = _climb(
             url,
             [(name, after(ready, rung)) for name, rung in rungs],
             obey_robots,
@@ -473,6 +480,7 @@ def fetch(
             max_bytes,
             memory,
         )
+    return shown_fetched(landed)
 
 
 def _climb(

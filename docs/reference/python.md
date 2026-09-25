@@ -409,7 +409,7 @@ Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 
 **Returns**
 
-The ``Fetched`` page, with every climb, the final URL, and how long each rung took.
+The ``Fetched`` page, with every climb, the final URL, and how long each rung took. A password in the URL is sent to the origin it names and never repeated: the ``url`` handed back, a climb's reason and every exception raised here write it ``***`` (``address.shown``).
 
 **Raises**
 

@@ -15,6 +15,7 @@ and made on WCXB's development split only (``bench/PREREG.md``).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cached_property
 from itertools import islice
@@ -145,7 +146,13 @@ class _Page:
     def __init__(self, doc: Document) -> None:
         self.doc = doc
         self.tree = doc.tree
+        # Whether an element or a box round it is chrome, hidden, or a link
+        # away: each box asked once. Asked of every box round each date, a
+        # chain of <time> nested 2,000 deep cost the square of its depth,
+        # and 30 KB of it 1.3 s.
         self._aside: dict[HtmlElement, bool] = {}
+        self._hidden: dict[HtmlElement, bool] = {}
+        self._linked: dict[HtmlElement, bool] = {}
         # Each element's text, read once: a "By" line or a date climbs to
         # boxes it shares with every other one, and reading such a box for
         # each of them cost its square -- 8,000 in one article took 22 s.
@@ -166,24 +173,41 @@ class _Page:
             found = self._text[element] = " ".join(self.raw(element).split())
         return found
 
+    def short(self, element: HtmlElement, most: int) -> str | None:
+        """``element``'s text as ``text`` gives it, or None when that is
+        longer than ``most``: read only as far as it takes to know. A box
+        holds the text of every box inside it, and reading each whole of a
+        chain of them nested 2,000 deep cost the square of its depth."""
+        found = self._text.get(element)
+        if found is None:
+            read: list[str] = []
+            size = 0
+            for piece in element.itertext():
+                read.append(piece)
+                size += len(piece)
+                # Collapsed, what was read begins what the whole collapses to.
+                if size > most and len(" ".join("".join(read).split())) > most:
+                    return None
+            found = self.text(element)
+        return found if len(found) <= most else None
+
     def aside(self, element: HtmlElement) -> bool:
         """Whether ``element`` sits in the page's chrome or another voice's
         box: `_own_aside` of it or of a box round it, each box asked once."""
-        chain: list[HtmlElement] = []
-        node: HtmlElement | None = element
-        found = False
-        while node is not None:
-            if node in self._aside:
-                found = self._aside[node]
-                break
-            chain.append(node)
-            if _own_aside(node):
-                found = True
-                break
-            node = node.getparent()
-        for seen in chain:
-            self._aside[seen] = found
-        return found
+        return _up(element, _own_aside, self._aside)
+
+    def hidden(self, element: HtmlElement) -> bool:
+        """Whether ``element`` or a box round it is hidden from a reader."""
+        return _up(element, _own_hidden, self._hidden)
+
+    def linked(self, element: HtmlElement) -> bool:
+        """Whether ``element`` sits in a link to another page: another
+        article's card. A link to the page itself, WordPress's permalink round
+        its date, is not one."""
+        here = _path_of(self.doc.url)
+        return _up(
+            element, lambda node: _links_away(node, self.doc, here), self._linked
+        )
 
     @cached_property
     def named(self) -> list[tuple[HtmlElement, str]]:
@@ -212,10 +236,19 @@ class _Page:
         ]
 
     @cached_property
+    def times(self) -> list[HtmlElement]:
+        """The page's ``<time>`` elements that may be a date's: one holding
+        more than ``_MOST_INSIDE`` elements is a container, as an element
+        named as a date's is, and its whole text is never read. A chain of
+        them nested 2,000 deep was read in the square of its depth; none of
+        the 11,062 on the cached corpus pages holds more than seven."""
+        return [t for t in self.tree.iter("time") if _small(t)]
+
+    @cached_property
     def listing(self) -> bool:
         """Whether the page shows more different dates than an article's
         header does: a listing's, whose dates are its cards'."""
-        shown = {t.get("datetime") or _text(t) for t in self.tree.iter("time")}
+        shown = {t.get("datetime") or _text(t) for t in self.times}
         shown |= {_text(e) for e in self.named_dates if iso_date(_text(e))}
         return len(shown) > _MOST_DATES
 
@@ -383,8 +416,8 @@ def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | 
     for _ in range(5):
         if element is None or not isinstance(element.tag, str):
             return None
-        text = page.text(element)
-        if len(text) > 80:
+        text = page.short(element, 80)
+        if text is None:
             return None
         if element.tag in ("p", "span", "div", "address") and not page.aside(element):
             before = (
@@ -466,7 +499,7 @@ def _date_in_a_line(page: _Page, updates: bool) -> Guess | None:
         text = _text(element)
         if not 8 <= len(text) <= _LINE_MOST:
             continue
-        if page.aside(element) or _hidden(element) or _in_a_link(element, page.doc):
+        if page.aside(element) or page.hidden(element) or page.linked(element):
             continue
         labelled = _an_update(page, element)
         for start, value in _dates_in(text):
@@ -535,11 +568,11 @@ def _date_places(page: _Page) -> list[HtmlElement]:
     near = [e for e in page.near if _small(e) and 6 <= len(_text(e)) <= 40]
     found: list[HtmlElement] = []
     seen: set[HtmlElement] = set()
-    for element in [*page.tree.iter("time"), *named, *near]:
+    for element in [*page.times, *named, *near]:
         if element in seen:
             continue
         seen.add(element)
-        if page.aside(element) or _hidden(element) or _in_a_link(element, page.doc):
+        if page.aside(element) or page.hidden(element) or page.linked(element):
             continue
         found.append(element)
     return found
@@ -570,10 +603,10 @@ def _date(page: _Page) -> Guess | None:
     doc = page.doc
     times = [
         t
-        for t in page.tree.iter("time")
+        for t in page.times
         if not page.aside(t)
-        and not _in_a_link(t, doc)
-        and not _hidden(t)
+        and not page.linked(t)
+        and not page.hidden(t)
         and not _an_update(page, t)
     ]
     shown = {t.get("datetime") or _text(t) for t in times}
@@ -592,9 +625,9 @@ def _date(page: _Page) -> Guess | None:
             return Guess(value, _where(element), "time")
     for element in _named_dates(page):
         text = _text(element)
-        if not 6 <= len(text) <= 52 or page.aside(element) or _in_a_link(element, doc):
+        if not 6 <= len(text) <= 52 or page.aside(element) or page.linked(element):
             continue
-        if _hidden(element) or _an_update(page, element):
+        if page.hidden(element) or _an_update(page, element):
             continue
         value = iso_date(
             re.sub(r"^\s*(?:published|posted|on)\s*:?\s*", "", text, flags=re.I)
@@ -615,15 +648,36 @@ def _date(page: _Page) -> Guess | None:
     return None
 
 
-def _hidden(element: HtmlElement) -> bool:
-    """Whether ``element`` or a box round it is hidden from a reader."""
-    for node in (element, *element.iterancestors()):
-        style = (node.get("style") or "").replace(" ", "").lower()
-        if "display:none" in style or node.get("hidden") is not None:
-            return True
-        if node.get("aria-hidden") == "true":
-            return True
-    return False
+def _up(
+    element: HtmlElement,
+    own: Callable[[HtmlElement], bool],
+    known: dict[HtmlElement, bool],
+) -> bool:
+    """Whether ``own`` holds of ``element`` or of a box round it, ``known``
+    remembering the answer for every box asked, so none is asked twice."""
+    chain: list[HtmlElement] = []
+    node: HtmlElement | None = element
+    found = False
+    while node is not None:
+        if node in known:
+            found = known[node]
+            break
+        chain.append(node)
+        if own(node):
+            found = True
+            break
+        node = node.getparent()
+    for seen in chain:
+        known[seen] = found
+    return found
+
+
+def _own_hidden(node: HtmlElement) -> bool:
+    """Whether ``node`` itself is hidden from a reader."""
+    style = (node.get("style") or "").replace(" ", "").lower()
+    if "display:none" in style or node.get("hidden") is not None:
+        return True
+    return bool(node.get("aria-hidden") == "true")
 
 
 def _an_update(page: _Page, element: HtmlElement) -> bool:
@@ -677,16 +731,10 @@ def _just_before(page: _Page, element: HtmlElement) -> str:
     return before
 
 
-def _in_a_link(element: HtmlElement, doc: Document) -> bool:
-    """Whether ``element`` sits in a link to another page: another article's
-    card. A link to the page itself, WordPress's permalink round its date, is
-    not one."""
-    here = _path_of(doc.url)
-    for node in (element, *element.iterancestors()):
-        if isinstance(node.tag, str) and node.tag == "a" and (href := node.get("href")):
-            target = _path_of(join(doc.base, href))
-            if not here or target != here:
-                return True
+def _links_away(node: HtmlElement, doc: Document, here: str) -> bool:
+    """Whether ``node`` itself is a link to a page other than ``here``."""
+    if isinstance(node.tag, str) and node.tag == "a" and (href := node.get("href")):
+        return not here or _path_of(join(doc.base, href)) != here
     return False
 
 
@@ -726,13 +774,9 @@ def _date_near_heading(page: _Page) -> Guess | None:
         if not _small(element):
             continue
         text = _text(element)
-        if (
-            not 6 <= len(text) <= 40
-            or page.aside(element)
-            or _in_a_link(element, page.doc)
-        ):
+        if not 6 <= len(text) <= 40 or page.aside(element) or page.linked(element):
             continue
-        if _hidden(element) or _an_update(page, element):
+        if page.hidden(element) or _an_update(page, element):
             continue
         value = iso_date(
             re.sub(r"^\s*(?:published|posted|on)\s*:?\s*", "", text, flags=re.I)

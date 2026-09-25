@@ -281,7 +281,7 @@ machinery in between.
   byte is read, or as it arrives when sent in chunks. A request past its time
   budget is answered 504. Four tool calls that may fetch run at once
   (`MAX_CALLS`), and one waiting for a worker is inside its own budget;
-  uvicorn answers 503 beyond 64 connections.
+  uvicorn answers 503 when 63 connections are inside a request.
 - **A call that fetches nothing never waits behind one that does.** A call
   whose every page is handed in -- `html_or_url`, `url`, `url_or_text` or
   `pages` holding the page, not an `http(s)://` address -- runs on four
@@ -298,6 +298,20 @@ machinery in between.
   headers a byte at a time for longer is cut off too; one that sends them
   and then a slow body is not, and beyond loopback a reverse proxy in front
   is still what bounds that.
+- **Nor does one hold a place a request needs.** uvicorn counts every
+  connection toward its 64, one that has sent nothing included, so closing
+  them at ten seconds was not enough: 64 opened again the moment each was
+  closed kept `/health` at 503 on 60 probes of 60 over a minute. When a
+  request arrives with every place taken, the connections that have waited
+  longest for a request -- none sent, or none since their last answer -- are
+  closed until there is room for it, and 64, 128 or 256 such connections
+  left 60 probes of 60 answered 200. Connections that send nothing never
+  close each other, so they cannot keep the server busy closing and
+  accepting them. It answers 503 only when 63 connections are inside a
+  request. What is left beyond loopback is a reverse proxy's: connections
+  opened faster than a request's headers arrive, a file descriptor held by
+  each until it is closed, and, with no token asked for, 63 requests that
+  each send a slow body.
 
 The body bound and the workers are arguments of
 `sluicer.http_api.build_app` (`max_body`, `max_calls`, `max_reads`), and the 64 connections

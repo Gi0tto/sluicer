@@ -58,7 +58,7 @@ from sluicer.crawl.web import Web
 from sluicer.declared.merge import MAX_DEPTH, Field, JsonValue, Record
 from sluicer.document import load
 from sluicer.fetch import AddressRefused, Fetched, ResponseTooLarge
-from sluicer.fetch.address import _resolve, why_not_public
+from sluicer.fetch.address import _resolve, shown, why_not_public
 from sluicer.fetch.identity import RobotsUnreachable, robots_refusal
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
 from sluicer.fetch.wire import passing
@@ -217,7 +217,9 @@ def shopify_products(
     """
     start = normalise(url)
     if start is None:
-        raise ValueError(f"{url!r} is not an http(s) address a crawl can start at")
+        raise ValueError(
+            shown(f"{url!r} is not an http(s) address a crawl can start at")
+        )
     if per_page < 1:
         raise ValueError(f"per_page must be 1 or more, not {per_page}")
     _check_retries(retries)
