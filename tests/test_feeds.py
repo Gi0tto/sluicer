@@ -277,7 +277,7 @@ def test_sluicer_feed_follows_the_feed_a_page_declares(monkeypatch):
     def fetch_url(url, **kwargs):
         return Fetched(url=url, html=pages[url], status=200, rung="http")
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fetch_url)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fetch_url)
     result = CliRunner().invoke(main, ["feed", "https://blog.example/"])
     assert result.exit_code == 0, result.stderr
     assert "Reading the feed the page declares: https://blog.example/feed.xml" in (
@@ -306,7 +306,7 @@ def test_sluicer_feed_says_what_is_not_a_feed_and_an_empty_one(tmp_path, monkeyp
         )
         return Fetched(url=url, html=html, status=200, rung="http")
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", lying)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", lying)
     wrong = CliRunner().invoke(main, ["feed", "https://blog.example/"])
     assert wrong.exit_code == 2 and "which the page declares as a feed, is not one" in (
         wrong.stderr

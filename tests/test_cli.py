@@ -120,7 +120,7 @@ def test_a_url_is_fetched_and_the_ladder_is_reported(monkeypatch):
             ],
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
@@ -165,7 +165,7 @@ def test_a_url_whose_rung_needs_a_missing_extra_explains_itself(monkeypatch):
             'Install it with: uv pip install "sluicer[stealth]"'
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p", "--stealth"])
 
@@ -180,7 +180,7 @@ def test_a_url_the_site_refuses_explains_itself_and_does_not_crash(monkeypatch):
     def fake_fetch(url, rungs=None, **kwargs):
         raise RobotsRefused(url)
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/private/p"])
 
@@ -213,7 +213,7 @@ def test_an_empty_url_result_still_reports_what_the_fetch_cost(monkeypatch):
             ],
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
@@ -228,7 +228,7 @@ def test_a_real_import_failure_is_not_reported_as_a_missing_extra(monkeypatch):
     def fake_fetch(url, rungs=None, **kwargs):
         raise ImportError("cannot import name 'Foo' from 'scrapling.engines'")
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
@@ -257,7 +257,7 @@ def test_a_network_failure_is_a_message_not_a_traceback(monkeypatch):
     def fake_fetch(url, rungs=None, **kwargs):
         raise ConnectionError("Connection refused")
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
@@ -277,7 +277,7 @@ def test_a_rung_that_came_back_without_html_is_a_message_too(monkeypatch):
             "the stealth rung returned no HTML for 'https://example.com/p'"
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
@@ -293,7 +293,7 @@ def test_an_unexpected_failure_is_not_dressed_up_as_a_fetch_failure(monkeypatch)
     def fake_fetch(url, rungs=None, **kwargs):
         raise RuntimeError("the ladder lost count of its rungs")
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
@@ -308,7 +308,7 @@ def test_markdown_prints_the_main_content(monkeypatch, tmp_path):
     from sluicer.cli import main
 
     monkeypatch.setattr(
-        "sluicer.cli.to_markdown", lambda html, url=None: "# Title\n\nBody."
+        "sluicer.cli.page.to_markdown", lambda html, url=None: "# Title\n\nBody."
     )
     page = tmp_path / "page.html"
     page.write_text("<html><body><h1>Title</h1></body></html>", encoding="utf-8")
@@ -331,7 +331,7 @@ def test_markdown_without_the_extra_explains_itself(monkeypatch, tmp_path):
             'Install it with: uv pip install "sluicer[markdown]"'
         )
 
-    monkeypatch.setattr("sluicer.cli.to_markdown", refuse)
+    monkeypatch.setattr("sluicer.cli.page.to_markdown", refuse)
     page = tmp_path / "page.html"
     page.write_text("<html><body>hi</body></html>", encoding="utf-8")
 
@@ -347,7 +347,7 @@ def test_markdown_of_a_page_with_nothing_to_say_exits_one(monkeypatch, tmp_path)
 
     from sluicer.cli import main
 
-    monkeypatch.setattr("sluicer.cli.to_markdown", lambda html, url=None: "")
+    monkeypatch.setattr("sluicer.cli.page.to_markdown", lambda html, url=None: "")
     page = tmp_path / "page.html"
     page.write_text("<html><body></body></html>", encoding="utf-8")
 
@@ -388,7 +388,7 @@ def test_a_windows_1252_file_keeps_its_characters(monkeypatch, tmp_path):
             else html_or_bytes
         )
 
-    monkeypatch.setattr("sluicer.cli.to_markdown", fake_to_markdown)
+    monkeypatch.setattr("sluicer.cli.page.to_markdown", fake_to_markdown)
 
     result = CliRunner().invoke(main, ["markdown", str(page)])
 
@@ -441,7 +441,7 @@ def test_a_missing_protego_at_the_command_line_is_a_broken_install(monkeypatch, 
         )
 
     monkeypatch.setattr(
-        "sluicer.cli.fetch_url",
+        "sluicer.cli.source.fetch_url",
         lambda url, **kwargs: real_fetch(
             url,
             rungs=[("http", rung)],
@@ -528,7 +528,7 @@ def test_a_fetch_that_failed_on_every_rung_exits_two_with_what_each_said(monkeyp
     def fake_fetch(url, **kwargs):
         raise FetchFailed(url, [], "the rung raised TimeoutError: Timeout 30000ms")
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["extract", "https://slow.example/p"])
 
@@ -549,7 +549,7 @@ def test_the_fetch_flags_reach_the_ladder(monkeypatch):
         seen.update(kwargs)
         return Fetched(url=url, html="<html></html>", status=200, rung="http")
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     CliRunner().invoke(
         main, ["extract", "https://example.com/p", "--stealth", "--no-robots"]
@@ -606,7 +606,7 @@ def test_inspect_says_what_the_fetch_cost(monkeypatch):
             seconds=1.5,
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fetched)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fetched)
     result = CliRunner().invoke(main, ["inspect", "https://shop.example/p"])
 
     assert result.exit_code == 0, result.output
@@ -635,7 +635,7 @@ def test_a_page_too_heavy_to_fetch_exits_two_with_a_message(monkeypatch):
     def heavy(url, **options):
         raise ResponseTooLarge(url, 16)
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", heavy)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", heavy)
     result = CliRunner().invoke(main, ["extract", "https://shop.example/huge"])
 
     assert result.exit_code == 2
@@ -705,7 +705,7 @@ def test_extract_reads_the_fetched_pages_headers(monkeypatch):
             },
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     extracted = CliRunner().invoke(main, ["extract", "https://example.com/p"])
     inspected = CliRunner().invoke(main, ["inspect", "https://example.com/p"])
@@ -821,7 +821,7 @@ def _fetched_well(monkeypatch):
             url="https://example.com/", html=AUDITED_WELL, status=200, rung="http"
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
 
 def test_audit_of_a_url_reads_the_site_beside_it(monkeypatch):
@@ -957,7 +957,7 @@ def test_audit_of_a_page_the_site_refused_says_what_it_audited(monkeypatch):
     def fake_fetch(url, rungs=None, **kwargs):
         return Fetched(url=url, html="<html>Forbidden</html>", status=403, rung="http")
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
 
     result = CliRunner().invoke(main, ["audit", "https://example.com/p", "--no-site"])
 
@@ -1113,7 +1113,7 @@ def _recording_fetch(monkeypatch):
             rung="http",
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
     return seen
 
 
@@ -1188,8 +1188,8 @@ def test_a_crawl_and_a_batch_send_them_with_every_request(monkeypatch):
         seen.update(kwargs)
         return Crawl(lambda run: iter(()))
 
-    monkeypatch.setattr("sluicer.cli.crawl_site", recording)
-    monkeypatch.setattr("sluicer.cli.extract_many", recording)
+    monkeypatch.setattr("sluicer.cli.sites.crawl_site", recording)
+    monkeypatch.setattr("sluicer.cli.sites.extract_many", recording)
 
     for command in (["crawl", "https://example.com/"], ["batch", "-"]):
         seen.clear()

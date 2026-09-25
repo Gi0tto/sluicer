@@ -28,7 +28,7 @@ def _fetched(monkeypatch, **options):
             **options,
         )
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
     return seen
 
 
@@ -120,7 +120,7 @@ def test_a_fetch_that_failed_exits_2_with_its_reason(monkeypatch):
     def refused(url, **kwargs):
         raise RobotsRefused(url)
 
-    monkeypatch.setattr("sluicer.cli.fetch_url", refused)
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", refused)
 
     result = CliRunner().invoke(main, ["fetch", "https://example.com/private"])
 

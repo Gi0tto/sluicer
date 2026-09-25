@@ -89,12 +89,20 @@ answers changed, on how many pages, and whether the labels call them right.
 | `src/sluicer/structure/`, `extractor.py` | induction, and extractors that are learnt, replayed and healed |
 | `src/sluicer/crawl/` | maps, crawls and batches, and the politeness that paces them |
 | `src/sluicer/audit/` | a page's markup held to what Google documents |
-| `src/sluicer/cli.py`, `mcp_server.py`, `http_api.py` | the command line, the MCP server and the HTTP door |
+| `src/sluicer/cli/` | the command line, a module per group of commands: `page.py` (extract, select, inspect, markdown, diff), `fetch.py`, `audit.py`, `sites.py` (map, crawl, batch, feed, warc), `extractors.py` (compile, run, heal) and `servers.py` (serve, mcp); what they share beside them, `exits.py` the exit codes, `options.py` the fetch options, `source.py` reading a URL, a file or stdin, `output.py` the report lines; `__init__.py` the group, its sectioned `--help`, and the list that adds each command to it |
+| `src/sluicer/config.py` | the defaults a `sluicer.toml` gives the command line |
+| `src/sluicer/mcp_server.py`, `http_api.py` | the MCP server and the HTTP door |
 | `tests/` | the suite; `tests/properties/` the properties; `tests/live/` the checks CI runs against real sockets, browsers and installs |
 | `bench/` | the scoreboards and the drift benchmark; [`bench/README.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/README.md) says how each is run |
 | `examples/` | scripts that run as they are, on `examples/site/`, a made-up site served on your machine |
 | `docs/` | the documentation site |
 | `scripts/` | the generators of the files below, and the hook that publishes `examples/site/` with the documentation |
+
+A new command is written with `@click.command` in its group's module, added
+to the list at the end of `src/sluicer/cli/__init__.py`, and named in
+`SECTIONS` there, or `--help` lists it under "Other commands". A test that
+stands a fake in for something a command calls patches it in the module that
+calls it: `sluicer.cli.source.fetch_url`, `sluicer.cli.sites.crawl_site`.
 
 ## Files that are generated
 

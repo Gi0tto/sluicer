@@ -355,19 +355,76 @@ def test_json_ld_objects_come_as_the_page_wrote_them_numbers_included():
     ]
 
 
-def test_json_ld_is_read_as_leniently_as_sluicer_reads_it():
+def test_json_ld_in_a_media_type_of_another_spelling_is_read():
+    # One of the documented differences: extruct reads only the type spelt
+    # "application/ld+json"; a media type is matched ignoring case and its
+    # parameters, and JSON-LD 1.1 names a profile parameter.
+    html = '<script type="application/LD+JSON; charset=utf-8">{"@type": "C"}</script>'
+
+    assert JsonLdExtractor().extract(html) == [{"@type": "C"}]
+
+
+# Each block's text, and extruct 0.18.0's answer for a page holding it alone,
+# run through extruct itself on 2026-09-25: a list, or None where it raised
+# JSONDecodeError. extruct reads a block with ``json.loads``, then with its
+# first line dropped when that line is a comment and jstyleson's removal of
+# JavaScript's comments and trailing commas; sluicer's own reader forgives
+# more, and extruct's interface must not.
+AS_EXTRUCT_READS = [
+    ('{"@type": "C", "name": "x",}', [{"@type": "C", "name": "x"}]),
+    ('{"@type": "C", "sku": ["A", "B",],}', [{"@type": "C", "sku": ["A", "B"]}]),
+    ('{"@type": "C", "d": "a\nb"}', [{"@type": "C", "d": "a\nb"}]),
+    ('{"@type": "C", // the product\n "name": "Pad"}', [{"@type": "C", "name": "Pad"}]),
+    ('{"@type": "C", /* a */ "name": "Pad"}', [{"@type": "C", "name": "Pad"}]),
+    ('{"@type": "C", "x": [1, /* c */ ]}', [{"@type": "C", "x": [1]}]),
+    ('{"n": "Pad // no /* nor */"}', [{"n": "Pad // no /* nor */"}]),
+    ('{"@type": "C", "name": "Pad, ]",}', [{"@type": "C", "name": "Pad, ]"}]),
+    ('<!-- foo -->\n{"@type": "C"}', [{"@type": "C"}]),
+    ('//<![CDATA[\n{"@type": "C"}\n//]]>\n', [{"@type": "C"}]),
+    ('/*<![CDATA[*/{"@type": "C"}/*]]>*/', [{"@type": "C"}]),
+    # The W3C suite's tests e014 to e016: a comment around the text, one never
+    # closed, one never opened.
+    ('<!--\n{"@type": "C", "d": "<!-- -->"}\n-->', None),
+    ('<!--\n{"@type": "C"}', None),
+    ('{"@type": "C"}\n-->', None),
+    ('<!-- {"@type": "C"} -->', None),
+    ('//<![CDATA[\n{"@type": "C"}\n//]]>', None),
+    ('<![CDATA[{"@type": "C"}]]>', None),
+    ('﻿{"@type": "C"}', None),
+    ('{"@type": "C", "name": "Pad"} /* left open', None),
+    ('{"@type": "C", "name": "Pad"} // last', None),
+    ('{"@type": "C"}\n<!-- tail -->', None),
+    ("// only a comment\n", None),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize(("text", "extruct_reads"), AS_EXTRUCT_READS)
+def test_a_json_ld_block_is_read_as_extruct_reads_it(text, extruct_reads):
+    # Where extruct raises, the block is skipped and the page's other blocks
+    # are kept: the documented difference, since extruct's raise loses the
+    # page's every syntax.
     html = (
-        '<script type="application/ld+json">{"@type": "A", "name": "x",}</script>'
-        '<script type="application/ld+json">{"@type": "B", "d": "a\nb"}</script>'
-        '<script type="application/LD+JSON; charset=utf-8">'
-        '<!--\n{"@type": "C"}\n--></script>'
+        f'<script type="application/ld+json">{text}</script>'
+        '<script type="application/ld+json">{"@type": "Kept"}</script>'
     )
 
     assert JsonLdExtractor().extract(html) == [
-        {"@type": "A", "name": "x"},
-        {"@type": "B", "d": "a\nb"},
-        {"@type": "C"},
+        *(extruct_reads or []),
+        {"@type": "Kept"},
     ]
+
+
+def test_a_json_ld_block_extruct_cannot_read_is_one_sluicer_reads():
+    """Refusing it is extruct's interface's alone: ``extract`` mends it."""
+    from sluicer import extract
+
+    html = (
+        '<script type="application/ld+json">'
+        '<!--\n{"@type": "Product", "name": "Pad"}\n--></script>'
+    )
+
+    assert JsonLdExtractor().extract(html) == []
+    assert extract(html).records[0].fields["name"].value == "Pad"
 
 
 def test_json_ld_from_a_tree():

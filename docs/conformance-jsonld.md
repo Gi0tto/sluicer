@@ -9,7 +9,7 @@ interface and extruct itself read every page; each answer, as the reader
 gives it, is processed by PyLD, a JSON-LD processor, with the test's
 options, and compared with the suite's expected result by the suite's
 own rules.
-Regenerated on 2026-09-25 from commit `a462ab3` by
+Regenerated on 2026-09-25 from commit `bb43ca0` by
 `uv run bench/w3c_jsonld.py`, against the suite at `ffdb326121ea`; the
 rules are in [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md).
 
@@ -35,15 +35,15 @@ scores a processor as the suite does: it passes 49 of
 |---|---|---|---|---|---|---|
 | PyLD 3.3.0 | 0.980 (0.89–1.00) | 21/21 | 4/4 | 4/5 | 20/20 | 15/15 |
 | Sluicer's JSON-LD reader 0.7.1 | 0.480 (0.34–0.62) | 11/21 | 1/4 | 2/5 | 10/20 | 7/15 |
-| sluicer.compat.extruct 0.7.1 | 0.540 (0.40–0.68) | 12/21 | 2/4 | 2/5 | 11/20 | 7/15 |
+| sluicer.compat.extruct 0.7.1 | 0.660 (0.52–0.78) | 15/21 | 2/4 | 2/5 | 14/20 | 13/15 |
 | extruct 0.18.0 | 0.660 (0.52–0.78) | 15/21 | 2/4 | 2/5 | 14/20 | 13/15 |
 
-21 of the tests ask for what no reader's answer can give: a script named by its fragment, the first of several scripts alone, or the base a page's `<base href>` sets. On the other 29, which a reader passes or fails by what it answers, Sluicer's JSON-LD reader 0.690 (0.50–0.83), sluicer.compat.extruct 0.793 (0.61–0.91) and extruct 1.000 (0.88–1.00).
+21 of the tests ask for what no reader's answer can give: a script named by its fragment, the first of several scripts alone, or the base a page's `<base href>` sets. On the other 29, which a reader passes or fails by what it answers, Sluicer's JSON-LD reader 0.690 (0.50–0.83), sluicer.compat.extruct 1.000 (0.88–1.00) and extruct 1.000 (0.88–1.00).
 
 | first | against | difference in tests passed (95% interval) | verdict |
 |---|---|---|---|
 | Sluicer's JSON-LD reader 0.7.1 | extruct 0.18.0 | -0.180 (-0.300 to -0.079) | worse |
-| Sluicer's JSON-LD reader 0.7.1 | sluicer.compat.extruct 0.7.1 | -0.060 (-0.140 to 0.000) | inconclusive |
+| Sluicer's JSON-LD reader 0.7.1 | sluicer.compat.extruct 0.7.1 | -0.180 (-0.300 to -0.079) | worse |
 
 The difference is the first side's rate minus the second's, over the
 same pages. Its interval is the 95% percentile interval of 10,000
@@ -56,13 +56,13 @@ better or worse, so read the verdicts as a table, not one at a time.
 
 ## Where Sluicer's JSON-LD reader fails
 
-26 tests fail. By the first reason that holds, 8 name one script by its fragment, 6 want an error the reader did not give, 5 want the first of several scripts, 4 set their base with the page's `<base href>` and 3 hold a `@graph` the reader answers as nodes without its `@context`.
+26 tests fail. By the first reason that holds, 8 name one script by its fragment, 6 want an error the reader did not give, 5 want the first of several scripts, 4 set their base with the page's `<base href>` and 3 hold a `@graph` the reader answers node by node.
 
 | test | what it asks | the answer | why it fails |
 |---|---|---|---|
 | `te002` | Expands first embedded JSON-LD script element | differs | The test wants the first of the page's 2 scripts; the reader answers all of them (3 values). |
 | `te003` | Expands targeted JSON-LD script element | differs | The test names the script `#second`; a reader is given no fragment and answers every script (3 values). |
-| `te004` | Expands all embedded JSON-LD script elements with extractAllScripts option | differs | The reader answers the nodes of a script's `@graph` one by one, without the script's `@context`, so their terms no longer expand to what the script says. |
+| `te004` | Expands all embedded JSON-LD script elements with extractAllScripts option | differs | The reader answers the nodes of a script's `@graph` one by one, each with the script's `@context`: the same statements, in the page's default graph, where a processor given every script puts them in a graph of their own. |
 | `te011` | Errors if no element found at target | answered | The test names the script `#third`; a reader is given no fragment and answers every script (3 values). |
 | `te014` | Errors if uncommented script text contains comment | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
 | `te015` | Errors if end comment missing | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
@@ -71,14 +71,14 @@ better or worse, so read the verdicts as a table, not one at a time.
 | `te021` | Expands embedded JSON-LD script element relative to relative HTML base | differs | The page's `<base href>` sets the base IRI; a reader's answer does not carry it, so it is read against the page's address. |
 | `te022` | Expands targeted JSON-LD script element with fragment and HTML base | differs | The test names the script `#second`; a reader is given no fragment and answers every script (2 values). |
 | `tc002` | Compacts first embedded JSON-LD script element | differs | The test wants the first of the page's 2 scripts; the reader answers all of them (3 values). |
-| `tc003` | Compacts targeted JSON-LD script element | the processor refused the answer: JsonLdError | The test names the script `#second`; a reader is given no fragment and answers every script (3 values). |
-| `tc004` | Compacts all embedded JSON-LD script elements with extractAllScripts option | the processor refused the answer: JsonLdError | The reader answers the nodes of a script's `@graph` one by one, without the script's `@context`, so their terms no longer expand to what the script says. |
+| `tc003` | Compacts targeted JSON-LD script element | differs | The test names the script `#second`; a reader is given no fragment and answers every script (3 values). |
+| `tc004` | Compacts all embedded JSON-LD script elements with extractAllScripts option | differs | The reader answers the nodes of a script's `@graph` one by one, each with the script's `@context`: the same statements, in the page's default graph, where a processor given every script puts them in a graph of their own. |
 | `tf002` | Flattens first embedded JSON-LD script element | differs | The test wants the first of the page's 2 scripts; the reader answers all of them (3 values). |
-| `tf003` | Flattens targeted JSON-LD script element | the processor refused the answer: JsonLdError | The test names the script `#second`; a reader is given no fragment and answers every script (3 values). |
+| `tf003` | Flattens targeted JSON-LD script element | differs | The test names the script `#second`; a reader is given no fragment and answers every script (3 values). |
 | `tf004` | Flattens first script element by default | differs | The test wants the first of the page's 2 scripts; the reader answers all of them (3 values). |
 | `tr002` | Transforms first embedded JSON-LD script element | differs | The test wants the first of the page's 2 scripts; the reader answers all of them (3 values). |
 | `tr003` | Transforms targeted JSON-LD script element | differs | The test names the script `#second`; a reader is given no fragment and answers every script (3 values). |
-| `tr004` | Expands all embedded JSON-LD script elements with extractAllScripts option | differs | The reader answers the nodes of a script's `@graph` one by one, without the script's `@context`, so their terms no longer expand to what the script says. |
+| `tr004` | Expands all embedded JSON-LD script elements with extractAllScripts option | differs | The reader answers the nodes of a script's `@graph` one by one, each with the script's `@context`: the same statements, in the page's default graph, where a processor given every script puts them in a graph of their own. |
 | `tr011` | Errors if no element found at target | answered | The test names the script `#third`; a reader is given no fragment and answers every script (3 values). |
 | `tr014` | Errors if uncommented script text contains comment | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
 | `tr015` | Errors if end comment missing | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
@@ -89,16 +89,13 @@ better or worse, so read the verdicts as a table, not one at a time.
 
 ## Where sluicer.compat.extruct fails
 
-23 tests fail. By the first reason that holds, 8 name one script by its fragment, 6 want an error the reader did not give, 5 want the first of several scripts and 4 set their base with the page's `<base href>`.
+17 tests fail. By the first reason that holds, 8 name one script by its fragment, 5 want the first of several scripts and 4 set their base with the page's `<base href>`.
 
 | test | what it asks | the answer | why it fails |
 |---|---|---|---|
 | `te002` | Expands first embedded JSON-LD script element | differs | The test wants the first of the page's 2 scripts; the reader answers all of them (2 values). |
 | `te003` | Expands targeted JSON-LD script element | differs | The test names the script `#second`; a reader is given no fragment and answers every script (2 values). |
 | `te011` | Errors if no element found at target | answered | The test names the script `#third`; a reader is given no fragment and answers every script (2 values). |
-| `te014` | Errors if uncommented script text contains comment | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
-| `te015` | Errors if end comment missing | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
-| `te016` | Errors if start comment missing | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
 | `te020` | Expands embedded JSON-LD script element relative to HTML base | differs | The page's `<base href>` sets the base IRI; a reader's answer does not carry it, so it is read against the page's address. |
 | `te021` | Expands embedded JSON-LD script element relative to relative HTML base | differs | The page's `<base href>` sets the base IRI; a reader's answer does not carry it, so it is read against the page's address. |
 | `te022` | Expands targeted JSON-LD script element with fragment and HTML base | differs | The test names the script `#second`; a reader is given no fragment and answers every script (2 values). |
@@ -110,9 +107,6 @@ better or worse, so read the verdicts as a table, not one at a time.
 | `tr002` | Transforms first embedded JSON-LD script element | differs | The test wants the first of the page's 2 scripts; the reader answers all of them (2 values). |
 | `tr003` | Transforms targeted JSON-LD script element | differs | The test names the script `#second`; a reader is given no fragment and answers every script (2 values). |
 | `tr011` | Errors if no element found at target | answered | The test names the script `#third`; a reader is given no fragment and answers every script (2 values). |
-| `tr014` | Errors if uncommented script text contains comment | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
-| `tr015` | Errors if end comment missing | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
-| `tr016` | Errors if start comment missing | answered | The test wants the error `invalid script element`: the script is not JSON-LD as written. The reader mended it and answered 1 value. |
 | `tr020` | Expands embedded JSON-LD script element relative to HTML base | differs | The page's `<base href>` sets the base IRI; a reader's answer does not carry it, so it is read against the page's address. |
 | `tr021` | Expands embedded JSON-LD script element relative to relative HTML base | differs | The page's `<base href>` sets the base IRI; a reader's answer does not carry it, so it is read against the page's address. |
 | `tr022` | Expands targeted JSON-LD script element with fragment and HTML base | differs | The test names the script `#second`; a reader is given no fragment and answers every script (2 values). |
@@ -157,7 +151,10 @@ better or worse, so read the verdicts as a table, not one at a time.
   fragment included. Sluicer's reader is `read_jsonld` on
   `sluicer.document.load(html, url=...)`, what Sluicer's records are
   made from; the other two are `extract(html, base_url=url,
-  syntaxes=["json-ld"])`.
+  syntaxes=["json-ld"])`. Sluicer's reader answers a number as the
+  text the page wrote, `41.90` and not `41.9`, since a record holds
+  every value as text; a processor reads that as a string. None of
+  these pages writes a number.
 - **Processing.** The answer, a list of values, is the document PyLD
   expands, compacts (with the test's context), flattens or turns into
   N-Quads, with the test's `base` option or else the page's address as

@@ -131,9 +131,14 @@ compared by `sluicer audit`, record against record, not here.
 
 **Eight vocabularies fold onto one flat set of keys, and some of them collide.**
 `og:image:alt` and `twitter:image:alt` both strip to `image:alt`; a Dublin Core
-`title` lands on the same key as an `og:title`. RDFa shortens schema.org terms
-to the names the other readers use and keeps other vocabularies' full IRIs, so
-only schema.org terms collide across vocabularies. The precedence decides who
+`title` lands on the same key as an `og:title`. RDFa and JSON-LD shorten
+schema.org terms to the names the other readers use and keep other
+vocabularies' full IRIs, so only schema.org terms collide across vocabularies:
+a JSON-LD block's words are named through its `@context` -- `ex:colour` under
+`{"ex": "http://example.com/"}` is `http://example.com/colour`, and a `name`
+the context maps to FOAF is FOAF's -- while a word the context says nothing
+about, or one a context elsewhere would define, is kept as written, since only
+schema.org's own context is known and nothing is fetched. The precedence decides who
 wins -- JSON-LD, microdata, microformats, RDFa, Dublin Core, OpenGraph, the
 Twitter card, HTML's own metadata names -- so the answer is stated and stable
 rather than decided by the order the page's author typed. What is lost is the
