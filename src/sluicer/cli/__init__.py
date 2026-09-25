@@ -517,7 +517,7 @@ def _read_page(
     return data, base_url, None
 
 
-@main.command("fetch")
+@click.command("fetch")
 @click.argument("url")
 @click.option(
     "-o",
@@ -628,7 +628,7 @@ def fetch_command(
         click.echo(f"written to {output}", err=True)
 
 
-@main.command()
+@click.command()
 @click.argument("source")
 @click.option(
     "--induce",
@@ -706,7 +706,7 @@ def extract(
     click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
-@main.command("select")
+@click.command("select")
 @click.argument("source")
 @click.argument("selector")
 @click.option(
@@ -757,7 +757,7 @@ def select_command(
         click.echo(f"{one.value}\t{one.where}")
 
 
-@main.command()
+@click.command()
 @click.argument("source")
 @click.option(
     "--induce",
@@ -1021,7 +1021,7 @@ def _brief(value: object, limit: int = 72) -> str:
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
-@main.command("diff")
+@click.command("diff")
 @click.argument("before")
 @click.argument("after")
 @click.option("--json", "as_json", is_flag=True, help="Print the differences as JSON.")
@@ -1076,7 +1076,7 @@ def diff_command(
         raise SystemExit(1)
 
 
-@main.command()
+@click.command()
 @click.argument("source")
 @click.option(
     "--front-matter",
@@ -1127,7 +1127,7 @@ def _load_extractor(path: str) -> Extractor:
         _fail(f"{path} is not an extractor: {failure}", failure)
 
 
-@main.command("compile")
+@click.command("compile")
 @click.argument("sources", nargs=-1)
 @click.option("-o", "--output", required=True, help="Where to write the extractor.")
 @click.option(
@@ -1300,7 +1300,7 @@ def _write(path: str, text: str) -> None:
         _fail(f"Could not write {path}: {failure.strerror or failure}", failure)
 
 
-@main.command("run")
+@click.command("run")
 @click.argument("extractor_file")
 @click.argument("sources", nargs=-1, required=True)
 @click.option("--stealth", is_flag=True, help="Allow the stealth rung.")
@@ -1345,7 +1345,7 @@ def run_command(
         raise SystemExit(CONTRACT_BROKEN)
 
 
-@main.command("heal")
+@click.command("heal")
 @click.argument("extractor_file")
 @click.argument("sources", nargs=-1, required=True)
 @click.option("-o", "--output", help="Where to write the healed extractor.")
@@ -1420,7 +1420,7 @@ def heal_command(
         raise SystemExit(CONTRACT_BROKEN)
 
 
-@main.command()
+@click.command()
 @click.option(
     "--host",
     default=DEFAULT_HOST,
@@ -1462,7 +1462,7 @@ def serve(host: str, port: int, timeout: float, allow_unauthenticated: bool) -> 
         _fail(str(refused), refused)
 
 
-@main.command("mcp")
+@click.command("mcp")
 @click.option(
     "--tools",
     help="Register only these tools, comma-separated: "
@@ -1484,7 +1484,7 @@ def mcp_command(tools: str | None) -> None:
         run(tools=[name.strip() for name in tools.split(",") if name.strip()])
 
 
-@main.command("audit")
+@click.command("audit")
 @click.argument("source")
 @click.option("--json", "as_json", is_flag=True, help="Print the audit as JSON.")
 @click.option(
@@ -1776,7 +1776,7 @@ def _llms_lines(label: str, llms: LlmsTxt) -> list[str]:
     return lines
 
 
-@main.command("map")
+@click.command("map")
 @click.argument("url")
 @click.option(
     "--limit",
@@ -1900,7 +1900,7 @@ def _with_many_options(command: click.decorators.FC) -> click.decorators.FC:
     return command
 
 
-@main.command("crawl")
+@click.command("crawl")
 @click.argument("url")
 @click.option(
     "--max-pages",
@@ -2055,7 +2055,7 @@ def _refuse_unused(template: str, **given: tuple[str, ...] | bool) -> None:
             )
 
 
-@main.command("feed")
+@click.command("feed")
 @click.argument("source")
 @_with_fetch_options
 def feed_command(
@@ -2103,7 +2103,7 @@ def feed_command(
         raise SystemExit(NOTHING_FOUND)
 
 
-@main.command("warc")
+@click.command("warc")
 @click.argument("files", nargs=-1, required=True)
 @click.option(
     "--induce",
@@ -2162,7 +2162,7 @@ def warc_command(files: tuple[str, ...], induce: bool, microformats: bool) -> No
         raise SystemExit(NOTHING_FOUND)
 
 
-@main.command("batch")
+@click.command("batch")
 @click.argument("urls_file")
 @_with_many_options
 @_with_proxy
@@ -2367,3 +2367,28 @@ class _Tally:
             codes = ", ".join(f"{n} {code}" for code, n in sorted(self.failed.items()))
             said += f", {self.pages - self.read} failed ({codes})"
         return said
+
+
+# Added in the order they were written in when each was declared on ``main``,
+# which ``main.commands`` keeps; ``--help`` lists them by SECTIONS whatever it is.
+for _command in (
+    fetch_command,
+    extract,
+    select_command,
+    inspect,
+    diff_command,
+    markdown,
+    compile_command,
+    run_command,
+    heal_command,
+    serve,
+    mcp_command,
+    audit_command,
+    map_command,
+    crawl_command,
+    feed_command,
+    warc_command,
+    batch_command,
+):
+    main.add_command(_command)
+del _command
