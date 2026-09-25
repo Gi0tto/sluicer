@@ -7,7 +7,7 @@ scorer, on the same pages as their servers sent them, scripts intact,
 fetched from web archives. Every page is scored twice, once as served
 and once as WCXB kept it, so the difference between the two columns is
 the difference the scripts make, and nothing else.
-Regenerated on 2026-09-25 from commit `c83ba2d` by
+Regenerated on 2026-09-25 from commit `f042855` by
 `uv run bench/realweb.py`, from the captures pinned in
 [`bench/realweb-manifest.json`](https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).
 
@@ -199,6 +199,60 @@ resamples of the pages, drawn together for both sides (`bench/stats.py`,
 seed 20260924): **better** when the interval is above zero, **worse**
 when it is below, **inconclusive** when it holds zero. These are
 42 comparisons, made with no correction for making many: where two
+sides did not differ at all, about one in twenty would still be called
+better or worse, so read the verdicts as a table, not one at a time.
+
+## What `--visible` adds, as served
+
+`extract(..., visible=True)`, `--visible` on the command line, also
+guesses the title, byline and dates a page shows, and keeps each guess
+apart from the summary. Its rules were made on WCXB's development split
+only, which no scoreboard scores, so these pages are held out from them
+([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md)). *Declared* is the summary, as above;
+*declared then `--visible`* answers with the summary where it has an
+answer and with the guess where it has none, never in its place.
+
+| field | hit rate, declared | hit rate, declared then `--visible` | right when answering, declared | right when answering, declared then `--visible` | inventions, declared | silent miss made a hit | silent miss made wrong | inventions `--visible` added |
+|---|---|---|---|---|---|---|---|---|
+| title | 0.708 (0.65–0.76) | 0.708 (0.65–0.76) | 0.708 (0.65–0.76) | 0.708 (0.65–0.76) | 0 | 0 | 0 | 0 |
+| author | 0.690 (0.60–0.77) | 0.752 (0.67–0.82) | 0.636 (0.55–0.72) | 0.642 (0.56–0.72) | 44 | 8 | 1 | 2 |
+| date | 0.780 (0.70–0.84) | 0.855 (0.79–0.91) | 0.734 (0.66–0.80) | 0.701 (0.63–0.77) | 36 | 12 | 0 | 13 |
+
+`--visible` answered 36 questions the summary left unanswered: 20 right and 1 wrong where the page carries a label, and 15 invented where it carries none. Each rate carries its 95% Wilson score interval. Declared then `--visible` against the declared answers alone and against each other tool:
+
+| declared then `--visible`, against | field | rate | difference (95% interval) | verdict |
+|---|---|---|---|---|
+| sluicer 0.7.1, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.7.1, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.7.1, declared | author | hit rate | +0.062 (+0.023 to +0.109) | better |
+| sluicer 0.7.1, declared | author | right when answering | +0.007 (-0.015 to +0.028) | inconclusive |
+| sluicer 0.7.1, declared | date | hit rate | +0.075 (+0.037 to +0.119) | better |
+| sluicer 0.7.1, declared | date | right when answering | -0.033 (-0.063 to -0.004) | worse |
+| trafilatura 2.2.0 | title | hit rate | -0.047 (-0.095 to +0.003) | inconclusive |
+| trafilatura 2.2.0 | title | right when answering | -0.047 (-0.095 to +0.003) | inconclusive |
+| trafilatura 2.2.0 | author | hit rate | -0.109 (-0.172 to -0.048) | worse |
+| trafilatura 2.2.0 | author | right when answering | +0.067 (+0.014 to +0.121) | better |
+| trafilatura 2.2.0 | date | hit rate | 0.000 (-0.060 to +0.062) | inconclusive |
+| trafilatura 2.2.0 | date | right when answering | +0.308 (+0.256 to +0.362) | better |
+| metascraper 5.58.1 | title | hit rate | +0.042 (0.000 to +0.084) | inconclusive |
+| metascraper 5.58.1 | title | right when answering | +0.042 (0.000 to +0.084) | inconclusive |
+| metascraper 5.58.1 | author | hit rate | -0.093 (-0.160 to -0.025) | worse |
+| metascraper 5.58.1 | author | right when answering | +0.160 (+0.111 to +0.214) | better |
+| metascraper 5.58.1 | date | hit rate | +0.044 (-0.013 to +0.100) | inconclusive |
+| metascraper 5.58.1 | date | right when answering | +0.128 (+0.083 to +0.175) | better |
+| newspaper4k 0.9.6 | title | hit rate | -0.058 (-0.109 to -0.008) | worse |
+| newspaper4k 0.9.6 | title | right when answering | -0.058 (-0.109 to -0.008) | worse |
+| newspaper4k 0.9.6 | author | hit rate | +0.047 (+0.007 to +0.091) | better |
+| newspaper4k 0.9.6 | author | right when answering | +0.074 (+0.031 to +0.118) | better |
+| newspaper4k 0.9.6 | date | hit rate | +0.069 (+0.028 to +0.114) | better |
+| newspaper4k 0.9.6 | date | right when answering | +0.043 (+0.011 to +0.077) | better |
+
+The difference is the first side's rate minus the second's, over the
+same pages. Its interval is the 95% percentile interval of 10,000
+resamples of the pages, drawn together for both sides (`bench/stats.py`,
+seed 20260924): **better** when the interval is above zero, **worse**
+when it is below, **inconclusive** when it holds zero. These are
+24 comparisons, made with no correction for making many: where two
 sides did not differ at all, about one in twenty would still be called
 better or worse, so read the verdicts as a table, not one at a time.
 
