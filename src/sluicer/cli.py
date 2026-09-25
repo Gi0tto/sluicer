@@ -29,7 +29,7 @@ import sys
 from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, ClassVar, NoReturn
 
 import click
 
@@ -252,17 +252,90 @@ _proxy_option = click.option(
 )
 
 
+_header_option = click.option(
+    "--header",
+    "-H",
+    "headers",
+    multiple=True,
+    metavar="'NAME: VALUE'",
+    help="Send this header to the site asked, and to no other it redirects to; "
+    "again for more. Never User-Agent: Sluicer always says who it is.",
+)
+
+_cookie_option = click.option(
+    "--cookie",
+    "cookies",
+    multiple=True,
+    metavar="NAME=VALUE",
+    help="Send this cookie to the site asked, as --header does; again for more.",
+)
+
+
+class _Sending:
+    """The headers and cookies this command sends, as its options gave them.
+
+    Held here, as ``--proxy`` is held in ``SLUICER_PROXY``, so that every
+    fetch the command makes sends them without each reader of a page having
+    to be handed them. Set again by every command that takes the options.
+    """
+
+    headers: ClassVar[dict[str, str]] = {}
+    cookies: ClassVar[dict[str, str]] = {}
+
+
+def _sent() -> dict[str, Any]:
+    """``fetch``'s ``headers`` and ``cookies``, as this command's options say."""
+    return {"headers": dict(_Sending.headers), "cookies": dict(_Sending.cookies)}
+
+
+def _sending(headers: tuple[str, ...], cookies: tuple[str, ...]) -> None:
+    """Read ``--header`` and ``--cookie``, refusing, before anything is asked,
+    what could not be sent."""
+    from sluicer.fetch.identity import outgoing
+
+    named: dict[str, str] = {}
+    for given in headers:
+        name, colon, value = given.partition(":")
+        if not colon or not name.strip():
+            raise click.BadParameter(
+                f"{given!r} is not a header: write 'NAME: VALUE'", param_hint="--header"
+            )
+        named[name.strip()] = value.strip()
+    crumbs: dict[str, str] = {}
+    for given in cookies:
+        name, equals, value = given.partition("=")
+        if not equals or not name.strip():
+            raise click.BadParameter(
+                f"{given!r} is not a cookie: write NAME=VALUE", param_hint="--cookie"
+            )
+        crumbs[name.strip()] = value.strip()
+    try:
+        outgoing(named, crumbs)
+    except ValueError as refused:
+        raise click.BadParameter(str(refused)) from None
+    _Sending.headers, _Sending.cookies = named, crumbs
+
+
 def _with_proxy(command: click.decorators.FC) -> click.decorators.FC:
-    """``--proxy``, taken before the command runs: every fetch it makes, of a
-    page, a robots.txt, a sitemap or a site's files, reads ``SLUICER_PROXY``."""
+    """``--proxy``, ``--header`` and ``--cookie``, taken before the command
+    runs: every fetch it makes, of a page, a robots.txt, a sitemap or a site's
+    files, reads ``SLUICER_PROXY``, and every page it asks for sends the
+    headers and cookies."""
 
     @functools.wraps(command)
-    def through(*args: Any, proxy: str | None = None, **kwargs: Any) -> Any:
+    def through(
+        *args: Any,
+        proxy: str | None = None,
+        headers: tuple[str, ...] = (),
+        cookies: tuple[str, ...] = (),
+        **kwargs: Any,
+    ) -> Any:
         if proxy is not None:
             os.environ[PROXY_ENV] = proxy
+        _sending(headers, cookies)
         return command(*args, **kwargs)
 
-    return _proxy_option(through)  # type: ignore[return-value]
+    return _proxy_option(_header_option(_cookie_option(through)))  # type: ignore[return-value]
 
 
 def _with_fetch_options(command: click.decorators.FC) -> click.decorators.FC:
@@ -347,6 +420,11 @@ def _read_page(
         _fail(f"--at reads an address from the Wayback Machine; {source} is not one.")
     if at is not None and stealth:
         _fail("--at reads the archive over plain HTTP; --stealth has no rung there.")
+    if at is not None and (_Sending.headers or _Sending.cookies):
+        _fail(
+            "--at reads the archive, which is not the site: --header and --cookie "
+            "are for the site, and are never sent to web.archive.org."
+        )
     if is_url:
         # Only FetchExtraMissing, not ImportError: an import failure inside a
         # working scrapling install is a bug and keeps its traceback.
@@ -363,9 +441,12 @@ def _read_page(
                     Cache(cache_dir, max_age),
                     stealth=stealth,
                     obey_robots=not no_robots,
+                    **_sent(),
                 )
             else:
-                fetched = fetch_url(source, stealth=stealth, obey_robots=not no_robots)
+                fetched = fetch_url(
+                    source, stealth=stealth, obey_robots=not no_robots, **_sent()
+                )
         except FetchExtraMissing as missing:
             _fail(str(missing), missing)
         except RobotsRefused as refused:
@@ -1439,7 +1520,7 @@ def map_command(url: str, limit: int, plain: bool) -> None:
     delay, and stderr says what became of each one.
     """
     try:
-        found = map_site(url, limit=limit)
+        found = map_site(url, limit=limit, **_sent())
     except (
         FetchExtraMissing,
         RobotsRefused,
@@ -1570,6 +1651,7 @@ def crawl_command(
             induce=induce,
             respect_tdm="tdm" in respect,
             min_delay=delay,
+            **_sent(),
         )
     except (FetchExtraMissing, ValueError) as failure:
         _fail(str(failure), failure)
@@ -1725,6 +1807,7 @@ def batch_command(
             induce=induce,
             respect_tdm="tdm" in respect,
             min_delay=delay,
+            **_sent(),
         )
     except (FetchExtraMissing, ValueError) as failure:
         _fail(str(failure), failure)

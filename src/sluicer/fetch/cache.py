@@ -36,6 +36,7 @@ from sluicer.document import sniff_encoding
 from sluicer.fetch.address import _resolve
 from sluicer.fetch.gate import GATE, after, ungated
 from sluicer.fetch.http_rung import Response
+from sluicer.fetch.identity import outgoing
 from sluicer.fetch.ladder import (
     FetchFailed,
     PaymentRequired,
@@ -142,18 +143,24 @@ def fetch_cached(
     max_bytes: int = MAX_RESPONSE_BYTES,
     rungs: Sequence[tuple[str, Rung]] | None = None,
     transport: Transport | None = None,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> Fetched:
     """``fetch``, through ``cache``: the kept page when it is young enough or
     its site says it has not changed, else the page as fetched now, kept.
 
     ``rungs`` is the ladder, as for ``fetch``; ``transport`` is how the
     revalidating request is sent, ``http_responses`` by default. Both are
-    injected by tests.
+    injected by tests. ``headers`` and ``cookies`` are ``fetch``'s, and a
+    page fetched with them is kept for them alone: a page read behind a
+    login is never given back to a request without it.
 
     Raises:
         What ``fetch`` raises.
     """
-    entry = cache.read(url)
+    sent = outgoing(headers, cookies)
+    key = _keyed(url, sent)
+    entry = cache.read(key)
     now = cache.clock()
     if entry is not None:
         age = max(0.0, now - float(entry["stored"]))
@@ -176,7 +183,20 @@ def fetch_cached(
             max_bytes,
             rungs,
             transport,
+            key,
+            sent,
+            headers,
+            cookies,
         )
+
+
+def _keyed(url: str, sent: Mapping[str, str]) -> str:
+    """What a page is kept under: its address, and what was sent for it when
+    anything was, as a digest, so no cookie is written into the key."""
+    if not sent:
+        return url
+    said = json.dumps(sorted((k.lower(), v) for k, v in sent.items()))
+    return f"{url} [sent {hashlib.sha256(said.encode()).hexdigest()[:16]}]"
 
 
 def _asked(
@@ -192,12 +212,18 @@ def _asked(
     max_bytes: int,
     rungs: Sequence[tuple[str, Rung]] | None,
     transport: Transport | None,
+    key: str,
+    sent: Mapping[str, str],
+    headers: Mapping[str, str] | None,
+    cookies: Mapping[str, str] | None,
 ) -> Fetched:
     """``fetch_cached``, once the kept page is not young enough to give back."""
     if entry is not None:
         validators = _validators(entry["headers"])
         if validators and entry["rung"] == "http":
-            asking = _asking(validators, transport, allow_private, resolve, max_bytes)
+            asking = _asking(
+                {**sent, **validators}, transport, allow_private, resolve, max_bytes
+            )
             plain = rungs[0][1] if rungs else _plain(allow_private, resolve, max_bytes)
             try:
                 answered = fetch(
@@ -218,11 +244,13 @@ def _asked(
                 answered = None
             if answered is not None and answered.status == 304:
                 entry["stored"] = now
-                cache._put(url, entry)
+                cache._put(key, entry)
                 return _kept(entry, CacheHit(0.0, revalidated=True))
             if answered is not None and _enough(answered):
-                cache.write(url, answered)
+                cache.write(key, answered)
                 return answered
+    # Injected rungs send what their caller built them to: the caller's
+    # headers go to the default ones.
     fetched = fetch(
         url,
         rungs=rungs,
@@ -231,11 +259,13 @@ def _asked(
         allow_private=allow_private,
         resolve=resolve,
         max_bytes=max_bytes,
+        headers=headers if rungs is None else None,
+        cookies=cookies if rungs is None else None,
     )
     # The ladder hands back its last rung's page whatever it was; a challenge
     # kept here would be given back as the page, asking nobody, for max_age.
     if not _challenge(fetched):
-        cache.write(url, fetched)
+        cache.write(key, fetched)
     return fetched
 
 

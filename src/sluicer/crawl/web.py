@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from sluicer.fetch import STICKY, RungMemory, robots_reader_from
@@ -33,6 +33,8 @@ def default_web(
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
     redirects: Redirects | None = None,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
 ) -> Web:
     """The real web: the default ladder, with ``redirects`` asked of every hop a
     page's redirect makes, and plain HTTP for robots.txt and sitemaps.

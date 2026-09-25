@@ -110,7 +110,14 @@ class FakeWeb:
         """Stand in for ``default_web``, so a crawl wires its own redirect rule
         into this web exactly as it does into the real one."""
 
-        def default_web(allow_private=True, resolve=None, max_bytes=0, redirects=None):
+        def default_web(
+            allow_private=True,
+            resolve=None,
+            max_bytes=0,
+            redirects=None,
+            headers=None,
+            cookies=None,
+        ):
             return self.web(redirects)
 
         monkeypatch.setattr("sluicer.crawl.pages.default_web", default_web)

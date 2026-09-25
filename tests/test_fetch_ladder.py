@@ -771,3 +771,54 @@ def test_the_default_ladder_remembers_for_the_process(monkeypatch):
         obey_robots=False,
     )
     assert injected.calls == ["https://shop.example/4"]
+
+
+# -- the caller's headers and cookies -------------------------------------------
+
+
+def test_the_callers_headers_and_cookies_reach_the_default_rungs(monkeypatch):
+    from sluicer.fetch.gate import GATE
+
+    built = {}
+
+    def default_rungs(*args, **kwargs):
+        built.update(kwargs)
+        return [("http", rung("http", RICH))]
+
+    monkeypatch.setattr("sluicer.fetch.rungs.default_rungs", default_rungs)
+    monkeypatch.setattr(GATE, "min_delay", 0.0)
+
+    fetch(
+        "https://example.com/account",
+        headers={"Authorization": "Bearer t"},
+        cookies={"session": "abc"},
+        robots_reader=lambda url: None,
+    )
+
+    assert built["headers"] == {"Authorization": "Bearer t"}
+    assert built["cookies"] == {"session": "abc"}
+
+
+def test_a_user_agent_of_the_callers_is_refused_before_anything_is_asked():
+    http = rung("http", RICH)
+
+    with pytest.raises(ValueError, match="User-Agent is not replaced"):
+        fetch("https://example.com/p", headers={"User-Agent": "Mozilla/5.0"})
+    assert http.calls == []
+
+
+def test_headers_for_injected_rungs_are_refused_rather_than_dropped():
+    """Injected rungs are built by their caller, with whatever they send; a
+    header handed to fetch() beside them would reach no request."""
+    with pytest.raises(ValueError, match="injected rungs"):
+        fetch(
+            "https://example.com/p",
+            rungs=[("http", rung("http", RICH))],
+            headers={"Authorization": "Bearer t"},
+        )
+
+
+def test_the_stealth_rung_is_not_asked_to_carry_a_login():
+    """It does not say who is asking; a cookie or a token would."""
+    with pytest.raises(ValueError, match="stealth rung"):
+        fetch("https://example.com/p", stealth=True, cookies={"session": "abc"})

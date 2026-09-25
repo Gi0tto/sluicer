@@ -28,7 +28,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -48,6 +48,7 @@ from sluicer.fetch.identity import (
     UNAVAILABLE,
     UNREACHABLE,
     RobotsUnreachable,
+    outgoing,
     robots_refusal,
 )
 from sluicer.fetch.result import (
@@ -282,6 +283,8 @@ def fetch(
     resolve: Callable[[str], Iterable[str]] = _resolve,
     max_bytes: int = MAX_RESPONSE_BYTES,
     proxy: str | None = None,
+    headers: Mapping[str, str] | None = None,
+    cookies: Mapping[str, str] | None = None,
     memory: RungMemory | None = None,
 ) -> Fetched:
     """Fetch ``url``, climbing to a costlier rung only when a measurement says so.
@@ -314,6 +317,13 @@ def fetch(
             environment's ``HTTPS_PROXY`` is never used. Through a proxy the
             private-network check still judges every address here, but the
             connection is the proxy's: see SECURITY.md.
+        headers: sent with every request for the origin asked -- scheme,
+            host and port -- and left off any hop a redirect takes elsewhere:
+            an ``Authorization``, a header an API wants. Never ``User-Agent``:
+            Sluicer always says who it is, so a site can refuse it.
+        cookies: sent as one ``Cookie`` header the same way, and set in the
+            browser's context for the host asked, where a browser's own
+            cookie rules apply (a cookie belongs to a host, not a port).
         memory: what each site needed before, and learns what this page
             needs: a site whose page came back only from the browser starts
             its next page there. The process's (``STICKY``) with the default
@@ -332,16 +342,40 @@ def fetch(
         ResponseTooLarge: the page is heavier than ``max_bytes``.
         RedirectRefused: an injected rung was given a rule for redirects, and a
             hop broke it.
+        ValueError: ``headers`` hold a ``User-Agent``, or a header the
+            transport writes, or a header or cookie that would break the
+            request; or they were given with injected ``rungs``, which send
+            what their caller built them to, or with ``stealth``, which sends
+            nothing that says who is asking.
         FetchFailed: every rung failed, the URL is invalid, or its robots.txt
             could not be read.
         FetchExtraMissing: ``stealth`` was asked for and the ``stealth`` extra
             is not installed.
     """
     gated = rungs is None
+    sending = bool(headers or cookies)
+    outgoing(headers, cookies)
+    if sending and not gated:
+        raise ValueError(
+            "headers and cookies are sent by the default rungs; injected rungs "
+            "send what their caller built them to send"
+        )
+    if sending and stealth:
+        raise ValueError(
+            "the stealth rung sends no headers or cookies of yours: it does not "
+            "say who is asking, and a login would"
+        )
     if rungs is None:
         from sluicer.fetch.rungs import default_rungs
 
-        rungs = default_rungs(allow_private, resolve, max_bytes, proxy=proxy)
+        rungs = default_rungs(
+            allow_private,
+            resolve,
+            max_bytes,
+            proxy=proxy,
+            headers=headers,
+            cookies=cookies,
+        )
     if stealth:
         from sluicer.fetch.stealth import stealth_rung
 

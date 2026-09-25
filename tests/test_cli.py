@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from sluicer import cli
@@ -554,7 +555,12 @@ def test_the_fetch_flags_reach_the_ladder(monkeypatch):
         main, ["extract", "https://example.com/p", "--stealth", "--no-robots"]
     )
 
-    assert seen == {"stealth": True, "obey_robots": False}
+    assert seen == {
+        "stealth": True,
+        "obey_robots": False,
+        "headers": {},
+        "cookies": {},
+    }
 
 
 def test_inspect_shows_each_field_and_answer_with_where_it_came_from():
@@ -1080,3 +1086,109 @@ def test_the_help_groups_the_commands_by_what_they_are_for():
         assert [line.split()[0] for line in block] == names, title
     placed = [name for names in sections.values() for name in names]
     assert sorted(placed) == sorted(main.commands)
+
+
+# -- the caller's headers and cookies --------------------------------------------
+
+
+def _recording_fetch(monkeypatch):
+    from sluicer.fetch.result import Fetched
+
+    seen = {}
+
+    def fake_fetch(url, **kwargs):
+        seen.update(kwargs)
+        return Fetched(
+            url=url,
+            html="<html><head><title>T</title></head></html>",
+            status=200,
+            rung="http",
+        )
+
+    monkeypatch.setattr("sluicer.cli.fetch_url", fake_fetch)
+    return seen
+
+
+def test_headers_and_cookies_given_at_the_command_line_are_sent(monkeypatch):
+    seen = _recording_fetch(monkeypatch)
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "extract",
+            "https://example.com/account",
+            "--header",
+            "Authorization: Bearer t",
+            "-H",
+            "X-Team:  readers ",
+            "--cookie",
+            "session=abc",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert seen["headers"] == {"Authorization": "Bearer t", "X-Team": "readers"}
+    assert seen["cookies"] == {"session": "abc"}
+
+
+def test_without_them_nothing_extra_is_sent(monkeypatch):
+    seen = _recording_fetch(monkeypatch)
+
+    CliRunner().invoke(main, ["extract", "https://example.com/p"])
+
+    assert not seen.get("headers") and not seen.get("cookies")
+
+
+@pytest.mark.parametrize(
+    ("option", "said"),
+    [
+        (["--header", "User-Agent: Mozilla/5.0"], "User-Agent is not replaced"),
+        (["--header", "no colon here"], "NAME: VALUE"),
+        (["--cookie", "no-equals"], "NAME=VALUE"),
+        (["--header", "Host: elsewhere.example"], "written by the transport"),
+    ],
+)
+def test_a_header_or_cookie_that_cannot_be_sent_stops_the_command(
+    monkeypatch, option, said
+):
+    seen = _recording_fetch(monkeypatch)
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/p", *option])
+
+    assert result.exit_code == 2
+    assert said in result.stderr
+    assert seen == {}, "nothing was asked"
+
+
+def test_the_archive_is_never_sent_a_login(monkeypatch):
+    _recording_fetch(monkeypatch)
+
+    result = CliRunner().invoke(
+        main, ["extract", "https://example.com/p", "--at", "2020", "--cookie", "s=1"]
+    )
+
+    assert result.exit_code == 2
+    assert "--at" in result.stderr and "archive" in result.stderr
+
+
+def test_a_crawl_and_a_batch_send_them_with_every_request(monkeypatch):
+    from sluicer.crawl.pages import Crawl
+
+    seen = {}
+
+    def recording(*args, **kwargs):
+        seen.update(kwargs)
+        return Crawl(lambda run: iter(()))
+
+    monkeypatch.setattr("sluicer.cli.crawl_site", recording)
+    monkeypatch.setattr("sluicer.cli.extract_many", recording)
+
+    for command in (["crawl", "https://example.com/"], ["batch", "-"]):
+        seen.clear()
+        CliRunner().invoke(
+            main,
+            [*command, "--cookie", "session=abc", "--header", "X-Team: a"],
+            input="https://example.com/a\n",
+        )
+        assert seen["cookies"] == {"session": "abc"}, command
+        assert seen["headers"] == {"X-Team": "a"}, command

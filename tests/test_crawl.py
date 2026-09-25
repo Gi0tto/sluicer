@@ -995,3 +995,43 @@ def test_the_real_web_remembers_for_the_process(monkeypatch):
     monkeypatch.setenv("SLUICER_BROWSER", "none")
 
     assert default_web().memory is STICKY
+
+
+@pytest.mark.parametrize("how", ["crawl", "extract_many", "map_site"])
+def test_the_callers_headers_and_cookies_go_into_the_web_every_page_is_asked_of(
+    monkeypatch, how
+):
+    from sluicer.crawl import map_site
+
+    fake = FakeWeb({f"{ROOT}/": page("Home")})
+    built = {}
+
+    def default_web(*args, **kwargs):
+        built.update(kwargs)
+        return fake.web(args[3] if len(args) > 3 else kwargs.get("redirects"))
+
+    monkeypatch.setattr("sluicer.crawl.pages.default_web", default_web)
+    monkeypatch.setattr("sluicer.crawl.sitemaps.default_web", default_web)
+    sending = {"headers": {"Authorization": "Bearer t"}, "cookies": {"s": "1"}}
+    timing = {"clock": fake.clock, "sleep": fake.clock.sleep}
+    if how == "crawl":
+        list(crawl(f"{ROOT}/", **sending, **timing))
+    elif how == "extract_many":
+        list(extract_many([f"{ROOT}/"], **sending, **timing))
+    else:
+        map_site(f"{ROOT}/", **sending, **timing)
+
+    assert built["headers"] == {"Authorization": "Bearer t"}
+    assert built["cookies"] == {"s": "1"}
+
+
+def test_headers_for_a_web_of_ones_own_are_refused_rather_than_dropped():
+    fake = FakeWeb({f"{ROOT}/": page("Home")})
+
+    with pytest.raises(ValueError, match="a web of its own"):
+        crawl(f"{ROOT}/", web=fake.web(), headers={"Authorization": "Bearer t"})
+
+
+def test_a_crawl_refuses_a_user_agent_before_it_asks_anything(monkeypatch):
+    with pytest.raises(ValueError, match="User-Agent"):
+        crawl(f"{ROOT}/", headers={"User-Agent": "Mozilla/5.0"})

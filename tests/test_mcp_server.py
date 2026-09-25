@@ -249,15 +249,19 @@ def fake_fetch(
         resolve=None,
         max_bytes=None,
         proxy=None,
+        headers=None,
+        cookies=None,
         memory=None,
     ):
         fetch.calls.append({"url": url, "allow_private": allow_private})
         if raises is not None:
             raise raises
         return Fetched(
-            url=landed_on, html=html, status=200, rung="http", headers=headers or {}
+            url=landed_on, html=html, status=200, rung="http", headers=answered
         )
 
+    # Named apart: the real signature's own ``headers`` is what a caller sends.
+    answered = headers or {}
     fetch.calls = []
 
     monkeypatch.setattr("sluicer.fetch.fetch", fetch)

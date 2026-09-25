@@ -316,3 +316,52 @@ def test_the_audits_site_files_are_judged_by_the_product_token_too(real_protego)
     )
 
     assert _refusal("https://example.com/llms.txt", robots) is None
+
+
+# -- what a caller may send ------------------------------------------------------
+
+
+def test_a_callers_headers_and_cookies_become_one_set_of_headers():
+    from sluicer.fetch.identity import outgoing
+
+    sent = outgoing(
+        {"Authorization": "Bearer t", "Cookie": "theme=dark"},
+        {"session": "abc", "lang": "en"},
+    )
+
+    assert sent == {
+        "Authorization": "Bearer t",
+        "Cookie": "theme=dark; session=abc; lang=en",
+    }
+    assert outgoing() == {}
+    assert outgoing(cookies={"a": "1"}) == {"Cookie": "a=1"}
+
+
+@pytest.mark.parametrize("name", ["User-Agent", "user-agent", " USER-AGENT "])
+def test_the_user_agent_is_never_the_callers(name):
+    """A site must be able to refuse Sluicer by name; a caller who could
+    rename it would take that from the site."""
+    from sluicer.fetch.identity import outgoing
+
+    with pytest.raises(ValueError, match="Sluicer always says it is Sluicer"):
+        outgoing({name: "Mozilla/5.0"})
+
+
+@pytest.mark.parametrize(
+    ("headers", "cookies", "said"),
+    [
+        ({"Host": "elsewhere.example"}, None, "written by the transport"),
+        ({"Accept-Encoding": "br"}, None, "written by the transport"),
+        ({"Bad Name": "x"}, None, "not a header name"),
+        ({"X-Two": "a\r\nX-Injected: b"}, None, "another line"),
+        (None, {"a;b": "1"}, "not a cookie name"),
+        (None, {"a": "1; Path=/"}, "would break the header"),
+    ],
+)
+def test_what_would_break_a_request_is_refused_before_anything_is_asked(
+    headers, cookies, said
+):
+    from sluicer.fetch.identity import outgoing
+
+    with pytest.raises(ValueError, match=said):
+        outgoing(headers, cookies)
