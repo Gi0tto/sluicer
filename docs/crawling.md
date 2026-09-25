@@ -142,7 +142,9 @@ a log, one line a page.
 - **Under our own name.** Every request says `Sluicer/<version>`. The stealth
   rung is never part of a crawl. `--header` and `--cookie` (`headers=`,
   `cookies=`) add to what a crawl sends -- a site's own login, for a site you
-  may read behind it -- and never replace the name.
+  may read behind it -- and never replace the name. They go to the origin the
+  crawl starts at alone, scheme, host and port: its pages on `www.` or over
+  plain http, a robots.txt, a sitemap on another host are asked without them.
 
 Measured by the site being crawled, not by the crawler: `tests/live/crawl_check.py`
 serves a local site whose `robots.txt` asks for a `Crawl-delay` of 0.5 s and

@@ -322,6 +322,38 @@ def test_the_callers_headers_go_only_to_the_origin_asked_unguarded():
     ]
 
 
+def test_a_browser_built_for_an_origin_sends_its_login_there_alone():
+    """Handed an address of the site over plain http, as a crawl of an https
+    site follows its http links, the browser set the cookies for that origin
+    and sent the headers there: the origin a login goes to is fixed when the
+    rung is built, and a cookie set for https is Secure."""
+    browser, host = _browser(
+        {"http://example.com/p": "<p>hi</p>"},
+        headers={"Authorization": "Bearer t"},
+        cookies={"session": "abc"},
+        send_to=["https://example.com/"],
+    )
+    browser("http://example.com/p")
+    route = host.contexts[0].routes[0][1]
+    continued = []
+
+    for url in ("http://example.com/api", "https://example.com/api"):
+        route(
+            types.SimpleNamespace(
+                request=types.SimpleNamespace(url=url, headers={}),
+                continue_=lambda url=url, **kw: continued.append((url, kw)),
+            )
+        )
+
+    assert host.contexts[0].cookies == [
+        {"name": "session", "value": "abc", "url": "https://example.com"}
+    ]
+    assert continued == [
+        ("http://example.com/api", {}),
+        ("https://example.com/api", {"headers": {"Authorization": "Bearer t"}}),
+    ]
+
+
 def test_the_default_ladder_hands_the_browser_its_cookies_apart_from_its_headers(
     monkeypatch,
 ):

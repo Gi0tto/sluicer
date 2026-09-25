@@ -745,6 +745,124 @@ def test_an_address_with_a_user_and_password_sends_them_as_basic(monkeypatch):
     assert seen.requests[0].headers["authorization"] == "Basic bWU6cEBzcw=="
 
 
+LOGIN = {"headers": {"Authorization": "Bearer t"}, "cookies": {"session": "1"}}
+NOTHING = (404, b"", {})
+
+
+def _sent_a_login(request):
+    return "authorization" in request.headers or "cookie" in request.headers
+
+
+@pytest.fixture
+def plain_ladder(monkeypatch):
+    """The default ladder without a browser, the gate not waiting."""
+    from sluicer.fetch.gate import GATE
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    monkeypatch.setattr(GATE, "min_delay", 0.0)
+
+
+def test_the_robots_txt_a_redirect_lands_on_is_not_sent_the_login(
+    monkeypatch, plain_ladder
+):
+    """Measured on 0.8.0: the other origin's robots.txt was read through the
+    ladder's own rung, which took the robots.txt address for the one asked
+    and sent it the caller's Authorization and cookies."""
+    seen = fake_http(
+        monkeypatch,
+        [NOTHING, (302, b"", {"location": "https://other.example/q"}), PAGE, NOTHING],
+    )
+
+    landed = fetch("https://example.com/p", **LOGIN)
+
+    assert landed.url == "https://other.example/q"
+    assert [(seen.targets[r.connection].host, r.target) for r in seen.requests] == [
+        ("example.com", "/robots.txt"),
+        ("example.com", "/p"),
+        ("other.example", "/q"),
+        ("other.example", "/robots.txt"),
+    ]
+    assert [_sent_a_login(r) for r in seen.requests] == [False, True, False, False]
+
+
+def test_robots_txt_is_read_as_anyone_reads_it(monkeypatch, plain_ladder):
+    """One answer per site, whoever asks: read with a login, the answer was
+    kept for the site and given to every caller for a day, with that login
+    or without it."""
+    from sluicer.fetch.identity import _CACHE
+
+    seen = fake_http(monkeypatch, [(200, b"User-agent: *\nAllow: /\n", {}), PAGE])
+
+    fetch("https://example.com/p", **LOGIN)
+
+    assert [r.target for r in seen.requests] == ["/robots.txt", "/p"]
+    assert [_sent_a_login(r) for r in seen.requests] == [False, True]
+    assert list(_CACHE) == ["https://example.com"]
+
+
+def test_a_redirect_to_another_port_reads_that_ports_robots_txt(
+    monkeypatch, plain_ladder
+):
+    """An origin is its scheme, host and port: a redirect from :443 to :8443
+    lands on a server whose robots.txt had not been read."""
+    seen = fake_http(
+        monkeypatch,
+        [
+            NOTHING,
+            (302, b"", {"location": "https://example.com:8443/q"}),
+            PAGE,
+            (200, b"User-agent: *\nDisallow: /q\n", {}),
+        ],
+    )
+    from sluicer.fetch.ladder import RobotsRefused
+
+    with pytest.raises(RobotsRefused):
+        fetch("https://example.com/p")
+
+    assert [r.target for r in seen.requests] == [
+        "/robots.txt",
+        "/p",
+        "/q",
+        "/robots.txt",
+    ]
+    assert seen.targets[-1].port == 8443
+
+
+def test_the_login_is_not_sent_back_over_plain_http(monkeypatch):
+    """The origin a login goes to is the one the caller named: an https page
+    that redirects to its own host over http is asked there without it."""
+    seen = fake_http(
+        monkeypatch, [(302, b"", {"location": "http://example.com/q"}), PAGE]
+    )
+    from sluicer.fetch.http_rung import http_rung
+
+    send = {"Authorization": "Bearer t", "Cookie": "session=1"}
+    http_rung(send=send, send_to=["https://example.com/"])("https://example.com/p")
+
+    assert [_sent_a_login(r) for r in seen.requests] == [True, False]
+
+
+def test_a_transport_given_its_origins_sends_the_login_to_them_alone(monkeypatch):
+    """Built for the addresses a caller named, it is handed others -- a link,
+    a sitemap another host serves -- and sends those nothing of the login."""
+    seen = fake_http(monkeypatch, [PAGE] * 4)
+    from sluicer.fetch.http_rung import http_responses
+
+    get = http_responses(
+        send={"Authorization": "Bearer t"},
+        send_to=["https://example.com/start", "https://shop.example:8443/"],
+    )
+    for url in (
+        "https://example.com/other",
+        "https://shop.example:8443/p",
+        "https://www.example.com/",
+        "https://cdn.example/sitemap.xml",
+    ):
+        get(url)
+
+    assert [_sent_a_login(r) for r in seen.requests] == [True, True, False, False]
+
+
 # -- proxies, on the wire --------------------------------------------------------
 
 

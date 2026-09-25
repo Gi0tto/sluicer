@@ -419,10 +419,16 @@ the same way.
 **A caller's headers and cookies go to the origin asked.** Scheme, host and
 port, for the HTTP rung and for the headers a browser sends; a hop elsewhere
 is sent none. A cookie in the browser follows the browser's own rules, under
-which a cookie belongs to a host, not to a port. A crawl or a batch sends them
-to every page's own origin, as `curl -H` sends them to every address it is
-given, so a batch of several sites gives each site the same cookie. The
-archive (`--at`) and the stealth rung are sent none.
+which a cookie belongs to a host, not to a port; one set for an https origin
+is sent over https alone. A crawl, a map and the pages of a sitemap send them
+to the origin they start at, and to no other: a site's `www.` twin and its
+pages over plain http are part of the crawl and are asked without them. A
+batch sends them to the origin of every address it is given, as `curl -H`
+sends them to every address, so a batch of several sites gives each site the
+same cookie; a redirect's target, read in its own turn, is sent none.
+robots.txt is always read without them, so its answer is the site's for
+every caller, and so is a sitemap on another origin. The archive (`--at`)
+and the stealth rung are sent none.
 
 **The cache serves single pages.** `--cache` is read by `extract`, `inspect`,
 `markdown`, `audit` and `diff`, not by `crawl` or `batch`, whose state file is

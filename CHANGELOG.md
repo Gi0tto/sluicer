@@ -494,6 +494,26 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A body of thousands of gzip or zstd members is read in a loop: each member
   was read by a call inside the last one's, and 3,000 empty gzip members,
   60 KB, raised `RecursionError`.
+- A caller's headers and cookies go to the origin the caller named, fixed
+  before the first request, and to no other. The ladder read the robots.txt
+  of the origin a redirect landed on through the rung built with them, which
+  took that robots.txt for the address asked and sent it the caller's
+  `Authorization` and cookies. A crawl sent them to every address of the
+  site, so a crawl of an https site followed its http links and sent the
+  cookie in clear text, and to its `www.` twin; a map sent them to a sitemap
+  robots.txt names on any host; a batch sent them to a redirect's target,
+  read in its own turn. Now a fetch sends them to the origin of its address,
+  a crawl, a map and the pages of a sitemap to the origin they start at, a
+  batch to the origins of the addresses it is given; in the browser a cookie
+  set for an https origin is sent over https alone.
+- robots.txt is read without the caller's headers and cookies, as anyone
+  reads it: the answer is kept for the site for a day and given to every
+  caller, so an answer read behind one login was given to every other
+  caller, with that login or without it.
+- The robots.txt of the origin a redirect lands on is read when only the
+  port differs: a redirect from `https://example.com/` to
+  `https://example.com:8443/` was taken for the same origin, and that
+  server's robots.txt was never asked.
 
 ## 0.7.1 - 2026-09-25
 

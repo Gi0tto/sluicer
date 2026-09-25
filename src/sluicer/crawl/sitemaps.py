@@ -296,6 +296,10 @@ def map_site(
         max_bytes: the most a sitemap, inflated, or a page may weigh.
         web: how the site is reached; the real web by default.
         clock, sleep: the time, injected so a test can pace a map.
+        headers, cookies: ``fetch``'s, sent with the requests for the origin
+            of ``url`` -- its sitemaps and its page -- and with no other: a
+            sitemap robots.txt names on another host is asked without them,
+            and robots.txt is read as anyone reads it.
 
     Returns:
         A ``SiteMap``, with every sitemap tried and what became of it.
@@ -321,7 +325,12 @@ def map_site(
         web
         if web is not None
         else default_web(
-            allow_private, resolve, max_bytes, headers=headers, cookies=cookies
+            allow_private,
+            resolve,
+            max_bytes,
+            headers=headers,
+            cookies=cookies,
+            send_to=[start],
         )
     )
     polite = Politeness(web.read, min_delay, clock, sleep, ceiling=max_delay)

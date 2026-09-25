@@ -42,7 +42,7 @@ import contextlib
 import os
 import queue
 import threading
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import Future, TimeoutError as FutureTimeout
 from dataclasses import dataclass, field
 from typing import Any
@@ -243,19 +243,26 @@ def _load(
     guard: Guard | None,
     headers: Mapping[str, str],
     cookies: Mapping[str, str],
-    asked: str,
+    asked: Sequence[str],
     proxy: str | None,
 ) -> Job:
-    """The job that loads ``url`` in a new context of the browser."""
+    """The job that loads ``url`` in a new context of the browser.
+
+    ``cookies`` are set for each origin in ``asked``: for its host alone, and
+    over https only when it is https's -- Playwright marks a cookie set for
+    an https address ``Secure``.
+    """
 
     def job(browser: Any) -> Loaded | None:
         context = browser.new_context(**_context_options(proxy))
         try:
             if cookies:
-                parts = urlsplit(asked)
-                origin = f"{parts.scheme}://{parts.netloc}"
                 context.add_cookies(
-                    [{"name": k, "value": v, "url": origin} for k, v in cookies.items()]
+                    [
+                        {"name": k, "value": v, "url": origin}
+                        for origin in dict.fromkeys(_origin_of(a) for a in asked)
+                        for k, v in cookies.items()
+                    ]
                 )
             if guard is not None:
                 guard.setup(context)
@@ -288,13 +295,19 @@ def _load(
     return job
 
 
-def _adding(headers: Mapping[str, str], asked: str) -> Callable[[Any], None]:
-    """A route that adds the caller's headers to requests for the origin asked,
-    and to none elsewhere: the page's other hosts are not the caller's."""
+def _origin_of(address: str) -> str:
+    parts = urlsplit(address)
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def _adding(headers: Mapping[str, str], asked: Sequence[str]) -> Callable[[Any], None]:
+    """A route that adds the caller's headers to requests for the origins
+    asked, and to none elsewhere: the page's other hosts are not the
+    caller's."""
 
     def route(handled: Any) -> None:
         request = handled.request
-        if same_origin(request.url, asked):
+        if any(same_origin(request.url, one) for one in asked):
             handled.continue_(headers={**request.headers, **headers})
         else:
             handled.continue_()
@@ -311,6 +324,7 @@ def browser_rung(
     headers: Mapping[str, str] | None = None,
     cookies: Mapping[str, str] | None = None,
     host: BrowserHost | None = None,
+    send_to: Iterable[str] | None = None,
 ) -> Rung:
     """Build the browser rung.
 
@@ -326,19 +340,24 @@ def browser_rung(
         headers: sent with the requests for the origin asked, and no other.
         cookies: set in the page's context for the origin asked.
         host: the browser; the process's by default.
+        send_to: the addresses whose origins -- scheme, host and port --
+            ``headers`` and ``cookies`` are for, fixed here; None, the origin
+            of each address the rung is handed.
     """
     sent = dict(headers or {})
     crumbs = dict(cookies or {})
     driver = host if host is not None else HOST
+    fixed = tuple(send_to) if send_to is not None else None
 
     def rung(url: str) -> Fetched:
+        asked = fixed if fixed is not None else (url,)
         if allow_private:
-            loaded = driver.run(_load(url, None, sent, crumbs, url, proxy))
+            loaded = driver.run(_load(url, None, sent, crumbs, asked, proxy))
             return _as_fetched(loaded, url, max_bytes)
         current = url
         for _ in range(MAX_REDIRECTS + 1):
-            guard = Guard(resolve, send=sent, asked=url)
-            loaded = driver.run(_load(current, guard, sent, crumbs, url, proxy))
+            guard = Guard(resolve, send=sent, asked=asked)
+            loaded = driver.run(_load(current, guard, sent, crumbs, asked, proxy))
             if not guard.installed:
                 raise RuntimeError(
                     "the browser rung could not guard the page's requests, so it "

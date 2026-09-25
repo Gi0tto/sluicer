@@ -616,22 +616,71 @@ def test_a_page_built_to_make_the_refusal_slow_is_refused_in_linear_time():
     assert time.perf_counter() - started < 1.0
 
 
-def test_the_real_web_sends_the_callers_headers_and_cookies_on_every_request(
+def test_the_real_web_sends_the_callers_login_to_the_origin_named_and_no_other(
     monkeypatch,
 ):
     """Measured before, against a local server: a crawl given headers= and
-    cookies= sent neither, not with its pages, its robots.txt or its sitemaps;
-    ``default_web`` took them and built its rungs without them."""
+    cookies= sent neither; ``default_web`` built its rungs without them. Then
+    measured on 0.8.0: it sent them with every request, to whatever origin
+    the request was for -- a robots.txt, a sitemap on another host, an http
+    link of an https site. They go to the origins the caller named, pages and
+    sitemaps; robots.txt is read as anyone reads it."""
     from fake_wire import fake_http
     from sluicer.crawl.web import default_web
 
     monkeypatch.setenv("SLUICER_BROWSER", "none")
-    seen = fake_http(monkeypatch, [(200, b"<p>" + b"page " * 60, {})] * 3)
+    seen = fake_http(monkeypatch, [(200, b"<p>" + b"page " * 60, {})] * 7)
 
-    web = default_web(headers={"X-Token": "abc"}, cookies={"s": "1"})
+    web = default_web(
+        headers={"X-Token": "abc"},
+        cookies={"s": "1"},
+        send_to=["https://example.com/"],
+    )
     dict(web.rungs)["http"]("https://example.com/p")
     web.read("https://example.com/robots.txt")
     web.get("https://example.com/sitemap.xml")
+    dict(web.rungs)["http"]("http://example.com/p")
+    dict(web.rungs)["http"]("https://www.example.com/p")
+    web.get("https://cdn.example/sitemap.xml")
+    web.read("https://cdn.example/robots.txt")
 
-    assert [r.headers.get("x-token") for r in seen.requests] == ["abc"] * 3
-    assert [r.headers.get("cookie") for r in seen.requests] == ["s=1"] * 3
+    tokens = [r.headers.get("x-token") for r in seen.requests]
+    assert tokens == ["abc", None, "abc", None, None, None, None]
+    cookies = [r.headers.get("cookie") for r in seen.requests]
+    assert cookies == ["s=1", None, "s=1", None, None, None, None]
+
+
+def test_a_sitemap_robots_txt_names_on_another_host_is_not_sent_the_login(
+    monkeypatch,
+):
+    """Measured on 0.8.0: map_site with a login read the site's robots.txt,
+    which named a sitemap on a host of anyone's choosing, and asked it with
+    the caller's Authorization and cookies."""
+    from fake_wire import fake_http
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    seen = fake_http(
+        monkeypatch,
+        [
+            (200, b"Sitemap: https://collector.example/s.xml\n", {}),
+            (404, b"", {}),
+            (
+                200,
+                f"<urlset {NS}><url><loc>https://example.com/a</loc></url></urlset>".encode(),
+                {},
+            ),
+        ],
+    )
+
+    mapped = map_site(
+        "https://example.com/",
+        headers={"Authorization": "Bearer t"},
+        cookies={"s": "1"},
+        min_delay=0,
+    )
+
+    assert [u.url for u in mapped.urls] == ["https://example.com/a"]
+    assert [r.target for r in seen.requests] == ["/robots.txt", "/robots.txt", "/s.xml"]
+    assert not any(
+        "authorization" in r.headers or "cookie" in r.headers for r in seen.requests
+    )

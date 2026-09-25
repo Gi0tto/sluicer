@@ -36,13 +36,13 @@ from sluicer.crawl.pages import (
     StateMismatch,
     _appending,
     _cut_unfinished,
+    _extract_listed,
     _lines,
     _patterns,
     _reach,
     _sendable,
     _write,
     asking_again,
-    extract_many,
 )
 from sluicer.crawl.schedule import (
     CONCURRENCY,
@@ -136,8 +136,11 @@ def sitemap_pages(
         and not any(p.search(address.url) for p in unwanted)
     ]
     left = None if time_budget is None else time_budget - (clock() - started)
-    inner = extract_many(
-        chosen[:max_pages],
+    # The login goes to the origin the caller named, not to every address of
+    # the site a sitemap lists: its www. twin, its pages over plain http.
+    inner = _extract_listed(
+        [normalise(address) or address for address in chosen[:max_pages]],
+        [url],
         state=state,
         induce=induce,
         respect_tdm=respect_tdm,
@@ -247,6 +250,7 @@ def shopify_products(
         headers,
         cookies,
         max_delay,
+        [start],
     )
     deadline = None if time_budget is None else clock() + time_budget
     reader = _Listing(web, polite, allow_private, resolve, max_delay)

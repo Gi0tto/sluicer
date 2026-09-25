@@ -121,6 +121,7 @@ class FakeWeb:
             redirects=None,
             headers=None,
             cookies=None,
+            send_to=(),
         ):
             return self.web(redirects)
 

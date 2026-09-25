@@ -18,13 +18,13 @@ so a name that answers differently between the check and the connection (DNS
 rebinding) is reached. Only the HTTP rung pins its connections. Service workers
 fetch outside any route, so the page is not given them.
 
-The caller's own headers (``send``) go with the requests for the origin it
-asked (``asked``), each hop of a chain judged again, and with none elsewhere.
+The caller's own headers (``send``) go with the requests for the origins it
+named (``asked``), each hop of a chain judged again, and with none elsewhere.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -53,11 +53,11 @@ class Guard:
         self,
         resolve: Callable[[str], Iterable[str]] = _resolve,
         send: Mapping[str, str] | None = None,
-        asked: str | None = None,
+        asked: Sequence[str] = (),
     ) -> None:
         self.resolve = resolve
         self.send = dict(send or {})
-        self.asked = asked
+        self.asked = tuple(asked)
         self.installed = False
         self.redirect: str | None = None
         self.refused: list[tuple[str, str]] = []
@@ -73,9 +73,9 @@ class Guard:
 
     def _headers(self, route: Any, url: str) -> dict[str, str] | None:
         """What a hop to ``url`` sends: the request's own headers, and the
-        caller's when it is the origin they were given for; None, the
+        caller's when it is an origin they were given for; None, the
         request's own unchanged, when there are none to add."""
-        if not self.send or self.asked is None or not same_origin(url, self.asked):
+        if not self.send or not any(same_origin(url, one) for one in self.asked):
             return None
         return {**route.request.headers, **self.send}
 

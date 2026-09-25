@@ -395,14 +395,14 @@ Fetch ``url``, climbing to a costlier rung only when a measurement says so.
 
 - `url`: an http(s) address.
 - `rungs`: ``(name, rung)`` pairs, cheapest first; plain HTTP then a browser by default, the browser when the ``browser`` extra is installed (without it, a climb to it fails and is recorded, and the HTTP page comes back). Injected so tests stay off the network. The default rungs are the real web, so a fetch with them holds the site in ``sluicer.fetch.gate`` for its whole length -- robots.txt, the page, any climb -- a second after anyone's last request to it. Injected rungs are the caller's to pace, as a crawl paces its own.
-- `obey_robots`: ask the site's robots.txt first (the default), and again for the host a redirect ended on.
+- `obey_robots`: ask the site's robots.txt first (the default), and again for the origin -- scheme, host and port -- a redirect ended on.
 - `stealth`: append the stealth rung, which does not announce itself. Never automatic; it needs the ``stealth`` extra.
 - `robots_reader`: how robots.txt is read; built from the cheapest rung by default.
 - `allow_private`: when false, refuse addresses off the public internet: the one asked for before any request, and every one a redirect or the page itself names before it is requested. The MCP server sets it.
 - `resolve`: the name lookup ``allow_private`` decides with.
 - `max_bytes`: the most a page may weigh; heavier is ``ResponseTooLarge``, and never a reason to climb.
 - `proxy`: the proxy the default rungs and the stealth rung go through; ``SLUICER_PROXY`` when None, and none when that is unset. The environment's ``HTTPS_PROXY`` is never used. Through a proxy the private-network check still judges every address here, but the connection is the proxy's: see SECURITY.md.
-- `headers`: sent with every request for the origin asked -- scheme, host and port -- and left off any hop a redirect takes elsewhere: an ``Authorization``, a header an API wants. Never ``User-Agent``: Sluicer always says who it is, so a site can refuse it.
+- `headers`: sent with every request for the origin asked -- scheme, host and port -- and left off any hop a redirect takes elsewhere: an ``Authorization``, a header an API wants. Never ``User-Agent``: Sluicer always says who it is, so a site can refuse it. Nor with a robots.txt, which is read as anyone reads it: its answer is the site's, kept for every caller.
 - `cookies`: sent as one ``Cookie`` header the same way, and set in the browser's context for the host asked, where a browser's own cookie rules apply (a cookie belongs to a host, not a port).
 - `memory`: what each site needed before, and learns what this page needs: a site whose page came back only from the browser starts its next page there. The process's (``STICKY``) with the default rungs; none with injected ones unless handed one.
 
@@ -673,6 +673,7 @@ in the order the sitemaps list them.
 - `max_bytes`: the most a sitemap, inflated, or a page may weigh.
 - `web`: how the site is reached; the real web by default.
 - clock, sleep: the time, injected so a test can pace a map.
+- headers, cookies: ``fetch``'s, sent with the requests for the origin of ``url`` -- its sitemaps and its page -- and with no other: a sitemap robots.txt names on another host is asked without them, and robots.txt is read as anyone reads it.
 
 **Returns**
 
@@ -737,7 +738,7 @@ per site, and hand back each page as its turn comes.
 - `max_bytes`: the most one page may weigh.
 - `web`: how sites are reached; the real web by default.
 - clock, sleep: the time, injected so a test can pace a crawl.
-- headers, cookies: ``fetch``'s, sent with every request of the crawl -- pages, robots.txt, sitemaps -- to the origin it asks, and with no hop a redirect takes elsewhere. Never a ``User-Agent``.
+- headers, cookies: ``fetch``'s, sent with the crawl's requests for the origin of ``start`` -- scheme, host and port -- pages and sitemaps, and with no other: not the site's ``www.`` twin, not its pages over plain http, not a robots.txt, which is read as anyone reads it. Never a ``User-Agent``.
 
 **Returns**
 
@@ -785,7 +786,9 @@ is not an http(s) address comes back as a ``bad_input`` page. With
 ``state``, an address the file already holds is skipped, and every new
 page is appended. The other arguments are ``crawl``'s; ``headers`` and
 ``cookies`` go to every address's own origin, as a list of addresses
-handed to ``curl -H`` has them sent to each.
+handed to ``curl -H`` has them sent to each -- to the origins of the
+addresses given, and not to one a redirect's target, read in its own
+turn, is on.
 
 ## Feeds
 

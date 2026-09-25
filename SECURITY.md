@@ -29,7 +29,13 @@ oversight. A header or cookie you hand a fetch (`headers=`, `cookies=`,
 `--header`, `--cookie`) is sent to the origin you asked for -- scheme, host and
 port -- and left off every hop a redirect takes elsewhere; in the browser, a
 cookie is set for the host asked and follows the browser's cookie rules, under
-which a cookie belongs to a host, not a port. It is never written to disk: the
+which a cookie belongs to a host, not a port, and one set for https is sent
+over https alone. The origin is the one you named, fixed before the first
+request: a crawl sends it to the origin it starts at and to no other address
+of the site -- not its `www.` twin, not its pages over plain http -- a batch
+to the origins of the addresses you list, and no robots.txt, nor a sitemap
+another host serves, is sent it. robots.txt is read as anyone reads it. It
+is never written to disk: the
 page cache keys a page fetched with one by a digest of what was sent. The MCP
 server and the HTTP API take none.
 

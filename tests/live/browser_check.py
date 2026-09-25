@@ -111,6 +111,23 @@ def main() -> int:
             if "x-team" in request or "cookie" in request:
                 failures.append(f"{mode}: the other site was sent {request}")
 
+    # Built for one origin and handed an address on another -- as a crawl
+    # hands it the site's www. twin or its pages over http -- it sends that
+    # address nothing of the login.
+    heard["asked"].clear()
+    elsewhere = browser_rung(
+        headers={"X-Team": "reader"},
+        cookies={"session": "s3cret"},
+        send_to=[f"http://localhost:{ASKED}/"],
+    )
+    elsewhere(url)
+    time.sleep(0.3)
+    if not heard["asked"]:
+        failures.append("the page of another origin was never asked; nothing tested")
+    for request in heard["asked"]:
+        if "x-team" in request or "cookie" in request:
+            failures.append(f"a login fixed for another origin was sent {request}")
+
     # A proxy asked for is the one used: a socket that notes what reaches it.
     proxy = socket.create_server(("127.0.0.1", 0))
     told: list[bytes] = []

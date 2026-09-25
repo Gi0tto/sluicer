@@ -30,7 +30,11 @@ promises.
   the connection the first one opened, while the server keeps it open.
 * **The caller's headers stay with the site asked.** Headers a caller sends
   -- a cookie, an authorization, a cache's validators -- go to the origin
-  asked for, and are left off a hop a redirect takes elsewhere.
+  asked for, and are left off a hop a redirect takes elsewhere. Given
+  ``send_to``, the origins are fixed when the transport is built: whatever
+  address it is later handed -- a link, a robots.txt, a sitemap another host
+  serves, the site's own pages over plain http -- is sent them only when its
+  scheme, host and port are one of those.
 
 ``http_responses`` is the same transport answering bytes, for what is not a
 page: a sitemap, which may be gzip the server did not announce as an encoding.
@@ -145,6 +149,7 @@ def http_responses(
     timeout: float = HTTP_TIMEOUT_SECONDS,
     proxy: str | None = None,
     connections: Connections | None = None,
+    send_to: Iterable[str] | None = None,
 ) -> Callable[[str], Response]:
     """Build the HTTP transport: an address in, a ``Response`` out.
 
@@ -169,6 +174,10 @@ def http_responses(
             ``HTTPS_PROXY`` and ``HTTP_PROXY`` are never used. Another kind
             is a ``ValueError``.
         connections: the pool of open connections; the process's by default.
+        send_to: the addresses whose origins -- scheme, host and port --
+            ``send`` goes to, fixed here; None sends it to the origin of each
+            address the transport is handed, which is right only for a
+            caller that names every address itself.
     """
     through = chosen_proxy(proxy)
     named = Proxy.parse(through) if through is not None else None
@@ -178,12 +187,13 @@ def http_responses(
         if refusal is not None:
             raise ValueError(refusal)
     pool = connections if connections is not None else CONNECTIONS
+    fixed = origins(send_to) if send_to is not None else None
 
     def checked(url: str) -> list[str]:
         return public_addresses(url, resolve)
 
     def get(url: str) -> Response:
-        asked = _origin(url)
+        asked = fixed if fixed is not None else frozenset({_origin(url)})
         current = url
         deadline = time.monotonic() + timeout
         try:
@@ -198,7 +208,7 @@ def http_responses(
                     addresses = tuple(
                         within(deadline, functools.partial(checked, current))
                     )
-                own = extra if _origin(current) == asked else {}
+                own = extra if _origin(current) in asked else {}
                 status, headers, body = _exchange(
                     pool, current, addresses, named, own, max_bytes, deadline
                 )
@@ -237,6 +247,7 @@ def http_rung(
     proxy: str | None = None,
     send: Mapping[str, str] | None = None,
     connections: Connections | None = None,
+    send_to: Iterable[str] | None = None,
 ) -> Rung:
     """Build the HTTP rung: ``http_responses``, its body read as a page.
 
@@ -254,6 +265,7 @@ def http_rung(
         timeout=timeout,
         proxy=proxy,
         connections=connections,
+        send_to=send_to,
     )
 
     def http(url: str) -> Fetched:
@@ -430,6 +442,12 @@ def chosen_proxy(proxy: str | None = None) -> str | None:
     None -- no proxy -- when neither names one."""
     named = proxy if proxy is not None else os.environ.get(PROXY_ENV, "")
     return named.strip() or None
+
+
+def origins(addresses: Iterable[str]) -> frozenset[tuple[str, str, int | None]]:
+    """The origins -- scheme, host and port -- of ``addresses``: where a
+    caller's headers may go."""
+    return frozenset(_origin(address) for address in addresses)
 
 
 def _origin(url: str) -> tuple[str, str, int | None]:

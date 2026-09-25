@@ -304,7 +304,7 @@ def fetch(
             the page, any climb -- a second after anyone's last request to it.
             Injected rungs are the caller's to pace, as a crawl paces its own.
         obey_robots: ask the site's robots.txt first (the default), and again
-            for the host a redirect ended on.
+            for the origin -- scheme, host and port -- a redirect ended on.
         stealth: append the stealth rung, which does not announce itself.
             Never automatic; it needs the ``stealth`` extra.
         robots_reader: how robots.txt is read; built from the cheapest rung
@@ -324,7 +324,9 @@ def fetch(
         headers: sent with every request for the origin asked -- scheme,
             host and port -- and left off any hop a redirect takes elsewhere:
             an ``Authorization``, a header an API wants. Never ``User-Agent``:
-            Sluicer always says who it is, so a site can refuse it.
+            Sluicer always says who it is, so a site can refuse it. Nor with
+            a robots.txt, which is read as anyone reads it: its answer is the
+            site's, kept for every caller.
         cookies: sent as one ``Cookie`` header the same way, and set in the
             browser's context for the host asked, where a browser's own
             cookie rules apply (a cookie belongs to a host, not a port).
@@ -369,6 +371,7 @@ def fetch(
             "the stealth rung sends no headers or cookies of yours: it does not "
             "say who is asking, and a login would"
         )
+    plain: Rung | None = None
     if rungs is None:
         from sluicer.fetch.rungs import default_rungs
 
@@ -379,7 +382,13 @@ def fetch(
             proxy=proxy,
             headers=headers,
             cookies=cookies,
+            send_to=[url],
         )
+        if sending:
+            # robots.txt is read as anyone reads it, whatever login the page
+            # is asked with: the answer is the site's, kept for a day for
+            # every caller, and a redirect's other origin is sent nothing.
+            plain = default_rungs(allow_private, resolve, max_bytes, proxy=proxy)[0][1]
     if stealth:
         from sluicer.fetch.stealth import stealth_rung
 
@@ -400,7 +409,9 @@ def fetch(
         raise AddressRefused(url, refused)
 
     read = (
-        robots_reader if robots_reader is not None else robots_reader_from(rungs[0][1])
+        robots_reader
+        if robots_reader is not None
+        else robots_reader_from(plain if plain is not None else rungs[0][1])
     )
     if memory is None and gated:
         memory = STICKY
@@ -571,9 +582,12 @@ def _robots(url: str, read: Callable[[str], str | None]) -> str | None:
         raise FetchFailed(url, [], str(unreachable)) from unreachable
 
 
-def _origin(url: str) -> tuple[str, str]:
+def _origin(url: str) -> tuple[str, str, int | None]:
+    """A URL's scheme, host and port: whose robots.txt governs it."""
     try:
         parts = urlsplit(url)
-        return parts.scheme.lower(), (parts.hostname or "").lower()
+        scheme = parts.scheme.lower()
+        port = parts.port or (443 if scheme == "https" else 80)
+        return scheme, (parts.hostname or "").lower(), port
     except ValueError:
-        return "", url
+        return "", url, None

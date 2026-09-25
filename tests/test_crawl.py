@@ -1295,3 +1295,96 @@ def test_a_fast_site_is_still_asked_no_sooner_than_its_crawl_delay():
     list(run(fake, max_pages=3))
 
     assert fake.gaps("example.com") == [4.0, 4.0, 4.0]
+
+
+def test_a_crawls_login_goes_to_the_origin_it_started_at_and_no_other(monkeypatch):
+    """Measured on 0.8.0: a crawl of https://site.test/ with a cookie followed
+    an http:// link of the same site and sent the cookie in clear text. The
+    site is its host with or without www., over http or https; a login is
+    for the one origin the caller named."""
+    from fake_wire import fake_http
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    home = (
+        b"<html><body>" + b"<p>words of the home page</p>" * 20 + b"<a href="
+        b"'http://example.com/plain'>plain</a><a href='https://www.example.com/w'>"
+        b"w</a><a href='/same'>same</a></body></html>"
+    )
+    leaf = b"<html><body>" + b"<p>words of a page</p>" * 20 + b"</body></html>"
+    nothing = (404, b"", {})
+    seen = fake_http(
+        monkeypatch,
+        [nothing, (200, home, {}), nothing, (200, leaf, {}), nothing]
+        + [(200, leaf, {})] * 2,
+    )
+
+    pages = list(
+        crawl(
+            "https://example.com/",
+            max_pages=4,
+            min_delay=0,
+            headers={"Authorization": "Bearer t"},
+            cookies={"s": "1"},
+        )
+    )
+
+    assert [p.error for p in pages] == [None] * 4
+    asked = [
+        (seen.targets[r.connection].scheme, seen.targets[r.connection].host, r.target)
+        for r in seen.requests
+    ]
+    logged_in = [
+        target
+        for target, r in zip(asked, seen.requests, strict=True)
+        if "authorization" in r.headers or "cookie" in r.headers
+    ]
+    assert sorted(logged_in) == [
+        ("https", "example.com", "/"),
+        ("https", "example.com", "/same"),
+    ]
+    assert len(asked) == 7
+
+
+def test_a_batchs_login_does_not_follow_a_redirect_into_another_sites_turn(
+    monkeypatch,
+):
+    """A redirect to another site is read in that site's own turn, as an
+    address of its own; asked that way it was sent the login meant for the
+    address given."""
+    from fake_wire import fake_http
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    leaf = b"<html><body>" + b"<p>words of a page</p>" * 20 + b"</body></html>"
+    nothing = (404, b"", {})
+    seen = fake_http(
+        monkeypatch,
+        [
+            nothing,
+            (302, b"", {"location": "https://other.example/q"}),
+            nothing,
+            (200, leaf, {}),
+        ],
+    )
+
+    pages = list(
+        extract_many(
+            ["https://example.com/p"], min_delay=0, headers={"Authorization": "t"}
+        )
+    )
+
+    assert [p.error.code if p.error else None for p in pages] == [
+        "redirected_off_site",
+        None,
+    ]
+    assert [r.target for r in seen.requests] == [
+        "/robots.txt",
+        "/p",
+        "/robots.txt",
+        "/q",
+    ]
+    assert ["authorization" in r.headers for r in seen.requests] == [
+        False,
+        True,
+        False,
+        False,
+    ]
