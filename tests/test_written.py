@@ -457,3 +457,157 @@ def test_heal_names_each_field_its_selector_no_longer_finds():
         ("broken", "price")
     ]
     assert healed.written == old.written
+
+
+# -- the command line ---------------------------------------------------------
+
+
+def _cli(*args: str):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    return CliRunner().invoke(main, list(args))
+
+
+def _write_books(out: Path, *pages: str):
+    return _cli(
+        "compile",
+        *(str(DRIFT / name) for name in pages),
+        "-o",
+        str(out),
+        "--rows",
+        "li.product",
+        *(f"--select={name}={text}" for name, text in BOOK.items()),
+    )
+
+
+def test_compile_select_writes_a_hand_written_extractor(tmp_path):
+    out = tmp_path / "books.json"
+
+    result = _write_books(out, "shop_v1.html", "shop_v1_page2.html")
+
+    assert result.exit_code == 0, result.stderr
+    written = Extractor.from_json(out.read_text(encoding="utf-8")).written
+    assert written.rows == "li.product"
+    assert [f.selector for f in written.fields] == list(BOOK.values())
+    assert "3 fields by selector in rows at li.product" in result.stderr
+
+
+def test_compile_select_needs_no_page(tmp_path):
+    out = tmp_path / "name.json"
+
+    result = _cli("compile", "-o", str(out), "--select", "name=h1")
+
+    assert result.exit_code == 0, result.stderr
+    ran = _cli("run", str(out), str(DRIFT / "product.html"))
+    assert ran.exit_code == 0, ran.stderr
+    assert json.loads(ran.stdout)["pages"][0]["fields"] == {"name": "Brake pad set"}
+
+
+def test_compile_without_pages_or_selectors_says_what_it_needs(tmp_path):
+    result = _cli("compile", "-o", str(tmp_path / "x.json"))
+
+    assert result.exit_code == 2
+    assert "pages" in result.stderr and "--select" in result.stderr
+
+
+def test_run_exits_three_when_a_redesign_breaks_a_selector(tmp_path):
+    out = tmp_path / "books.json"
+    _write_books(out, "shop_v1.html", "shop_v1_page2.html")
+
+    result = _cli("run", str(out), str(DRIFT / "shop_redesigned.html"))
+
+    assert result.exit_code == 3
+    [page_run] = json.loads(result.stdout)["pages"]
+    assert page_run["ok"] is False and page_run["rows"] == []
+    assert "expected rows at li.product, got not found" in result.stderr
+
+
+def test_heal_exits_three_and_writes_nothing_for_a_broken_selector(tmp_path):
+    out = tmp_path / "books.json"
+    _write_books(out, "shop_v1.html", "shop_v1_page2.html")
+    healed = tmp_path / "healed.json"
+
+    result = _cli(
+        "heal", str(out), str(DRIFT / "shop_redesigned.html"), "-o", str(healed)
+    )
+
+    assert result.exit_code == 3
+    assert not healed.exists()
+    assert "broken: li.product" in result.stderr
+    assert "heal does not rewrite a selector" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("options", "said"),
+    [
+        (["--select", "title=a[href"], "'a[href'"),
+        (["--select", "title"], "NAME=SELECTOR"),
+        (["--rows", "li"], "--select"),
+        (["--select", "t=h1", "--want", "t=x"], "--want"),
+        (["--select", "t=h1", "--listing"], "--rows"),
+    ],
+)
+def test_compile_refuses_a_selector_it_cannot_read_naming_it(tmp_path, options, said):
+    result = _cli(
+        "compile", str(DRIFT / "product.html"), "-o", str(tmp_path / "x.json"), *options
+    )
+
+    assert result.exit_code == 2
+    assert said in result.stderr
+    assert not (tmp_path / "x.json").exists()
+
+
+def test_compile_says_which_selector_gives_nothing_on_which_page(tmp_path):
+    result = _cli(
+        "compile",
+        str(DRIFT / "product.html"),
+        "-o",
+        str(tmp_path / "x.json"),
+        "--select",
+        "sku=.sku",
+    )
+
+    assert result.exit_code == 1
+    assert "sku='.sku' gives nothing on" in result.stderr
+
+
+def test_select_prints_each_value_and_where_it_is():
+    result = _cli("select", str(DRIFT / "shop_v1.html"), "li.product span.price")
+
+    assert result.exit_code == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert len(lines) == 6
+    assert lines[0] == "£51.77\t/html/body/div[1]/ol[1]/li[1]/span[1]"
+
+
+def test_select_json_gives_value_and_where():
+    result = _cli("select", "--json", str(DRIFT / "shop_v1.html"), "//li[1]/a/@href")
+
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(result.stdout) == [
+        {"value": "/book/1", "where": "/html/body/div[1]/ol[1]/li[1]/a[1]"}
+    ]
+
+
+def test_select_resolves_addresses_against_url():
+    result = _cli(
+        "select",
+        "--url",
+        "https://shop.example/c/",
+        str(DRIFT / "shop_v1.html"),
+        "li:first-child a::attr(href)",
+    )
+
+    assert result.stdout.split("\t")[0] == "https://shop.example/book/1"
+
+
+def test_select_exits_one_on_nothing_and_two_on_a_selector_it_cannot_read():
+    nothing = _cli("select", str(DRIFT / "shop_v1.html"), "table td")
+    broken = _cli("select", str(DRIFT / "shop_v1.html"), "td[")
+
+    assert nothing.exit_code == 1
+    assert "gives nothing" in nothing.stderr
+    assert broken.exit_code == 2
+    assert "'td['" in broken.stderr

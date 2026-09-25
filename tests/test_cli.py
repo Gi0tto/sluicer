@@ -1074,7 +1074,15 @@ def test_the_help_groups_the_commands_by_what_they_are_for():
     among the servers; each section is a thing a person comes to do."""
     said = CliRunner().invoke(main, ["--help"]).stdout
     sections = {
-        "Read a page": ["fetch", "extract", "inspect", "markdown", "diff", "audit"],
+        "Read a page": [
+            "fetch",
+            "extract",
+            "select",
+            "inspect",
+            "markdown",
+            "diff",
+            "audit",
+        ],
         "Whole sites": ["map", "crawl", "batch", "feed", "warc"],
         "Extractors": ["compile", "run", "heal"],
         "Servers": ["mcp", "serve"],

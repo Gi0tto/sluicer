@@ -18,6 +18,7 @@ Options:
 Read a page:
   fetch     Fetch a URL and print the page, as the ladder brought it back.
   extract   Read the structured data a URL, a file or stdin declares.
+  select    Print what a CSS or XPath selector gives on a page, and where.
   inspect   Show, for a person, what a page declares and where each answer came from.
   markdown  Print the main content of a URL, a file or stdin as markdown.
   diff      Say what changed between two readings of a page, question by question.
@@ -125,7 +126,7 @@ Options:
 ## `sluicer compile`
 
 ```text
-Usage: sluicer compile [OPTIONS] SOURCES...
+Usage: sluicer compile [OPTIONS] [SOURCES]...
 
   Learn an extractor from pages of one template, and write it to a file.
 
@@ -135,6 +136,11 @@ Usage: sluicer compile [OPTIONS] SOURCES...
   page -- or with --no-listing, they are the page's own values, each learnt where it
   sits. A value that is nowhere is an error that names it.
 
+  With --select, you name each field by selector instead, and --rows the listing's rows:
+  nothing is learnt of where they are, and from the pages, if any are given, what each
+  field looks like, as for any extractor. A selector that gives nothing on a page given
+  is an error that names it.
+
 Options:
   -o, --output TEXT           Where to write the extractor.  [required]
   --listing / --no-listing    Learn the rows the pages repeat (default: only if they
@@ -142,6 +148,10 @@ Options:
   --want NAME=VALUE           A value one row holds, and the column's name: --want
                               price=41.90. Chooses the listing and keeps only the
                               columns named.
+  --select NAME=SELECTOR      A field you name by CSS or XPath instead of an example:
+                              --select price='span.price::text'. No page is needed.
+  --rows SELECTOR             With --select, the rows of a listing, each field read
+                              inside each: --rows li.product.
   --stealth                   Allow the stealth rung.
   --no-robots                 Fetch even where robots.txt says no.
   --proxy URL                 Fetch through this proxy (http://host:port,
@@ -513,6 +523,43 @@ Options:
                               always says who it is.
   --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
                               again for more.
+  --help                      Show this message and exit.
+```
+
+## `sluicer select`
+
+```text
+Usage: sluicer select [OPTIONS] SOURCE SELECTOR
+
+  Print what a CSS or XPath selector gives on a page, and where.
+
+  One value a line, a tab, then the XPath of its element: 'h1', 'span.price::text',
+  'a::attr(href)' or '//li/a/@href'. A selector that cannot be read exits 2 naming it,
+  before any page is fetched; one that gives nothing exits 1.
+
+Options:
+  --json                      Print the values as a JSON list.
+  --proxy URL                 Fetch through this proxy (http://host:port,
+                              socks5h://host:port); the environment's HTTPS_PROXY is
+                              never used. Same as SLUICER_PROXY.
+  -H, --header 'NAME: VALUE'  Send this header to the site asked, and to no other it
+                              redirects to; again for more. Never User-Agent: Sluicer
+                              always says who it is.
+  --cookie NAME=VALUE         Send this cookie to the site asked, as --header does;
+                              again for more.
+  --stealth                   Allow the stealth rung, which does not announce itself.
+  --no-robots                 Fetch even where the site's robots.txt says no.
+  --url URL                   The address a file or stdin came from, to resolve its
+                              links.
+  --respect [tdm]             Refuse a page whose rights are reserved: tdm reads
+                              TDMRep's tdmrep.json, headers and meta tags.
+  --cache DIR                 Keep fetched pages in DIR, and ask the site with their
+                              ETag or Last-Modified whether a page changed before
+                              fetching it again.
+  --max-age SECONDS           With --cache, give a page kept for less than SECONDS back
+                              without asking its site at all.  [x>=0]
+  --at DATE                   Read a URL as the Wayback Machine captured it nearest to
+                              DATE (2025, 2025-06, 2025-06-01), not from its site.
   --help                      Show this message and exit.
 ```
 
