@@ -80,10 +80,16 @@ and the module named says how it is read.
 - **A JSON-LD block that is not JSON** (`jsonld`). extruct raises, and with its
   default `errors="strict"` that one block loses every syntax on the page; with
   `"log"` or `"ignore"` it loses every block of JSON-LD on the page. sluicer
-  reads blocks as its own reader does -- a comment or CDATA wrapper, a byte
-  order mark, JavaScript's comments, a trailing comma and a media type in
-  another case forgiven -- and skips a block that is still not JSON, keeping
-  the rest.
+  reads a block's text as extruct does -- `json.loads`, then without a comment
+  on its first line and without JavaScript's comments and trailing commas --
+  so a block extruct cannot read gives nothing here either, and it skips that
+  block, keeping the rest. `sluicer.extract` forgives more: a comment or CDATA
+  wrapper around the JSON, a byte order mark, a comment left open. extruct's
+  interface does not, since it answers what extruct answers.
+- **A media type in another spelling** (`jsonld`). extruct reads a script
+  whose `type` is `application/ld+json` spelt exactly so. sluicer matches it
+  ignoring case and parameters, as media types are matched:
+  `application/ld+json;profile=...` is how JSON-LD 1.1 names a profile.
 - **Dublin Core** (`dublincore`). extruct files whatever follows a name's last
   dot, so `<meta name="description">`, `name="title"`, `citation.date` and
   `<link rel="license">` are Dublin Core elements to it. sluicer counts a name

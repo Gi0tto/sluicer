@@ -178,15 +178,20 @@ def test_a_block_at_the_edge_of_the_parser_never_escapes_as_a_recursion_error():
         extract(html)
 
 
-def test_a_block_can_be_read_with_its_numbers_as_json_reads_them():
+def test_a_number_is_read_as_the_text_the_page_wrote():
     raw = '{"price": 41.90, "count": 3, "ratio": NaN}'
 
     assert _parse(raw) == {"price": "41.90", "count": "3", "ratio": None}
-    parsed = _parse(raw, as_written=False)
+
+
+def test_the_extruct_layer_reads_numbers_as_json_reads_them():
+    from sluicer.compat.extruct.jsonld import _as_extruct_reads
+
+    parsed = _as_extruct_reads('{"price": 41.90, "count": 3, "ratio": NaN}')
     assert isinstance(parsed, dict)
     assert (parsed["price"], parsed["count"]) == (41.9, 3)
     assert parsed["ratio"] != parsed["ratio"]  # NaN, as json.loads reads it
-    assert _parse('{"a": 1,}', as_written=False) == {"a": 1}
+    assert _as_extruct_reads('{"a": 1,}') == {"a": 1}
 
 
 def test_a_node_holding_a_graph_beside_its_own_properties_is_a_node_too():

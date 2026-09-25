@@ -351,6 +351,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- `sluicer.compat.extruct` reads a JSON-LD block's text as extruct does:
+  `json.loads`, then without a comment on its first line and without
+  JavaScript's comments and trailing commas. It read blocks as
+  `sluicer.extract` reads them, so a comment wrapped around the JSON, one
+  never closed or never opened, a CDATA wrapper, a byte order mark or a
+  comment left open at the end gave objects where extruct raises, and the W3C
+  JSON-LD suite's tests e014 to e016 and r014 to r016, which want that
+  refusal, failed. Such a block is now skipped and the page's other blocks
+  kept, as a block that is not JSON already was; a block whose first line is
+  a comment, which extruct reads, is now read too. `sluicer.extract` still
+  forgives every one of them.
 - A crawl's `headers=` and `cookies=`, and `--header` and `--cookie` on
   `crawl`, `batch` and `map`, reached no request: the crawl's web was built
   without them. They now go with every page, robots.txt and sitemap, to the
