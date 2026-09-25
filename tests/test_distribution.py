@@ -37,6 +37,12 @@ def _script(name: str):
     return module
 
 
+in_a_checkout = pytest.mark.skipif(
+    not WORKFLOWS.is_dir(),
+    reason="the release's machinery: the sdist leaves .github/ and docs/assets/ out",
+)
+
+
 def _job(workflow: str, job: str) -> str:
     """One job's text in a workflow: from its key to the next job's."""
     text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
@@ -175,6 +181,7 @@ def test_the_smoke_check_fails_on_a_server_that_lists_other_tools(tmp_path):
 # -- the workflows -----------------------------------------------------------
 
 
+@in_a_checkout
 def test_every_action_the_project_uses_is_pinned_to_a_commit():
     """A tag can be moved to other code; a commit cannot. The workflows pin
     every action by its commit, with the tag it had in a comment, and the
@@ -196,6 +203,7 @@ def test_every_action_the_project_uses_is_pinned_to_a_commit():
     assert seen > 10
 
 
+@in_a_checkout
 def test_the_release_tests_each_image_before_it_pushes_it():
     image = _job("release.yml", "image")
     assert "needs: build" in image, "the suite passes before an image is built"
@@ -341,6 +349,7 @@ def test_the_bundle_s_settings_are_the_variables_the_server_reads():
     assert settings["tools"]["default"] == ""
 
 
+@in_a_checkout
 def test_the_release_assets_are_staged_from_the_repository(tmp_path):
     build = _script("build_assets")
     build.main([str(tmp_path)])
@@ -393,6 +402,7 @@ def test_the_release_assets_stop_on_a_version_that_disagrees(tmp_path, monkeypat
         build.main([str(tmp_path / "out")])
 
 
+@in_a_checkout
 def test_the_release_builds_the_bundle_and_tests_it_before_attaching_it():
     assets = _job("release.yml", "assets")
     steps = [
@@ -517,6 +527,7 @@ CONTEXT7_FIELDS = {
 2026-09-25: the schema is closed."""
 
 
+@in_a_checkout
 def test_context7_indexes_the_docs_and_says_what_the_package_says():
     config = _json(ROOT / "context7.json")
     assert set(config) <= CONTEXT7_FIELDS, set(config) - CONTEXT7_FIELDS
@@ -661,6 +672,7 @@ def test_the_action_installs_this_version_and_keeps_inputs_out_of_its_shell():
     assert "packaging/audit_action.py" in run
 
 
+@in_a_checkout
 def test_a_workflow_runs_the_action_on_pages_it_serves_itself():
     workflow = (WORKFLOWS / "github-action.yml").read_text(encoding="utf-8")
     assert "python3 -m http.server" in workflow
@@ -674,6 +686,7 @@ CATALOG = PACKAGING / "docker-mcp-registry" / "servers" / "sluicer" / "server.ya
 """What a pull request to docker/mcp-registry adds, at servers/sluicer/."""
 
 
+@in_a_checkout
 def test_the_catalog_entry_keeps_to_the_registry_s_rules():
     """The rules docker/mcp-registry's cmd/validate applies, read on
     2026-09-25: the folder's name is the entry's, lowercase with hyphens; a
@@ -705,6 +718,7 @@ def test_the_catalog_entry_keeps_to_the_registry_s_rules():
     assert (ROOT / "Dockerfile").is_file() and "dockerfile:" not in entry
 
 
+@in_a_checkout
 def test_the_release_writes_the_catalog_entry_at_its_commit(tmp_path):
     build = _script("build_assets")
     commit = "0123456789abcdef0123456789abcdef01234567"
