@@ -249,7 +249,7 @@ Content-Usage: ai-use=n
 
 
 def test_the_audit_says_the_preferences_under_each_agent():
-    from sluicer.cli import _agent_lines
+    from sluicer.cli.audit import _agent_lines
 
     robots = AIPREF + "User-agent: ClaudeBot\nContent-Signal: ai-train=no\n"
     result = audit("<html></html>", url=URL, site=site(robots))

@@ -355,7 +355,7 @@ def test_the_audit_says_whether_a_page_reserves_its_rights():
         True, None, "meta"
     )
     assert audit("<html></html>").tdm is None
-    from sluicer.cli import _audit_report
+    from sluicer.cli.audit import _audit_report
 
     report = _audit_report(f"{ROOT}/p", audited, None, True, False)
     assert (
