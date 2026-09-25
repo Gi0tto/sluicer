@@ -349,6 +349,12 @@ def _listed_writers(path: Path) -> bool:
     """
     if sys.platform != "darwin":
         return False
+    return _darwin_listed_writers(path)
+
+
+def _darwin_listed_writers(path: Path) -> bool:  # pragma: no cover - macOS only
+    """``_listed_writers`` on macOS, through libc. CI measures coverage on
+    Linux; tests/test_config.py runs this on macOS, where it is reached."""
     import ctypes
     import ctypes.util
 
