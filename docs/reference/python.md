@@ -492,15 +492,15 @@ Learn an extractor from pages of one template.
 **Arguments**
 
 - `pages`: the pages, each as ``(html, url)``.
-- `listing`: learn the listing the pages repeat. None, the default, learns one unless a page declares its own subject -- a product, an article -- whose page it is; True looks for one anyway.
+- `listing`: learn the listing the pages repeat. None, the default, learns one unless a page declares its own subject -- a product, an article -- whose page it is; a thing declared on one of the listing's rows is not. True looks for one anyway, and with ``want``, requires one.
 - `names`: what to call each page in ``learnt_from``; its address by default.
-- `want`: example values, by the name each is to have: ``{"price": "41.90", "title": "Brake pad set"}``. When a repeated group's rows hold every one, each in a column of its own -- the first such group, in page order -- they choose the listing and its columns, which are only the ones named. When no one group holds them all, or with ``listing=False``, they are the page's own values, a product page's price and title, each learnt where it sits on the page, the page's own place before its furniture and its listings. A value matches when it says the same with its spaces collapsed, or is the same amount.
+- `want`: example values, by the name each is to have: ``{"price": "41.90", "title": "Brake pad set"}``. When a repeated group's rows hold every one, each in a column of its own -- the first such group, in page order -- they choose the listing and its columns, which are only the ones named. When no one group holds them all, or with ``listing=False``, they are the page's own values, a product page's price and title, each learnt where it sits on the page, the page's own place before its furniture and its listings; with ``listing=True``, no group holding them is an error. A value matches when it says the same with its spaces collapsed, or is the same amount.
 - `select`: fields a person writes instead of examples, by the name each is to have: ``{"title": "h1", "price": "span.price::text"}``, each a selector, CSS or XPath (see ``sluicer.selectors.selector``). Nothing is learnt of where they are; from the pages, if any are given, each field's presence, shape and reading is, and what the pages declare. A selector that gives nothing on a page it is written from is an error that names it.
 - `rows`: with ``select``, the selector of a listing's rows, each field then read inside each row: ``li.product``, and ``.//a`` for an XPath inside it.
 
 **Raises**
 
-- `NothingToLearn`: the pages declare nothing and repeat nothing, or no repeated group holds every example in ``want``, or a selector in ``select`` gives nothing on a page given.
+- `NothingToLearn`: the pages declare nothing and repeat nothing; or no repeated group holds every example in ``want``, and a listing was asked for or an example is on no page; or a page's own value is in a place another page puts after a label the first gives another of its values, and no label they all say once stands before it: read by its place, it would be another field there; or a selector in ``select`` gives nothing on a page given.
 - `SelectorError`: a selector in ``select`` or ``rows`` cannot be read; a ``ValueError``.
 - `ValueError`: ``want`` with ``listing=False``, or a name that is empty; ``select`` with ``want`` or ``listing``, or ``rows`` without it.
 

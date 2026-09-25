@@ -260,6 +260,45 @@ Dates are the day the work landed. Anything not listed here did not happen.
   is not exactly what the pinned CLDR release gives.
 
 ### Fixed
+- A page field no longer reads another field on a page it was learnt from.
+  Learnt from PEPs 8, 20 and 257 with `--want status=Active type=Process
+  created=05-Jul-2001`, the type and the date were read by their place in the
+  header, and PEP 257's extra Discussions-To row moved both: its type came
+  back "Active", its status, and its date "Informational", its type, with
+  every check passing. Two causes. A label written with its colon in an
+  element of its own, `Status<span class="colon">:</span>`, was two texts,
+  `Status` and `:`, and the text before every value was `:`, said many times
+  on a page, so no label was found; the colon is now the label's. And a place
+  one page given puts after a label another gives one of its own values was
+  not held to be contradicted; it now is, and the field is read after its
+  own label, or refused with a message where there is none. On SWDE, 902
+  wrong answers become right and 879 right ones flagged misses; mean F1
+  0.849 to 0.850. The drift benchmark is unchanged: no silent failure, no
+  false alarm. `heal` keeps no field at such a
+  place and moves none to one. On the six PEPs of the registry's entry, the
+  three fields are read right on every page. An extractor learnt before whose
+  label was a colon standing alone, said once on every page, no longer finds
+  it and fails its runs until it is compiled again.
+- `compile --listing --want ...` no longer learns the page's own values
+  when no repeated group holds every example: on quotes.toscrape.com, with
+  the tags as the row's `<meta itemprop="keywords">` declares them, which is
+  no column of a row, it learnt the first quote's text, read after "Login",
+  and passed every page reading one quote of ten. A listing asked for and
+  not found is now the error that names the example. Without `--listing`,
+  a thing declared on one of the listing's rows -- one quote of ten in
+  microdata -- is no longer the page's subject, and the listing is learnt;
+  a page whose every row is declared already learnt it, as it does on
+  quotes.toscrape.com, whose microdata the report blamed. A `<meta>` in a
+  row stays no column, and `docs/known-limits.md` says why.
+- PyPI's "Client Challenge" page, Fastly's answer to a client without
+  JavaScript (3 kB, status 200), is recognised as a challenge: the ladder
+  climbs past it, and a last rung that brings it back is the site refusing,
+  not a page. So are the other interstitials the cached benchmark pages hold
+  and nothing recognised: Imperva's (`/_Incapsula_Resource`), HUMAN's
+  (`px-captcha`), Anubis's ("Making sure you're not a bot!", its title now
+  read with its entities), and a "One moment, please..." waiting room met on
+  four sites. On the 3,988 cached pages, 11 are now challenges, and each is
+  one; `extract()` is unchanged on all of them.
 - Without scrapling, 0.7.x could not fetch even over plain HTTP: `fetch()`
   imported scrapling's browsers before it built the HTTP rung, and raised
   `FetchExtraMissing`.
