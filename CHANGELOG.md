@@ -119,9 +119,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   workflow names, failing the step on a broken rule (or, with `fail-on`, on a
   warning, or never), each error an annotation with its rule, a summary table,
   and the counts and a JSON-lines report as outputs. Its inputs reach the
-  script through the environment only. `docs/github-action.md` says how to
-  use it; `.github/workflows/github-action.yml` runs it on pages its job
-  serves on the runner's loopback.
+  script through the environment only, and each page is handed to `sluicer
+  audit` after `--`, so one named like an option is a page.
+  `docs/github-action.md` says how to use it;
+  `.github/workflows/github-action.yml` runs it on pages its job serves on
+  the runner's loopback.
 - `sluicer-skill-VERSION.zip` on each release: `skills/sluicer` with the
   folder at the zip's root, the shape claude.ai's skill upload takes and what
   unzipping into `~/.agents/skills/` wants, the same bytes from the same tree.
