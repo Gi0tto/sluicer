@@ -13,8 +13,11 @@ options are spelt, without their dashes::
     delay = 2.0
     max-pages = 500
 
-A key at the top applies to every command that takes that option; a table
-named after a command applies to that command, over the top. The command line
+A key at the top applies to every command that takes that option with that
+value -- ``format = "jsonl"`` is crawl's and batch's, and map, which writes
+json or csv, keeps its own -- and a value no command taking it accepts is
+refused; a table named after a command applies to that command, over the
+top. The command line
 wins over the environment, the environment over the file, and the file over
 the built-in defaults: the file's values become click's ``default_map``, which
 click consults only after the command line and an option's variable, and a
@@ -147,9 +150,14 @@ _META = "sluicer.config"
 
 class ConfigError(click.ClickException):
     """A configuration file that cannot be used as it is. Exits 2, as every
-    input Sluicer could not read does."""
+    input Sluicer could not read does. ``what`` is what is wrong with a
+    value, without the file and the key, where one was refused."""
 
     exit_code = 2
+
+    def __init__(self, message: str, what: str = "") -> None:
+        super().__init__(message)
+        self.what = what
 
 
 def key_of(param: click.Parameter) -> str | None:
@@ -374,18 +382,47 @@ def defaults(
             if key not in options[name]:
                 raise ConfigError(f"{path}: {where}: {name} does not take {key}")
     answer: dict[str, dict[str, Any]] = {}
+    # A key at the top is for the commands that take it with its value: map's
+    # format is "json" or "csv" and crawl's "jsonl" or "csv", so format =
+    # "jsonl" is crawl's and batch's, and no reason for every command to
+    # stop. Only a value no command that takes the key takes is refused.
+    refused: dict[str, list[tuple[str, ConfigError]]] = {}
+    taken: set[str] = set()
     for name in commands:
-        chosen = {k: (v, k) for k, v in top.items() if k in options[name]}
-        chosen.update(
-            {k: (v, f"[{prefix}{name}] {k}") for k, v in tables.get(name, {}).items()}
-        )
-        answer[name] = {
-            param.name: _value(key, value, param, path, where)
-            for key, (value, where) in chosen.items()
-            if (param := options[name][key]).name is not None
-            and not (key in ENVIRONMENT and ENVIRONMENT[key]() in os.environ)
-        }
+        own = tables.get(name, {})
+        answer[name] = {}
+        for key, value in top.items():
+            param = options[name].get(key)
+            if param is None or param.name is None or key in own or _in_env(key):
+                continue
+            try:
+                answer[name][param.name] = _value(
+                    key, value, param, path, f"{prefix}{key}"
+                )
+            except ConfigError as refusal:
+                refused.setdefault(key, []).append((name, refusal))
+            else:
+                taken.add(key)
+        for key, value in own.items():
+            param = options[name][key]
+            if param.name is None or _in_env(key):
+                continue
+            where = f"[{prefix}{name}] {key}"
+            answer[name][param.name] = _value(key, value, param, path, where)
+    for key, refusals in refused.items():
+        if key not in taken:
+            names = ", ".join(name for name, _ in refusals)
+            first, refusal = refusals[0]
+            raise ConfigError(
+                f"{path}: {prefix}{key} is refused by every command that takes it "
+                f"({names}); {first} says it {refusal.what}"
+            )
     return answer
+
+
+def _in_env(key: str) -> bool:
+    """Whether the variable that also sets ``key`` is set, and wins."""
+    return key in ENVIRONMENT and ENVIRONMENT[key]() in os.environ
 
 
 def _allowed(key: str, known: set[str], path: Path, where: str) -> None:
@@ -410,7 +447,7 @@ def _value(key: str, value: Any, param: click.Parameter, path: Path, where: str)
     """``value`` as the option takes it, checked; a secret's never shown."""
 
     def wrong(what: str) -> ConfigError:
-        return ConfigError(f"{path}: {where} {what}")
+        return ConfigError(f"{path}: {where} {what}", what)
 
     assert isinstance(param, click.Option)
     if param.is_flag:

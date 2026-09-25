@@ -456,3 +456,36 @@ def test_a_template_is_one_run_s_and_not_a_file_s(here, crawled):
     assert "template cannot be set in a file: it changes what one crawl" in (
         result.stderr
     )
+
+
+def test_a_top_level_value_one_command_refuses_is_left_to_the_others(
+    here, fetched, crawled
+):
+    """Found by review: format = "jsonl" at the top is crawl's and batch's
+    value, map takes "json" or "csv", and map's refusal made every command
+    exit 2 without saying it was map's. A key at the top applies to the
+    commands that take it, and those that take it but refuse that value
+    ignore it, as those that do not take it do."""
+    _write(here / "sluicer.toml", 'format = "jsonl"\n')
+
+    assert _run("fetch", URL).exit_code == 0
+    _run("crawl", URL)
+    assert fetched and crawled
+
+    defaults = config.defaults(
+        {"format": "jsonl"}, here / "sluicer.toml", cli.main.commands
+    )
+    assert defaults["crawl"]["output_format"] == "jsonl"
+    assert defaults["batch"]["output_format"] == "jsonl"
+    assert "output_format" not in defaults["map"]
+
+
+def test_a_top_level_value_every_command_refuses_is_refused_naming_them(here, fetched):
+    _write(here / "sluicer.toml", 'format = "xml"\n')
+
+    result = _run("fetch", URL)
+
+    assert result.exit_code == 2 and fetched == []
+    assert "format is refused by every command that takes it" in result.stderr
+    assert "batch" in result.stderr and "crawl" in result.stderr
+    assert "map" in result.stderr

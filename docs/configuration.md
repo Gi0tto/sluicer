@@ -25,7 +25,10 @@ visible = true
 ```
 
 A key at the top applies to every command that takes that option, and the
-others ignore it: `json` above is for `fetch`, `diff` and `audit`. A table
+others ignore it: `json` above is for `fetch`, `diff` and `audit`. A command
+whose option takes other values ignores it too: `format = "jsonl"` at the top
+is for `crawl` and `batch`, and `map`, which writes `json` or `csv`, keeps its
+own. A value that no command taking the key accepts is refused. A table
 named after a command is that command's own, and its keys win over the top's.
 A repeatable option is a list; a flag is `true` or `false`; `cache` is a
 directory, where `~` is your home and a relative path is taken from the file's
@@ -113,7 +116,9 @@ is refused and says why.
 Nothing runs: the command exits 2 with the file and the key. An unknown key
 names the nearest known one (`dealy is not an option (did you mean delay?)`),
 a table that is not a command says so, a key the command does not take says
-which, and a value of the wrong type says what was expected. A file that is
+which, and a value of the wrong type says what was expected; a key at the top
+whose value every command taking it refuses names those commands and what the
+first of them says. A file that is
 not TOML gives the line and column. The values of `proxy`, `header` and
 `cookie` can be passwords, tokens or sessions, and no message repeats them:
 it names the key, and the entry by its number.

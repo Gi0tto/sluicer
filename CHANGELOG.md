@@ -172,9 +172,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   names; `--no-config`, or `SLUICER_CONFIG` empty, reads none. Its keys are
   the options' own names -- `proxy`, `header`, `cookie`, `cache`, `max-age`,
   `no-robots`, `respect`, `delay`, `json`, `max-pages` and the rest -- at the
-  top for every command that takes one, and in a command's own table over
-  that. The command line wins, then `SLUICER_PROXY` and `SLUICER_MCP_TOOLS`,
-  then the file, then the built-in defaults; each flag a file may turn on has
+  top for every command that takes one with that value, and in a command's
+  own table over that: `format = "jsonl"` at the top is `crawl`'s and
+  `batch`'s, and `map`, which writes `json` or `csv`, keeps its own, where a
+  value no command taking the key accepts is refused, naming them. The
+  command line wins, then `SLUICER_PROXY` and `SLUICER_MCP_TOOLS`, then the
+  file, then the built-in defaults; each flag a file may turn on has
   its opposite for one run (`--no-json`, `--robots`). A file is refused
   before anything runs, naming the file and the key, for an unknown key (with
   the nearest known), a key its command does not take, a value of the wrong
