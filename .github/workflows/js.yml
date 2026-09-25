@@ -1,0 +1,171 @@
+name: JavaScript
+
+on:
+  push:
+    branches: [main]
+    # A release publishes the npm package. Path filters are not applied to tags.
+    tags: ["v*"]
+    # The npm package is the Python package run in Pyodide: a change to the
+    # Python code changes what it answers, and the try page runs the same.
+    paths:
+      - "js/**"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "docs/try/**"
+      - "scripts/docs_try.py"
+      - "scripts/check_try_page.py"
+      - "examples/**"
+      - "tests/fixtures/**"
+      - ".github/workflows/js.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "js/**"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "docs/try/**"
+      - "scripts/docs_try.py"
+      - "scripts/check_try_page.py"
+      - "examples/**"
+      - "tests/fixtures/**"
+      - ".github/workflows/js.yml"
+  workflow_dispatch:
+
+# Nothing here writes to the repository. The one elevated permission is the
+# OIDC token npm's trusted publishing needs, and only the job that publishes
+# gets it.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  answers:
+    # The node tests hold the npm package to the answers in js/test/expected/;
+    # they are only worth that if they are this commit's native answers. The
+    # script rewrites them from the Python package, and any difference fails.
+    name: The expected answers are this commit's native ones
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Write the native answers again, and compare
+        run: |
+          uv run --python 3.13 --extra markdown python js/scripts/expected.py
+          git diff --exit-code -- js/test/expected
+      - name: The npm package's version is the Python package's
+        run: >-
+          uv run --python 3.13 pytest -q tests/test_package.py
+          -k "version_or_the_licence or npm_package or pinned_to_a_commit"
+
+  tests:
+    name: Tests on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 18 is the floor package.json states; 24 is the newest LTS.
+        node: ["18", "22", "24"]
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+      # Builds the wheel from this checkout, and refuses when package.json and
+      # pyproject.toml state different versions.
+      - name: Build the wheel the package carries
+        run: npm run build
+      - run: npm ci --ignore-scripts
+      # api.test.mjs also holds package.json's version to pyproject.toml's.
+      - name: Run the tests
+        run: npm test
+
+  try-page:
+    # The try page runs the same wheel in a browser. Opened in Chromium, it must
+    # answer as the native package does, and make no request once it is ready.
+    name: The try page works in a browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      # The fetch extra brings Playwright, at the version uv.lock pins.
+      - name: Install Chromium
+        run: uv run --python 3.13 --extra fetch playwright install --with-deps chromium
+      - name: Open the page, paste the test pages, compare
+        run: uv run --python 3.13 --extra fetch python scripts/check_try_page.py
+
+  pack:
+    name: Pack the npm package
+    needs: [answers, tests, try-page]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      # npm pack runs prepack, which builds the wheel.
+      - run: npm pack
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-package
+          path: js/sluicer-*.tgz
+
+  publish:
+    name: Publish to npm
+    needs: [pack]
+    runs-on: ubuntu-latest
+    # Off until the npm side exists: a trusted publisher for this repository
+    # and workflow, registered at npmjs.com, and the repository variable
+    # PUBLISH_TO_NPM set to true, as the PyPI job waits for PUBLISH_TO_PYPI.
+    # Until then a tag builds, tests and packs the package and stops here.
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_TO_NPM == 'true'
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-package
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: The tag and the package's version must agree
+        run: |
+          tagged="${GITHUB_REF_NAME#v}"
+          test -f "sluicer-${tagged}.tgz" || {
+            echo "the tag says ${tagged}, the package is $(ls sluicer-*.tgz)" >&2
+            exit 1
+          }
+      # Trusted publishing: npm verifies this workflow's identity, so no token
+      # is stored anywhere, and --provenance links the package to this run.
+      # Configure it once at https://www.npmjs.com/package/sluicer/access
+      - name: Publish, with provenance
+        run: npm publish --provenance --access public "sluicer-${GITHUB_REF_NAME#v}.tgz"

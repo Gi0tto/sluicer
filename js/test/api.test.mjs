@@ -22,6 +22,15 @@ test("the Python package inside is the npm package's version", () => {
   assert.equal(wheel.version, packageJson.version);
 });
 
+test("the npm package's version is pyproject.toml's", async () => {
+  // As tests/test_package.py holds it from the Python side: the npm package
+  // is the Python package of the same number, never another.
+  const pyproject = await readFile(new URL("../../pyproject.toml", import.meta.url), "utf8");
+  const [, version] = pyproject.match(/^version = "(.+)"$/m);
+
+  assert.equal(packageJson.version, version);
+});
+
 test("pyodide is pinned to one version, whose lxml Sluicer accepts", () => {
   assert.match(packageJson.dependencies.pyodide, /^\d+\.\d+\.\d+$/);
   const floor = wheel.requires.find((r) => r.startsWith("lxml")).split(">=")[1];

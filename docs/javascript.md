@@ -122,8 +122,12 @@ It runs in Node. The package reads its wheel from its own folder with
 
 The npm package's version is the Python package's: `sluicer@0.7.1` on npm
 is the wheel of `sluicer==0.7.1`, built from the same commit. The build
-refuses to run when `js/package.json` and `pyproject.toml` differ, and the
-Python suite holds them equal. Pyodide is pinned to one version, Pyodide
+refuses to run when `js/package.json` and `pyproject.toml` differ, and a
+test on each side, Python's and Node's, holds them equal. CI
+(`.github/workflows/js.yml`) runs the Node tests on Node 18, 22 and 24, writes
+the native answers they compare with again and fails on any difference, and
+opens the try page in Chromium; a release tag publishes the package to npm
+only after all of them pass, from the tag whose version it carries. Pyodide is pinned to one version, Pyodide
 314.0.7, with Python 3.14.2 and lxml 6.1.3 inside, the lxml the
 repository's lockfile pins; a new Pyodide comes with a release of this package,
 never under it. `sluicer.version`, `.python` and `.lxml` say what is running.

@@ -17,7 +17,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   0.78 ms (`js/scripts/measure.mjs`). `docs/javascript.md` says how to
   install and call it, what it does not do -- it does not fetch: a page is
   handed to it, since Sluicer's fetching guards are not in this version --
-  and which versions it pins.
+  and which versions it pins. `.github/workflows/js.yml` runs the Node tests
+  on Node 18, 22 and 24, fails when the committed native answers are not this
+  commit's, holds the npm version to the Python one from both sides, and
+  opens the try page in Chromium; its publish job, like PyPI's, runs only
+  from a tag, in the `npm` environment, once `PUBLISH_TO_NPM` is true, and
+  publishes with provenance through npm's trusted publishing, no token
+  stored. Every action in every workflow is now held to a full commit by a
+  test.
 - A try page on the site (`try/`) that runs Sluicer in the reader's
   browser, in Pyodide, on HTML they paste: the wheel of the commit the site is
   built from, and the npm package's bridge. Nothing is sent anywhere: a
