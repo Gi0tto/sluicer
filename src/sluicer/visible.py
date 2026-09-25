@@ -202,7 +202,14 @@ class _Page:
     def texts(self) -> list[Any]:
         """The page's text nodes of more than one character, in order, each
         knowing its element: where a "By" or a "Published" line opens."""
-        return list(self.tree.xpath("//text()[string-length(normalize-space()) > 1]"))
+        # The XPath predicate string-length(normalize-space()) > 1 cost libxml2
+        # the square of a page's tail texts: 16,000 took 2.2 s, a 3.6 MB page
+        # held a server's workers past their budget. The same test, in Python.
+        return [
+            text
+            for text in self.tree.xpath("//text()")
+            if len(_XML_SPACES.sub(" ", text).strip(" ")) > 1
+        ]
 
     @cached_property
     def listing(self) -> bool:
@@ -237,6 +244,11 @@ class _Page:
         after = self.heading.xpath(f"following::*[position() <= {_AFTER_HEADING}]")
         before = self.heading.xpath(f"preceding::*[position() <= {_BEFORE_HEADING}]")
         return [e for e in (*after, *before) if e.tag not in _AWAY]
+
+
+# What XPath's normalize-space() collapses: XML's four white-space characters,
+# not a no-break space.
+_XML_SPACES = re.compile(r"[ \t\n\r]+")
 
 
 def _text(element: HtmlElement) -> str:

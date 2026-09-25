@@ -388,6 +388,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- `--visible` chooses a page's text nodes in one pass. The XPath predicate it
+  used, `string-length(normalize-space()) > 1`, cost libxml2 the square of a
+  page's tail texts: 16,000 took 2.2 seconds, and four 3.6 MB pages held
+  `sluicer serve`'s workers for about a minute and a half past their budget.
+  The same nodes are chosen, on all 3,976 cached corpus pages. Found by the
+  second security review; also in 0.7.1.
 - The child process that evaluates an agent's selectors starts in Python's
   isolated mode: with `-c` alone it put its working directory first on its
   path, and a `pickle.py` in the folder `sluicer mcp` was started in ran when a

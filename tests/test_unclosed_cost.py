@@ -129,3 +129,19 @@ def test_a_page_of_many_bylines_and_dates_is_read_in_a_moment():
 
     # 0.86 s here, 23 s before the fix: CI's runners are up to 2.5 times slower.
     assert _seconds(lambda: extract(page, visible=True)) < 8
+
+
+def test_a_page_of_many_short_lines_is_read_for_its_bylines_in_a_moment():
+    """Found by the second security review: the page's text nodes were chosen
+    by an XPath predicate libxml2 evaluates in the square of the page's tail
+    texts, 16,000 of them in 2.2 s, and extract(visible=True) ran it on
+    sluicer serve's own threads."""
+    from sluicer import extract
+
+    page = (
+        "<html><body><h1>t</h1>"
+        + "<p><time>2020-01-01</time> Updated 1 Jan 2020 by Ann</p>" * 64_000
+        + "</body></html>"
+    )
+
+    assert _seconds(lambda: extract(page, visible=True)) < 20
