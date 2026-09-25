@@ -127,4 +127,5 @@ def test_a_page_of_many_bylines_and_dates_is_read_in_a_moment():
         + "</article></body></html>"
     )
 
-    assert _seconds(lambda: extract(page, visible=True)) < 2
+    # 0.86 s here, 23 s before the fix: CI's runners are up to 2.5 times slower.
+    assert _seconds(lambda: extract(page, visible=True)) < 8
