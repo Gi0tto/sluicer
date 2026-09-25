@@ -5,6 +5,8 @@ element, as every other value Sluicer reads does; and a selector that cannot
 be read is an error that names it, never a selection of nothing.
 """
 
+import time
+
 import pytest
 
 import sluicer
@@ -293,3 +295,68 @@ def test_many_places_are_spelt_without_counting_every_sibling_each_time():
 
     assert len(selected) == 4000
     assert selected[3999].where == "/html/body/ul[1]/li[4000]"
+
+
+def _nested(levels: int = 200, spans: int = 20) -> bytes:
+    """Divs nested ``levels`` deep, each holding ``spans`` spans and a link:
+    a real page's shape, where most of a div's descendants are not links."""
+    level = "<div>" + "<span>s</span>" * spans + '<a href="/x">link</a>'
+    return (
+        "<html><body>" + level * levels + "</div>" * levels + "</body></html>"
+    ).encode()
+
+
+@pytest.mark.parametrize(
+    ("css", "links"), [("div a", 200), ("div div div a", 198), ("div a:not(.x)", 200)]
+)
+def test_a_descendant_selector_costs_the_elements_it_can_match(css, links):
+    """cssselect writes ``div a`` as ``div/descendant-or-self::*/a``: every
+    element under every div, then each one's children, which libxml2
+    gathers and sorts per div. On a 61 KB page of nested divs that took 1.2
+    seconds, and on a 5.3 MB page an honest ``div a`` ran past the 30
+    seconds a selector is given over MCP. Read as ``div/descendant::a``,
+    the same links, it takes milliseconds."""
+    page = parse(_nested(), url="https://x.example/")
+    assert "descendant-or-self::*/" not in selector(css).xpath
+    started = time.monotonic()
+    found = page.select(css)
+    assert time.monotonic() - started < 0.5
+    assert len(found) == links
+
+
+@pytest.mark.parametrize(
+    ("path", "read"),
+    [
+        ("descendant-or-self::div/descendant-or-self::*/a", "div/descendant::a"),
+        # Where a link stands among the step's links: each parent's first,
+        # after descendant-or-self::*/, and the first of all after descendant::.
+        ("descendant-or-self::div/descendant-or-self::*/a[1]", None),
+        ("descendant-or-self::div/descendant-or-self::*/a[position() = 1]", None),
+        ("descendant-or-self::div/descendant-or-self::*/a[@href][last()]", None),
+        ("descendant-or-self::div/descendant-or-self::*/a[0]", None),
+        ("descendant-or-self::div/descendant-or-self::*/a[count(b)]", None),
+        # A position asked by a path inside the test is that path's own.
+        (
+            "descendant-or-self::div/descendant-or-self::*/a[ancestor::*[@lang][1]]",
+            "div/descendant::a[ancestor::*[@lang][1]]",
+        ),
+        # A string is never a step, whatever it says.
+        (
+            "descendant-or-self::a[@title = '/descendant-or-self::*/b']",
+            "descendant-or-self::a[@title = '/descendant-or-self::*/b']",
+        ),
+        # An axis after it is not a tag, and a text node is not an element.
+        ("descendant-or-self::div/descendant-or-self::*/following-sibling::a", None),
+        ("descendant-or-self::div/descendant-or-self::text()", None),
+    ],
+)
+def test_a_descendant_step_is_read_so_only_where_it_selects_the_same(path, read):
+    from sluicer.selectors import _descendants
+
+    if read is None:
+        assert _descendants(path) == path
+    else:
+        assert _descendants(path).endswith(read)
+        assert "descendant-or-self::*/" not in _descendants(path).replace(
+            "'/descendant-or-self::*/b'", ""
+        )

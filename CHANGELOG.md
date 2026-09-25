@@ -408,6 +408,22 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `sluicer serve`'s workers for about a minute and a half past their budget.
   The same nodes are chosen, on all 3,976 cached corpus pages. Found by the
   second security review; also in 0.7.1.
+- A CSS descendant step costs the elements it can match, not every element
+  under its ancestor. cssselect writes `div a` as
+  `div/descendant-or-self::*/a`, every element under every div and then the
+  children of each, which libxml2 gathers and sorts div by div: 1.2 seconds
+  for `div a` and 3.4 for `div div div a` on a 390 KB page of the products
+  corpus, and 35.7 seconds for an honest `div a` on a 5.3 MB page, past the
+  30 seconds a selector is given over MCP. Such a step before a tag is now
+  read as `div/descendant::a`, 17 ms, 70 ms and 0.3 seconds there, when the
+  tag's tests ask what an element is and not where it stands among the
+  step's elements, as every test cssselect writes does; one that says
+  `position()` or `last()`, or is a number, is left as cssselect wrote it.
+  The same elements come back in the same order: on 589 cached corpus pages
+  and 44 selectors, from the page and from its rows, and in a property that
+  draws trees and selectors with every pseudo-class that counts siblings,
+  `:has`, `:is`, `:not`, `:lang` and every combinator. `sluicer select`,
+  written extractors and the MCP tools read it so alike.
 - The child process that evaluates an agent's selectors starts in Python's
   isolated mode: with `-c` alone it put its working directory first on its
   path, and a `pickle.py` in the folder `sluicer mcp` was started in ran when a
