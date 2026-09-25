@@ -534,6 +534,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   status with a body is: the HTTP rung reported an empty 404 as a rung that
   failed, so a crawl asked for it three times and ended `fetch_failed`, not
   404, and the ladder climbed past an empty 404 to the browser.
+- A `Retry-After` of digits that are not ASCII's -- `²`, which is a digit to
+  Python's `str.isdigit` and not to `float` -- raised out of the crawl and
+  ended a whole run of many sites at the first site that sent it. It is no
+  `Retry-After`, as RFC 9110's grammar has it, and a wait is read as a year
+  at most.
 
 ## 0.7.1 - 2026-09-25
 

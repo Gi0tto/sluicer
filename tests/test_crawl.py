@@ -910,6 +910,19 @@ def test_an_error_pages_links_and_canonical_are_not_the_sites():
         ({"retry-after": "soon"}, None),
         ({"retry-after": "-5"}, None),
         ({}, None),
+        # Digits that are not ASCII's: "²" raised ValueError out of the crawl,
+        # ending a run of many sites at the first site that sent it.
+        ({"retry-after": "\u00b2"}, None),
+        ({"retry-after": "\u0661\u0662"}, None),
+        # A wait no site means is held to a year.
+        ({"retry-after": "9" * 400}, 365 * 24 * 60 * 60.0),
+        (
+            {
+                "retry-after": "Fri, 31 Dec 9999 23:59:59 GMT",
+                "date": "Wed, 23 Sep 2026 10:00:00 GMT",
+            },
+            365 * 24 * 60 * 60.0,
+        ),
     ],
 )
 def test_a_retry_after_is_read_as_rfc_9110_writes_it(headers, seconds):

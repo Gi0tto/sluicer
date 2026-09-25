@@ -337,25 +337,34 @@ class Politeness:
                 self._failing.discard(site_of(url))
 
 
+LONGEST_RETRY_AFTER = 365 * 24 * 60 * 60.0
+"""The longest wait a ``Retry-After`` is read as asking for: a year."""
+
+
 def retry_after(headers: dict[str, str]) -> float | None:
     """The seconds a response's ``Retry-After`` asks for, or None.
 
     RFC 9110 allows a number of seconds or a date. A date is counted from the
     response's own ``Date``, so the wait is the one the server meant whatever
     this machine's clock says; with no ``Date`` it cannot be counted, and is
-    None, as is anything that is neither. A moment already past is 0.
+    None, as is anything that is neither. A moment already past is 0, and
+    none is longer than ``LONGEST_RETRY_AFTER``.
+
+    The seconds are ASCII digits, as RFC 9110's grammar writes them: ``"²"``
+    is a digit to ``str.isdigit`` and not to ``float``, and raised out of a
+    crawl, ending a run of many sites at the first one that sent it.
     """
     written = (headers.get("retry-after") or "").strip()
-    if written.isdigit():
-        return float(written)
+    if written.isascii() and written.isdigit():
+        return min(float(written), LONGEST_RETRY_AFTER)
     try:
         then = email.utils.parsedate_to_datetime(written)
         sent = email.utils.parsedate_to_datetime(headers.get("date") or "")
-    except (TypeError, ValueError, IndexError):
+    except (TypeError, ValueError, IndexError, OverflowError):
         return None
     if then.tzinfo is None or sent.tzinfo is None:
         return None
-    return max(0.0, (then - sent).total_seconds())
+    return min(max(0.0, (then - sent).total_seconds()), LONGEST_RETRY_AFTER)
 
 
 class Queue:
