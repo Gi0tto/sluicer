@@ -34,6 +34,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the HTTP API read `SLUICER_PROXY`.
 
 ### Changed
+- The README is half as long and leads with one thing: extractors that fail
+  loudly when a site changes, with the redesign demo at the top. It keeps the
+  quick start, one benchmark table and a "When not to use Sluicer" section;
+  the FAQ and the principles moved to `docs/faq.md`. A test checks every
+  number in the benchmark table against the scoreboard it links to.
 - The benchmark's date rule no longer depends on the day it runs: dateutil
   filled a part a date does not write with today's, so "March 2021" matched
   2021-03-24 on the 24th of a month only. A date is now a hit when the answer
