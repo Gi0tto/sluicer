@@ -28,6 +28,31 @@ script fills in needs a browser: add the `browser` extra, and install its
 Chromium once with `uvx --from "sluicer[browser]" playwright install chromium`.
 The [extras](index.md#install) are listed on the home page.
 
+### Shell completion
+
+`sluicer` completes its commands and their options in bash (4.4 or later),
+zsh and fish, from a script it prints when `_SLUICER_COMPLETE` names the
+shell. Write the script once, then load it from the shell's startup file:
+
+```bash
+# bash
+_SLUICER_COMPLETE=bash_source sluicer > ~/.sluicer-complete.bash
+echo '. ~/.sluicer-complete.bash' >> ~/.bashrc
+
+# zsh (the line goes after compinit in ~/.zshrc)
+_SLUICER_COMPLETE=zsh_source sluicer > ~/.sluicer-complete.zsh
+echo '. ~/.sluicer-complete.zsh' >> ~/.zshrc
+
+# fish, which reads the completions directory itself
+_SLUICER_COMPLETE=fish_source sluicer > ~/.config/fish/completions/sluicer.fish
+```
+
+Written to a file, the script costs nothing when a shell starts;
+`eval "$(_SLUICER_COMPLETE=zsh_source sluicer)"` in the startup file works as
+well, and runs `sluicer` each time. Write it again after upgrading, so a new
+command or option completes too. macOS's own `/bin/bash` is 3.2, which the
+script does not support; zsh, its default shell, is fine.
+
 ## 2. Read a page
 
 Take the example product page from the repository:

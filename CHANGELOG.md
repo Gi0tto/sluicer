@@ -101,6 +101,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer-skill-VERSION.zip` on each release: `skills/sluicer` with the
   folder at the zip's root, the shape claude.ai's skill upload takes and what
   unzipping into `~/.agents/skills/` wants, the same bytes from the same tree.
+- Shell completion for bash (4.4 and later), zsh and fish, click's own:
+  `_SLUICER_COMPLETE=zsh_source sluicer` prints the script, and
+  `docs/getting-started.md` says where each shell wants it. The suite
+  generates the three scripts, has bash and zsh parse theirs where they are
+  installed, and completes a command and an option.
 - `sluicer.aextract` and `sluicer.fetch.afetch`: `extract` and `fetch` for a
   caller on an event loop, the same parameters, answers and exceptions, run
   on a worker thread of the loop's default executor so the loop keeps
