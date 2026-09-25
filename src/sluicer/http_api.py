@@ -327,8 +327,9 @@ def _run_tool(
 
     A caller's selectors are the exception a worker can end on time: the
     tools evaluate them in a process of their own (``sluicer.isolated``),
-    killed at ``deadline``, the end of the call's budget, so a selector that
-    would run for minutes frees its worker when its call has been answered.
+    killed at ``deadline``, a little before the call's budget ends, so a
+    selector that would run for minutes frees its worker as its call is
+    answered, and the answer says the selector was at fault.
     """
     with isolated.until(deadline):
         return asyncio.run(call_tool(name, arguments))
@@ -392,10 +393,18 @@ def build_app(
     # first app's workers, which it would reach through the first's stand-in.
     direct = getattr(server.call_tool, "__wrapped__", server.call_tool)
 
-    async def run(name: str, arguments: dict[str, Any]) -> Any:
-        """One call on a worker of the pool its arguments choose."""
+    # A caller's selectors are stopped this long before the request's own
+    # timer ends, so that the call is answered as the selector's fault,
+    # bad_input, and not as a 504 that says to try again: stopped at the
+    # budget's end itself, the timer won. Enough to kill the child and send
+    # the answer, and never most of a short budget.
+    answer_margin = min(0.5, timeout / 4)
+
+    async def run(name: str, arguments: dict[str, Any], ends: float) -> Any:
+        """One call on a worker of the pool its arguments choose, within the
+        request's budget, which ends at ``ends``."""
         pool = fetching if may_fetch(arguments) else reading
-        deadline = time.monotonic() + timeout
+        deadline = ends - answer_margin
         return await asyncio.wrap_future(
             pool.submit(_run_tool, direct, name, arguments, deadline)
         )
@@ -410,8 +419,9 @@ def build_app(
         MCP's own way to say a call failed: ``timed_out`` is no code of a
         tool's output schema, which a client checks structured content by.
         """
+        ends = time.monotonic() + timeout
         try:
-            return await asyncio.wait_for(run(name, arguments), timeout)
+            return await asyncio.wait_for(run(name, arguments, ends), timeout)
         except asyncio.TimeoutError:
             said = web.types.TextContent(
                 type="text",
@@ -494,6 +504,8 @@ def build_app(
             if refused is not None:
                 code, message, headers = refused
                 return refuse(code, message, headers=headers)
+            # When the budget ends, for a call's selectors (``run``).
+            request.state.ends = time.monotonic() + timeout
             try:
                 return await asyncio.wait_for(handler(request), timeout)
             except asyncio.TimeoutError:
@@ -544,7 +556,7 @@ def build_app(
                 "the body must be a JSON object, the tool's arguments by name",
             )
         try:
-            result = await run(name, arguments)
+            result = await run(name, arguments, request.state.ends)
         except web.tool_errors.UnexpectedToolError:
             logger.exception("the tool %s raised", name)
             return refuse(

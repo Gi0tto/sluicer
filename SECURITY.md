@@ -156,8 +156,11 @@ lets one line cost the square or the cube of a page's size, and so does
 ordinary CSS. The tools evaluate a caller's selectors in a process of their
 own, started with `python -I` so that nothing in the server's working
 directory is imported, and killed after 30 seconds
-(`sluicer.isolated.SECONDS`), or sooner when the call's budget over HTTP,
-below, ends first; such a call is answered `bad_input`. Four hostile selectors
+(`sluicer.isolated.SECONDS`), or half a second before the call's budget
+over HTTP, below, ends, when that is sooner (a quarter of a budget under two
+seconds), so that the call is answered `bad_input`, the selector's fault,
+and not `timed_out`, which says to try again. Starting the process costs a
+call 77 ms on an idle Apple M4, and more on a busy machine. Four hostile selectors
 can still keep `sluicer serve`'s four reading workers busy for those 30
 seconds at a time: beyond loopback, put it behind a proxy that limits each
 client. The
@@ -202,8 +205,9 @@ user's own browser included. So it starts closed:
   workers of its own, so slow sites cannot hold it back.
 - A caller's selectors -- `select_values`, and `compile_extractor`,
   `run_extractor` and `heal_extractor` with an extractor written by
-  selectors -- are evaluated in a process of their own, killed when the
-  call's time budget ends (`sluicer.isolated`). XPath lets one line cost the
+  selectors -- are evaluated in a process of their own, killed half a
+  second before the call's time budget ends and answered `bad_input`
+  (`sluicer.isolated`). XPath lets one line cost the
   cube of a page's size, `//p[count(//p[count(//p) > 0]) > 0]` on 3,000
   paragraphs, and CSS's `p ~ p` took 110 s on 8,000; lxml evaluates both in
   C, which no thread can stop. Before this, four such calls held every

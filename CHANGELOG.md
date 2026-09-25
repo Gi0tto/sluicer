@@ -439,10 +439,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   504 too. The MCP tools that evaluate a caller's selectors --
   `select_values`, and `compile_extractor`, `run_extractor` and
   `heal_extractor` with an extractor written by selectors -- now evaluate
-  them in a process of their own (`sluicer.isolated`), killed when the
-  call's budget ends over HTTP, or after 60 seconds over stdio, and such a
-  call is answered `bad_input`. It costs a call about 90 ms to start the
-  process. The command line and the library evaluate selectors as before, in
+  them in a process of their own (`sluicer.isolated`), killed half a second
+  before the call's budget ends over HTTP (a quarter of a budget under two
+  seconds), or after 30 seconds (`sluicer.isolated.SECONDS`) whatever the
+  budget, and such a call is answered `bad_input`, the selector's fault, over
+  REST and at `/mcp` alike: stopped at the budget's end itself, the request's
+  own timer won, and the call was a 504 `timed_out` that said to try again.
+  Starting the process costs a call 77 ms, the median of 30 `select_values`
+  calls on an idle Apple M4 with Python 3.14; a busy machine pays more. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
 - A listing page with three or four values of a column that reads as an
