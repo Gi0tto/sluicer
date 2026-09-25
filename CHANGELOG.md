@@ -76,6 +76,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- A date's offset is only a zone the date writes. `email.utils` reads any
+  word after the time as the zone, and once "PM" was read as the half of the
+  day it no longer held that place: "May 24, 2026 10:05 am 4 min read" was
+  at +00:04, on a page of the news corpus. A word after the time that is
+  neither a signed offset, a zone `email.utils` knows by name, nor the
+  year ends the date, which has no offset. Found by review.
 - A tag a page opens and never closes costs what the page costs. Telling a
   challenge page from content stripped tags with a pattern that looked for a
   `<script>`'s end tag again from every place one opened, and read the
