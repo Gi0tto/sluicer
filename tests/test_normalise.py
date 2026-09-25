@@ -411,3 +411,18 @@ def test_a_json_price_written_with_an_exponent_is_the_summary_s_price():
 )
 def test_only_a_zone_after_the_time_is_its_offset(written, meant):
     assert iso_date(written) == meant
+
+
+@pytest.mark.parametrize(
+    ("written", "meant"),
+    [
+        # Found by the fuzz profile: Hausa's "Sat", September, read as Saturday.
+        ("sat 1, 2000", "2000-09-01"),
+        ("Sat 12, 2024", "2024-09-12"),
+        # An English weekday before a date is still passed over.
+        ("Sat, June 16, 2025", "2025-06-16"),
+        ("Saturday 16 June 2025", "2025-06-16"),
+    ],
+)
+def test_a_month_named_like_a_weekday_is_a_month(written, meant):
+    assert iso_date(written) == meant

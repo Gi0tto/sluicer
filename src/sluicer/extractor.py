@@ -133,6 +133,14 @@ class Listing:
     numbered step, ``section.box[2]``, is only the second box while there are
     as many boxes: a box of the same kind inserted before it makes another
     the second. Empty for a file from before 0.7.1, which learnt none."""
+    marks: tuple[str | None, ...] = ()
+    """For each step of ``container`` below ``<html>``, where it is numbered,
+    the text the element there began with, its rows aside -- a box's
+    heading, "Books" -- when it did on every page learnt and no other element
+    of its kind did; None elsewhere. An element that begins so is the one
+    learnt, however many of its kind the page now has; one that does not,
+    while another of its kind does, is another. Empty when there is none,
+    and for a file from before 0.7.1."""
 
 
 @dataclass(frozen=True)
@@ -223,6 +231,7 @@ class Extractor:
                     if self.listing.siblings
                     else {}
                 ),
+                **({"marks": list(self.listing.marks)} if self.listing.marks else {}),
                 "fields": [
                     {
                         "name": f.name,
@@ -338,6 +347,16 @@ def _listing_of_file(raw: Any) -> Listing:
             "siblings are a count of one or more, or null, for each step of the "
             f"container below html, not {siblings!r}"
         )
+    marks = _list(raw.get("marks", []), "marks")
+    if marks and (
+        len(marks) != container.count(">")
+        or any(m is not None and (type(m) is not str or not m) for m in marks)
+        or all(m is None for m in marks)
+    ):
+        raise ValueError(
+            "marks are a text, or null, for each step of the container below "
+            f"html, one text at least, not {marks!r}"
+        )
     listing = Listing(
         container=container,
         member=member,
@@ -346,6 +365,7 @@ def _listing_of_file(raw: Any) -> Listing:
         empty=_share(raw.get("empty", 0.0), "empty"),
         chosen=chosen,
         siblings=tuple(siblings),
+        marks=tuple(marks),
         fields=tuple(
             ListingField(
                 name=_text(f["name"]),
@@ -789,7 +809,9 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
     for doc in docs:
         group = _listing_of(doc)
         if group is not None:
-            found.append((path_of(group[0].getparent()), kind(group[0]), group, doc))
+            found.append(
+                (path_of(group[0].getparent()), _kind_of(group[0]), group, doc)
+            )
     if not found:
         return None, []
     places = Counter((container, member) for container, member, _, _ in found)
@@ -821,11 +843,15 @@ def _learn_listing(docs: list[Document]) -> tuple[Listing | None, list[str]]:
         _profile(path, path, [row.get(path) for row in rows]) for path in paths
     )
     rows_range = (min(counts), max(counts))
-    siblings = _siblings(
-        [doc for c, m, _, doc in found if (c, m) == (container, member)], container
-    )
+    learnt_on = [doc for c, m, _, doc in found if (c, m) == (container, member)]
     return Listing(
-        container, member, rows_range, fields, empty, siblings=siblings
+        container,
+        member,
+        rows_range,
+        fields,
+        empty,
+        siblings=_siblings(learnt_on, container),
+        marks=_marks(learnt_on, container, member),
     ), notes
 
 
@@ -856,7 +882,7 @@ def _learn_wanted(
             missing &= {name for name, paths in held.items() if not paths}
             own = _columns_of(held) if all(held.values()) else None
             if own is not None:
-                chosen = (path_of(group[0].getparent()), kind(group[0]))
+                chosen = (path_of(group[0].getparent()), _kind_of(group[0]))
                 columns = own
                 ambiguous = {n: p for n, p in held.items() if len(p) > 1}
                 break
@@ -909,6 +935,7 @@ def _learn_wanted(
         empty,
         chosen=True,
         siblings=_siblings(docs, container),
+        marks=_marks(docs, container, member),
     )
     return listing, notes
 
@@ -947,7 +974,7 @@ def _still_listed(docs: list[Document], old: Listing) -> Listing | None:
     place replays it with no check failed, and one page at least does."""
     held = False
     for doc in docs:
-        if _find(doc, old.container, old.siblings)[0] is None:
+        if _locate(doc, old)[0] is None:
             continue
         checks: list[Check] = []
         _replay_listing(old, doc, checks)
@@ -975,7 +1002,7 @@ def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:
             score = len(samples & held)
             again = any(len(c & held) >= _HELD_AGAIN * len(c) for c in columns)
             if score and again and (best is None or score > best[0]):
-                best = (score, path_of(group[0].getparent()), kind(group[0]))
+                best = (score, path_of(group[0].getparent()), _kind_of(group[0]))
     if best is None:
         return None
     _score, container, member = best
@@ -1008,6 +1035,7 @@ def _listing_at(docs: list[Document], container: str, member: str) -> Listing:
         fields,
         empty,
         siblings=_siblings(docs, container),
+        marks=_marks(docs, container, member),
     )
 
 
@@ -1153,24 +1181,48 @@ def _first_text_in(
 def _label_moved(
     f: PageField, doc: Document, nodes: list[tuple[str, HtmlElement]]
 ) -> str | None:
-    """What stands after ``f``'s label, when the page says the label once and
-    something other than the value at ``f``'s place follows it; None when the
-    label is right, or the page does not say it once, which says nothing."""
+    """What stands where ``f``'s label should, when the page still says the
+    label and it no longer stands right before the value at ``f``'s place;
+    None when it does, or the page does not say it, which says nothing: a
+    label renamed is not a row moved.
+
+    The label is the page's however often it is said -- a second "SKU" in
+    an aside is no reason to trust the place -- and with or without its
+    colon, in any case: "SKU:" is the label "SKU" was."""
     if f.label is None:
-        return None
-    at = [n for n, (text, _) in enumerate(nodes) if text == f.label]
-    if len(at) != 1:
         return None
     element, _found = _find(doc, f.path.partition("@")[0])
     if element is None:
         return None
-    if at[0] + 1 >= len(nodes):
-        return f"nothing after {f.label!r}"
-    text, owner = nodes[at[0] + 1]
-    if owner is element or any(up is element for up in owner.iterancestors()):
+    first = _first_text_in(nodes, element)
+    before = nodes[first - 1][0] if first else None
+    if before is not None and _same_label(before, f.label):
+        return None
+    at = [n for n, (text, _) in enumerate(nodes) if _same_label(text, f.label)]
+    if not at:
         return None
     held = _value_at(doc, f.path)
-    return f"{f.label!r} is now before {text!r}, and the place holds {held!r}"
+    if len(at) > 1:
+        return (
+            f"{f.label!r} is said {len(at)} times, never right before the place, "
+            f"which holds {held!r}"
+            + (f" after {before!r}" if before is not None else "")
+        )
+    said = nodes[at[0]][0]
+    if at[0] + 1 >= len(nodes):
+        return f"nothing after {said!r}"
+    return (
+        f"{said!r} is now before {nodes[at[0] + 1][0]!r}, and the place holds {held!r}"
+    )
+
+
+def _same_label(text: str, label: str) -> bool:
+    """Whether ``text`` is ``label``, its colon and its case aside."""
+    return _label_key(text) == _label_key(label)
+
+
+def _label_key(text: str) -> str:
+    return text.rstrip(":\uff1a").rstrip().casefold()
 
 
 def _contradicted(docs: list[Document], path: str, example: str) -> str | None:
@@ -1653,7 +1705,12 @@ def _steps_to(element: HtmlElement, label: str) -> bool:
     them, for every sibling of every step of a path."""
     tag = element.tag
     return (
-        isinstance(tag, str) and label.startswith(tag) and _step_label(element) == label
+        isinstance(tag, str)
+        and (
+            label.startswith(tag)
+            or (not tag.isalnum() and label.startswith(_written(tag, _IN_A_STEP)))
+        )
+        and _step_label(element) == label
     )
 
 
@@ -1662,20 +1719,57 @@ def _step_label(element: HtmlElement) -> str:
         # Their classes are state, not structure: scripts swap ``no-js`` for
         # ``js`` and templates stamp the page type on ``<body>``.
         return str(element.tag)
+    tag = str(element.tag)
+    if not tag.isalnum():
+        tag = _written(tag, _IN_A_STEP)
     written = _label(element)
-    return f"{element.tag}.{written}" if written else str(element.tag)
+    return f"{tag}.{written}" if written else tag
+
+
+# What parts a path's steps, a step's number and a field's attribute, and what
+# parts a row's kind's classes besides. lxml keeps a tag such as ``<a@b>``,
+# ``<p]>`` or ``<x[1]>`` as the page wrote it, and a path through one, written
+# as it is, is refused by the reader, or read as another: ``a@b.price`` is
+# the attribute ``b.price`` of an ``<a>``. Such a character in a tag is
+# written as ``%`` and its code, ``a%40b``; a class holding one -- Tailwind's
+# ``@container`` -- has no hand in a path (see ``_label``), nor in a row's kind.
+_IN_A_STEP = re.compile(r"[\s\[\]>@]")
+_IN_A_KIND = re.compile(r"[\s\[\]>@.]")
+
+
+def _written(tag: str, reserved: re.Pattern[str]) -> str:
+    """``tag`` with each character ``reserved`` matches written as ``%XX``."""
+    return reserved.sub(lambda c: f"%{ord(c[0]):02X}", tag)
+
+
+def _kind_of(element: HtmlElement) -> str:
+    """A row's kind as ``kind`` says it, as a listing can write it and read it
+    back: its tag written as ``_written`` writes it, and without a class that
+    holds a character the kind parts its classes by."""
+    tag = element.tag if isinstance(element.tag, str) else "?"
+    said = kind(element)[len(tag) + 1 :]
+    own = set((element.get("class") or "").split())
+    classes = [c for c in said.split(".") if c in own and not _IN_A_KIND.search(c)]
+    return ".".join([_written(tag, _IN_A_KIND), *classes])
 
 
 def _find(
-    doc: Document, path: str, siblings: Sequence[int | None] = ()
+    doc: Document,
+    path: str,
+    siblings: Sequence[int | None] = (),
+    marks: Sequence[str | None] = (),
+    member: str = "",
 ) -> tuple[HtmlElement | None, str]:
     """The element at ``path``, or None and why.
 
     A step written without ``[n]`` was the only one of its kind when learnt, so
     it must still be the only one: a second listing of the same kind inserted
     before it -- a sponsored strip -- is ambiguous, not the first match. A
-    step written with one is held to ``siblings``, how many of its kind there
-    were at each step, where known: a strip inserted before the second of two
+    step written with one is held to its mark in ``marks``, the text it began
+    with, its rows of ``member`` aside, where known: the second box begins
+    "Books" or another box that does is the listing now. Where the mark says
+    neither, the step is held to ``siblings``, how many of its kind there were
+    at each step, where known: a strip inserted before the second of two
     boxes makes three, and another box the second.
     """
     steps = path.split(">")
@@ -1683,20 +1777,107 @@ def _find(
     if _step_label(root) != steps[0].split("[")[0]:
         return None, "not found"
     node = root
+    marked: list[tuple[str, int, list[HtmlElement], str, int | None]] = []
     for depth, step in enumerate(steps[1:]):
         label, _, ordinal = step.partition("[")
         same = [c for c in node if _steps_to(c, label)]
         if not ordinal and len(same) > 1:
             return None, f"{len(same)} places that match {label}, where there was one"
         learnt = siblings[depth] if depth < len(siblings) else None
-        if ordinal and same and learnt is not None and len(same) != learnt:
-            matching = "place that matches" if len(same) == 1 else "places that match"
-            return None, f"{len(same)} {matching} {label}, where there were {learnt}"
+        mark = marks[depth] if depth < len(marks) else None
+        # Only a digit follows the bracket in a path ``_path`` accepts, or
+        # ``path_of`` writes.
         index = int(ordinal.rstrip("]")) - 1 if ordinal else 0
+        if ordinal and mark is not None and index < len(same):
+            marked.append((label, index, same, mark, learnt))
+        elif ordinal and same and learnt is not None and len(same) != learnt:
+            return None, _counted(label, len(same), learnt)
         if index >= len(same):
             return None, "not found"
         node = same[index]
+    if marked:
+        rows = set(_members(node, member)) if member else set()
+        for label, index, same, mark, learnt in marked:
+            begins = _mark_of(same[index], rows)
+            if begins == mark:
+                continue
+            now = next(
+                (n for n, e in enumerate(same) if _mark_of(e, rows) == mark), None
+            )
+            if now is not None:
+                return None, (
+                    f"{label}[{index + 1}] begins {begins!r}, and {mark!r} is now "
+                    f"{label}[{now + 1}]"
+                )
+            if learnt is not None and len(same) != learnt:
+                return None, _counted(label, len(same), learnt)
     return node, "found"
+
+
+def _counted(label: str, found: int, learnt: int) -> str:
+    matching = "place that matches" if found == 1 else "places that match"
+    return f"{found} {matching} {label}, where there were {learnt}"
+
+
+def _locate(doc: Document, listing: Listing) -> tuple[HtmlElement | None, str]:
+    """The element at ``listing``'s container, held to all it learnt of it."""
+    return _find(
+        doc, listing.container, listing.siblings, listing.marks, listing.member
+    )
+
+
+def _mark_of(element: HtmlElement, rows: set[HtmlElement]) -> str | None:
+    """The first text ``element`` holds outside ``rows`` -- a box's heading --
+    spaces collapsed, scripts and styles left out; None when it has none."""
+    inside = 0
+    for event, node in etree.iterwalk(element, events=("start", "end")):
+        aside = node is not element and (
+            not isinstance(node.tag, str) or node.tag in _NOT_TEXT or node in rows
+        )
+        if event == "start":
+            if aside:
+                inside += 1
+            elif not inside and (text := " ".join((node.text or "").split())):
+                return text
+            continue
+        if aside:
+            inside -= 1
+        tail = " ".join((node.tail or "").split())
+        if node is not element and not inside and tail:
+            return tail
+    return None
+
+
+def _marks(docs: Sequence[Document], path: str, member: str) -> tuple[str | None, ...]:
+    """For each numbered step of ``path`` below ``<html>``, the text the
+    element there begins with, its rows aside, when it is one text on every
+    page that has the path and no other element of its kind there begins with
+    it; None elsewhere, and () when no step has one. A heading every box
+    shares, "See all", tells none of them apart."""
+    seen: list[list[str | None]] = []
+    for doc in docs:
+        container, _found = _find(doc, path)
+        if container is None:
+            continue
+        rows = set(_members(container, member))
+        begun: list[str | None] = []
+        node = doc.tree
+        for step in path.split(">")[1:]:
+            label, _, ordinal = step.partition("[")
+            same = [c for c in node if _steps_to(c, label)]
+            node = same[int(ordinal.rstrip("]")) - 1 if ordinal else 0]
+            mark = _mark_of(node, rows) if ordinal else None
+            if mark is not None and any(
+                _mark_of(other, rows) == mark for other in same if other is not node
+            ):
+                mark = None
+            begun.append(mark)
+        seen.append(begun)
+    marks = tuple(
+        column[0] if len(set(column)) == 1 else None
+        for column in zip(*seen, strict=True)
+    )
+    return marks if any(m is not None for m in marks) else ()
 
 
 def _siblings(docs: Sequence[Document], path: str) -> tuple[int | None, ...]:
@@ -1730,7 +1911,10 @@ def _members(container: HtmlElement, member: str) -> list[HtmlElement]:
         child
         for child in container
         if isinstance(child.tag, str)
-        and child.tag == tag
+        and (
+            child.tag == tag
+            or (not child.tag.isalnum() and _written(child.tag, _IN_A_KIND) == tag)
+        )
         and wanted <= set((child.get("class") or "").split())
     ]
 
@@ -1834,7 +2018,7 @@ def _unnumbered(path: str) -> str:
 def _replay_listing(
     listing: Listing, doc: Document, checks: list[Check]
 ) -> list[dict[str, str]]:
-    container, found = _find(doc, listing.container, listing.siblings)
+    container, found = _locate(doc, listing)
     if container is None:
         checks.append(
             Check("listing", f"the listing at {listing.container}", found, False)
@@ -2179,6 +2363,7 @@ def _heal_listing(
         new.empty,
         chosen=old.chosen,
         siblings=new.siblings,
+        marks=new.marks,
     )
     return listing, changes
 

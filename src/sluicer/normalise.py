@@ -205,6 +205,16 @@ def iso_date(text: str) -> str | None:
     weekday = _ANY_WEEKDAY.match(words)
     if weekday and _month_or_day(weekday.group(1)) in WEEKDAYS:
         words = words[weekday.end() :]
+    found = _from_words(words)
+    if found is None and words != text:
+        # The weekday taken off was the month: Hausa writes September "Sat",
+        # and "Sat 1, 2000" is the first of it, not a Saturday with no month.
+        found = _from_words(text)
+    return found
+
+
+def _from_words(words: str) -> str | None:
+    """A date written with its month's name, or JavaScript's, weekday aside."""
     javascript = _JAVASCRIPT.fullmatch(words)
     if javascript:
         return _from_javascript(javascript)

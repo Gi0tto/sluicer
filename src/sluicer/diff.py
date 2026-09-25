@@ -20,7 +20,7 @@ from decimal import Decimal
 from typing import Any
 
 from sluicer.api import Extraction
-from sluicer.normalise import currency
+from sluicer.normalise import _EXPONENT, currency
 from sluicer.summary import FIELDS
 
 
@@ -107,9 +107,11 @@ def _currency_of(question: str, reading: Extraction) -> str:
     """A price's currency: the code the sign or code written around its number
     names, ``£`` and ``GBP`` alike; else the currency the page declares; else
     the sign as written, case folded -- ``$`` names several -- or nothing, for
-    a bare number on a page that declares none."""
+    a bare number on a page that declares none. A number JSON writes with an
+    exponent, ``1.5e3``, is a bare number: its ``e`` is the exponent's."""
     answer = reading.summary.get(question)
-    written = re.sub(r"[\d.,'\s]", "", answer.value) if answer else ""
+    value = answer.value.strip() if answer else ""
+    written = "" if _EXPONENT.fullmatch(value) else re.sub(r"[\d.,'\s]", "", value)
     return currency(written) or reading.normalised.get("currency") or written.casefold()
 
 
