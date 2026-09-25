@@ -1320,3 +1320,66 @@ def test_labels_are_looked_up_not_searched_for_on_every_candidate(monkeypatch):
     learnt = compile_extractor(pages, listing=False, want={"flag": "Yes"})
     assert learnt.fields[0].anchor is not None
     assert len(scans) <= len(pages)
+
+
+@pytest.mark.parametrize("tag", ["a@b", "p]", "x[1]", "q[a]", "x.y"])
+def test_an_extractor_through_a_tag_lxml_keeps_as_written_reads_back(tag):
+    """lxml 6 keeps ``<a@b>`` and ``<p]>`` as tags: compile wrote paths such as
+    ``div.product>a@b.price`` that from_json refused as no path, and ``<x[1]>``
+    made compile raise a bare ValueError. A tag is written with the
+    characters a path parts its steps by as ``%XX``, and read back so."""
+
+    def product(price):
+        return (
+            "<html><body><div class='product'><h1>Drill</h1>"
+            f"<{tag} class='price'>£{price}</{tag}></div></body></html>",
+            "https://shop.example/p",
+        )
+
+    learnt = compile_extractor(
+        [product("41.90")], listing=False, want={"price": "41.90"}
+    )
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    run = run_extractor(learnt, *product("12.50"))
+    assert run.ok, failed(run)
+    assert run.fields == {"price": "£12.50"}
+
+    def books(n):
+        rows = "".join(
+            f"<{tag} class='item'><b class='t'>Book {i}</b>"
+            f"<span class='p'>£{i}.99</span></{tag}>"
+            for i in range(n)
+        )
+        return (
+            f"<html><body><{tag} class='w'><ul class='list'>"
+            f"<li class='item'>x</li></ul><div class='list'>{rows}</div>"
+            f"</{tag}></body></html>",
+            "https://shop.example/c",
+        )
+
+    learnt = compile_extractor(
+        [books(5), books(6)], want={"title": "Book 1", "price": "£1.99"}
+    )
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    run = run_extractor(learnt, *books(7))
+    assert run.ok, failed(run)
+    assert len(run.rows) == 7
+
+
+def test_a_row_s_class_a_path_cannot_write_is_left_out_of_its_kind():
+    """Tailwind's ``@container`` is a class with none of the digits that mark a
+    class as varying, and the row's kind was written ``li.@container.item``,
+    which from_json refused."""
+
+    def page(n):
+        rows = "".join(
+            f"<li class='item @container'><a class='t' href='/b/{i}'>Book {i}</a>"
+            f"<span class='p'>£{i}.99</span></li>"
+            for i in range(n)
+        )
+        return f"<html><body><ul class='list'>{rows}</ul></body></html>", None
+
+    learnt = compile_extractor([page(5), page(6)], listing=True)
+    assert learnt.listing.member == "li.item"
+    assert Extractor.from_json(learnt.to_json()) == learnt
+    assert run_extractor(learnt, *page(8)).ok

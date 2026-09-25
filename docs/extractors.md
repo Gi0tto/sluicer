@@ -65,6 +65,11 @@ number from 0 to 1 (`"missing": "nan"`), rows that are not two counts, a shape
 of other letters than L, N, P and S, two fields of one name, a path that is not
 one. An edit that would quietly turn a check off is refused with a message
 naming it, and `sluicer run` and `heal` exit 2, as for a file that is not JSON.
+Every file `compile` and `heal` write is one this reading accepts: a tag the
+page spelt with a character a path parts its steps by, which lxml keeps as
+written (`<a@b>`, `<x[1]>`), is written with it as `%` and its code,
+`a%40b`, and a row's class that holds one, Tailwind's `@container`, is left
+out of the row's kind.
 
 ## Pointing at what you want
 

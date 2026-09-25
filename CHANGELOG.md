@@ -76,6 +76,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- Every extractor `compile` writes is one `from_json` reads. lxml 6 keeps
+  tags such as `<a@b>` and `<p]>` as the page wrote them, and compile wrote
+  paths such as `div.product>a@b.price`, which the reader refused as no path
+  (0.7.0 read it back, as the attribute `b.price` of an `<a>`); `<x[1]>` made
+  compile raise a bare `ValueError`, and a row's tag `<x.y>` another, where
+  it found no rows of its own kind. A row carrying Tailwind's `@container`
+  was written `li.@container.item`, refused too. Such a character in a tag is
+  now written as `%` and its code, `a%40b`, and a class that holds one is
+  left out of the row's kind; other paths and kinds are as they were. A
+  property draws tags and classes of those characters and holds compile's
+  output to reading back as it was. Found by review.
 - A numbered listing is the box its heading says. Learnt at
   `section.box[2]`, the books among three boxes, a page with the first box
   gone and another added at the end still had three, and the run read the
