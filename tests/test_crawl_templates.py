@@ -8,7 +8,7 @@ import pytest
 
 from fake_site import FakeWeb, page
 from sluicer.crawl import StateMismatch
-from sluicer.crawl.templates import shopify_products, sitemap_pages
+from sluicer.crawl.templates import MOST_NESTING, shopify_products, sitemap_pages
 from sluicer.summary import FIELDS
 
 SHOP = "https://shop.example"
@@ -184,10 +184,13 @@ def test_what_is_not_products_json_says_so():
     assert "not a Shopify products.json" in answer.error.message
 
 
-@pytest.mark.parametrize("depth", [5_000, 100_000])
+@pytest.mark.parametrize("depth", [200, 5_000, 100_000])
 def test_a_products_json_nested_past_any_shop_is_read_without_recursion(depth):
     """Measured on 0.8.0: a product whose tags nested 5,000 lists deep raised
-    RecursionError out of the crawl, and 100,000 did so from the parser."""
+    RecursionError out of the crawl, and 100,000 did so from the parser. And
+    how deep the parser goes depends on the Python: CI's 3.10 to 3.13 refused
+    5,000 and its 3.14 read 100,000, so the depth is judged before parsing,
+    the same on every Python."""
     deep = "[" * depth + "]" * depth
     body = (
         '{"products": [{"id": 1, "handle": "ok", "title": "Fine", "tags": '
@@ -198,7 +201,7 @@ def test_a_products_json_nested_past_any_shop_is_read_without_recursion(depth):
 
     [answer] = list(shop(fake))
 
-    if depth == 5_000:
+    if depth <= MOST_NESTING:
         assert answer.ok and answer.url == f"{SHOP}/products/ok"
         json.dumps(answer.to_json())
     else:

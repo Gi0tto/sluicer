@@ -359,6 +359,8 @@ def test_a_relative_cache_is_the_file_s_directory_s_and_a_tilde_is_home(
     below.mkdir()
     monkeypatch.chdir(below)
     monkeypatch.setenv("HOME", str(here / "home"))
+    # Windows finds ~ through USERPROFILE, not HOME.
+    monkeypatch.setenv("USERPROFILE", str(here / "home"))
     monkeypatch.setenv(config.CONFIG_ENV, str(named))
 
     _run("fetch", URL)

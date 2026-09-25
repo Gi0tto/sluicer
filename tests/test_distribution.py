@@ -13,6 +13,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -586,7 +587,9 @@ BROKEN = ROOT / "examples" / "brake-pads.html"
 def _audit_action(tmp_path, **inputs):
     env = {
         "PATH": str(Path(sys.executable).parent),
-        "SYSTEMROOT": "",
+        # Windows cannot start Python without it: an empty one made every
+        # page of the Action unreadable there, and only there.
+        "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
         "GITHUB_OUTPUT": str(tmp_path / "output"),
         "GITHUB_STEP_SUMMARY": str(tmp_path / "summary.md"),
         "RUNNER_TEMP": str(tmp_path),

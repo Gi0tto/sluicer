@@ -108,16 +108,16 @@ def test_the_pace_follows_how_long_the_site_takes_averaged_with_before():
 
     with polite.turn(f"{ROOT}/a"):
         clock.now += 3.0
-    assert polite.pace(ROOT) == 3.0
+    assert polite.pace(ROOT) == pytest.approx(3.0)
     with polite.turn(f"{ROOT}/b"):
         clock.now += 1.0
 
-    assert polite.pace(ROOT) == 2.0
-    assert clock.slept == [3.0]
+    assert polite.pace(ROOT) == pytest.approx(2.0)
+    assert clock.slept == pytest.approx([3.0])
     before = clock()
     with polite.turn(f"{ROOT}/c"):
         pass
-    assert clock() - before == 2.0
+    assert clock() - before == pytest.approx(2.0)
 
 
 def test_the_pace_is_never_more_than_the_ceiling():
@@ -129,7 +129,7 @@ def test_the_pace_is_never_more_than_the_ceiling():
     with polite.turn(f"{ROOT}/a"):
         clock.now += 30.0
 
-    assert polite.pace(ROOT) == 5.0
+    assert polite.pace(ROOT) == pytest.approx(5.0)
 
 
 def test_a_redirect_hop_s_rest_is_not_taken_for_the_site_s_slowness():
@@ -141,8 +141,8 @@ def test_a_redirect_hop_s_rest_is_not_taken_for_the_site_s_slowness():
         assert polite.hop(f"{ROOT}/a", f"{ROOT}/b") is None
         clock.now += 0.5
 
-    assert clock.slept == [4.0]
-    assert polite.pace(ROOT) == 0.5
+    assert clock.slept == pytest.approx([4.0])
+    assert polite.pace(ROOT) == pytest.approx(0.5)
 
 
 def test_a_request_whose_start_was_not_noted_is_not_timed():

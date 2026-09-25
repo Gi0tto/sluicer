@@ -382,8 +382,11 @@ class _Listing:
                 "one that serves no products.json",
             )
         try:
+            if _nested_past(response.body, MOST_NESTING):
+                raise ValueError("nested deeper than a shop writes")
             products = json.loads(response.body)["products"]
-        # RecursionError: JSON nested deeper than the parser's stack.
+        # RecursionError: the parser's own limit, which the check above keeps
+        # it from reaching on any Python.
         except (ValueError, KeyError, TypeError, RecursionError):
             products = None
         if not isinstance(products, list):
@@ -523,6 +526,41 @@ def _text(value: Any) -> str | None:
         return None
     text = _as_text(value)
     return text.strip() if isinstance(text, str) and text.strip() else None
+
+
+MOST_NESTING = 256
+"""The deepest a products.json may nest its arrays and objects. How deep the
+json module parses before RecursionError depends on the Python and the
+platform -- 5,000 was a page on one and an error on another -- so the same
+page gave two answers: past this, it is no products.json, on every Python."""
+
+
+def _nested_past(text: str | bytes, most: int) -> bool:
+    """Whether ``text``, as JSON, nests arrays and objects deeper than ``most``.
+
+    One pass, strings skipped, so what a string holds never counts.
+    """
+    if isinstance(text, bytes):
+        text = text.decode("utf-8", "replace")
+    depth = 0
+    in_string = escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > most:
+                return True
+        elif character in "]}":
+            depth -= 1
+    return False
 
 
 def _as_text(value: Any, depth: int = 0) -> JsonValue | None:

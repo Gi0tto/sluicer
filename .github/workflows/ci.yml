@@ -257,7 +257,10 @@ jobs:
       # bring both browser extras. Read from what the resolver would install.
       - name: The fetch extra still installs what it meant
         run: |
-          uv pip install --dry-run '.[fetch]' 2>&1 | tee fetch-extra.txt
+          # Into an empty environment: in this job's own, where the extras are
+          # installed already, the resolver lists only sluicer itself.
+          uv venv -q "$RUNNER_TEMP/fetch-extra"
+          uv pip install --python "$RUNNER_TEMP/fetch-extra" --dry-run '.[fetch]' 2>&1 | tee fetch-extra.txt
           grep -qi 'playwright' fetch-extra.txt || { echo "sluicer[fetch] no longer brings playwright"; exit 1; }
           grep -qi 'scrapling' fetch-extra.txt || { echo "sluicer[fetch] no longer brings scrapling"; exit 1; }
       - name: Use each one against the package that was really installed
@@ -614,11 +617,21 @@ jobs:
           persist-credentials: false
       - name: Build the image with Chromium
         run: docker build --build-arg WITH_BROWSER=1 -t sluicer:browser .
+      # Ubuntu 24.04 refuses unprivileged user namespaces through AppArmor on the
+      # host, and a container's user is unprivileged: allow them, as the extras
+      # job does for Chromium outside a container.
+      - name: Let the sandbox make its user namespaces
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       # Not Playwright alone: the image's own ladder, as a user runs it, on a
       # page only a browser fills, served inside the container.
       - name: The unprivileged user's ladder climbs to the browser
         run: |
-          docker run --rm sluicer:browser python -c "
+          # Chromium's sandbox needs user namespaces, which Docker's default
+          # seccomp profile refuses without SYS_ADMIN (SECURITY.md, Dockerfile).
+          docker run --rm --cap-add SYS_ADMIN sluicer:browser python -c "
           import http.server, json, os, subprocess, sys, threading
           page = b'<html><body><div id=r></div><script>document.getElementById(\\'r\\').textContent = \\'rendered \\'.repeat(40)</script></body></html>'
           class Site(http.server.BaseHTTPRequestHandler):
