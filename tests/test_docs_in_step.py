@@ -78,3 +78,21 @@ def test_the_readme_s_numbers_are_the_scoreboards():
     timings were written by hand, the charts from the scoreboards."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert readme == _assets().readme(readme), "run: uv run scripts/readme_assets.py"
+
+
+def test_every_number_in_the_readme_s_scoreboard_table_is_in_its_scoreboard():
+    """The README's one benchmark table is written by hand, one row per
+    scoreboard: each number in a row must be in the scoreboard it links to,
+    so a number copied wrong, or left behind by a new run, fails here."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## Measured, losses included", 1)[1].split("\n## ", 1)[0]
+    rows = [line for line in section.splitlines() if line.startswith("| [")]
+    assert len(rows) == 7
+    for row in rows:
+        page = re.search(r"/docs/([\w-]+\.md)\)", row)
+        assert page is not None, row
+        board = (ROOT / "docs" / page.group(1)).read_text(encoding="utf-8")
+        for number in re.findall(r"\d[\d,]*(?:\.\d+)?", row.split(")", 1)[1]):
+            assert re.search(rf"(?<![\d.,]){re.escape(number)}(?![\d]|\.\d)", board), (
+                f"{number} is not in {page.group(1)}"
+            )
