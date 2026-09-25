@@ -181,7 +181,8 @@ environment pinned by `requirements/rdflib.txt`, which no install of Sluicer
 needs. `extract()`'s reader writes records, not a graph, so its records are
 read as triples the way a caller would read them, each a blank node; the
 scoreboard also asks each query again with the subjects it names by address
-replaced by variables.
+replaced by variables, and holds every answer's values against the test's
+expected graph, subjects aside.
 
 ## Extractors learnt from examples, on SWDE
 

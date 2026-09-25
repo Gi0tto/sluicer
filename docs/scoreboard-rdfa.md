@@ -6,7 +6,9 @@ Sluicer's two RDFa readers, and extruct's, on the RDFa test suite the W3C's RDFa
 - **`sluicer.compat.extruct`** is the processor that answers what extruct answers, graph and all.
 - **extruct 0.18.0**, in an environment holding exactly `bench/requirements/extruct.txt`, with `extract(html, base_url=url, syntaxes=["rdfa"])`.
 
-Regenerated on 2026-09-25 from commit `dd24aef` by `uv run bench/rdfa_conformance.py`, with Sluicer 0.7.1, extruct 0.18.0 and rdflib 7.6.0 on Python 3.14, against the suite at `b388107da890` of [`rdfa/rdfa.github.io`](https://github.com/rdfa/rdfa.github.io), which is distributed under both the W3C Test Suite License and the W3C 3-clause BSD License. A test passes when its query answers what the suite expects.
+What `extract()`'s reader leaves out on purpose -- links, `about`, typed literals, languages, the page as a subject -- is in [Known limits](known-limits.md); every test it fails is filed below under one of those, or listed as not explained.
+
+Regenerated on 2026-09-25 from commit `6ed235f` by `uv run bench/rdfa_conformance.py`, with Sluicer 0.7.1, extruct 0.18.0 and rdflib 7.6.0 on Python 3.14, against the suite at `b388107da890` of [`rdfa/rdfa.github.io`](https://github.com/rdfa/rdfa.github.io), which is distributed under both the W3C Test Suite License and the W3C 3-clause BSD License. A test passes when its query answers what the suite expects.
 
 | set | tests | Sluicer's reader | `sluicer.compat.extruct` | extruct 0.18.0 |
 |---|---|---|---|---|
@@ -18,6 +20,27 @@ Regenerated on 2026-09-25 from commit `dd24aef` by `uv run bench/rdfa_conformanc
 
 extruct raises on 5 of the 237 documents (rdfa1.1/0122, rdfa1.1/0297, rdfa1.1/0298, rdfa1.1/0299, rdfa1.1/0300); each is counted as failed. Sluicer's readers raise on none.
 
+## Values, subjects aside
+
+Each answer held against the graph the suite expects, its `.ttl`, subjects aside: every triple is a predicate and a value -- a literal's words, spaces collapsed, its type and language left out; an address; or a node, for a resource the graph describes -- and a value is right when the expected graph has it, wrong when it does not, and missing when only the expected graph has it. `rdfa:usesVocabulary` is left out, and so are the tests asking for an option and the 2 whose expected graph rdflib cannot parse (0281 (RDFa 1.1 Lite), 0282 (RDFa 1.1 Lite)).
+
+| set | tests | reader | right | wrong | missing |
+|---|---|---|---|---|---|
+| RDFa 1.1 | 170 | Sluicer's reader | 99 | 1 | 248 |
+| RDFa 1.1 | 170 | `sluicer.compat.extruct` | 333 | 13 | 14 |
+| RDFa 1.1 | 170 | extruct | 327 | 13 | 20 |
+| RDFa 1.1 Lite | 45 | Sluicer's reader | 51 | 0 | 72 |
+| RDFa 1.1 Lite | 45 | `sluicer.compat.extruct` | 116 | 8 | 7 |
+| RDFa 1.1 Lite | 45 | extruct | 116 | 8 | 7 |
+| `role` | 3 | Sluicer's reader | 0 | 0 | 3 |
+| `role` | 3 | `sluicer.compat.extruct` | 3 | 0 | 0 |
+| `role` | 3 | extruct | 3 | 0 | 0 |
+
+Every wrong value, by reader:
+
+- Sluicer's reader: 0197 (RDFa 1.1) `type` <http://schema.org/class/Person>.
+- `sluicer.compat.extruct` and extruct, alike: 0073 (RDFa 1.1) `creator` <http://rdfa.info/test-suite/test-cases/rdfa1.1/html5/jane>; 0074 (RDFa 1.1) `creator` <http://rdfa.info/test-suite/test-cases/rdfa1.1/html5/jane>; 0074 (RDFa 1.1 Lite) `creator` <http://rdfa.info/test-suite/test-cases/rdfa1.1-lite/html5...>; 0272 (RDFa 1.1) `value` `18 March 2012`; 0272 (RDFa 1.1 Lite) `value` `18 March 2012`; 0273 (RDFa 1.1) `value` `midnight`; 0273 (RDFa 1.1 Lite) `value` `midnight`; 0274 (RDFa 1.1) `value` `18 March 2012 at midnight`; 0274 (RDFa 1.1 Lite) `value` `18 March 2012 at midnight`; 0277 (RDFa 1.1) `value` `2012-03-18T00:00:00Z`; 0277 (RDFa 1.1 Lite) `value` `2012-03-18T00:00:00Z`; 0279 (RDFa 1.1) `value` `18 March 2012 at midnight`; 0281 (RDFa 1.1) `value` `Two Thousand Twelve`; 0282 (RDFa 1.1) `value` `March, Two Thousand Twelve`; 0287 (RDFa 1.1) `value` `18 March 2012 at midnight in San Francisco`; 0287 (RDFa 1.1 Lite) `value` `18 March 2012 at midnight in San Francisco`; 0312 (RDFa 1.1) `homepage` `Some Body`; 0312 (RDFa 1.1) `nofollow` <http://example.org/>; 0312 (RDFa 1.1 Lite) `homepage` `Some Body`; 0312 (RDFa 1.1 Lite) `nofollow` <http://example.org/>; 0334 (RDFa 1.1) `homepage` <http://greggkellogg.net/>.
+
 ## With the subjects' names set aside
 
 162 of the 237 runs ask for a subject by its address -- the document's, an `about`, a `resource` -- which Sluicer's records never carry, so its reader passes 0 of them. Asked again with each address in a subject's place replaced by a variable, the same address by the same variable, and nothing else changed, it passes 21; `sluicer.compat.extruct` 150, extruct 147.
@@ -26,7 +49,7 @@ extruct raises on 5 of the 237 documents (rdfa1.1/0122, rdfa1.1/0297, rdfa1.1/02
 
 Each test is filed under the first of these its document uses, so a test of chaining with a datatype is under datatypes. Sluicer's column counts the suite's queries; in brackets, the same with the subjects' names set aside.
 
-| feature | tests | Sluicer's reader | `compat.extruct` | extruct | Sluicer's reader does not read it |
+| feature | runs | Sluicer's reader | `compat.extruct` | extruct | Sluicer's reader does not read it |
 |---|---|---|---|---|---|
 | processor graph | 8 | 2 (2) | 2 | 2 | an option no reader here takes |
 | vocabulary expansion | 9 | 0 (0) | 0 | 0 | an option no reader here takes |
@@ -38,7 +61,7 @@ Each test is filed under the first of these its document uses, so a test of chai
 | languages (`lang`) | 4 | 0 (0) | 0 | 0 | languages are not read |
 | `<base>` | 15 | 0 (2) | 0 | 0 |  |
 | reverse links (`rev`) | 11 | 0 (0) | 10 | 10 | `rev` is not RDFa Lite |
-| links and chaining (`rel`) | 51 | 4 (4) | 49 | 47 | `rel` is not read |
+| links and chaining (`rel`) | 51 | 4 (4) | 49 | 47 | `rel` links are not read |
 | explicit subjects (`about`) | 35 | 1 (4) | 35 | 32 | `about` is not RDFa Lite |
 | `vocab` and `prefix` | 24 | 2 (14) | 22 | 22 |  |
 | `typeof` and `resource` | 6 | 0 (2) | 6 | 6 |  |
@@ -46,13 +69,13 @@ Each test is filed under the first of these its document uses, so a test of chai
 
 ## Losses
 
-`sluicer.compat.extruct` fails 0 tests extruct passes, and passes 5 extruct fails: 0122 (RDFa 1.1), 0297 (RDFa 1.1), 0298 (RDFa 1.1), 0299 (RDFa 1.1), 0300 (RDFa 1.1). Where both fail, the compatibility layer answers what extruct answers, as it is meant to.
+`sluicer.compat.extruct` fails 0 tests extruct passes, and passes 5 extruct fails: 0122 (RDFa 1.1), 0297 (RDFa 1.1), 0298 (RDFa 1.1), 0299 (RDFa 1.1), 0300 (RDFa 1.1). On the 65 runs both fail, the two give the same values, right, wrong and missing.
 
 Sluicer's reader fails 224 of the 237 runs, first reason first:
 
 | why | runs |
 |---|---|
-| `rel` is not read | 47 |
+| `rel` links are not read | 47 |
 | typed literals are not read | 40 |
 | `about` is not RDFa Lite | 34 |
 | no `typeof`, so no record | 29 |

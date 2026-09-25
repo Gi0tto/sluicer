@@ -63,6 +63,15 @@ def _run(
         "passed": dict(passed),
         "names_a_subject": True,
         "unnamed": {reader: True for reader in board.READERS},
+        "values": {
+            "sluicer": {
+                "right": 1,
+                "wrong": [["http://schema.org/name", "text", "B"]],
+                "missing": 2,
+            },
+            "compat": {"right": 3, "wrong": [], "missing": 0},
+            "extruct": {"right": 3, "wrong": [], "missing": 0},
+        },
     }
     return {"tests": [test], "extruct": "0.18.0", "rdflib": "7.6.0", "sluicer": "0"}
 
@@ -80,6 +89,8 @@ def test_the_scoreboard_counts_what_the_run_found(tmp_path):
     assert "| RDFa 1.1 | 1 | 0 | 1 | 0 |" in text
     assert "passes 1 extruct fails: 0001 (RDFa 1.1)" in text
     assert "1 of the 1 runs ask for a subject by its address" in text
+    assert "| RDFa 1.1 | 1 | Sluicer's reader | 1 | 1 | 2 |" in text
+    assert "- Sluicer's reader: 0001 (RDFa 1.1) `name` `B`." in text
     # A pipe in a description would split its row.
     assert "a \\| test" in text
 

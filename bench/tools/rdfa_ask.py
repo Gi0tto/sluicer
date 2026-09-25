@@ -10,6 +10,13 @@ Each query is also asked a second time with every subject it names by address
 replaced by a variable, the same address by the same variable wherever it
 appears: what a reader that names no subject can be asked. That query is the
 suite's with names taken out, never with anything put in.
+
+And each answer's values are held against the test's expected graph, its
+``.ttl``, subjects aside: every triple is a predicate and a value -- the words
+of a literal, spaces collapsed and its type and language left out, an address,
+or a node for a resource the graph says something about -- and a value is
+right when the expected graph has it, wrong when it does not, and missing when
+only the expected graph has it.
 """
 
 from __future__ import annotations
@@ -21,7 +28,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from rdflib import Graph, URIRef, Variable
+from rdflib import BNode, Graph, Literal, URIRef, Variable
 from rdflib.plugins.sparql import prepareQuery
 from rdflib.plugins.sparql.sparql import Query
 
@@ -58,7 +65,30 @@ def unnamed(text: str) -> tuple[Query, bool]:
     return query, bool(named)
 
 
-def ask(answer: Any, query: str | Query) -> bool | str:
+USES_VOCABULARY = URIRef("http://www.w3.org/ns/rdfa#usesVocabulary")
+
+
+def values(graph: Graph) -> set[tuple[str, ...]]:
+    """``graph``'s triples as predicates and values, subjects aside.
+
+    ``rdfa:usesVocabulary`` says which ``vocab`` a document used, not what it
+    declared, and is left out.
+    """
+    described = set(graph.subjects())
+    found = set()
+    for _s, p, o in graph:
+        if p == USES_VOCABULARY:
+            continue
+        if isinstance(o, BNode) or o in described:
+            found.add((str(p), "node"))
+        elif isinstance(o, Literal):
+            found.add((str(p), "text", " ".join(str(o).split())))
+        else:
+            found.add((str(p), "address", str(o)))
+    return found
+
+
+def read(answer: Any) -> Graph | str:
     if isinstance(answer, dict) and "__error__" in answer:
         return f"raised {answer['__error__']}"
     graph = Graph()
@@ -66,6 +96,23 @@ def ask(answer: Any, query: str | Query) -> bool | str:
         graph.parse(data=json.dumps(answer), format="json-ld")
     except Exception as error:  # noqa: BLE001 -- an unreadable answer is recorded
         return f"unreadable: {type(error).__name__}: {error}"
+    return graph
+
+
+def compared(answer: Any, expected: set[tuple[str, ...]]) -> dict[str, Any]:
+    graph = read(answer)
+    found = values(graph) if isinstance(graph, Graph) else set()
+    return {
+        "right": len(found & expected),
+        "wrong": sorted(found - expected),
+        "missing": len(expected - found),
+    }
+
+
+def ask(answer: Any, query: str | Query) -> bool | str:
+    graph = read(answer)
+    if isinstance(graph, str):
+        return graph
     return bool(graph.query(query).askAnswer)
 
 
@@ -94,11 +141,28 @@ def main(tests_path: str, answers_path: str, out_path: str) -> None:
         }
         for reader, found in answers.items()
     }
+    expected: dict[str, set[tuple[str, ...]] | None] = {}
+    for test in tests:
+        graph = Graph()
+        try:
+            graph.parse(test["graph"], format="turtle", publicID=test["url"])
+        except Exception:  # noqa: BLE001 -- two of the suite's own do not parse
+            expected[test["key"]] = None
+            continue
+        expected[test["key"]] = values(graph)
+    held = {
+        reader: {
+            key: None if graph is None else compared(found[key], graph)
+            for key, graph in expected.items()
+        }
+        for reader, found in answers.items()
+    }
     Path(out_path).write_text(
         json.dumps(
             {
                 "rdflib": importlib.metadata.version("rdflib"),
                 "results": results,
+                "values": held,
                 "unnamed": unnamed_results,
                 "names_a_subject": sorted(k for k, (_q, n) in relaxed.items() if n),
             }

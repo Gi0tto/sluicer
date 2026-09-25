@@ -23,8 +23,12 @@ Three readers are handed the same bytes and the test's address:
 Each answer is written as expanded JSON-LD and the test's own SPARQL ASK query
 is evaluated on it by rdflib, in an environment holding exactly
 ``bench/requirements/rdflib.txt``; a test passes when the query answers what
-the manifest's ``expectedResults`` says. Nothing here is timed or sampled, so
-the same checkout gives the same scoreboard.
+the manifest's ``expectedResults`` says. Each query is asked again with the
+subjects it names by address replaced by variables, and each answer's values
+are held against the test's expected graph, subjects aside, since the records
+of ``extract()``'s reader name no subject (``bench/tools/rdfa_ask.py`` says
+how). Nothing here is timed or sampled, so the same checkout gives the same
+scoreboard.
 """
 
 from __future__ import annotations
@@ -141,6 +145,7 @@ def tests(suite: Path) -> list[dict[str, Any]]:
                     "expected": entry["expectedResults"],
                     "path": str(folder / f"{num}.html"),
                     "query": str(folder / f"{num}.sparql"),
+                    "graph": str(folder / f"{num}.ttl"),
                     "url": f"{BASE}/{version}/html5/{num}.html",
                 }
             )
@@ -281,6 +286,9 @@ def measure(reuse: bool) -> dict[str, Any]:
             reader: test["results"][reader] is test["expected"] for reader in READERS
         }
         test["names_a_subject"] = test["key"] in named
+        test["values"] = {
+            reader: asked["values"][reader][test["key"]] for reader in READERS
+        }
         # The query with its named subjects taken out, where it named any;
         # otherwise the suite's own, whose answer stands.
         test["unnamed"] = {
@@ -325,7 +333,7 @@ NOT_READ = {
     "datatypes (`datatype`)": "typed literals are not read",
     "languages (`lang`)": "languages are not read",
     "reverse links (`rev`)": "`rev` is not RDFa Lite",
-    "links and chaining (`rel`)": "`rel` is not read",
+    "links and chaining (`rel`)": "`rel` links are not read",
     "explicit subjects (`about`)": "`about` is not RDFa Lite",
 }
 
@@ -371,6 +379,11 @@ def scoreboard(run: dict[str, Any], commit: str, today: str) -> str:
         "`bench/requirements/extruct.txt`, with "
         '`extract(html, base_url=url, syntaxes=["rdfa"])`.',
         "",
+        "What `extract()`'s reader leaves out on purpose -- links, `about`, "
+        "typed literals, languages, the page as a subject -- is in "
+        "[Known limits](known-limits.md); every test it fails is filed below "
+        "under one of those, or listed as not explained.",
+        "",
         f"Regenerated on {today} from commit `{commit}` by "
         "`uv run bench/rdfa_conformance.py`, with Sluicer "
         f"{run['sluicer']}, extruct {run['extruct']} and rdflib {run['rdflib']} "
@@ -407,11 +420,89 @@ def scoreboard(run: dict[str, Any], commit: str, today: str) -> str:
         + (f"{len(ours_raised)}." if ours_raised else "none."),
         "",
     ]
+    lines += _values_section(tests)
     lines += _unnamed_section(tests)
     lines += _feature_section(tests)
     lines += _losses_section(tests)
     lines += _every_test(tests)
     return "\n".join(lines) + "\n"
+
+
+def _values_section(tests: list[dict[str, Any]]) -> list[str]:
+    """Each reader's values against the tests' expected graphs, subjects aside."""
+    held = [t for t in tests if not t["option"] and t["values"]["sluicer"] is not None]
+    broken = [t for t in tests if not t["option"] and t["values"]["sluicer"] is None]
+    lines = [
+        "## Values, subjects aside",
+        "",
+        "Each answer held against the graph the suite expects, its `.ttl`, "
+        "subjects aside: every triple is a predicate and a value -- a "
+        "literal's words, spaces collapsed, its type and language left out; an "
+        "address; or a node, for a resource the graph describes -- and a value "
+        "is right when the expected graph has it, wrong when it does not, and "
+        "missing when only the expected graph has it. `rdfa:usesVocabulary` is "
+        "left out, and so are the tests asking for an option"
+        + (
+            " and the "
+            + str(len(broken))
+            + " whose expected graph rdflib cannot parse ("
+            + ", ".join(_ref(t) for t in broken)
+            + ")"
+            if broken
+            else ""
+        )
+        + ".",
+        "",
+        "| set | tests | reader | right | wrong | missing |",
+        "|---|---|---|---|---|---|",
+    ]
+    for version, name in SETS.items():
+        rows = [t for t in held if t["version"] == version]
+        if not rows:
+            continue
+        for reader in READERS:
+            right = sum(t["values"][reader]["right"] for t in rows)
+            wrong = sum(len(t["values"][reader]["wrong"]) for t in rows)
+            missing = sum(t["values"][reader]["missing"] for t in rows)
+            lines.append(
+                f"| {name} | {len(rows)} | {NAMES[reader]} | {right} | {wrong} | "
+                f"{missing} |"
+            )
+    lines += ["", "Every wrong value, by reader:", ""]
+    wrong = {
+        reader: [(t, value) for t in held for value in t["values"][reader]["wrong"]]
+        for reader in READERS
+    }
+    same = [(t["key"], v) for t, v in wrong["compat"]] == [
+        (t["key"], v) for t, v in wrong["extruct"]
+    ]
+    groups = (
+        [
+            (NAMES["sluicer"], "sluicer"),
+            (f"{NAMES['compat']} and extruct, alike", "compat"),
+        ]
+        if same
+        else [(NAMES[reader], reader) for reader in READERS]
+    )
+    for name, reader in groups:
+        listed = "; ".join(
+            f"{_ref(t)} `{_short_iri(value[0])}` {_value_text(value)}"
+            for t, value in wrong[reader]
+        )
+        lines.append(f"- {name}: " + (listed or "none") + ".")
+    return [*lines, ""]
+
+
+def _short_iri(iri: str) -> str:
+    return re.split(r"[#/]", iri.rstrip("/#"))[-1] or iri
+
+
+def _value_text(value: list[str]) -> str:
+    kind = value[1]
+    if kind == "node":
+        return "a node"
+    shown = value[2] if len(value[2]) <= 60 else value[2][:57] + "..."
+    return f"`{shown}`" if kind == "text" else f"<{shown}>"
 
 
 def _unnamed_section(tests: list[dict[str, Any]]) -> list[str]:
@@ -446,7 +537,7 @@ def _feature_section(tests: list[dict[str, Any]]) -> list[str]:
         "counts the suite's queries; in brackets, the same with the subjects' "
         "names set aside.",
         "",
-        "| feature | tests | Sluicer's reader | `compat.extruct` | extruct | "
+        "| feature | runs | Sluicer's reader | `compat.extruct` | extruct | "
         "Sluicer's reader does not read it |",
         "|---|---|---|---|---|---|",
     ]
@@ -479,8 +570,8 @@ def _losses_section(tests: list[dict[str, Any]]) -> list[str]:
         + (": " + ", ".join(_ref(t) for t in compat_only) if compat_only else "")
         + f", and passes {len(extruct_only)} extruct fails"
         + (": " + ", ".join(_ref(t) for t in extruct_only) if extruct_only else "")
-        + ". Where both fail, the compatibility layer answers what extruct "
-        "answers, as it is meant to.",
+        + ". "
+        + _both_fail_sentence(tests),
         "",
     ]
     failed = [t for t in tests if not t["passed"]["sluicer"]]
@@ -502,6 +593,28 @@ def _losses_section(tests: list[dict[str, Any]]) -> list[str]:
         "",
     ]
     return lines
+
+
+def _both_fail_sentence(tests: list[dict[str, Any]]) -> str:
+    """Whether, where both fail, the two answered the same values, as the run
+    found."""
+    both = [
+        t
+        for t in tests
+        if not t["passed"]["compat"]
+        and not t["passed"]["extruct"]
+        and t["values"]["compat"] is not None
+    ]
+    apart = [t for t in both if t["values"]["compat"] != t["values"]["extruct"]]
+    if not apart:
+        return (
+            f"On the {len(both)} runs both fail, the two give the same values, "
+            "right, wrong and missing."
+        )
+    return (
+        f"On {len(apart)} of the {len(both)} runs both fail, the two give "
+        "different values: " + ", ".join(_ref(t) for t in apart) + "."
+    )
 
 
 def _ref(test: dict[str, Any]) -> str:

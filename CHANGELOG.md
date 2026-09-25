@@ -17,9 +17,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   raises on five documents that write `about="[]"` or `resource="[]"`;
   `extract()`'s reader, which reads RDFa Lite into records that name no
   subject, passes 7, and 21 of the 162 runs that name a subject when the
-  names are set aside. The scoreboard files each test under a feature and
-  says, for every test the reader fails, which part of RDFa it leaves out on
-  purpose.
+  names are set aside. Held against the suite's expected graphs, subjects
+  aside, that reader gives 99 of RDFa 1.1's values right and 1 wrong, a
+  term with no `vocab` read as schema.org's, and misses 248, where
+  `compat.extruct` gives 333 right and 13 wrong, extruct's own 13. The
+  scoreboard files each test under a feature and says, for every test the
+  reader fails, which part of RDFa it leaves out on purpose;
+  `docs/known-limits.md` now names each of those parts.
 
 ### Fixed
 - RDFa: a property on an element whose `rel` or `rev` names a term takes the

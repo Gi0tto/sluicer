@@ -96,9 +96,20 @@ forms almost never: one more date is read, `28. Dezember 2022`, and none
 changes.
 
 **RDFa is read as Lite, not as a graph.** The RDFa reader stops where the graph begins: `vocab`, `prefix`, `typeof`, `property` and
-`resource` are read, and chained subjects, typed literals and inference are not.
-Anyone who needs the full graph is better served by a triple store than by this
-pretending.
+`resource` are read, one record per `typeof`, and chained subjects, typed
+literals and inference are not. A record names no subject: the address a
+`resource`, `src` or `href` gives a `typeof`, and the page's own, are not kept,
+as microdata's `itemid` is not. A property no `typeof` encloses is not read;
+on the 3,976 cached corpus pages, measured on 2026-09-25, 544 such properties
+sit on 205 pages, and most are `<meta property="description">`, `stylesheet`,
+`robots` and analytics keys rather than statements. Links (`rel`, `rev`),
+`about`, `inlist`, property copying (`rdfa:copy`), `role`, datatypes and
+languages are not read: a `datatype` keeps the words it types, a `<time>` its
+`datetime`, and a `rel` or `rev` naming a term only says the address is the
+link's and not the property's. The [RDFa scoreboard](scoreboard-rdfa.md) runs
+the W3C RDFa test suite through the reader and files every test it fails under
+one of these. Anyone who needs the full graph is better served by a triple store
+than by this pretending, or by `sluicer.compat.extruct`, which builds one.
 
 **Microformats is off unless you ask, and flattened when you do.** It is the
 only reader behind an extra, because it is the only one that cannot be written
