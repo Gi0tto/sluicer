@@ -157,6 +157,7 @@ and errors only. The held-out half is scored, and read only as numbers:
 | 2026-09-25 | 0.7.1 | the release's scoreboard |
 | 2026-09-25 | 0.7.1, the same results scored again | its intervals and the paired comparison with Scrapling, first printed |
 | 2026-09-25 | 0.8.0 | the release's scoreboard |
+| 2026-09-25 | the 0.8 branch at `3f4435b` (`release-08` at `733b7ad`, its code unchanged by `--visible`'s scoreboards) | `bench/gate.py --require`: the shared cache held Sluicer's results of 24 September, before 0.7.1 |
 
 The next reading is the release after 0.8.0. All ten camera sites were read
 while the benchmark was built, before the split, so the held-out camera sites
@@ -175,6 +176,83 @@ first section says. When `--visible` is scored, each of them will show two
 columns, what the page declares and what `--visible` adds; as of 0.7.1 none
 does yet. A guess read off the visible page is never part of the summary, and
 every invention it makes will be counted in its own column.
+
+How it is scored was fixed on 2026-09-25, before `--visible` was run on any
+scoreboard's pages: no guess on them had been read, nor any number made from
+one.
+
+- **The call.** Sluicer's harness (`bench/tools/sluicer_tool.py`) calls
+  `extract(html, url=...)` as before, the call the scoreboards score and
+  `bench/timing.py` times, and then, untimed, `extract(html, url=...,
+  visible=True)`, and records its guesses of `title`, `author` and
+  `published` beside the summary's answers. The second call's summary must
+  equal the first's on those three questions; a page where it does not stops
+  the run, since the summary would no longer hold only what the page declares.
+- **The two columns.** "What the page declares" is the summary's answer,
+  scored as before. "Declared, then what `--visible` adds" is, question by
+  question, the summary's answer where it has one and `--visible`'s guess
+  where it has none: a guess never replaces a declared answer. The guess of
+  `modified` is not used.
+- **The pages and the scorer** are each scoreboard's own, by `bench/score.py`:
+  WCXB's 511 test pages; on the as-served scoreboard, its pages as served (their
+  stripped copies are WCXB's own pages, which the WCXB scoreboard scores whole);
+  the news pages; trafilatura's 851 annotated pages. Both columns print the
+  hit rate and the share right when answering, each with its Wilson interval.
+- **What `--visible` changed, counted apart.** The pages where it turned a
+  silent miss into a hit, a silent miss into a wrong answer, and a correct
+  silence into an invention. The last are `--visible`'s own inventions, in a
+  column of their own beside the declared answers'.
+- **The verdicts.** "Declared, then `--visible`" against what the page
+  declares, and against every other tool the scoreboard runs, per field, on
+  both rates, paired by page as the section on differences below fixes:
+  with three other tools, 24 comparisons a scoreboard, uncorrected, read as a
+  table.
+- **Not floored.** `bench/gate.py` holds the summary's numbers; `--visible`'s
+  are published and not held by a floor until a release adds one, in a commit
+  of its own.
+- **The rules stay as they are.** Nothing in `src/sluicer/visible.py` is
+  changed on reading these numbers. A defect they show -- a crash, a guess
+  that differs between runs -- is fixed with a failing test, named in its
+  commit, and changes no rule.
+- **No seconds.** The speed tables time `extract` without `visible`; no
+  time of `--visible` is printed.
+
+## Two more tools, beside the markdown and beside heal
+
+Fixed on 2026-09-25, before either was run on a scoreboard's pages. Neither is
+a dependency of Sluicer: each runs in an environment of its own, pinned with
+its dependencies in `bench/requirements/`.
+
+- **html-to-markdown** (`xberg-io/html-to-markdown`, MIT), 3.14.3 from PyPI,
+  on Python 3.12, beside `sluicer.markdown` on trafilatura's set, where the
+  main text is scored. Two outputs, its defaults otherwise, which convert the
+  whole page and choose no main text: `convert(html).content`, its markdown,
+  and `convert(html, ConversionOptions(output_format="plain")).content`, its
+  plain text. It takes text, so a page's bytes are decoded as UTF-8 when they
+  are UTF-8, otherwise by the charset its first 5,000 bytes declare, otherwise
+  as windows-1252, a byte that does not decode replaced. Scored by the
+  snippets as the other outputs are, on all 990 pages. Paired by page:
+  `sluicer.markdown` against its markdown, and `sluicer.markdown` with its
+  syntax taken out against its plain text, on precision, recall and F1.
+- **anansi** (`mdowis/anansi`, Apache-2.0), the package `anansi-scraper`,
+  which is not on PyPI, at commit `117fbe27b3d6` (tag `v1.2.0`), on Python
+  3.12, on the drift pairs Scrapling is asked about and about the same item:
+  the first item of A whose title and link are still on B. Its element on A
+  is the innermost whose text is that title, or of several the one whose link
+  is the item's; its selector is the one anansi writes for an element
+  (`AdaptiveParser._tag_to_selector`). A capture's bytes are handed to it as
+  they are, and BeautifulSoup, which it parses with, reads their encoding; the
+  element on A is found by the same parse. `AdaptiveParser(db_path=...)`, a fresh
+  store for each pair, is asked `extract(A, {"item": selector}, url=...)`,
+  then the same on B, with the pair's address both times; no page-level
+  property is named `item`, so its JSON-LD and Open Graph pre-pass answers
+  nothing. Right when the text it returns is the title, compared as the drift
+  page compares titles. It returns a value, not an element, so the item's
+  link is not checked: a looser test than Scrapling's. Its decay (a selector
+  unused for over seven days loses 1% a day, by the clock) cannot act here:
+  A and B are replayed seconds apart, and the selector given is tried before
+  any stored one. The page says where anansi healed -- the selector matched
+  nothing on B -- and that it does not tell its caller when it does.
 
 ## How sure a number is, and how a difference is called
 

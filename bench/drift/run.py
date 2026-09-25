@@ -8,7 +8,9 @@ Scrapling's adaptive selectors to find one item's title and link again on B.
 
     uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py
 
-writes ``docs/drift.md``. ``--no-scrapling`` leaves Scrapling out and
+writes ``docs/drift.md``. anansi is asked what Scrapling is, in an
+environment of its own (``bench/requirements/anansi.txt``, by
+``anansi_tool.py``). ``--no-scrapling`` and ``--no-anansi`` leave them out and
 ``--only`` runs the pairs whose id contains a word, without writing the page.
 The captures come from the Wayback Machine, politely, and are cached under
 ``bench/cache/drift/``; nothing archived is committed.
@@ -390,15 +392,16 @@ def _title_field(listing: Listing, identity: list[str]) -> str | None:
     return (linked or leaves or [None])[0]
 
 
-def _scrapling_for(
-    pair_id: str,
+def _item_to_follow(
     listing: Listing,
     a: Snapshot,
     b: Snapshot,
     a_rows: list[Row],
 ) -> dict[str, Any]:
-    """Follow the first A item still on B -- its title an element's text there,
-    and its link among B's links -- read from B itself, not by any extractor."""
+    """The first A item still on B -- its title an element's text there, and
+    its link among B's links -- read from B itself, not by any extractor: its
+    title and its link as A's markup writes it, or why there is none. Scrapling
+    and anansi are both asked to follow it."""
     identity = identity_fields(listing, a_rows)
     title_field = _title_field(listing, identity)
     if title_field is None:
@@ -422,17 +425,92 @@ def _scrapling_for(
         link = a_row.get(link_field) if link_field else None
         if link_field and (not link or _norm("a@href", link) not in links_b):
             continue
-        try:
-            return scrapling_finds(
-                pair_id,
-                a,
-                b,
-                " ".join(title.split()),
-                raw.get(_norm("a@href", link)) if link else None,
-            )
-        except Exception as failure:  # noqa: BLE001 -- another project's code
-            return {"result": f"error: {type(failure).__name__}: {failure}"[:120]}
+        return {
+            "title": " ".join(title.split()),
+            "raw_href": raw.get(_norm("a@href", link)) if link else None,
+        }
     return {"result": "no A item is still on B"}
+
+
+def _scrapling_for(
+    pair_id: str, item: dict[str, Any], a: Snapshot, b: Snapshot
+) -> dict[str, Any]:
+    """Scrapling asked to follow ``item`` from A to B."""
+    if "title" not in item:
+        return item
+    try:
+        return scrapling_finds(pair_id, a, b, item["title"], item["raw_href"])
+    except Exception as failure:  # noqa: BLE001 -- another project's code
+        return {"result": f"error: {type(failure).__name__}: {failure}"[:120]}
+
+
+# -- anansi beside it -------------------------------------------------------------
+# In an environment of its own (bench/requirements/anansi.txt), by
+# anansi_tool.py, on the item Scrapling is asked about (bench/PREREG.md).
+
+ANANSI_REQUIREMENTS = ROOT / "bench" / "requirements" / "anansi.txt"
+
+
+def _anansi_job(
+    pair_id: str, item: dict[str, Any], a: Snapshot, b: Snapshot
+) -> dict[str, Any]:
+    """What anansi_tool.py is given for one pair: both captures, written
+    under the cache, the address, and the item."""
+    folder = CACHE / "anansi"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{pair_id}-a.html").write_bytes(a.html)
+    (folder / f"{pair_id}-b.html").write_bytes(b.html)
+    return {
+        "id": pair_id,
+        "a": str(folder / f"{pair_id}-a.html"),
+        "b": str(folder / f"{pair_id}-b.html"),
+        "url": a.url,
+        "title": item["title"],
+        "raw_href": item["raw_href"],
+    }
+
+
+def judged_anansi(answer: dict[str, Any]) -> dict[str, Any]:
+    """anansi's answer on B, judged as the page compares titles: right when
+    the text it returned is the title. What the harness could not ask is kept
+    as it said it."""
+    if "wanted" not in answer:
+        return answer
+    shown = {**answer, "wanted": answer["wanted"][:80]}
+    if not answer.get("got"):
+        return {**shown, "result": "nothing found"}
+    right = _norm("title", answer["got"]) == _norm("title", answer["wanted"])
+    return {**shown, "got": answer["got"][:80], "result": "right" if right else "wrong"}
+
+
+def run_anansi(results: list[dict[str, Any]]) -> str:
+    """Ask anansi about every pair holding a job, in its own environment, and
+    put its judged answer in the pair's place. Returns anansi's version."""
+    jobs = [r.pop("anansi_job") for r in results if "anansi_job" in r]
+    if not jobs:
+        return ""
+    folder = CACHE / "anansi"
+    (folder / "jobs.json").write_text(json.dumps(jobs, indent=1), encoding="utf-8")
+    command = [
+        "uv", "run", "--no-project", "--python", "3.12",
+        "--with-requirements", str(ANANSI_REQUIREMENTS),
+        "python", str(HERE / "anansi_tool.py"),
+        str(folder / "jobs.json"), str(folder / "answers.json"),
+    ]  # fmt: skip
+    subprocess.run(command, cwd=ROOT, check=True)
+    answers = json.loads((folder / "answers.json").read_text(encoding="utf-8"))
+    for r in results:
+        if r["id"] in answers["results"]:
+            r["anansi"] = judged_anansi(answers["results"][r["id"]])
+    return f"{answers['version']} at commit {_anansi_commit()[:7]}"
+
+
+def _anansi_commit() -> str:
+    """The commit bench/requirements/anansi.txt pins anansi at: it is not on
+    PyPI, and its package says 1.1.0 at the commit tagged v1.2.0."""
+    pinned = ANANSI_REQUIREMENTS.read_text(encoding="utf-8")
+    found = re.search(r"anansi-scraper @ git\+\S+@([0-9a-f]{40})", pinned)
+    return found.group(1) if found else "unknown"
 
 
 def _raw_hrefs(listing: Listing, a: Snapshot) -> dict[str, str]:
@@ -451,7 +529,9 @@ def _raw_hrefs(listing: Listing, a: Snapshot) -> dict[str, str]:
 # -- one pair --------------------------------------------------------------------
 
 
-def score_pair(pair: dict[str, Any], with_scrapling: bool) -> dict[str, Any]:
+def score_pair(
+    pair: dict[str, Any], with_scrapling: bool, with_anansi: bool = False
+) -> dict[str, Any]:
     learn = [s for s in (snapshot(pair["url"], ts) for ts in pair["learn"]) if s]
     b = snapshot(pair["url"], pair["b"])
     if not learn or b is None:
@@ -510,8 +590,14 @@ def score_pair(pair: dict[str, Any], with_scrapling: bool) -> dict[str, Any]:
             f"{c.before} -> {c.after}" for c in changes if c.kind == "moved"
         ],
     }
+    item = _item_to_follow(listing, learn[0], b, a_rows)
     if with_scrapling:
-        result["scrapling"] = _scrapling_for(pair["id"], listing, learn[0], b, a_rows)
+        result["scrapling"] = _scrapling_for(pair["id"], item, learn[0], b)
+    if with_anansi:
+        if "title" in item:
+            result["anansi_job"] = _anansi_job(pair["id"], item, learn[0], b)
+        else:
+            result["anansi"] = item
     return result
 
 
@@ -547,7 +633,35 @@ def _count(items: list[str]) -> dict[str, int]:
     return tally
 
 
-def write_page(results: list[dict[str, Any]]) -> None:
+ASKED = ("right", "wrong", "nothing found")
+
+
+def anansi_lines(results: list[dict[str, Any]], version: str) -> list[str]:
+    """What anansi did on the pairs it was asked about, counted from them."""
+    asked = [r for r in results if r.get("anansi", {}).get("result") in ASKED]
+    if not asked:
+        return []
+    tally = _count([r["anansi"]["result"] for r in asked])
+    healed = [r for r in asked if r["anansi"].get("healed")]
+    return [
+        f"[anansi](https://github.com/mdowis/anansi) {version} (Apache-2.0), in",
+        "an environment of its own, was asked about the same item on the same",
+        "pairs: its selector for A's element holding the title, asked again on",
+        f"B. This ran on {len(asked)} pairs. It was right on "
+        f"{tally.get('right', 0)} and wrong on {tally.get('wrong', 0)}, and "
+        f"found nothing on {tally.get('nothing found', 0)}. It healed on "
+        f"{len(healed)} of these pairs -- the selector matched nothing on B --",
+        "and does not tell its caller when it heals: it returns a value, as it",
+        "returns one read by the selector it was given. Its answer is judged on",
+        "the title alone, since it returns text and not an element, so its test",
+        "is looser than Scrapling's. Its decay, 1% a day for a selector unused",
+        "over a week, by the clock, cannot act here: A and B are replayed",
+        "seconds apart, and the selector given is tried before any stored one.",
+        "",
+    ]
+
+
+def write_page(results: list[dict[str, Any]], anansi: str = "") -> None:
     written = json.loads((HERE / "explanations.json").read_text(encoding="utf-8"))
     explained, notes = written["losses"], written["notes"]
     ok = [r for r in results if "error" not in r]
@@ -579,7 +693,8 @@ def write_page(results: list[dict[str, Any]]) -> None:
         "code judges the result. Losses come first.",
         "",
         f"Regenerated on {datetime.date.today().isoformat()} from commit",
-        f"`{commit}` (sluicer {__version__}{_scrapling_version(scr)}) with",
+        f"`{commit}` (sluicer {__version__}{_scrapling_version(scr)}"
+        f"{f', anansi {anansi}' if anansi else ''}) with",
         "`uv run --with brotli --with 'scrapling>=0.4' bench/drift/run.py`. It",
         "prints no seconds: its run time is mostly reading the archive's",
         "captures ([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md),",
@@ -645,6 +760,7 @@ def write_page(results: list[dict[str, Any]]) -> None:
             "questions and are not ranked.",
             "",
         ]
+    lines += anansi_lines(ok, anansi)
     lines += ["## What this benchmark found in Sluicer, and fixed", ""]
     lines += [f"- {defect}" for defect in written["fixed"]]
     lines += ["", "## Other pairs, read by hand", ""]
@@ -654,12 +770,12 @@ def write_page(results: list[dict[str, Any]]) -> None:
     lines += [
         "## Every pair",
         "",
-        "| pair | rows A / B | oracle | run | outcome | heal | Scrapling |",
-        "|---|---|---|---|---|---|---|",
+        "| pair | rows A / B | oracle | run | outcome | heal | Scrapling | anansi |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for r in results:
         if "error" in r:
-            lines.append(f"| {r['id']} | | | | {r['error']} | | |")
+            lines.append(f"| {r['id']} | | | | {r['error']} | | | |")
             continue
         run = (
             "passed"
@@ -671,11 +787,14 @@ def write_page(results: list[dict[str, Any]]) -> None:
         if r["heal"].get("matched"):
             heal_txt += f" ({r['heal']['matched']} items)"
         scr_txt = r.get("scrapling", {}).get("result", "")
+        anansi_txt = r.get("anansi", {}).get("result", "")
+        if r.get("anansi", {}).get("healed"):
+            anansi_txt += ", healed"
         lo, hi = r["rows_learnt"]
         rows = f"{lo}{'' if lo == hi else f'-{hi}'} / {r['rows_b']}"
         lines.append(
             f"| {r['id']} | {rows} | {_cell(oracle_txt)} | {_cell(run)} | "
-            f"{r['outcome']} | {heal_txt} | {_cell(scr_txt)} |"
+            f"{r['outcome']} | {heal_txt} | {_cell(scr_txt)} | {_cell(anansi_txt)} |"
         )
     lines += ["", *_method_and_limits(ok)]
     (ROOT / "docs" / "drift.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -710,6 +829,20 @@ def _losses(
             after = ", after relocating by similarity" if got.get("relocated") else ""
             wanted = got.get("wanted", "the title")
             lines.append(f"- **{r['id']}**: asked for {wanted!r}, {found}{after}.")
+        lines.append("")
+    missed = [
+        r for r in ok if r.get("anansi", {}).get("result") in ("wrong", "nothing found")
+    ]
+    if missed:
+        lines += ["anansi's misses:", ""]
+        for r in missed:
+            got = r["anansi"]
+            found = f"returned {got['got']!r}" if got.get("got") else "returned nothing"
+            after = ", after healing" if got.get("healed") else ""
+            lines.append(
+                f"- **{r['id']}**: asked for {got['wanted']!r} by "
+                f"`{got['selector']}`, {found}{after}."
+            )
         lines.append("")
     return lines
 
@@ -770,6 +903,12 @@ def _method_and_limits(ok: list[dict[str, Any]]) -> list[str]:
         "  Scrapling generates for it. `css(selector, adaptive=True)` is then",
         "  called on B, using Scrapling's own storage. The result is right when",
         "  the element returned has that title and, for a link, that address.",
+        "- **anansi.** On the same item: the innermost element of A whose text",
+        "  is its title, of several the one whose link is the item's, and the",
+        "  selector anansi writes for it (`AdaptiveParser._tag_to_selector`).",
+        '  A fresh store per pair is asked `extract(A, {"item": selector})`,',
+        "  then the same on B, from `bench/requirements/anansi.txt`'s own",
+        "  environment. Right when the text returned is the title.",
         "",
         "## Limits",
         "",
@@ -790,6 +929,7 @@ def _method_and_limits(ok: list[dict[str, Any]]) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--no-scrapling", action="store_true")
+    parser.add_argument("--no-anansi", action="store_true")
     parser.add_argument("--only", nargs="*", default=[])
     args = parser.parse_args()
     pairs = json.loads((HERE / "pairs.json").read_text(encoding="utf-8"))
@@ -797,7 +937,9 @@ def main() -> None:
         pairs = [p for p in pairs if any(o in p["id"] for o in args.only)]
     results = []
     for pair in pairs:
-        result = score_pair(pair, with_scrapling=not args.no_scrapling)
+        result = score_pair(
+            pair, with_scrapling=not args.no_scrapling, with_anansi=not args.no_anansi
+        )
         results.append(result)
         print(
             f"{pair['id']:52} {result.get('outcome', result.get('error'))}",
@@ -805,11 +947,15 @@ def main() -> None:
             f"| scrapling {result.get('scrapling', {}).get('result', '')}",
             flush=True,
         )
+    anansi = run_anansi(results)
+    for result in results:
+        if "anansi" in result:
+            print(f"{result['id']:52} anansi {result['anansi']['result']}")
     (CACHE / "results.json").write_text(
         json.dumps(results, indent=2, default=str), encoding="utf-8"
     )
     if not args.only:
-        write_page(results)
+        write_page(results, anansi)
 
 
 if __name__ == "__main__":

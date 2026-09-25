@@ -173,3 +173,93 @@ def test_the_served_prose_says_behind_only_where_the_pairs_call_it():
     assert "**Title.**" in said
     title = next(line for line in said.split("- ") if "**Title.**" in line)
     assert "not told apart from trafilatura" in title
+
+
+# --- html-to-markdown beside the markdown ------------------------------------------
+
+
+def _snippets():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "snippets", BENCH / "tools" / "snippets.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_a_page_is_given_to_html_to_markdown_as_the_text_it_declares():
+    text = _snippets().as_text
+    assert text("café".encode()) == "café"
+    declared = b'<meta charset="iso-8859-1"><p>caf\xe9</p>'
+    assert text(declared) == '<meta charset="iso-8859-1"><p>café</p>'
+    # Declaring nothing, bytes that are not UTF-8 are read as windows-1252.
+    assert text(b"<p>\x93caf\xe9\x94</p>") == "<p>“café”</p>"
+    # A declared charset Python does not know falls back the same way.
+    assert text(b'<meta charset="x-nonsense"><p>caf\xe9</p>').endswith("café</p>")
+
+
+def test_a_snippet_counts_as_trafilatura_s_evaluation_counts_it():
+    page = {"with": ["one  two", "absent"], "without": ["menu"]}
+    assert _snippets().counted(page, "x one two y menu") == [1, 1, 1, 0]
+    assert _snippets().counted(page, None) == [0, 0, 2, 1]
+
+
+def _with_converter(pages: int) -> dict:
+    """``_body`` and html-to-markdown's two outputs: its markdown finds four
+    of each page's six snippets and lets every unwanted one in, its plain text
+    finds all six."""
+    body = _body(pages)
+    converter = {
+        "html-to-markdown": [4, 6, 2, 0],
+        "html-to-markdown, plain text": [6, 6, 0, 0],
+    }
+    return evaldata.merged(
+        body,
+        {
+            "pages": pages,
+            "outputs": {
+                name: dict(zip(KEYS, (n * pages for n in row), strict=True))
+                for name, row in converter.items()
+            },
+            "per_page": {page: dict(converter) for page in body["per_page"]},
+        },
+    )
+
+
+def test_html_to_markdown_s_outputs_are_rows_of_the_table():
+    table = evaldata._body_table(_with_converter(20))
+    assert any(line.startswith("| html-to-markdown |") for line in table)
+    plain = next(line for line in table if line.startswith("| html-to-markdown, pl"))
+    assert "| 120/120 | 0/120 |" in plain
+
+
+def test_the_markdown_is_paired_with_html_to_markdown_like_with_like():
+    lines = evaldata._body_comparisons(_with_converter(20))
+    pairs = {
+        tuple(cell.strip() for cell in line.strip("|").split("|")[:2])
+        for line in lines
+        if line.startswith("| sluicer")
+    }
+    assert pairs == {
+        ("sluicer.markdown", "trafilatura text"),
+        ("sluicer.markdown, its syntax taken out", "trafilatura text"),
+        ("sluicer.markdown", "html-to-markdown"),
+        ("sluicer.markdown, its syntax taken out", "html-to-markdown, plain text"),
+    }
+    # html-to-markdown is compared with Sluicer only, never with trafilatura.
+    assert not any(line.startswith("| html-to-markdown") for line in lines)
+    assert "12 comparisons" in " ".join(lines)
+    precision = next(
+        line
+        for line in lines
+        if line.startswith("| sluicer.markdown | html-to-markdown | precision |")
+    )
+    assert precision.endswith("| better |")
+
+
+def test_a_body_run_before_html_to_markdown_is_compared_as_before():
+    lines = evaldata._body_comparisons(_body(20))
+    assert "6 comparisons" in " ".join(lines)

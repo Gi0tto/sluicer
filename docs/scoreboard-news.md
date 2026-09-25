@@ -4,7 +4,7 @@ The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on news pages from 42 countries'
 publishers, in 21 declared languages, with their scripts:
 as fundus fetched them, stored re-encoded as UTF-8.
-Regenerated on 2026-09-25 from commit `a8ca1b1` by
+Regenerated on 2026-09-25 from commit `f042855` by
 `uv run bench/news.py`, against fundus at `c1b86b675018`; the method is in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -89,6 +89,60 @@ resamples of the pages, drawn together for both sides (`bench/stats.py`,
 seed 20260924): **better** when the interval is above zero, **worse**
 when it is below, **inconclusive** when it holds zero. These are
 18 comparisons, made with no correction for making many: where two
+sides did not differ at all, about one in twenty would still be called
+better or worse, so read the verdicts as a table, not one at a time.
+
+## What `--visible` adds
+
+`extract(..., visible=True)`, `--visible` on the command line, also
+guesses the title, byline and dates a page shows, and keeps each guess
+apart from the summary. Its rules were made on WCXB's development split
+only, which no scoreboard scores, so these pages are held out from them
+([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md)). *Declared* is the summary, as above;
+*declared then `--visible`* answers with the summary where it has an
+answer and with the guess where it has none, never in its place.
+
+| field | hit rate, declared | hit rate, declared then `--visible` | right when answering, declared | right when answering, declared then `--visible` | inventions, declared | silent miss made a hit | silent miss made wrong | inventions `--visible` added |
+|---|---|---|---|---|---|---|---|---|
+| title | 0.871 (0.82–0.91) | 0.871 (0.82–0.91) | 0.871 (0.82–0.91) | 0.871 (0.82–0.91) | 0 | 0 | 0 | 0 |
+| author | 0.829 (0.77–0.87) | 0.844 (0.79–0.89) | 0.926 (0.88–0.96) | 0.923 (0.88–0.96) | 4 | 4 | 1 | 0 |
+| date | 0.970 (0.94–0.99) | 0.981 (0.95–1.00) | 1.000 (0.98–1.00) | 0.992 (0.97–1.00) | 0 | 3 | 2 | 0 |
+
+`--visible` answered 10 questions the summary left unanswered: 7 right and 3 wrong where the page carries a label, and 0 invented where it carries none. Each rate carries its 95% Wilson score interval. Declared then `--visible` against the declared answers alone and against each other tool:
+
+| declared then `--visible`, against | field | rate | difference (95% interval) | verdict |
+|---|---|---|---|---|
+| sluicer 0.7.1, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.7.1, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.7.1, declared | author | hit rate | +0.016 (+0.003 to +0.032) | better |
+| sluicer 0.7.1, declared | author | right when answering | -0.003 (-0.012 to +0.003) | inconclusive |
+| sluicer 0.7.1, declared | date | hit rate | +0.011 (0.000 to +0.027) | inconclusive |
+| sluicer 0.7.1, declared | date | right when answering | -0.008 (-0.020 to 0.000) | inconclusive |
+| trafilatura 2.2.0 | title | hit rate | +0.019 (-0.039 to +0.077) | inconclusive |
+| trafilatura 2.2.0 | title | right when answering | +0.019 (-0.039 to +0.077) | inconclusive |
+| trafilatura 2.2.0 | author | hit rate | -0.035 (-0.070 to -0.003) | worse |
+| trafilatura 2.2.0 | author | right when answering | -0.014 (-0.043 to +0.014) | inconclusive |
+| trafilatura 2.2.0 | date | hit rate | +0.011 (-0.004 to +0.031) | inconclusive |
+| trafilatura 2.2.0 | date | right when answering | +0.023 (+0.007 to +0.042) | better |
+| metascraper 5.58.1 | title | hit rate | +0.144 (+0.079 to +0.210) | better |
+| metascraper 5.58.1 | title | right when answering | +0.144 (+0.079 to +0.210) | better |
+| metascraper 5.58.1 | author | hit rate | -0.019 (-0.059 to +0.020) | inconclusive |
+| metascraper 5.58.1 | author | right when answering | +0.063 (+0.031 to +0.098) | better |
+| metascraper 5.58.1 | date | hit rate | 0.000 (-0.016 to +0.016) | inconclusive |
+| metascraper 5.58.1 | date | right when answering | 0.000 (-0.012 to +0.012) | inconclusive |
+| newspaper4k 0.9.6 | title | hit rate | +0.091 (+0.038 to +0.145) | better |
+| newspaper4k 0.9.6 | title | right when answering | +0.047 (-0.001 to +0.097) | inconclusive |
+| newspaper4k 0.9.6 | author | hit rate | +0.078 (+0.027 to +0.128) | better |
+| newspaper4k 0.9.6 | author | right when answering | +0.067 (+0.024 to +0.111) | better |
+| newspaper4k 0.9.6 | date | hit rate | +0.049 (+0.022 to +0.080) | better |
+| newspaper4k 0.9.6 | date | right when answering | -0.008 (-0.020 to 0.000) | inconclusive |
+
+The difference is the first side's rate minus the second's, over the
+same pages. Its interval is the 95% percentile interval of 10,000
+resamples of the pages, drawn together for both sides (`bench/stats.py`,
+seed 20260924): **better** when the interval is above zero, **worse**
+when it is below, **inconclusive** when it holds zero. These are
+24 comparisons, made with no correction for making many: where two
 sides did not differ at all, about one in twenty would still be called
 better or worse, so read the verdicts as a table, not one at a time.
 
@@ -179,14 +233,14 @@ Each page is counted under the language its `<html lang>` declares.
 
 ## Speed and size
 
-Measured on 2026-09-25 by `uv run bench/timing.py news` at commit `a8ca1b1`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+Measured on 2026-09-25 by `uv run bench/timing.py news` at commit `f042855`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
 
 | tool | runtime | seconds per page | seconds for all 263 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
 |---|---|---|---|---|---|---|---|
-| sluicer 0.7.1 | Python 3.12.13 | 0.0038 | 1.01 (0.96–1.47) | 261 | 194.9 MiB | 19.4 MiB | 3 |
-| trafilatura 2.2.0 | Python 3.12.13 | 0.0077 | 2.02 (1.98–2.38) | 130 | 250.9 MiB | 58.2 MiB | 17 |
-| metascraper 5.58.1 | Node 26.1.0 | 0.0093 | 2.44 (2.20–2.51) | 108 | 1500.2 MiB | 55.5 MiB | 125 |
-| newspaper4k 0.9.6 | Python 3.12.13 | 0.0623 | 16.38 (15.06–18.00) | 16 | 334.1 MiB | 39.4 MiB | 22 |
+| sluicer 0.7.1 | Python 3.12.13 | 0.0046 | 1.21 (0.96–1.25) | 217 | 195.6 MiB | 19.5 MiB | 5 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0092 | 2.42 (2.05–2.58) | 109 | 247.2 MiB | 58.2 MiB | 17 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0117 | 3.07 (2.22–3.16) | 86 | 1398.5 MiB | 55.5 MiB | 125 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0690 | 18.14 (15.98–19.39) | 14 | 333.0 MiB | 39.4 MiB | 22 |
 
 How install size and memory are counted, and the other tables, are in
 [speed and weight](speed.md).

@@ -20,7 +20,9 @@ the page shows none. And the main text: ``sluicer.markdown``, which is
 trafilatura's own extraction written as markdown with links and tables kept,
 against trafilatura's plain text, scored as trafilatura's evaluation scores it
 (``tests/eval_common.py``): a snippet counts when the output holds it, spaces
-normalised, at most six per side and page.
+normalised, at most six per side and page. Beside them, html-to-markdown's
+markdown and plain text, from an environment of its own; it converts the whole
+page and chooses no main text.
 """
 
 from __future__ import annotations
@@ -52,6 +54,10 @@ PAGES = CACHE / "pages.json"
 LABELLED = CACHE / "labelled.json"
 RESULTS = CACHE / "results"
 BODY = RESULTS / "body.json"
+CONVERTER = RESULTS / "body-html-to-markdown.json"
+# Beside the tools that answer the title, author and date: html-to-markdown,
+# whose main text is scored beside Sluicer's markdown (bench/PREREG.md).
+TOOLS = (*board.TOOLS, "html-to-markdown")
 SCOREBOARD = ROOT / "docs" / "scoreboard-evaldata.md"
 
 # trafilatura's evaluation bounds the snippets per side so that one document
@@ -128,8 +134,18 @@ def run(tools: list[str]) -> None:
     ensure()
     RESULTS.mkdir(parents=True, exist_ok=True)
     for tool in tools:
+        if tool not in board.TOOLS:
+            continue
         command, env = board._command(tool, LABELLED, RESULTS / f"{tool}.json")
         subprocess.run(command, cwd=ROOT, env=env, check=True)
+    if "html-to-markdown" in tools or not CONVERTER.exists():
+        command = board._uv(
+            board.requirements("html-to-markdown"),
+            "evaldata_html_to_markdown.py",
+            PAGES,
+            CONVERTER,
+        )
+        subprocess.run(command, cwd=ROOT, check=True)
     if "sluicer" in tools or "trafilatura" in tools or not BODY.exists():
         requirements = [
             "--with-editable",
@@ -150,11 +166,33 @@ def publish() -> None:
         if (RESULTS / f"{tool}.json").exists()
     }
     per_page = {tool: score.outcomes(r["results"], pages) for tool, r in runs.items()}
-    body = json.loads(BODY.read_text(encoding="utf-8"))
+    body = merged(
+        json.loads(BODY.read_text(encoding="utf-8")),
+        json.loads(CONVERTER.read_text(encoding="utf-8")),
+    )
     SCOREBOARD.write_text(
         _document(labelled, pages, runs, per_page, body), encoding="utf-8"
     )
     print(f"wrote {SCOREBOARD.relative_to(ROOT)}")
+
+
+def merged(body: dict[str, Any], converter: dict[str, Any]) -> dict[str, Any]:
+    """Sluicer's and trafilatura's main text with html-to-markdown's outputs,
+    scored on the same pages, as one run."""
+    if set(converter["per_page"]) != set(body["per_page"]):
+        raise SystemExit(
+            "html-to-markdown's main text was scored on other pages: run "
+            "`uv run bench/evaldata.py --tools html-to-markdown`."
+        )
+    return {
+        **body,
+        "outputs": {**body["outputs"], **converter["outputs"]},
+        "per_page": {
+            page: {**outputs, **converter["per_page"][page]}
+            for page, outputs in body["per_page"].items()
+        },
+        "converter": converter.get("version"),
+    }
 
 
 def _snippet_rates(sums: list[float]) -> dict[str, float]:
@@ -194,20 +232,32 @@ def _body_table(body: dict[str, Any]) -> list[str]:
 
 
 REFERENCE = "trafilatura text"
+MARKDOWN = "sluicer.markdown"
+PLAIN = "sluicer.markdown, its syntax taken out"
+# Sluicer's outputs, each against what it is compared with, like with like:
+# trafilatura's text for both, html-to-markdown's markdown for the markdown,
+# its plain text for the markdown with its syntax taken out.
+PAIRS = (
+    (MARKDOWN, REFERENCE),
+    (PLAIN, REFERENCE),
+    (MARKDOWN, "html-to-markdown"),
+    (PLAIN, "html-to-markdown, plain text"),
+)
 
 
 def _body_comparisons(body: dict[str, Any]) -> list[str]:
-    """Each of Sluicer's outputs against trafilatura's text, paired by page."""
-    theirs = _snippet_columns(body, REFERENCE)
+    """Each of Sluicer's outputs against trafilatura's text, and against
+    html-to-markdown's output of its kind, paired by page."""
     lines = [
         "| output | against | rate | difference (95% interval) | verdict |",
         "|---|---|---|---|---|",
     ]
     count = 0
-    for name in body["outputs"]:
-        if name == REFERENCE:
+    for name, other in PAIRS:
+        if other not in body["outputs"]:
             continue
         ours = _snippet_columns(body, name)
+        theirs = _snippet_columns(body, other)
         for rate in ("precision", "recall", "F1"):
             found = stats.compare(
                 [*ours, *theirs],
@@ -217,7 +267,7 @@ def _body_comparisons(body: dict[str, Any]) -> list[str]:
             )
             count += 1
             lines.append(
-                f"| {name} | {REFERENCE} | {rate} | {stats.difference(found)} "
+                f"| {name} | {other} | {rate} | {stats.difference(found)} "
                 f"| {found.verdict} |"
             )
     return [*lines, "", *board.many(count)]
@@ -227,6 +277,25 @@ def _found(body: dict[str, Any], output: str) -> str:
     """How many snippets ``output`` found, of those it could."""
     counts = body["outputs"][output]
     return f"{counts['tp']:,} of the {counts['tp'] + counts['fn']:,}"
+
+
+def _converter(body: dict[str, Any]) -> list[str]:
+    """What html-to-markdown is, and what it found, said from this run."""
+    if "html-to-markdown" not in body["outputs"]:
+        return []
+    return [
+        f"[html-to-markdown](https://github.com/xberg-io/html-to-markdown) "
+        f"{body['converter']} (xberg-io, MIT), in an environment of its own, "
+        "converts a whole page and chooses no main text: it is here beside "
+        "the markdown, not as an extractor, and what it lets in is the page "
+        "around the text. Its markdown finds "
+        f"{_found(body, 'html-to-markdown')} snippets and its plain text "
+        f"{_found(body, 'html-to-markdown, plain text')}. It takes text, so a "
+        "page's bytes are decoded for it: as UTF-8 when they are, otherwise by "
+        "the charset the page declares, otherwise as windows-1252 "
+        "([`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md)).",
+        "",
+    ]
 
 
 def _document(labelled, pages, runs, per_page, body) -> str:
@@ -273,6 +342,10 @@ def _document(labelled, pages, runs, per_page, body) -> str:
         "",
         *board.comparison_table(runs, board.comparisons(per_page)),
         "",
+        "## What `--visible` adds",
+        "",
+        *board.visible_section(runs, pages),
+        "",
         "## The main text",
         "",
         "`sluicer.markdown` is trafilatura's extraction, written as markdown with",
@@ -288,12 +361,14 @@ def _document(labelled, pages, runs, per_page, body) -> str:
         f"of `Liebe_r`. Scored on all {body['pages']} pages, as trafilatura "
         "scores itself.",
         "",
+        *_converter(body),
         *_body_table(body),
         "",
         "Several snippets sit on one page, so each interval here is the 95%",
         "percentile interval of 10,000 resamples of the pages, not a Wilson",
         "interval over snippets. Each of Sluicer's outputs against trafilatura's",
-        "text, the pages resampled together:",
+        "text and against html-to-markdown's output of its kind, the pages",
+        "resampled together:",
         "",
         *_body_comparisons(body),
         "",
@@ -305,7 +380,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--tools",
-        default=",".join(board.TOOLS),
+        default=",".join(TOOLS),
         help="comma-separated tools to rerun; the others' last results are reused",
     )
     args = parser.parse_args()

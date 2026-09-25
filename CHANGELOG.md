@@ -5,6 +5,30 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Added
+- Every title, author and date scoreboard (WCXB, as served, news,
+  trafilatura's set) scores `--visible` beside what the pages declare, as
+  `bench/PREREG.md` fixed before it was first run on them: *declared* is the
+  summary, *declared then `--visible`* adds a guess only where the summary has
+  no answer. The guesses find more authors and dates -- on WCXB 0.649 and
+  0.717 of them against 0.532 and 0.581, as served 0.752 and 0.855 against
+  0.690 and 0.780, on trafilatura's set 0.548 and 0.701 against 0.468 and
+  0.585, each called better by the paired comparison -- and invent: 33
+  answers on WCXB's 511 pages, 15 as served, 15 on trafilatura's set, so the
+  dates are right when answering less often on WCXB (0.823 against 0.917)
+  and as served (0.701 against 0.734), both called worse. On the news pages
+  little is left to guess. Each page counts what the guesses changed, their
+  inventions apart, and pairs the second column with the first and with every
+  other tool. The harness stops if `visible=True` changes the summary; it
+  never did, and the guesses were the same under two hash seeds on all 2,124
+  pages.
+- html-to-markdown 3.14.3 (xberg-io, MIT) beside `sluicer.markdown` on
+  trafilatura's set, from an environment of its own: it converts whole pages,
+  so it finds 0.941 of the main-text snippets as markdown and 0.973 as plain
+  text, and its precision is 0.56; `sluicer.markdown` is better on precision
+  and F1 and worse on recall against each.
+- anansi (mdowis/anansi, Apache-2.0, at `117fbe2`) on the drift pairs beside
+  Scrapling, from an environment of its own, asked about the same item: right
+  on 7 of 11, wrong on 3, nothing on 1; it healed on 2, silently.
 - `sluicer fetch URL` prints the page as the ladder brought it back, to stdout
   or `-o FILE`, and each climb, where it landed, its status and rung to
   stderr; `--json` puts all of it, headers included, in one object.

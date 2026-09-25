@@ -389,6 +389,147 @@ def _gaps(verdicts) -> str:
     )
 
 
+# --- --visible, beside what the page declares -------------------------------------
+# As bench/PREREG.md fixed it before --visible was run on any scoreboard's pages.
+
+VISIBLE = "sluicer --visible"
+# What a guess did where the summary has no answer: a silent miss made a hit
+# or a wrong answer, a correct silence made an invention.
+CHANGES = (("silent", "hit"), ("silent", "wrong"), ("correct_silence", "invention"))
+
+
+def with_visible(run: dict[str, Any]) -> dict[str, Any]:
+    """Sluicer's run with, for each field, the summary's answer where it has
+    one and ``--visible``'s guess where it has none: a guess never replaces a
+    declared answer."""
+    rows = []
+    for row in run["results"]:
+        if "visible" not in row:
+            raise SystemExit(
+                "Sluicer's results were run before its harness recorded "
+                "--visible's guesses: run the scoreboard again with --tools sluicer."
+            )
+        rows.append(
+            {
+                "id": row["id"],
+                **{
+                    field: row[field] if score.as_text(row[field]) else guess
+                    for field, guess in (
+                        (field, row["visible"][field]) for field in score.FIELDS
+                    )
+                },
+            }
+        )
+    return {**run, "results": rows}
+
+
+def _visible_outcomes(runs, pages) -> dict[str, dict[str, dict[str, str]]]:
+    """Every tool's outcomes, and Sluicer's with --visible's guesses."""
+    per_page = {tool: score.outcomes(r["results"], pages) for tool, r in runs.items()}
+    per_page[VISIBLE] = score.outcomes(with_visible(runs["sluicer"])["results"], pages)
+    return per_page
+
+
+def visible_table(runs, pages) -> list[str]:
+    """The two columns, per field, and what the guesses changed, counted apart."""
+    per_page = _visible_outcomes(runs, pages)
+    declared = score.tally(per_page["sluicer"], pages)
+    added = score.tally(per_page[VISIBLE], pages)
+    lines = [
+        "| field | hit rate, declared | hit rate, declared then `--visible` "
+        "| right when answering, declared "
+        "| right when answering, declared then `--visible` "
+        "| inventions, declared | silent miss made a hit | silent miss made wrong "
+        "| inventions `--visible` added |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for field in score.FIELDS:
+        changed = _changed(per_page, field)
+        lines.append(
+            f"| {field} | {score.rate(declared[field], 'hit')} "
+            f"| {score.rate(added[field], 'hit')} "
+            f"| {score.rate(declared[field], 'right')} "
+            f"| {score.rate(added[field], 'right')} "
+            f"| {declared[field]['invention']} | "
+            + " | ".join(str(changed[change]) for change in CHANGES)
+            + " |"
+        )
+    return lines
+
+
+def _changed(per_page, field: str) -> dict[tuple[str, str], int]:
+    """How many pages each of ``CHANGES`` happened on, for one field."""
+    counted = dict.fromkeys(CHANGES, 0)
+    for page_id, fields in per_page["sluicer"].items():
+        change = (fields[field], per_page[VISIBLE][page_id][field])
+        if change in counted:
+            counted[change] += 1
+    return counted
+
+
+def visible_comparisons(runs, pages) -> dict[tuple[str, str, str], Any]:
+    """Declared then --visible against the declared answers alone, keyed
+    ``sluicer``, and against every other tool, per field, on both rates."""
+    per_page = _visible_outcomes(runs, pages)
+    return {
+        (tool, field, measure): score.paired(
+            per_page[VISIBLE], per_page[tool], field, measure
+        )
+        for tool in runs
+        for field in score.FIELDS
+        for measure in MEASURES
+    }
+
+
+def visible_section(runs, pages) -> list[str]:
+    """What a scoreboard prints of --visible: the two columns, what the
+    guesses changed, and every paired verdict."""
+    per_page = _visible_outcomes(runs, pages)
+    changed = {field: _changed(per_page, field) for field in score.FIELDS}
+    total = {
+        change: sum(changed[field][change] for field in score.FIELDS)
+        for change in CHANGES
+    }
+    verdicts = visible_comparisons(runs, pages)
+    names = {
+        tool: f"{_name(run)}, declared" if tool == "sluicer" else _name(run)
+        for tool, run in runs.items()
+    }
+    against = [
+        "| declared then `--visible`, against | field | rate "
+        "| difference (95% interval) | verdict |",
+        "|---|---|---|---|---|",
+    ]
+    for (tool, field, measure), found in verdicts.items():
+        against.append(
+            f"| {names[tool]} | {field} | {MEASURES[measure]} "
+            f"| {stats.difference(found)} | {found.verdict} |"
+        )
+    return [
+        "`extract(..., visible=True)`, `--visible` on the command line, also",
+        "guesses the title, byline and dates a page shows, and keeps each guess",
+        "apart from the summary. Its rules were made on WCXB's development split",
+        "only, which no scoreboard scores, so these pages are held out from them",
+        f"([`bench/PREREG.md`]({PREREG})). *Declared* is the summary, as above;",
+        "*declared then `--visible`* answers with the summary where it has an",
+        "answer and with the guess where it has none, never in its place.",
+        "",
+        *visible_table(runs, pages),
+        "",
+        f"`--visible` answered {sum(total.values())} questions the summary left "
+        f"unanswered: {total[('silent', 'hit')]} right and "
+        f"{total[('silent', 'wrong')]} wrong where the page carries a label, and "
+        f"{total[('correct_silence', 'invention')]} invented where it carries "
+        "none. Each rate carries its 95% Wilson score interval. Declared then "
+        "`--visible` against the declared answers alone and against each other "
+        "tool:",
+        "",
+        *against,
+        "",
+        *many(len(verdicts)),
+    ]
+
+
 def _wins(runs, per_page, pages, verdicts, speed=None) -> list[str]:
     """What Sluicer does better, stated only where this run's paired
     comparisons call it better."""
@@ -497,10 +638,11 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "",
         *([_gaps(verdicts), ""] if verdicts else []),
         "The other tools also read bylines and dates from the visible text of",
-        "the page, where no vocabulary declares them; Sluicer reads only what the",
-        "page states in markup that means something, and answers nothing rather",
-        "than guess from prose. That is a choice with a cost, and the gap above",
-        "is the cost.",
+        "the page, where no vocabulary declares them; Sluicer's summary holds",
+        "only what the page states in markup that means something, and answers",
+        "nothing rather than guess from prose. That is a choice with a cost, and",
+        "the gap above is the cost. `--visible` guesses them when asked, apart",
+        "from the summary: [what it adds](#what-visible-adds) is below.",
         "",
         "## Where it wins",
         "",
@@ -512,6 +654,10 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "rounded outwards to two places. Sluicer against each other tool:",
         "",
         *comparison_table(runs, verdicts),
+        "",
+        "## What `--visible` adds",
+        "",
+        *visible_section(runs, pages),
         "",
         "## Every outcome",
         "",
@@ -546,6 +692,9 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "  answer is read in the label's. The rule is in `bench/PREREG.md`.",
         "- **Sluicer.** `extract(html, url=...).summary`, fields `title`, `author`,",
         "  `published`, base install, from this checkout.",
+        "- **Sluicer, declared then `--visible`.** The summary's answer, and where",
+        "  it has none the guess of `extract(html, url=..., visible=True).visible`,",
+        "  fields `title`, `author`, `published`, called after the timed call.",
         "- **trafilatura.** `extract_metadata(html, default_url=...)`.",
         "- **metascraper.** The `title`, `author` and `date` rules, given the HTML",
         f"  and the page's address, on Node {node.stdout.strip() or 'unknown'}.",

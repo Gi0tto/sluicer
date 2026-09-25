@@ -66,6 +66,21 @@ measured apart, by `timing.py` (below).
 Changing a pin, the corpus commit or a matching rule changes the scoreboard,
 and belongs in the same commit as the regenerated `docs/scoreboard.md`.
 
+## `--visible`, beside what the pages declare
+
+Every scoreboard above and below that scores a title, an author and a date
+also scores `--visible`, in two columns: *declared*, Sluicer's summary as
+scored everywhere else, and *declared then `--visible`*, the summary's answer
+where it has one and `--visible`'s guess where it has none. What the guesses
+changed is counted apart -- silent misses made hits, silent misses made
+wrong, correct silences made inventions -- and the second column is paired
+against the first and against every other tool. Sluicer's harness reads the
+guesses after the timed call, with `extract(..., visible=True)`, and stops if
+that call's summary differs from the first's. `--visible`'s rules were made on
+WCXB's development split only (`visible_dev.py` scores them there), so every
+scoreboard is held out from them; [`PREREG.md`](PREREG.md) fixed how they are
+scored before they were first run on these pages.
+
 ## The same labels, on pages as served
 
 [`docs/scoreboard-served.md`](../docs/scoreboard-served.md) scores the same
@@ -129,11 +144,14 @@ same tools, with `score.py`, on the 990 pages
 itself on, 851 of them annotated with their title, author and date; and it
 scores `sluicer.markdown`'s main text against trafilatura's own text, as
 trafilatura's evaluation scores it, by the snippets each output must and must
-not hold.
+not hold, beside html-to-markdown (xberg-io, MIT), a converter of whole pages
+that chooses no main text, run in its own environment pinned by
+`requirements/html-to-markdown.txt` (`tools/evaldata_html_to_markdown.py`).
 
 ```bash
 uv run bench/evaldata.py                  # trafilatura at its pinned commit, then the scoreboard
 uv run bench/evaldata.py --tools sluicer  # rerun one tool, reuse the others
+uv run bench/evaldata.py --tools html-to-markdown   # the converter alone
 ```
 
 `evaldata.py` downloads trafilatura at one pinned commit into
