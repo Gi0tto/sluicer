@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
+## 0.7.1 - 2026-09-25
 
 ### Added
 - `docs/stability.md`: what is stable before 1.0 (`extract()` and
