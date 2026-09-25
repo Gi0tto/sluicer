@@ -183,9 +183,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the nearest known), a key its command does not take, a value of the wrong
   type, or an option that belongs to one run (`--out`, `--stealth`,
   `serve --allow-unauthenticated` among them); no message repeats a proxy,
-  header or cookie value. A file found by searching must be the user's and
-  writable by no one else. `no-robots = true` from a file is said on stderr
-  on every run. `docs/configuration.md` says all of it.
+  header or cookie value. A file found by searching may be a repository's
+  the user cloned, so it may not set `proxy`, `header`, `cookie`, `cache`,
+  `host` or `no-robots`: only a file named by `--config` or `SLUICER_CONFIG`
+  says what is sent, to whom, through what, where pages are kept, who
+  reaches `serve` and whether robots.txt is obeyed, and a found file that
+  tries is refused, naming the key. It must also be the user's and writable
+  by no one else. `no-robots = true` from a file is said on stderr on every
+  run. `docs/configuration.md` and `SECURITY.md` say all of it.
 - `tomli>=1.0.3` on Python 3.10 only, to read that file: 3.10 has no
   `tomllib`. MIT, pure Python, no dependencies; 1.0.3 is the first that
   raises its own error for an impossible date, measured, and the floors job

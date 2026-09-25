@@ -29,8 +29,9 @@ turn on can be turned off for one run (``--no-json``, ``--robots``), and
 Which file: ``--config FILE``, else the file ``SLUICER_CONFIG`` names (empty,
 none), else the first ``sluicer.toml``, or ``pyproject.toml`` with a
 ``[tool.sluicer]`` table, in the working directory or above it. A file found
-that way must be the user's own and writable by no one else, since a proxy or
-a header in it would be sent on their behalf; a file named is read as named.
+that way may be a repository's the user cloned, so it may not set what is
+sent, to whom, through what or where it is kept (``NAMED_ONLY``), and it must
+be the user's own and writable by no one else; a file named is read as named.
 
 A file is read whole before anything runs, and anything in it that cannot be
 used is an error naming the file and the key: an unknown key (with the
@@ -120,6 +121,19 @@ PER_RUN = {
 }
 """Options a file may not set, and why: each belongs to one run."""
 
+NAMED_ONLY = {
+    "proxy": "every request would go through it",
+    "header": "it would be sent to every site fetched",
+    "cookie": "it would be sent to every site fetched",
+    "cache": "the pages fetched would be kept, and read back, where it says",
+    "host": "it decides who can reach sluicer serve",
+    "no-robots": "it decides whether robots.txt is obeyed on your behalf",
+}
+"""Keys only a file the user named may set, and why: a file found by
+searching the directories may be a repository's the user cloned, and what is
+sent, to whom and through what, where pages are kept, who reaches the server
+and whether robots.txt is obeyed are the user's to say."""
+
 SECRET = frozenset({"proxy", "header", "cookie"})
 """Keys whose values no message repeats: a password, a token, a session."""
 
@@ -204,10 +218,14 @@ class ConfiguredGroup(click.Group):
         ignored = ctx.params.pop("no_config", False)
         found = None if ignored else _find(named)
         if found is not None:
-            path, from_pyproject = found
+            path, from_pyproject, searched = found
             ctx.meta[_META] = path
             ctx.default_map = defaults(
-                _read(path, from_pyproject), path, self.commands, from_pyproject
+                _read(path, from_pyproject),
+                path,
+                self.commands,
+                from_pyproject,
+                searched=searched,
             )
         return super().invoke(ctx)
 
@@ -251,8 +269,9 @@ def _said_if_robots_off(ctx: click.Context, param: click.Parameter, value: Any) 
     return value
 
 
-def _find(named: str | None) -> tuple[Path, bool] | None:
-    """The file to read, and whether it is a pyproject.toml, or None."""
+def _find(named: str | None) -> tuple[Path, bool, bool] | None:
+    """The file to read, whether it is a pyproject.toml and whether it was
+    found by searching, or None."""
     if named is None:
         named = os.environ.get(CONFIG_ENV)
         if named is not None and not named.strip():
@@ -261,7 +280,7 @@ def _find(named: str | None) -> tuple[Path, bool] | None:
         path = Path(named).expanduser()
         if not path.is_file():
             raise ConfigError(f"{path}: no such configuration file")
-        return path, path.name == PYPROJECT
+        return path, path.name == PYPROJECT, False
     here = Path.cwd()
     for directory in (here, *here.parents):
         own = directory / FILE_NAME
@@ -278,7 +297,7 @@ def _find(named: str | None) -> tuple[Path, bool] | None:
             )
         if found:
             _check_owner(found[0][0])
-            return found[0]
+            return (*found[0], True)
     return None
 
 
@@ -347,9 +366,13 @@ def defaults(
     path: Path,
     commands: Mapping[str, click.Command],
     from_pyproject: bool = False,
+    *,
+    searched: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Click's ``default_map`` from a file's ``data``: for each command, its
     parameters' defaults, the file's top-level keys under its own table's.
+    ``searched``, a file found by searching the directories rather than
+    named, may set none of ``NAMED_ONLY``.
 
     Raises:
         ConfigError: a key or a value in ``data`` cannot be used; the message
@@ -364,7 +387,7 @@ def defaults(
     top = {k: v for k, v in data.items() if not isinstance(v, dict)}
     tables = {k: v for k, v in data.items() if isinstance(v, dict)}
     for key in top:
-        _allowed(key, known, path, f"{prefix}{key}" if prefix else key)
+        _allowed(key, known, path, f"{prefix}{key}" if prefix else key, searched)
     for name, table in tables.items():
         if name not in commands:
             nearest = _nearest(name, commands)
@@ -378,7 +401,7 @@ def defaults(
                 raise ConfigError(
                     f"{path}: {where} is a table, and a command's options are values"
                 )
-            _allowed(key, known, path, where)
+            _allowed(key, known, path, where, searched)
             if key not in options[name]:
                 raise ConfigError(f"{path}: {where}: {name} does not take {key}")
     answer: dict[str, dict[str, Any]] = {}
@@ -412,10 +435,10 @@ def defaults(
     for key, refusals in refused.items():
         if key not in taken:
             names = ", ".join(name for name, _ in refusals)
-            first, refusal = refusals[0]
+            first, said = refusals[0]
             raise ConfigError(
                 f"{path}: {prefix}{key} is refused by every command that takes it "
-                f"({names}); {first} says it {refusal.what}"
+                f"({names}); {first} says it {said.what}"
             )
     return answer
 
@@ -425,9 +448,18 @@ def _in_env(key: str) -> bool:
     return key in ENVIRONMENT and ENVIRONMENT[key]() in os.environ
 
 
-def _allowed(key: str, known: set[str], path: Path, where: str) -> None:
-    if key in SETTABLE:
+def _allowed(
+    key: str, known: set[str], path: Path, where: str, searched: bool = False
+) -> None:
+    if key in SETTABLE and not (searched and key in NAMED_ONLY):
         return
+    if key in NAMED_ONLY:
+        raise ConfigError(
+            f"{path}: {where} can be set only in a file you name, and this one "
+            f"was found by searching the directories, as a repository's you "
+            f"cloned would be: {NAMED_ONLY[key]}. If it is yours, name it with "
+            f"--config or {CONFIG_ENV}; else run with --no-config."
+        )
     if key in PER_RUN:
         raise ConfigError(
             f"{path}: {where} cannot be set in a file: {PER_RUN[key]}. Give "
