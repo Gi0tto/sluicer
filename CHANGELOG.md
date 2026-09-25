@@ -377,6 +377,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- An llms.txt heading line is read in time proportional to it. The pattern
+  that read one took the text lazily and then spaces, marks and spaces to the
+  end, so a line ending in anything else was tried at every split of it: "#
+  a", 2,000 spaces and a "b" took 5.7 seconds, 4,000 a minute, in every
+  `sluicer audit` and `audit_page` that reads the site's files. It is read
+  by hand now, as the pattern read it (a test holds the two equal); 400 KB
+  of such a line takes under a hundredth of a second.
 - A JSON-LD block that went on past a closing `-->` or `]]>` -- the mark,
   whitespace, then anything else -- is read in time proportional to it. The
   pattern that took the wrapper off had two runs of whitespace side by side

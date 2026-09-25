@@ -5,7 +5,10 @@ behind protego's call, so Allow and Disallow are really decided; the real
 protego is asked the same questions by the with-extras CI job.
 """
 
+import re
+
 import pytest
+from hypothesis import given, strategies as st
 
 from fake_wire import fake_http
 from sluicer.audit import Site, SiteFile, audit, crawlers, llmstxt
@@ -340,6 +343,31 @@ def test_each_departure_from_the_format_is_named(text, code):
     found = [f for f in report.findings if f.severity != "info"]
     assert [f.code for f in found] == [code]
     assert found[0].severity == "warning"
+
+
+def test_a_heading_line_of_any_length_is_read_in_a_moment():
+    """Found by security review: "# a", four thousand spaces and a "b" took
+    the heading pattern a minute, its cost the cube of the line's length."""
+    import time
+
+    for line in ("# a" + " " * 3_000 + "b", "#" * 40_000 + " x", "# " + "#" * 3_000):
+        started = time.perf_counter()
+        read(f"{line}\n> S\n## Docs\n{line}\n")
+        assert time.perf_counter() - started < 1
+
+
+# The pattern that read a heading, kept as the oracle.
+_OLD_ATX = re.compile(r"^(#{1,6})(?:[ \t]+(.*?))?[ \t]*#*[ \t]*$")
+
+
+@given(
+    st.lists(
+        st.sampled_from(["#", " ", "\t", "a", "b ", "##", "\u00a0"]), max_size=14
+    ).map("".join)
+)
+def test_a_heading_is_read_as_the_pattern_read_it(line):
+    old = _OLD_ATX.match(line)
+    assert llmstxt._atx(line) == (old.group(1, 2) if old else None)
 
 
 def test_an_html_page_served_as_llms_txt_is_not_one():
