@@ -175,6 +175,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   three fields are read right on every page. An extractor learnt before whose
   label was a colon standing alone, said once on every page, no longer finds
   it and fails its runs until it is compiled again.
+- PyPI's "Client Challenge" page, Fastly's answer to a client without
+  JavaScript (3 kB, status 200), is recognised as a challenge: the ladder
+  climbs past it, and a last rung that brings it back is the site refusing,
+  not a page. So are the other interstitials the cached benchmark pages hold
+  and nothing recognised: Imperva's (`/_Incapsula_Resource`), HUMAN's
+  (`px-captcha`), Anubis's ("Making sure you're not a bot!", its title now
+  read with its entities), and a "One moment, please..." waiting room met on
+  four sites. On the 3,988 cached pages, 11 are now challenges, and each is
+  one; `extract()` is unchanged on all of them.
 - Without scrapling, 0.7.x could not fetch even over plain HTTP: `fetch()`
   imported scrapling's browsers before it built the HTTP rung, and raised
   `FetchExtraMissing`.

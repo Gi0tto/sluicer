@@ -1,6 +1,8 @@
 import json
 
-from sluicer.fetch.rules import MARKUP_CEILING, why_climb
+import pytest
+
+from sluicer.fetch.rules import MARKUP_CEILING, challenge_marker, why_climb
 
 FULL_PAGE = (
     "<html><body>" + ("Real sentences of real content. " * 40) + "</body></html>"
@@ -169,3 +171,90 @@ def test_a_headline_that_starts_like_a_challenge_is_a_headline():
     )
 
     assert why_climb(200, page, found_records=True) is None
+
+
+# The interstitials below are the ones the cached benchmark pages hold, each
+# cut to its structure: the title, the element or address that names the
+# vendor, and about as much visible text. Each was a 200 with its page's
+# address, and none was recognised.
+
+# PyPI's, served by Fastly to a client without JavaScript: 3 kB, status 200,
+# in bench/cache/drift for a PyPI search.
+FASTLY_CLIENT_CHALLENGE = """<!DOCTYPE html><html lang="en"><head>
+<link href="/_fs-ch-1T1wmsGaOgGaSxcX/assets/styles.css" rel="stylesheet" />
+<title>Client Challenge</title></head><body>
+<noscript><div class="noscript-container"><div class="noscript-content">
+<img src="/_fs-ch-1T1wmsGaOgGaSxcX/assets/errorIcon.svg" alt="" role="presentation">
+<span class="noscript-span">JavaScript is disabled in your browser.</span>
+<p>Please enable JavaScript to proceed.</p></div></div></noscript>
+<div id="loading-error" role="alert" aria-live="polite">A required part of this
+site couldn't load. This may be due to a browser extension, network issues, or
+browser settings. Please check your connection, disable any ad blockers, or try
+using a different browser.</div>
+<script>loadScript('/_fs-ch-1T1wmsGaOgGaSxcX/errors.js')</script>
+</body></html>"""
+
+# Imperva's, no title, the challenge in an iframe: realweb, one site.
+INCAPSULA = """<html style="height:100%"><head>
+<META NAME="ROBOTS" CONTENT="NOINDEX, NOFOLLOW">
+<script src="/nly-What-neuer-of-my-But-of-Rosse-a-Say-thinke-v" async></script>
+</head><body style="margin:0px;height:100%"><iframe id="main-iframe"
+src="/_Incapsula_Resource?SWUDNSAI=9&amp;incident_id=7220-8218" frameborder=0
+width="100%" height="100%">Request unsuccessful. Incapsula incident ID:
+722000590077202780-82181532081589964</iframe></body></html>"""
+
+# HUMAN's (PerimeterX), under the shop's own title: a Sam's Club page in WCXB.
+PERIMETERX = """<html lang="en"><head>
+<title>Let us know you're not a robot - Sam's Club</title></head><body>
+<header><nav><a href="?xid=hdr_logo" aria-label="Sam's Club homepage logo"></a>
+</nav></header><div class="sc-human-challenge-page"><div class="bst-alert-body">
+Let us know you're human (no robots allowed)</div><div id="px-captcha"></div>
+</div><footer><ul><li><a href="//help.samsclub.com">Help center</a></li>
+<li><a href="/content/terms-and-conditions">Terms</a></li></ul></footer>
+</body></html>"""
+
+# Anubis's proof of work, its title written with an entity: a WCXB page.
+ANUBIS = """<!doctype html><html lang="en"><head>
+<title>Making sure you&#39;re not a bot!</title>
+<script id="anubis_challenge" type="application/json">{"rules":{"difficulty":2}}
+</script></head><body id="top"><main><h1 id="title">Making sure you&#39;re not a
+bot!</h1><details><p>You are seeing this because
+the administrator of this website has set up Anubis to protect the server
+against the scourge of AI companies aggressively scraping websites.</p>
+</details><noscript><p>Sadly, you must enable JavaScript to get past this
+challenge.</p></noscript></main></body></html>"""
+
+# A waiting room that runs a script, posts a form and reloads after five
+# seconds, the same on four sites of realweb, which set it aside as "no text".
+ONE_MOMENT = """<!DOCTYPE html><html lang="en"><head><meta charset="utf8">
+<script>(function(){setTimeout(function(){window.location.reload();},5000);}())
+</script><title>One moment, please...</title></head><body>
+<div id="outer-container"><div id="container"><div class="throbber">
+<svg class="spinner" width="90px" height="90px"><title>Loader</title></svg>
+</div></div></div><script>var a0R=function(){return ['form','submit','webdriver'];}
+</script></body></html>"""
+
+
+@pytest.mark.parametrize(
+    "page",
+    [FASTLY_CLIENT_CHALLENGE, INCAPSULA, PERIMETERX, ANUBIS, ONE_MOMENT],
+    ids=["fastly", "incapsula", "perimeterx", "anubis", "one-moment"],
+)
+def test_an_anti_bot_interstitial_the_benchmarks_met_is_a_challenge(page):
+    reason = why_climb(200, page, found_records=False)
+
+    assert reason is not None
+    assert reason.startswith("the response is a challenge page")
+    assert challenge_marker(page, found_records=False) is not None
+
+
+def test_a_page_that_names_a_vendor_s_path_in_its_article_is_not_a_challenge():
+    """The markers count only on a page with little text, as the others do."""
+    article = (
+        "<html><head><title>How Fastly's bot checks work</title></head><body><p>"
+        + ARTICLE_TEXT
+        + " Its challenge loads /_fs-ch-/script.js and Imperva's "
+        "/_Incapsula_Resource; HUMAN draws into #px-captcha.</p></body></html>"
+    )
+
+    assert why_climb(200, article, found_records=False) is None
