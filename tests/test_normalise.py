@@ -161,7 +161,16 @@ def test_a_gtin_with_a_right_check_digit_is_normalised(written, meant):
     assert gtin(written) == meant
 
 
-@pytest.mark.parametrize("written", ["4001234567890", "12345", "BP-2210", ""])
+@pytest.mark.parametrize(
+    "written",
+    [
+        "4001234567890",
+        "12345",
+        "BP-2210",
+        "",
+        "40012345676",  # eleven digits, though its check digit is right
+    ],
+)
 def test_a_gtin_with_a_wrong_check_digit_or_length_is_not(written):
     from sluicer.normalise import gtin
 
@@ -245,6 +254,8 @@ def test_digits_grouped_in_thousands_are_one_amount(written, meant):
         "1234,567,890",  # a first group of four
         ",123,456",  # and of none
         "12,345,67",
+        "1,2345,678",  # a later group of four
+        "1.2345,00",
         "12.34,56",
         "1234.567,89",
     ],
@@ -354,7 +365,17 @@ def test_a_number_written_with_an_exponent_is_an_amount(written, meant):
     assert amount(written) == meant
 
 
-@pytest.mark.parametrize("written", ["1e999999999", "1e-999999999", "-1.5e3", "1.5e"])
+@pytest.mark.parametrize(
+    "written",
+    [
+        "1e999999999",
+        "1e-999999999",
+        "1e100",  # past the longest amount, though Decimal writes it
+        "1e-70",
+        "-1.5e3",
+        "1.5e",
+    ],
+)
 def test_an_exponent_no_price_has_is_not_read(written):
     assert amount(written) is None
 
