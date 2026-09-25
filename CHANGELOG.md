@@ -76,6 +76,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- `diff` reports a price JSON writes with an exponent as the number it is:
+  `1500` before and `1.5e3` after, on a page that declares no currency, was
+  `changed`, since the `e` left once the digits and points were taken away
+  was read as a currency sign. A number written with an exponent now has no
+  sign, and the two are `rewritten`. Found by review.
 - A date's offset is only a zone the date writes. `email.utils` reads any
   word after the time as the zone, and once "PM" was read as the half of the
   day it no longer held that place: "May 24, 2026 10:05 am 4 min read" was
