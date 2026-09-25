@@ -14,7 +14,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   26.1.0: it packs to 378 KB beside pyodide's 6.5 MB, `createSluicer()` takes
   1.30 s and downloads 2.25 MB (lxml and click, from jsDelivr) the first time,
   1.14 s and nothing after, and a warm `extract()` of the brake-pads example
-  0.78 ms (`docs/javascript.md`, `js/scripts/measure.mjs`).
+  0.78 ms (`js/scripts/measure.mjs`). `docs/javascript.md` says how to
+  install and call it, what it does not do -- it does not fetch: a page is
+  handed to it, since Sluicer's fetching guards are not in this version --
+  and which versions it pins.
 - A try page on the site (`try/`) that runs Sluicer in the reader's
   browser, in Pyodide, on HTML they paste: the wheel of the commit the site is
   built from, and the npm package's bridge. Nothing is sent anywhere: a

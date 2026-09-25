@@ -96,3 +96,27 @@ def test_every_number_in_the_readme_s_scoreboard_table_is_in_its_scoreboard():
             assert re.search(rf"(?<![\d.,]){re.escape(number)}(?![\d]|\.\d)", board), (
                 f"{number} is not in {page.group(1)}"
             )
+
+
+def test_the_javascript_page_says_what_the_npm_package_is():
+    """docs/javascript.md names the versions js/package.json pins and every
+    call the package offers: the page is how an npm user learns what the
+    package does, and a version bumped or a call added without it tells them
+    something else."""
+    import json
+
+    page = (ROOT / "docs" / "javascript.md").read_text(encoding="utf-8")
+    npm = json.loads((ROOT / "js" / "package.json").read_text(encoding="utf-8"))
+    types = (ROOT / "js" / "index.d.ts").read_text(encoding="utf-8")
+
+    assert "npm install sluicer" in page
+    assert f"Pyodide {npm['dependencies']['pyodide']}" in page
+    assert f"Node {npm['engines']['node'].removeprefix('>=')} or later" in page
+    sluicer = types.split("export interface Sluicer {", 1)[1].split("\n}", 1)[0]
+    offered = set(re.findall(r"^  (\w+)\(", sluicer, re.MULTILINE))
+    assert offered == {"extract", "toMarkdown", "compile", "run"}
+    for call in (*offered, "createSluicer", "SluicerError"):
+        assert f"`{call}" in page, call
+    # What the package does not do is said, not left to be found out.
+    assert "## What it does not do" in page
+    assert "fetch" in page.split("## What it does not do", 1)[1]

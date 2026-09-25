@@ -124,6 +124,11 @@ export interface Extractor {
     member: string;
     rows: number[];
     empty: number;
+    /**
+     * For each step of `container`, how many elements matched it on every
+     * page learnt, or null where they differed. Absent before 0.7.1.
+     */
+    siblings?: (number | null)[];
     chosen?: boolean;
     fields: {
       name: string;
