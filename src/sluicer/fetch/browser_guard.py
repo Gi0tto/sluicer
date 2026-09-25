@@ -42,9 +42,10 @@ _NO_SERVICE_WORKERS = (
 class Guard:
     """The route a browser page goes through, and what it saw.
 
-    ``setup`` is handed to the browser before navigation. Afterwards
-    ``installed`` says it ran -- scrapling logs and swallows an exception in
-    it, so the rung checks rather than trusts -- ``redirect`` is where the
+    ``setup`` is handed the page's context before navigation. Afterwards
+    ``installed`` says it ran -- scrapling, which the stealth rung hands it
+    to, logs and swallows an exception in it, so the rungs check rather than
+    trust -- ``redirect`` is where the
     document itself was sent, and ``refused`` lists every address turned away.
     """
 
