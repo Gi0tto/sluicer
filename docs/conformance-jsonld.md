@@ -9,7 +9,7 @@ interface and extruct itself read every page; each answer, as the reader
 gives it, is processed by PyLD, a JSON-LD processor, with the test's
 options, and compared with the suite's expected result by the suite's
 own rules.
-Regenerated on 2026-09-25 from commit `1fd0d0d` by
+Regenerated on 2026-09-25 from commit `a6e42e6` by
 `uv run bench/w3c_jsonld.py`, against the suite at `ffdb326121ea`; the
 rules are in [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md).
 
