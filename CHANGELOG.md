@@ -76,6 +76,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and the suite passes from it unpacked; the wheel is unchanged.
 
 ### Fixed
+- A tag a page opens and never closes costs what the page costs. Telling a
+  challenge page from content stripped tags with a pattern that looked for a
+  `<script>`'s end tag again from every place one opened, and read the
+  `<title>` the same way; sniffing a page's encoding dropped `<!--` comments
+  alike. Unclosed, each asked the rest of the page every time: 256 KiB of
+  `<script>` took 76 seconds per rung, after the fetch and outside every
+  deadline, and on `sluicer serve` it held the worker and slowed `/health`;
+  64 KiB of `<!--` took four seconds. Each is now one pass, with the same
+  result as the pattern on 6,000 drawn pages and the 3,976 cached corpus
+  pages. Found by review.
 - Four readers kept each name once by asking a list, for every new name,
   whether it held it already: the head's canonicals (and so the audit's), a
   JSON-LD author list, an RDFa attribute's terms and a robots.txt's
