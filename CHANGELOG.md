@@ -420,12 +420,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   process. The command line and the library evaluate selectors as before, in
   their own process. `tests/live/api_check.py` sends four such selectors to
   a real server and then a harmless one, answered at once.
-- A listing page with fewer than five values of a column is held to one at
-  least reading and shaped as learnt: three rows whose price says "Call"
-  fail a price learnt as an amount, learnt or written. Under five values the
-  `reads` and `shape` checks were skipped, since 0.7.1, and such a page
-  passed; one odd value among them still passes. The drift pairs and SWDE
-  answer exactly as before.
+- A listing page with three or four values of a column that reads as an
+  amount or a date is held to one of them at least reading so: three rows
+  whose price says "Call" fail a price learnt as an amount, learnt or
+  written. Under five values the `reads` check was skipped, since 0.7.1, and
+  such a page passed. A page of one or two values is held to nothing of
+  them, as before -- the last page of a pagination, one part priced "From
+  £12.99" -- nor is a page of fewer than five to its shape: one row whose
+  part is "Bosch Aerotwin AR601S" is no drift of names learnt as letters,
+  and an extractor 0.7.1 wrote passes it as 0.7.1 did. One odd value among
+  three still passes. The drift pairs and SWDE answer exactly as before.
 - A thing declared deep inside one of a page's repeated blocks is the page's
   subject again, not a row's: only a thing declared on a row or at most two
   levels inside it is one of the listing's items. Two pages of the products

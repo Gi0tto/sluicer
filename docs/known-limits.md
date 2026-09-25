@@ -207,7 +207,10 @@ to match and says so.
 
 **The thresholds are fixed.** 20% of rows may lack a required field, half a
 field's values must keep its shape, and a shape needs five values to be learnt
-or to be held to that half; a page with fewer values is held to one at least.
+or to be held to that half; a page with three or four values of a column that
+reads as an amount or a date is held to one of them reading so, and a page of
+one or two values, or of fewer than five to a shape, to nothing: the last page
+of a pagination, a single part priced "Call", passes.
 Editing the JSON changes what was learnt, not the thresholds.
 
 **A rare column is missed only from enough rows, and never by the page.** A

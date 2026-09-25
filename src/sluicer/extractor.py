@@ -68,6 +68,12 @@ _SAMPLES = 5
 # The fewest values a shape is learnt from and checked on.
 _SHAPE_EVIDENCE = 5
 
+# The fewest values of a short page -- fewer than _SHAPE_EVIDENCE -- held to
+# one at least reading as learnt: three prices that all say "Call" are a
+# drift, and one price that says "From £12.99", on the last page of a
+# pagination, is one odd value.
+_FEW_HELD = 3
+
 # The share of one column's old values a group must hold to be where a listing
 # chosen by examples went.
 _HELD_AGAIN = 0.5
@@ -2385,10 +2391,12 @@ def _check_rows(
                 Check("field", f"{f.name} in some rows", f"in {share:.0%}", share > 0)
             )
         # Under five values a share says little, and one odd value is half of
-        # two: a short page is held to some value reading and shaped as
-        # learnt, three "Call" prices in three rows failing.
+        # two: a short page of three values or more is held to one at least
+        # reading as learnt, three "Call" prices in three rows failing. Its
+        # shape is not held: a part's name with digits in it, "Bosch Aerotwin
+        # AR601S", is no drift of names learnt as letters.
         few = len(present) < _SHAPE_EVIDENCE
-        if f.reads and present:
+        if f.reads and len(present) >= (_FEW_HELD if few else 1):
             read = _READERS[f.reads]
             readable = sum(1 for v in present if read(v) is not None) / len(present)
             unread = next((v for v in present if read(v) is None), present[0])
@@ -2406,20 +2414,15 @@ def _check_rows(
                     readable > 0 if few else readable >= SHAPE_KEPT,
                 )
             )
-        if f.shape and present:
+        if f.shape and not few:
             kept_shape = sum(1 for v in present if _fits(v, f.shape)) / len(present)
             example = next((v for v in present if not _fits(v, f.shape)), present[0])
             checks.append(
                 Check(
                     "shape",
-                    f"{f.name} shaped {f.shape} "
-                    + (
-                        "in some row"
-                        if few
-                        else f"in at least {SHAPE_KEPT:.0%} of rows"
-                    ),
+                    f"{f.name} shaped {f.shape} in at least {SHAPE_KEPT:.0%} of rows",
                     f"{kept_shape:.0%}, e.g. {example!r}",
-                    kept_shape > 0 if few else kept_shape >= SHAPE_KEPT,
+                    kept_shape >= SHAPE_KEPT,
                 )
             )
         if (

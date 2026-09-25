@@ -431,9 +431,69 @@ def test_a_short_page_whose_prices_all_say_call_fails_learnt_or_written():
     for extractor in (books(), learnt):
         run = run_extractor(extractor, short, "https://shop.example/")
         assert not run.ok
-        assert set(failed(run)) == {"reads", "shape"}
+        assert set(failed(run)) == {"reads"}
         odd = run_extractor(extractor, one_odd, "https://shop.example/")
         assert odd.ok, failed(odd)
+
+
+def _rows_of_parts(parts) -> bytes:
+    return listing(
+        [
+            f'<a class="title" href="/p/{n}">{title}</a>'
+            f'<span class="price">{price}</span>'
+            for n, (title, price) in enumerate(parts)
+        ]
+    )
+
+
+PARTS = [
+    "Brake pad set",
+    "Oil filter",
+    "Wiper blade",
+    "Spark plug",
+    "Air filter",
+    "Brake disc",
+    "Cabin filter",
+    "Fuel pump",
+    "Water pump",
+    "Timing belt",
+]
+
+
+@pytest.mark.parametrize(
+    "parts",
+    [
+        [("Brake pad set", "From £12.99")],
+        [("Bosch Aerotwin AR601S", "£12.99")],
+        [("Oil filter", "Call"), ("Bosch Aerotwin AR601S", "From £13.99")],
+    ],
+    ids=["a-price-from", "a-title-with-digits", "two-odd-rows"],
+)
+def test_the_last_page_of_a_pagination_is_no_drift_for_one_odd_value(parts):
+    """A page of one row, the last of a pagination, was held to its title
+    being shaped as every learnt title was and its price reading as an
+    amount: a part named "Bosch Aerotwin AR601S" failed titles learnt as
+    letters, "From £12.99" failed a price, where 0.7.1 passed both. A short
+    page is held to one value at least reading as learnt from three values
+    up, and to its shape from five, as before."""
+    pages = [
+        (
+            _rows_of_parts(
+                [(PARTS[(n + p) % 10], f"£{n + p + 10}.99") for n in range(10)]
+            ),
+            f"https://shop.example/c?page={p}",
+        )
+        for p in range(3)
+    ]
+    learnt = compile_extractor(pages, listing=True)
+    written = compile_extractor(
+        pages, select={"title": "a.title", "price": "span.price"}, rows="li.product"
+    )
+    for extractor in (learnt, written):
+        shapes = [f.shape for f in (extractor.listing or extractor.written).fields]
+        assert "L" in shapes and "NPS" in shapes
+        run = run_extractor(extractor, _rows_of_parts(parts), "https://shop.example/c")
+        assert run.ok, [(c.expected, c.got) for c in run.checks if not c.ok]
 
 
 def test_the_checks_a_written_listing_gets_are_the_ones_a_learnt_one_gets():
