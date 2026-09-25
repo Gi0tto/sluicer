@@ -41,6 +41,7 @@ nav:
       - Crawling: crawling.md
       - Web archives: warc.md
       - Audit: audit.md
+      - In GitHub Actions: github-action.md
       - Moving from extruct: extruct.md
   - Reference:
       - Command line: reference/cli.md

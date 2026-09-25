@@ -7,6 +7,8 @@ required and recommended properties it lacks, and which of its values are in a
 form the documentation or schema.org refuses. Then what the page as a whole
 lacks, where two vocabularies contradict each other, which AI agents the site's
 robots.txt admits, and whether its llms.txt keeps to llmstxt.org's format.
+In a workflow, the [GitHub Action](github-action.md) runs it on the pages you
+name and fails the check when one breaks a rule.
 
 No model reads the page. The rules are data, transcribed from the pages that
 state them, and every finding names the page its rule comes from, so the same

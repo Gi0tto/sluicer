@@ -1,0 +1,68 @@
+name: Sluicer audit
+description: >-
+  Check the structured data pages declare against what Google documents, with
+  every rule sourced. No model, no API key.
+author: Nichita Briculschi
+branding:
+  icon: check-square
+  color: blue
+
+inputs:
+  urls:
+    description: >-
+      The pages to audit, one a line or separated by spaces; a line starting
+      with # is a comment. A path in the workspace is read as a file.
+    required: true
+  fail-on:
+    description: >-
+      error: fail when a page breaks a rule its documentation states, or cannot
+      be read. warning: fail on a warning too. never: only report.
+    default: "error"
+  site:
+    description: Also read each site's robots.txt and llms.txt ("true" or "false").
+    default: "true"
+  version:
+    description: The Sluicer release to install from PyPI.
+    default: "0.7.1"
+  package:
+    description: >-
+      What to install instead, as uv's --with takes it, such as ".[fetch]" for
+      a checkout of Sluicer. Empty installs sluicer[fetch] at the version above.
+    default: ""
+
+outputs:
+  pages:
+    description: How many pages were audited.
+    value: ${{ steps.audit.outputs.pages }}
+  errors:
+    description: The errors the audits found, all pages together.
+    value: ${{ steps.audit.outputs.errors }}
+  warnings:
+    description: The warnings the audits found, all pages together.
+    value: ${{ steps.audit.outputs.warnings }}
+  unreadable:
+    description: How many pages could not be read.
+    value: ${{ steps.audit.outputs.unreadable }}
+  report:
+    description: The path of a file holding each page's audit, one JSON line a page.
+    value: ${{ steps.audit.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+    - id: audit
+      shell: bash
+      # Every input reaches the script through the environment: written into
+      # the script, an address holding a quote would be a command.
+      env:
+        URLS: ${{ inputs.urls }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        SITE: ${{ inputs.site }}
+        VERSION: ${{ inputs.version }}
+        PACKAGE: ${{ inputs.package }}
+        UV_NO_PROGRESS: "1"
+      run: |
+        package="${PACKAGE:-sluicer[fetch]==${VERSION}}"
+        uv run --no-project --python 3.13 --with "$package" \
+          python "$GITHUB_ACTION_PATH/packaging/audit_action.py"

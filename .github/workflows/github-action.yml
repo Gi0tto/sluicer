@@ -1,0 +1,78 @@
+name: GitHub Action
+
+# The action this repository offers (action.yml at the root), run as a
+# workflow that uses it would run it, on pages this job serves itself: the
+# made-up site's article, which breaks no rule, and the brake pads' page,
+# whose Product lacks required properties. No site outside the runner is read.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "action.yml"
+      - "packaging/audit_action.py"
+      - ".github/workflows/github-action.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "action.yml"
+      - "packaging/audit_action.py"
+      - ".github/workflows/github-action.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  action:
+    name: The action passes a clean page, fails a broken one, and says why
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Serve the examples on the runner's loopback
+        run: |
+          (cd examples && python3 -m http.server 8000 --bind 127.0.0.1 > /dev/null 2>&1 &)
+          for attempt in $(seq 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:8000/site/article.html && break
+            sleep 1
+          done
+      # The checkout's own Sluicer, so a change to the command is tested here
+      # before a release puts it on PyPI; the version input installs that.
+      - name: A page that breaks no rule passes
+        id: clean
+        uses: ./
+        with:
+          urls: http://127.0.0.1:8000/site/article.html
+          package: ".[fetch]"
+      - name: A page that breaks rules fails the step
+        id: broken
+        continue-on-error: true
+        uses: ./
+        with:
+          urls: |
+            http://127.0.0.1:8000/site/article.html
+            http://127.0.0.1:8000/brake-pads.html
+          package: ".[fetch]"
+      - name: Told never to fail, it only reports
+        id: report
+        uses: ./
+        with:
+          urls: http://127.0.0.1:8000/brake-pads.html
+          fail-on: never
+          site: "false"
+          package: ".[fetch]"
+      - name: Each step said what the pages hold
+        env:
+          CLEAN_ERRORS: ${{ steps.clean.outputs.errors }}
+          BROKEN_OUTCOME: ${{ steps.broken.outcome }}
+          BROKEN_ERRORS: ${{ steps.broken.outputs.errors }}
+          BROKEN_PAGES: ${{ steps.broken.outputs.pages }}
+          REPORT_ERRORS: ${{ steps.report.outputs.errors }}
+          REPORT_FILE: ${{ steps.report.outputs.report }}
+        run: |
+          test "$CLEAN_ERRORS" = 0 || { echo "the clean page had $CLEAN_ERRORS errors"; exit 1; }
+          test "$BROKEN_OUTCOME" = failure || { echo "the broken page's step: $BROKEN_OUTCOME"; exit 1; }
+          test "$BROKEN_PAGES" = 2 && test "$BROKEN_ERRORS" -gt 0
+          test "$REPORT_ERRORS" = "$BROKEN_ERRORS"
+          python3 -c "import json, sys; [json.loads(line) for line in open(sys.argv[1])]" "$REPORT_FILE"

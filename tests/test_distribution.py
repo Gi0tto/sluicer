@@ -553,3 +553,116 @@ def test_context7_s_rules_name_only_what_exists():
         module, _, name = dotted.rpartition(".")
         assert hasattr(importlib.import_module(module), name), dotted
     assert re.findall(r"`sluicer ([a-z]+)", text) and re.findall(r"sluicer\.", text)
+
+
+# -- the GitHub Action -------------------------------------------------------
+
+ACTION = ROOT / "action.yml"
+CLEAN = ROOT / "examples" / "site" / "article.html"
+"""No error, two warnings: the made-up site's article."""
+BROKEN = ROOT / "examples" / "brake-pads.html"
+"""Four errors: required properties its Product lacks."""
+
+
+def _audit_action(tmp_path, **inputs):
+    env = {
+        "PATH": str(Path(sys.executable).parent),
+        "SYSTEMROOT": "",
+        "GITHUB_OUTPUT": str(tmp_path / "output"),
+        "GITHUB_STEP_SUMMARY": str(tmp_path / "summary.md"),
+        "RUNNER_TEMP": str(tmp_path),
+        "FAIL_ON": "error",
+        "SITE": "false",
+        **{key.upper(): value for key, value in inputs.items()},
+    }
+    done = subprocess.run(
+        [sys.executable, str(PACKAGING / "audit_action.py")],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+        cwd=ROOT,
+    )
+    output, summary = tmp_path / "output", tmp_path / "summary.md"
+    outputs = dict(
+        line.split("=", 1)
+        for line in (
+            output.read_text(encoding="utf-8") if output.exists() else ""
+        ).splitlines()
+    )
+    return (
+        done,
+        outputs,
+        summary.read_text(encoding="utf-8") if summary.exists() else "",
+    )
+
+
+def test_the_action_passes_a_page_with_no_error(tmp_path):
+    done, outputs, summary = _audit_action(tmp_path, urls=str(CLEAN))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert outputs["errors"] == "0" and outputs["warnings"] == "2"
+    assert outputs["pages"] == "1" and outputs["unreadable"] == "0"
+    assert "examples/site/article.html" in summary
+    [line] = Path(outputs["report"]).read_text(encoding="utf-8").splitlines()
+    assert json.loads(line)["exit"] == 0
+
+
+def test_the_action_fails_on_a_page_that_breaks_a_rule_and_says_where(tmp_path):
+    done, outputs, summary = _audit_action(
+        tmp_path, urls=f"{CLEAN}\n  {BROKEN}\n\n# a comment\n"
+    )
+    assert done.returncode == 1
+    assert outputs["errors"] == "4" and outputs["pages"] == "2"
+    annotations = [
+        line for line in done.stdout.splitlines() if line.startswith("::error")
+    ]
+    assert len(annotations) == 4
+    assert all("brake-pads.html" in line for line in annotations)
+    # Each error is linked to the documentation that states the rule.
+    assert summary.count("https://developers.google.com/") >= 4
+
+
+def test_the_action_reports_without_failing_when_told(tmp_path):
+    done, outputs, _summary = _audit_action(tmp_path, urls=str(BROKEN), fail_on="never")
+    assert done.returncode == 0 and outputs["errors"] == "4"
+
+
+def test_the_action_fails_on_warnings_when_told(tmp_path):
+    done, _outputs, _summary = _audit_action(
+        tmp_path, urls=str(CLEAN), fail_on="warning"
+    )
+    assert done.returncode == 1
+
+
+def test_the_action_fails_on_a_page_it_cannot_read(tmp_path):
+    done, outputs, summary = _audit_action(tmp_path, urls=str(tmp_path / "gone.html"))
+    assert done.returncode == 1
+    assert outputs["unreadable"] == "1" and "could not be read" in summary
+
+
+def test_the_action_refuses_an_input_it_does_not_know(tmp_path):
+    done, _outputs, _summary = _audit_action(tmp_path, urls=str(CLEAN), fail_on="often")
+    assert done.returncode == 2 and "fail-on" in done.stderr
+
+
+def test_the_action_installs_this_version_and_keeps_inputs_out_of_its_shell():
+    """An input written into a run: block is code the caller's workflow
+    injects (GitHub's security hardening guide); every one goes through env."""
+    action = ACTION.read_text(encoding="utf-8")
+    assert "using: composite" in action
+    [default] = re.findall(
+        r"^  version:\n(?:    .+\n)*?    default: \"(.+)\"$", action, re.M
+    )
+    assert default == sluicer.__version__
+    run = action.split("\n      run: ", 1)[1]
+    assert "${{" not in run, "an expression inside the script"
+    for name in ("urls", "fail-on", "site", "version", "package"):
+        assert f"${{{{ inputs.{name} }}}}" in action, name
+    assert "packaging/audit_action.py" in run
+
+
+def test_a_workflow_runs_the_action_on_pages_it_serves_itself():
+    workflow = (WORKFLOWS / "github-action.yml").read_text(encoding="utf-8")
+    assert "python3 -m http.server" in workflow
+    assert workflow.count("uses: ./") >= 3
+    assert "steps.broken.outcome" in workflow

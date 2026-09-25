@@ -38,6 +38,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `context7.json`: Context7 indexes `docs/` without the changelog, roadmap and
   contributing guide, and gives agents five rules; the suite holds each
   command, option, extra and name a rule gives to one Sluicer has.
+- A GitHub Action, `action.yml` at the root: `sluicer audit` on the pages a
+  workflow names, failing the step on a broken rule (or, with `fail-on`, on a
+  warning, or never), each error an annotation with its rule, a summary table,
+  and the counts and a JSON-lines report as outputs. Its inputs reach the
+  script through the environment only. `docs/github-action.md` says how to
+  use it; `.github/workflows/github-action.yml` runs it on pages its job
+  serves on the runner's loopback.
 
 ### Fixed
 - The image's wheel was built without NOTICE and LICENSES/, since the
