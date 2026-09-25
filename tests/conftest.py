@@ -123,6 +123,14 @@ def _reset_the_default_cache():
     STICKY.clear()
 
 
+@pytest.fixture(autouse=True)
+def _no_configuration_file(monkeypatch):
+    """Read no ``sluicer.toml`` of the machine the suite runs on: a file in a
+    directory above the checkout would give every command its defaults.
+    ``tests/test_config.py`` takes the variable away where it wants a file."""
+    monkeypatch.setenv("SLUICER_CONFIG", "")
+
+
 @pytest.fixture
 def absent(monkeypatch):
     """Make named packages genuinely unimportable, submodules and all.

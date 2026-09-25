@@ -43,6 +43,7 @@ from sluicer.audit import (
     answered_with,
     audit as audit_page,
 )
+from sluicer.config import ConfiguredGroup
 from sluicer.crawl import Crawl, crawl as crawl_site, extract_many
 from sluicer.crawl.pages import MAX_DEPTH, MAX_PAGES
 from sluicer.crawl.schedule import DEFAULT_DELAY_SECONDS
@@ -118,7 +119,7 @@ SECTIONS: dict[str, tuple[str, ...]] = {
 """The sections ``sluicer --help`` lists the commands in, each in this order."""
 
 
-class _Sectioned(click.Group):
+class _Sectioned(ConfiguredGroup):
     """A group whose help lists its commands by what they are for.
 
     Sixteen commands in click's one alphabetical list put ``audit`` first and

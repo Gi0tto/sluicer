@@ -221,6 +221,12 @@ jobs:
       # server with nothing else installed, not believed from the suite.
       - name: The HTTP rung, with nothing but the base install
         run: .venv/bin/python tests/live/http_check.py
+      # The month and weekday names are package data the script writes from
+      # a pinned CLDR release. The suite holds the file to the script's form
+      # without a socket; here, where the network is, the release itself is
+      # read again and the committed file must be exactly what it gives.
+      - name: The month names are the pinned CLDR release's
+        run: .venv/bin/python scripts/cldr_calendar.py --check
 
   with-extras:
     name: The extras install and the code can actually use them
@@ -455,7 +461,7 @@ jobs:
         run: |
           .venv/bin/python -c "
           import importlib.metadata as md
-          for name, floor in {'lxml': '5.3', 'click': '8.2', 'cssselect': '1.2'}.items():
+          for name, floor in {'lxml': '5.3', 'click': '8.2', 'tomli': '1.0.3', 'cssselect': '1.2'}.items():
               got = md.version(name)
               assert got.startswith(floor), (
                   name + ' resolved to ' + got + ', not the declared floor '

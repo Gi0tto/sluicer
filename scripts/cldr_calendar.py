@@ -2,9 +2,10 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""Regenerate ``src/sluicer/calendar_names.py`` from the Unicode CLDR.
+"""Regenerate ``src/sluicer/calendar_names.json`` from the Unicode CLDR.
 
-    uv run scripts/cldr_calendar.py
+    uv run scripts/cldr_calendar.py            # write the file
+    uv run scripts/cldr_calendar.py --check    # exit 1 if it is not this
 
 Reads the month and weekday names of every locale CLDR rates ``modern`` --
 its highest coverage level -- from the npm packages ``cldr-dates-full`` and
@@ -17,7 +18,11 @@ Chinese, Japanese and Korean write "5月" and "5월", which the date reader
 takes as numbers. A name that means two months in two locales is left out
 too: "listopad" is November in Polish and Czech and October in Croatian.
 
-The output is sorted, so the same release always writes the same file.
+The names are data, not code: a JSON file shipped in the package, which
+``sluicer.calendar_names`` loads. The output is sorted, one name a line, so
+the same release always writes the same file and a new one diffs by name.
+``--check`` is what CI runs where the network is: the committed file must be
+exactly what the pinned release gives.
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ import hashlib
 import io
 import json
 import re
+import sys
 import tarfile
 import unicodedata
 import urllib.request
@@ -40,7 +46,7 @@ PACKAGES = {
     "cldr-core": "sha512-zfmLothncSwfv2jlevoSrgI2VGgH8SDGHXst6jUEotHA8nq9Igeg9jzdJ"
     "DFtBso9pgJuG89DK16TzrmZDdo2Bg==",
 }
-OUT = Path(__file__).resolve().parent.parent / "src" / "sluicer" / "calendar_names.py"
+OUT = Path(__file__).resolve().parent.parent / "src" / "sluicer" / "calendar_names.json"
 # Catalan's "de gener", "d\u2019abril": the preposition is not the month.
 _PREPOSITION = re.compile("^(?:de |d\u2019|d')")
 
@@ -69,20 +75,23 @@ def _spelt(name: str) -> str | None:
     return word
 
 
-def main() -> None:
-    core = _tarball("cldr-core")
+def names(
+    core: tarfile.TarFile, dates: tarfile.TarFile
+) -> tuple[dict[str, int], list[str], int, list[str]]:
+    """The names CLDR's ``core`` and ``dates`` packages give: each month name
+    and its number, the weekday names, how many locales were read, and the
+    names left out as meaning two months."""
     levels = _json(core, "package/coverageLevels.json")["effectiveCoverageLevels"]
     modern = sorted(locale for locale, level in levels.items() if level == "modern")
-    dates = _tarball("cldr-dates-full")
     present = set(dates.getnames())
     months: dict[str, set[int]] = defaultdict(set)
     weekdays: set[str] = set()
-    read = []
+    read = 0
     for locale in modern:
         member = f"package/main/{locale}/ca-gregorian.json"
         if member not in present:
             continue
-        read.append(locale)
+        read += 1
         calendar = _json(dates, member)["main"][locale]["dates"]["calendars"]
         gregorian = calendar["gregorian"]
         for context in ("format", "stand-alone"):
@@ -102,51 +111,49 @@ def main() -> None:
     # A weekday that is also a month is no weekday to strip: Spanish "mar" is
     # martes and marzo both, and "mar 5, 2025" is March.
     weekdays -= set(months)
-    OUT.write_text(_module(kept, sorted(weekdays), read, left_out), encoding="utf-8")
+    return kept, sorted(weekdays), read, left_out
+
+
+def rendered(
+    months: dict[str, int], weekdays: list[str], locales: int, left_out: list[str]
+) -> str:
+    """The file's text: the release and licence first, then every name sorted,
+    one a line, in its own script."""
+    data = {
+        "licence": "Unicode-3.0",
+        "source": "Unicode CLDR, https://cldr.unicode.org/, under the Unicode "
+        "License v3: see LICENSES/Unicode-3.0.txt. Written by "
+        "scripts/cldr_calendar.py; do not edit it by hand.",
+        "cldr": RELEASE,
+        "locales": locales,
+        "left_out": sorted(left_out),
+        "months": dict(sorted(months.items())),
+        "weekdays": sorted(weekdays),
+    }
+    return json.dumps(data, ensure_ascii=False, indent=1) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    check = "--check" in (sys.argv[1:] if argv is None else argv)
+    months, weekdays, locales, left_out = names(
+        _tarball("cldr-core"), _tarball("cldr-dates-full")
+    )
+    text = rendered(months, weekdays, locales, left_out)
+    if check:
+        if OUT.read_text(encoding="utf-8") != text:
+            print(f"{OUT.name} is not what CLDR {RELEASE} gives: run the script")
+            return 1
+        print(f"{OUT.name} is what CLDR {RELEASE} gives")
+        return 0
+    OUT.write_text(text, encoding="utf-8")
     print(
-        f"{len(read)} locales, {len(kept)} month names, {len(weekdays)} weekday names,"
+        f"{locales} locales, {len(months)} month names, {len(weekdays)} weekday names,"
     )
     print(
         f"{len(left_out)} names left out as meaning two months: {', '.join(left_out)}"
     )
-
-
-def _module(
-    months: dict[str, int], weekdays: list[str], read: list[str], left_out: list[str]
-) -> str:
-    lines = [
-        "# SPDX-License-Identifier: Unicode-3.0",
-        "# Month and weekday names from the Unicode Common Locale Data Repository",
-        f"# (CLDR), release {RELEASE}, published by Unicode, Inc. under the Unicode",
-        "# License v3. This file, unlike most of sluicer, is distributed under that",
-        "# licence: see LICENSES/Unicode-3.0.txt. Regenerate it with",
-        "# scripts/cldr_calendar.py; do not edit it by hand.",
-        "# ruff: noqa: RUF001 -- names in their own scripts, Cyrillic and Greek too.",
-        '"""Month and weekday names in every language CLDR covers at its modern level.',
-        "",
-        f"{len(read)} locales, CLDR {RELEASE}: each month's wide and abbreviated",
-        "names, in their formatting and stand-alone forms, casefolded, without a",
-        "trailing full stop. Names holding a digit are not here -- Chinese,",
-        "Japanese and Korean write months as numbers -- nor the names that mean",
-        f"two months in two locales: {', '.join(left_out)}.",
-        '"""',
-        "",
-        "MONTHS: dict[str, int] = {",
-        *(
-            f"    {json.dumps(word, ensure_ascii=False)}: {number},"
-            for word, number in sorted(months.items())
-        ),
-        "}",
-        "",
-        "WEEKDAYS: frozenset[str] = frozenset(",
-        "    {",
-        *(f"        {json.dumps(word, ensure_ascii=False)}," for word in weekdays),
-        "    }",
-        ")",
-        "",
-    ]
-    return "\n".join(lines)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

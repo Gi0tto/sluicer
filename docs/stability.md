@@ -61,6 +61,9 @@ release of warning first:
   names they carry
 - the HTTP API, `sluicer serve`: its paths, statuses and the OpenAPI document
   it serves
+- the configuration file: where it is looked for, and which keys it takes
+- `sluicer.aextract` and `sluicer.fetch.afetch`, which follow `extract` and
+  `fetch`'s parameters as those change
 
 The command line's output for a person -- `inspect`, the messages on stderr,
 the order of `--help` -- is not an interface; its JSON output and exit codes

@@ -2453,6 +2453,7 @@ dependencies = [
     { name = "cssselect" },
     { name = "lxml" },
     { name = "protego" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 
 [package.optional-dependencies]
@@ -2508,6 +2509,7 @@ requires-dist = [
     { name = "sluicer", extras = ["mcp"], marker = "extra == 'api'" },
     { name = "sluicer", extras = ["stealth"], marker = "extra == 'fetch'" },
     { name = "starlette", marker = "extra == 'api'", specifier = ">=1.2" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=1.0.3" },
     { name = "trafilatura", marker = "extra == 'markdown'", specifier = ">=2.0" },
     { name = "uvicorn", marker = "extra == 'api'", specifier = ">=0.31.1" },
 ]
