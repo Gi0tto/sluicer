@@ -54,7 +54,9 @@ that drifted (with `failed`, the checks it broke) and for a heal that lost data
   learnt from two pages or more, also the shape of the answer: `41.90` is `NP`,
   `£51.77` is `NPS`.
 - **The listing the pages repeat**, unless a page declares its own subject -- a
-  product page, an article -- or always with `--listing`: where it sits (`html>body>div.page>ol.row`), what one
+  product page, an article; a thing declared on one of the listing's rows,
+  as a quote in microdata is, is a row and not the page's subject -- or
+  always with `--listing`: where it sits (`html>body>div.page>ol.row`), what one
   row looks like (`li.product`), how many rows each page had, and for every
   field its share of empty rows, the one shape its values shared if they did,
   and a few sample values.
@@ -111,7 +113,13 @@ page of another site fails with the listing not found.
 **A page with no listing is read the same way.** When no one repeated group
 holds every example -- a product page that declares nothing -- or with
 `--no-listing`, the examples are the page's own values, each learnt where it
-sits:
+sits. With `--listing`, no group holding them is an error: read as the page's
+own values, they would be the first row's, on every page. A row's columns
+are what a reader sees -- each part's text, an image's alt text, the address
+a link or an image points to -- so a value only a `<meta>` in the row
+declares, quotes.toscrape.com's `<meta itemprop="keywords" content=...>`, is
+no column; point at the tags' links, or read the declaration with
+`extract()`:
 
 ```bash
 sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \

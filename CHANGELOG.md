@@ -175,6 +175,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
   three fields are read right on every page. An extractor learnt before whose
   label was a colon standing alone, said once on every page, no longer finds
   it and fails its runs until it is compiled again.
+- `compile --listing --want ...` no longer learns the page's own values
+  when no repeated group holds every example: on quotes.toscrape.com, with
+  the tags as the row's `<meta itemprop="keywords">` declares them, which is
+  no column of a row, it learnt the first quote's text, read after "Login",
+  and passed every page reading one quote of ten. A listing asked for and
+  not found is now the error that names the example. Without `--listing`,
+  a thing declared on one of the listing's rows -- one quote of ten in
+  microdata -- is no longer the page's subject, and the listing is learnt;
+  a page whose every row is declared already learnt it, as it does on
+  quotes.toscrape.com, whose microdata the report blamed. A `<meta>` in a
+  row stays no column, and `docs/known-limits.md` says why.
 - PyPI's "Client Challenge" page, Fastly's answer to a client without
   JavaScript (3 kB, status 200), is recognised as a challenge: the ladder
   climbs past it, and a last rung that brings it back is the site refusing,

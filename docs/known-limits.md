@@ -171,6 +171,18 @@ rows is enough to fail a run.
 with two listings that both matter needs two extractors, and there is no way yet
 to point compile at the second.
 
+**A listing's columns are what a reader sees.** Each part of a row gives
+its text, an image its alt text, a link or an image its address. A `<meta>`
+inside a row gives nothing, though its `content` is often the row's cleanest
+value -- quotes.toscrape.com declares each quote's tags there, as
+`change,deep-thoughts,thinking,world`. It is left out on purpose: such a
+`<meta>` is a declaration, microdata's `itemprop` or RDFa's `property`, and
+declared data is read by the declared readers, where `extract()` already
+gives it (the CreativeWork's `keywords`), never by induction, which never
+fills a gap in a declared record and marks what it finds `induced` (see
+design-notes.md, "When induction runs"). `--want` a value only a `<meta>`
+holds finds no listing; with `--listing`, that is an error.
+
 **Healing matches by values.** A field is moved only when its new place holds
 values it held before; a same-shaped field with new values is not a match, so a
 redesign that changes the markup and every value at once is reported as fields

@@ -532,7 +532,9 @@ def compile_extractor(
         pages: the pages, each as ``(html, url)``.
         listing: learn the listing the pages repeat. None, the default, learns
             one unless a page declares its own subject -- a product, an
-            article -- whose page it is; True looks for one anyway.
+            article -- whose page it is; a thing declared on one of the
+            listing's rows is not. True looks for one anyway, and with
+            ``want``, requires one.
         names: what to call each page in ``learnt_from``; its address by default.
         want: example values, by the name each is to have: ``{"price":
             "41.90", "title": "Brake pad set"}``. When a repeated group's rows
@@ -542,15 +544,17 @@ def compile_extractor(
             When no one group holds them all, or with ``listing=False``, they
             are the page's own values, a product page's price and title, each
             learnt where it sits on the page, the page's own place before its
-            furniture and its listings. A value matches when it says the
-            same with its spaces collapsed, or is the same amount.
+            furniture and its listings; with ``listing=True``, no group
+            holding them is an error. A value matches when it says the same
+            with its spaces collapsed, or is the same amount.
 
     Raises:
-        NothingToLearn: the pages declare nothing and repeat nothing, or no
-            repeated group holds every example in ``want``, or a page's own
-            value is in a place the pages given put different labels before,
-            and no label they all say once stands before it: read by its
-            place, it would be another field on one of them.
+        NothingToLearn: the pages declare nothing and repeat nothing; or no
+            repeated group holds every example in ``want``, and a listing
+            was asked for or an example is on no page; or a page's own value
+            is in a place another page puts after a label the first gives
+            another of its values, and no label they all say once stands
+            before it: read by its place, it would be another field there.
         ValueError: ``want`` with ``listing=False``, or a name that is empty.
     """
     if not pages:
@@ -583,10 +587,10 @@ def _compiled(
     # A page about one thing -- a product page, an article -- is read by what
     # it declares, and its related-items strip is not its listing. A listing
     # page declaring only a breadcrumb or an ItemList has no subject, so its
-    # rows are learnt.
+    # rows are learnt; nor does one whose only thing is one of its rows.
     has_a_subject = any(
-        r.summary.get("type") is not None and r.summary["type"].key == "@type"
-        for r in results
+        _a_subject(doc, r.summary.get("type"))
+        for doc, r in zip(docs, results, strict=True)
     )
     learnt: Listing | None = None
     notes: list[str] = []
@@ -597,6 +601,10 @@ def _compiled(
         try:
             learnt, notes = _learn_wanted(docs, want)
         except NothingToLearn as no_listing:
+            if listing:
+                # Asked for a listing: the page's own values, the first
+                # row's, would pass on every page as if they were one.
+                raise
             # A product page that declares nothing: the examples are its own.
             fields, notes = _learn_fields(docs, want, no_listing)
     elif listing or (listing is None and not has_a_subject):
@@ -615,6 +623,30 @@ def _compiled(
         notes=tuple(notes),
         fields=fields,
     )
+
+
+def _a_subject(doc: Document, answer: Any) -> bool:
+    """Whether the summary's ``type`` answer is a thing the page is about.
+
+    A thing declared on an element inside one of the rows of the page's
+    listing is one of its items, not its subject: quotes.toscrape.com with
+    only its first quote declared a CreativeWork was read as that quote, and
+    its listing was never learnt. A thing declared in JSON-LD has no element,
+    and is the page's."""
+    if answer is None or answer.key != "@type":
+        return False
+    where = answer.where
+    if not where or "#" in where:
+        return True
+    try:
+        found = doc.tree.xpath(where)
+    except etree.XPathError:
+        return True
+    group = _listing_of(doc) if found and isinstance(found[0], HtmlElement) else None
+    if not group:
+        return True
+    rows = set(group)
+    return not any(node in rows for node in [found[0], *found[0].iterancestors()])
 
 
 def run_extractor(

@@ -13,6 +13,7 @@ import pytest
 
 from sluicer.extractor import (
     Extractor,
+    NothingToLearn,
     compile_extractor,
     heal,
     run_extractor,
@@ -1032,8 +1033,6 @@ def test_a_place_labelled_differently_with_no_label_to_read_after_is_refused():
     """Where no label stands before the value once on every page, the place is
     all there is, and it holds another field on one of the pages given: that
     is no field to write."""
-    from sluicer.extractor import NothingToLearn
-
     aside = "<aside><table><tr><th>SKU</th><td>other</td></tr></table></aside>"
     doubled = [
         (html.replace("</main>", f"</main>{aside}"), url)
@@ -1637,3 +1636,99 @@ def test_a_row_s_class_a_path_cannot_write_is_left_out_of_its_kind():
     assert learnt.listing.member == "li.item"
     assert Extractor.from_json(learnt.to_json()) == learnt
     assert run_extractor(learnt, *page(8)).ok
+
+
+QUOTES = [
+    (
+        "The world as we have created it is a process of our thinking.",
+        "Albert Einstein",
+        ("change", "deep-thoughts", "thinking", "world"),
+    ),
+    (
+        "It is our choices, Harry, that show what we truly are.",
+        "J.K. Rowling",
+        ("abilities", "choices"),
+    ),
+    (
+        "There are only two ways to live your life.",
+        "Albert Einstein",
+        ("inspirational", "life", "live", "miracle", "miracles"),
+    ),
+    (
+        "The person, be it gentleman or lady, who has not pleasure in a good novel.",
+        "Jane Austen",
+        ("aliteracy", "books", "classic", "humor"),
+    ),
+    ("Imperfection is beauty, madness is genius.", "Marilyn Monroe", ("be-yourself",)),
+]
+
+
+def _quotes(page, declared=None):
+    """A page of quotes.toscrape.com, as it writes one: each quote a
+    ``div.quote``, declared a CreativeWork in microdata, with its tags
+    visible as links and declared again in a ``<meta itemprop=keywords>``.
+    ``declared`` is how many of the quotes keep their microdata; all by
+    default."""
+    rows = []
+    for n, (text, author, tags) in enumerate(QUOTES[page:] + QUOTES[:page]):
+        item = (
+            ' itemscope itemtype="http://schema.org/CreativeWork"'
+            if declared is None or n < declared
+            else ""
+        )
+        links = "".join(f'<a class="tag" href="/tag/{t}/">{t}</a>' for t in tags)
+        rows.append(
+            f'<div class="quote"{item}><span class="text" itemprop="text">{text}'
+            f'</span><span>by <small class="author" itemprop="author">{author}'
+            f'</small> <a href="/author/{n}">(about)</a></span><div class="tags">'
+            f'Tags: <meta class="keywords" itemprop="keywords" '
+            f'content="{",".join(tags)}"> {links}</div></div>'
+        )
+    return (
+        "<html lang='en'><head><title>Quotes to Scrape</title></head><body>"
+        "<div class='container'><div class='row header-box'><div class='col-md-8'>"
+        "<h1><a href='/'>Quotes to Scrape</a></h1></div><div class='col-md-4'>"
+        "<p><a href='/login'>Login</a></p></div></div><div class='row'>"
+        f"<div class='col-md-8'>{''.join(rows)}</div></div></div></body></html>",
+        f"https://quotes.example/page/{page + 1}/",
+    )
+
+
+def test_a_page_whose_every_row_declares_itself_learns_its_listing():
+    """The registry thought quotes.toscrape.com's microdata made compile read
+    the page as one quote. It does not: a type declared on every row is a
+    listing's, and no row is the page's subject."""
+    learnt = compile_extractor([_quotes(0), _quotes(1)])
+    assert learnt.listing is not None
+    assert learnt.listing.member == "div.quote"
+
+
+def test_a_row_that_alone_declares_itself_is_not_the_page_s_subject():
+    """Only the first quote kept its microdata: it answered the summary's
+    type, and compile read the page as that one quote and learnt no listing.
+    A thing declared on one of the page's rows is a row."""
+    pages = [_quotes(0, declared=1), _quotes(1, declared=1)]
+    learnt = compile_extractor(pages)
+    assert learnt.listing is not None
+    assert learnt.listing.member == "div.quote"
+    run = run_extractor(learnt, *_quotes(2, declared=1))
+    assert run.ok, failed(run)
+    assert len(run.rows) == len(QUOTES)
+
+
+def test_a_listing_asked_for_that_no_group_holds_is_refused_not_one_row():
+    """With --listing, the tags as the ``<meta>`` declares them -- no column of
+    a row, which holds what a reader sees -- sent the examples to the page's
+    own values: the first quote's text, read after "Login", and its
+    keywords. A listing asked for and not found is an error."""
+    want = {"text": QUOTES[0][0], "tags": ",".join(QUOTES[0][2])}
+    with pytest.raises(NothingToLearn) as refused:
+        compile_extractor([_quotes(0), _quotes(1)], listing=True, want=want)
+    assert str(refused.value) == (
+        "no repeated group on these pages holds tags='change,deep-thoughts,"
+        "thinking,world'"
+    )
+    by_links = {"text": QUOTES[0][0], "tag": "change"}
+    learnt = compile_extractor([_quotes(0), _quotes(1)], listing=True, want=by_links)
+    assert learnt.listing is not None and not learnt.fields
+    assert [f.path for f in learnt.listing.fields] == ["span.text", "div.tags>a.tag1"]
