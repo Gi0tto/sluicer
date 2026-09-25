@@ -7,7 +7,7 @@ scorer, on the same pages as their servers sent them, scripts intact,
 fetched from web archives. Every page is scored twice, once as served
 and once as WCXB kept it, so the difference between the two columns is
 the difference the scripts make, and nothing else.
-Regenerated on 2026-09-25 from commit `83186aa` by
+Regenerated on 2026-09-25 from commit `a6e42e6` by
 `uv run bench/realweb.py`, from the captures pinned in
 [`bench/realweb-manifest.json`](https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).
 
