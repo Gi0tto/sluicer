@@ -80,7 +80,6 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
 
 
 _OPENING = re.compile(r"^\s*(?:(?://|/\*)\s*)?(?:<!\[CDATA\[|<!--)\s*(?:\*/)?")
-_CLOSING = re.compile(r"(?:(?://|/\*)\s*)?(?:\]\]>|-->)\s*(?:\*/)?\s*$")
 # A JSON string, read to its end or to the block's: what the two patterns
 # below look for inside one is text. Left open, it runs to the end, and so does
 # a comment, so no character is scanned twice whatever the block holds.
@@ -94,7 +93,7 @@ def _parse(raw: str) -> object | None:
     none to be had."""
     unwrapped = raw.lstrip("\ufeff")
     for _ in range(2):
-        unwrapped = _CLOSING.sub("", _OPENING.sub("", unwrapped))
+        unwrapped = _without_closing(_OPENING.sub("", unwrapped))
     # The cleaned spellings are tried only after the text as written fails, so
     # a block that is valid JSON is never rewritten.
     for candidate in dict.fromkeys((raw, unwrapped, _mended(unwrapped))):
@@ -110,6 +109,27 @@ def _parse(raw: str) -> object | None:
             continue
         return parsed
     return None
+
+
+def _without_closing(text: str) -> str:
+    """``text`` without the wrapper that may close it: ``]]>`` or ``-->``,
+    after ``//`` or ``/*`` if a comment holds it, before ``*/`` if one does,
+    and the whitespace around them to the end.
+
+    Read from the end. As a pattern -- the mark, then whitespace, an
+    optional ``*/`` and whitespace again -- a block that went on past its
+    mark made the two runs of whitespace backtrack against each other:
+    ``-->``, 40,000 spaces and a letter took seven seconds.
+    """
+    end = text.rstrip()
+    if end.endswith("*/"):
+        end = end[:-2].rstrip()
+    for mark in ("]]>", "-->"):
+        if end.endswith(mark):
+            before = end[: -len(mark)]
+            held = before.rstrip()
+            return held[:-2] if held.endswith(("//", "/*")) else before
+    return text
 
 
 def _mended(text: str) -> str:

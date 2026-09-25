@@ -377,6 +377,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   says: its CPU times were measured once, not as that section fixes.
 
 ### Fixed
+- A JSON-LD block that went on past a closing `-->` or `]]>` -- the mark,
+  whitespace, then anything else -- is read in time proportional to it. The
+  pattern that took the wrapper off had two runs of whitespace side by side
+  before the end of the text, which backtracked against each other: `-->`,
+  40,000 spaces and a letter took 7.4 seconds in `extract()` and every
+  command and tool that reads JSON-LD, on any page. The wrapper is now taken
+  off from the end, as the pattern took it off (a test holds the two equal).
 - The records' documentation says what a JSON-LD number becomes: the text
   the page wrote, `"41.90"` and not `41.9`, as every value in a record is
   text (`Field`, the getting-started guide). It always was, on purpose, and

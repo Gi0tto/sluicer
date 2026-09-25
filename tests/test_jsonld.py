@@ -1,6 +1,9 @@
+import re
 from pathlib import Path
 
-from sluicer.declared.jsonld import _parse, read_jsonld
+from hypothesis import given, strategies as st
+
+from sluicer.declared.jsonld import _parse, _without_closing, read_jsonld
 from sluicer.document import load
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -606,3 +609,31 @@ def test_schema_is_schema_org_s_prefix_only_where_the_context_leaves_it_so():
     ):
         record = _record(block)
         assert (record.type, list(record.fields)) == ("Product", ["name"]), block
+
+
+# --- a block's wrapper -----------------------------------------------------------
+
+# The pattern that took a closing wrapper off, kept as the oracle: two runs of
+# whitespace side by side before the end, which a block that does not end
+# there makes backtrack from every place a mark stands.
+_OLD_CLOSING = re.compile(r"(?:(?://|/\*)\s*)?(?:\]\]>|-->)\s*(?:\*/)?\s*$")
+
+
+def test_a_block_ending_in_a_mark_and_then_text_is_read_in_a_moment():
+    """Found by review: ``-->``, forty thousand spaces and a letter took the
+    closing pattern seconds on every page that carried the block."""
+    import time
+
+    block = '{"@type": "Thing", "name": "x"}-->' + " " * 40_000 + "x"
+    started = time.perf_counter()
+    _parse(block)
+
+    assert time.perf_counter() - started < 1
+
+
+_WRAPPER_PIECES = ["-->", "]]>", "//", "/*", "*/", " ", "\n", "\t", "x", "-", "]"]
+
+
+@given(st.lists(st.sampled_from(_WRAPPER_PIECES), max_size=12).map("".join))
+def test_a_closing_wrapper_comes_off_as_the_pattern_took_it_off(text):
+    assert _without_closing(text) == _OLD_CLOSING.sub("", text)
