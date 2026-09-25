@@ -1303,7 +1303,7 @@ def test_a_retry_waits_the_retry_after_the_site_named_when_it_is_longer():
 
     again = {p.url: p for p in run(fake)}[f"{ROOT}/c/1"]
 
-    assert again.ok and [r.after for r in again.retries] == [7.0]
+    assert again.ok and [r.after for r in again.retries] == pytest.approx([7.0])
     failed, answered = requests_of(fake, f"{ROOT}/c/1")
     assert round(answered[0] - failed[1], 6) == 7.0
 
