@@ -357,3 +357,25 @@ def test_the_extractors_guide_s_first_examples_run_on_examples_shop(
     exec(compile(program, "extractors.md", "exec"), {"__name__": "extractors_md"})
     assert printed is not None
     assert capsys.readouterr().out.strip() == printed.group(1)
+
+
+def test_the_audit_guide_s_file_example_prints_what_it_shows(monkeypatch, capsys):
+    """docs/audit.md's Python example audited https://example.com/product, a
+    404 page with no record, and printed nothing. It now audits the
+    repository's product page, and prints the lines the guide shows."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    guide = (ROOT / "docs" / "audit.md").read_text(encoding="utf-8")
+    program, shown = re.search(
+        r"```python\n(.*?)```\n\nThat prints:\n\n```text\n(.*?)```", guide, re.DOTALL
+    ).groups()
+    monkeypatch.chdir(ROOT)
+    exec(compile(program, "audit.md", "exec"), {"__name__": "audit_md"})
+    assert capsys.readouterr().out == shown
+
+    line = re.search(r"^sluicer (audit examples/brake-pads\.html [^#]*)#", guide, re.M)
+    assert line is not None
+    assert "exits 3" in guide
+    assert CliRunner().invoke(main, line.group(1).split()).exit_code == 3

@@ -52,6 +52,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   and files that do not exist, and its Python example used names it never
   defined. They now run on books.toscrape.com and on `examples/shop/`, and a
   test runs the heal commands and the Python example as written.
+- The audit guide's examples audited `https://example.com/product`, a 404
+  page with no record, so its Python example printed nothing. They now audit
+  quotes.toscrape.com and the repository's product page, and the guide shows
+  what the Python example prints.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.

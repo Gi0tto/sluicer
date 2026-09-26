@@ -17,22 +17,47 @@ link. SEO tooling for coding agents usually does this by handing a model the
 HTML; the difference is the one Sluicer makes everywhere else.
 
 ```bash
-sluicer audit https://example.com/product          # a report for a person
-sluicer audit https://example.com/product --json   # the same audit as JSON
-sluicer audit saved.html --url https://example.com/p  # a file: no site is read
-sluicer audit https://example.com/p --no-site      # the page only
+sluicer audit https://quotes.toscrape.com/          # a report for a person
+sluicer audit https://quotes.toscrape.com/ --json   # the same audit as JSON
+sluicer audit https://quotes.toscrape.com/ --no-site   # the page only
+sluicer audit examples/brake-pads.html --url https://example.com/p/bp-2210  # a file: no site is read
 ```
+
+quotes.toscrape.com is a public sandbox made for trying scrapers on; its
+quotes are microdata records, for which Google documents no rich result.
+`examples/brake-pads.html`, in a clone of the repository, is a product page,
+and its audit exits 3: its Merchant listing misses a required `image`.
+
+```python
+from pathlib import Path
+
+from sluicer.audit import audit
+
+page = Path("examples/brake-pads.html").read_bytes()
+result = audit(page, url="https://example.com/p/bp-2210")
+for record in result.records:
+    for feature in record.features:
+        print(record.source, record.types, feature.name, feature.requirements_met)
+```
+
+That prints:
+
+```text
+jsonld ['Product'] Product snippet True
+jsonld ['Product'] Merchant listing False
+microdata ['Product'] Product snippet False
+microdata ['Product'] Merchant listing False
+```
+
+For a page on the web, with what its site says about crawlers:
 
 ```python
 from sluicer.audit import audit
 from sluicer.fetch import fetch
 from sluicer.fetch.site import read_site
 
-page = fetch("https://example.com/product")
+page = fetch("https://quotes.toscrape.com/")
 result = audit(page.html, url=page.url, site=read_site(page.url))
-for record in result.records:
-    for feature in record.features:
-        print(record.source, record.types, feature.name, feature.requirements_met)
 ```
 
 `audit` itself fetches nothing: `read_site` reads robots.txt, llms.txt and
