@@ -2,7 +2,7 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
-## Unreleased
+## 0.9.1 - 2026-09-26
 
 ### Fixed
 - A price or date two vocabularies disagree on for one thing is a conflict.
