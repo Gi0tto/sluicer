@@ -48,6 +48,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The WARC page read standard input with `zcat`, which on macOS looks for a
   `.Z` file and passes nothing on; it now uses `gzip -dc`. Its example line
   now shows the `conflicts` and `visible` keys a real line has.
+- The extractors guide's examples compiled, ran and healed `shop.example`
+  and files that do not exist, and its Python example used names it never
+  defined. They now run on books.toscrape.com and on `examples/shop/`, and a
+  test runs the heal commands and the Python example as written.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.

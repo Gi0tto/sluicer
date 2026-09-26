@@ -316,3 +316,44 @@ def test_the_extruct_page_s_calls_do_what_it_says_on_a_base_install(absent):
     data = eval(base.group(1), names)
     assert "microformat" not in data
     assert data["json-ld"][0]["@type"] == "Product"
+
+
+def test_the_extractors_guide_s_first_examples_run_on_examples_shop(
+    monkeypatch, tmp_path, capsys
+):
+    """docs/extractors.md opened with shop.example, which serves nothing, and
+    a Python block of names it never defined (`html_1`, `url_1`). Its heal
+    commands and its Python block run here as written, on ``examples/shop``,
+    and heal prints the moves the guide shows further down."""
+    import shutil
+
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    guide = (ROOT / "docs" / "extractors.md").read_text(encoding="utf-8")
+    first = guide.split("## Learn, replay, heal", 1)[1].split("\n## ", 1)[0]
+    shell = re.search(r"```bash\n(.*?)```", first, re.DOTALL).group(1)
+    program = re.search(r"```python\n(.*?)```", first, re.DOTALL).group(1)
+    printed = re.search(r"this prints .*?: `(.*?)`", " ".join(first.split()))
+    moves = guide.split("On the made-up shop in `examples/shop/`", 1)[1]
+    shown = re.search(r"```text\n(.*?)```", moves, re.DOTALL).group(1)
+
+    shutil.copytree(ROOT / "examples" / "shop", tmp_path / "examples" / "shop")
+    monkeypatch.chdir(tmp_path)
+    commands = [
+        (arguments, code)
+        for arguments, code in _commands(shell)
+        if any(argument.startswith("examples/shop/") for argument in arguments)
+    ]
+    assert [c[0][0] for c in commands] == ["compile", "heal"]
+    for arguments, code in commands:
+        result = CliRunner().invoke(main, arguments)
+        assert result.exit_code == code, (arguments, result.stderr)
+    said = [line for line in result.stderr.splitlines() if not line.startswith("Wrote")]
+    assert said == shown.splitlines()
+
+    capsys.readouterr()
+    exec(compile(program, "extractors.md", "exec"), {"__name__": "extractors_md"})
+    assert printed is not None
+    assert capsys.readouterr().out.strip() == printed.group(1)
