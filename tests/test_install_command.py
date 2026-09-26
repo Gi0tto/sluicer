@@ -140,7 +140,9 @@ def _lines(output: str) -> dict[str, list[str]]:
     found: dict[str, list[str]] = {}
     current = None
     for line in output.splitlines():
-        match = re.match(r"^(ok|missing|off|unknown)\s+(\S+(?: pages)?)\s{2,}", line)
+        match = re.match(
+            r"^(ok|missing|off|unknown|invalid)\s+(\S+(?: pages)?)\s{2,}", line
+        )
         if match:
             current = match[2]
             found[current] = [match[1]]
@@ -218,3 +220,46 @@ def test_doctor_exits_2_when_the_base_install_is_not_whole(cli, monkeypatch):
     assert result.exit_code == 2
     pieces = _lines(result.stdout)
     assert pieces["markdown"] == ["missing", 'pip install "sluicer[markdown]"']
+
+
+def test_doctor_in_a_uv_project_names_the_project_s_own_sluicer(
+    cli, monkeypatch, tmp_path
+):
+    """ "then: sluicer install browser" ran whatever sluicer the PATH found,
+    which a uv project's .venv is not on."""
+    python = str(tmp_path / ".venv" / "bin" / "python")
+    monkeypatch.setattr(
+        installer,
+        "current",
+        lambda: Installation("uv project", python, project=tmp_path),
+    )
+    monkeypatch.setattr(installer, "present", lambda: {"markdown", "browser"})
+    monkeypatch.setattr(installer, "chromium_missing", lambda run=None: ["/c/x"])
+    monkeypatch.delenv("SLUICER_BROWSER", raising=False)
+    monkeypatch.delenv("SLUICER_CDP_URL", raising=False)
+
+    assert _lines(cli("doctor").stdout)["browser"] == [
+        "missing",
+        f"{python} -m sluicer install browser",
+    ]
+
+    monkeypatch.setattr(installer, "present", lambda: {"markdown"})
+    fix = _lines(cli("doctor").stdout)["browser"][1]
+    assert fix.endswith(f", then: {python} -m sluicer install browser")
+
+
+def test_doctor_calls_a_browser_no_fetch_accepts_invalid(cli, monkeypatch):
+    """SLUICER_BROWSER=chrome: every fetch refuses it, and doctor said "ok
+    browser"."""
+    monkeypatch.setenv("SLUICER_BROWSER", "chrome")
+    monkeypatch.delenv("SLUICER_CDP_URL", raising=False)
+    for present in ({"markdown", "browser"}, {"markdown"}):
+        monkeypatch.setattr(installer, "present", lambda present=present: present)
+
+        result = cli("doctor")
+
+        assert result.exit_code == 2
+        browser = _lines(result.stdout)["browser"]
+        assert browser[0] == "invalid"
+        assert "SLUICER_BROWSER='chrome'" in result.stdout
+        assert browser[1] == "unset SLUICER_BROWSER"

@@ -293,8 +293,11 @@ Usage: sluicer doctor [OPTIONS]
   One line for the base install and one for each extra: ok, missing, or off, with what
   it is for and, when it is not there, the one command that adds it for the way sluicer
   was installed (pip, uv tool, pipx, uvx or a uv project). The browser is ok only when
-  Playwright's Chromium is downloaded too. Exits 0 when everything a plain install gives
-  works, a missing extra included, and 2 when some of it does not.
+  Playwright's Chromium is downloaded too, and invalid when SLUICER_BROWSER names a
+  browser Sluicer does not drive, which every fetch refuses. Exits 0 when everything a
+  plain install gives works, a missing extra included, and 2 when protego or trafilatura
+  is missing or SLUICER_BROWSER is invalid. Without lxml, click or cssselect no command
+  starts, this one included.
 
 Options:
   --help  Show this message and exit.

@@ -19,8 +19,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   that every part of it is there; without the extra, it prints the command
   that adds it and exits 2.
 - `sluicer doctor` says what is installed, what each missing piece is for, and
-  the command that adds it; it exits 2 when part of the base install is
-  missing.
+  the command that adds it; it exits 2 when protego or trafilatura is
+  missing, or when `SLUICER_BROWSER` names a browser no fetch accepts.
+  Without lxml, click or cssselect no command starts, `doctor` included.
 - `bench/golden.py`: a digest of every public reading of every cached
   benchmark page, so a change meant only to be faster is shown to change no
   byte of any answer, and a timer per page.
@@ -166,6 +167,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
   class="language-```x">` opened a fence the page never closed, and a page
   600 `<div>`s deep failed with a RecursionError. None of these happens now:
   past 100 levels the rest is written as plain text.
+- The install lines `doctor` and a missing extra's message give: a pipx
+  install pinned to a version (`sluicer[microformats]==0.10.0`) was read as
+  having no extra, and the line dropped microformats; an environment with no
+  pip in it was told `python -m pip`, which fails there, and is now told `uv
+  pip install --python` when uv is on the `PATH`, or `python -m ensurepip`
+  first; in a uv project, "then: sluicer install browser" ran whichever
+  sluicer the `PATH` found, and now names the project's own Python.
+  `SLUICER_BROWSER=chrome sluicer doctor` said "ok browser" while every
+  fetch refused the value; it is now reported invalid, and doctor exits 2.
 - `sluicer doctor` and `sluicer install browser` ran Playwright with
   `python -m playwright`, which imports from the working directory first: a
   `playwright/__main__.py` in the folder they were run in, a cloned

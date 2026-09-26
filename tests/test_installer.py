@@ -107,6 +107,50 @@ def test_pipx_installs_over_its_environment_only_with_force(tmp_path):
     )
 
 
+def test_a_pinned_pipx_requirement_keeps_its_extras(tmp_path):
+    """pipx records the requirement as it was asked for; a pinned one,
+    "sluicer[microformats]==0.10.0", was read as no extra at all, and the
+    line given dropped microformats."""
+    prefix = _venv(tmp_path / "pipx" / "venvs" / "sluicer", uv=False)
+    for asked in ("sluicer[microformats]==0.10.0", "sluicer [microformats] >=0.10"):
+        (prefix / "pipx_metadata.json").write_text(
+            json.dumps({"main_package": {"package_or_url": asked}}),
+            encoding="utf-8",
+        )
+
+        found = detect(prefix, "python", {}, _no_pip)
+
+        assert found.asked == {"microformats"}, asked
+        assert found.command(["browser"], found.kept()) == (
+            'pipx install --force "sluicer[browser,microformats]"'
+        )
+
+
+def test_an_environment_without_pip_is_not_told_to_run_pip(tmp_path, monkeypatch):
+    """A venv made --without-pip was told "python -m pip install", which
+    fails there: "No module named pip"."""
+    prefix = _venv(tmp_path / "env", uv=False)
+    python = str(prefix / "bin" / "python")
+    monkeypatch.setattr(installer.sys, "prefix", str(prefix))
+    monkeypatch.setattr(installer, "_importable", lambda module: module != "pip")
+
+    with_uv = detect(prefix, python, {}, lambda name: f"/bin/{name}")
+    without = detect(prefix, python, {}, _no_pip)
+
+    assert with_uv.kind == without.kind == "pip"
+    assert with_uv.command(["mcp"]) == (
+        f'uv pip install --python {python} "sluicer[mcp]"'
+    )
+    assert without.command(["mcp"]) == (
+        f'{python} -m ensurepip, then: {python} -m pip install "sluicer[mcp]"'
+    )
+    # One that has pip is told pip, as before.
+    monkeypatch.setattr(installer, "_importable", lambda module: True)
+    assert detect(prefix, python, {}, _no_pip).command(["mcp"]) == (
+        f'{python} -m pip install "sluicer[mcp]"'
+    )
+
+
 def test_uvx_is_told_to_run_again_with_the_extra(tmp_path):
     """uvx installs nothing to keep: its environment is one in uv's cache,
     made for one set of requirements, so the fix is the next run's line."""

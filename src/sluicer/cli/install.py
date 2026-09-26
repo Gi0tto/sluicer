@@ -27,6 +27,7 @@ import click
 
 from sluicer import installer
 from sluicer.cli.exits import COULD_NOT_READ, _fail
+from sluicer.fetch.browser import BROWSER_ENV, UnknownBrowser, browser_wanted
 from sluicer.installer import EXTRAS, Installation, _importable, _quoted
 
 _run = subprocess.run
@@ -43,8 +44,12 @@ def _browser_command(installation: Installation, have: set[str]) -> str:
 
 def _sluicer(installation: Installation) -> str:
     """How to run this sluicer again: by name, or through its interpreter
-    when the ``PATH`` does not lead to its environment."""
-    if installation.short or installation.kind not in ("pip", "uv venv"):
+    when the ``PATH`` may not lead to its environment. A uv project's
+    environment is never the ``PATH``'s: ``sluicer`` there ran whichever
+    other Sluicer the ``PATH`` found, a ``uv tool`` one or none."""
+    if installation.kind in ("uv tool", "pipx", "uvx"):
+        return "sluicer"
+    if installation.short and installation.kind != "uv project":
         return "sluicer"
     return f"{_quoted(installation.python)} -m sluicer"
 
@@ -173,7 +178,7 @@ def _browser_state(
 ) -> tuple[str, str, str | None]:
     """The browser's status, what it means, and its fix, when Playwright is
     installed: the extra is only half of it."""
-    chosen = os.environ.get("SLUICER_BROWSER", "").strip().lower()
+    chosen = os.environ.get(BROWSER_ENV, "").strip().lower()
     if chosen == "none":
         return "off", "SLUICER_BROWSER=none turns the browser rung off", None
     if os.environ.get("SLUICER_CDP_URL", "").strip():
@@ -195,6 +200,13 @@ def _row(
     piece: _Piece, installation: Installation, have: set[str], there_now: set[str]
 ) -> tuple[str, str, str, str | None]:
     """One line of ``doctor``: status, name, what it is for, and its fix."""
+    if piece.extra == "browser":
+        try:
+            browser_wanted()
+        except UnknownBrowser as unknown:
+            # Every fetch refuses it, over plain HTTP too: said here, where
+            # "ok browser" said the opposite.
+            return "invalid", piece.name, str(unknown), f"unset {BROWSER_ENV}"
     if piece.extra is None:
         absent = [module for module in piece.modules if not _importable(module)]
         if not absent:
@@ -222,8 +234,11 @@ def doctor_command() -> None:
     off, with what it is for and, when it is not there, the one command that
     adds it for the way sluicer was installed (pip, uv tool, pipx, uvx or a
     uv project). The browser is ok only when Playwright's Chromium is
-    downloaded too. Exits 0 when everything a plain install gives works, a
-    missing extra included, and 2 when some of it does not.
+    downloaded too, and invalid when SLUICER_BROWSER names a browser Sluicer
+    does not drive, which every fetch refuses. Exits 0 when everything a
+    plain install gives works, a missing extra included, and 2 when protego
+    or trafilatura is missing or SLUICER_BROWSER is invalid. Without lxml,
+    click or cssselect no command starts, this one included.
     """
     installation = installer.current()
     have = installation.kept()
@@ -234,10 +249,12 @@ def doctor_command() -> None:
     click.echo(f"installed with {installation.described}")
     click.echo()
     rows = [_row(piece, installation, have, there_now) for piece in PIECES]
-    # The base install is broken when a piece of it is missing: markdown has
-    # been part of it since 0.10.
+    # The base install is broken when a piece of it is missing (markdown has
+    # been part of it since 0.10), or when every fetch refuses the browser
+    # asked for.
     broken = any(
-        status == "missing" and name in ("reading pages", "markdown")
+        (status == "missing" and name in ("reading pages", "markdown"))
+        or status == "invalid"
         for status, name, _, _ in rows
     )
     status_width = max(len(row[0]) for row in rows)
