@@ -360,6 +360,7 @@ def read_summary(
             _not_an_address(og("article:author")),
             _orphan_itemprop(doc, "author", meta=False),
             _not_an_address(_of_the_document(doc, _RDFA_AUTHOR)),
+            _written_by(twitter, doc, site_names),
         ],
         "published": [
             own("datePublished"),
@@ -1576,6 +1577,58 @@ def _of_the_document(doc: Document, iris: tuple[str, ...]) -> SummaryField | Non
             if text and len(text) <= _ORPHAN_MOST:
                 return SummaryField(text, "rdfa", f"property={term}", xpath_of(element))
     return None
+
+
+# The labels Yoast SEO gives the Twitter card's "Written by" pair, in English
+# and in its German, French, Spanish, Portuguese, Italian and Dutch
+# translations, lowercased: its twitter:dataN is the post's author.
+_WRITTEN_BY = frozenset(
+    {
+        "written by",
+        "verfasst von",
+        "geschrieben von",
+        "écrit par",
+        "escrito por",
+        "scritto da",
+        "geschreven door",
+    }
+)
+
+
+def _written_by(
+    twitter: dict[str, str], doc: Document, site_names: set[str]
+) -> SummaryField | None:
+    """The author a Twitter card names in a labelled pair, as Yoast SEO writes
+    it: ``twitter:label1`` "Written by" and ``twitter:data1`` the name. Other
+    pairs are a reading time or a price.
+
+    Not on the site's home page, which is nobody's post; not a name the
+    site's own name starts with, "Warren Averett" on the site of "Warren
+    Averett CPAs & Advisors", the firm's account; and not a label alone,
+    "Staff"."""
+    if _path(doc.url) in ("", "/"):
+        return None
+    for n in range(1, 10):
+        label = _clean(twitter.get(f"label{n}"))
+        if not label or label.rstrip(" :").casefold() not in _WRITTEN_BY:
+            continue
+        text = _clean(twitter.get(f"data{n}"))
+        if (
+            not text
+            or set(text.casefold().split()) <= _NOBODY_WORDS
+            or any(site.startswith(text.casefold() + " ") for site in site_names)
+        ):
+            return None
+        return SummaryField(text, "twitter", f"twitter:data{n}")
+    return None
+
+
+def _path(url: str | None) -> str:
+    """``url``'s path, or none where ``urlsplit`` refuses it."""
+    try:
+        return urlsplit(url).path if url else ""
+    except ValueError:
+        return ""
 
 
 def _without_site(found: SummaryField, site_names: set[str]) -> SummaryField | None:
