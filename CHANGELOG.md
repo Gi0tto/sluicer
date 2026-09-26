@@ -8,6 +8,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A page that redirects to an address off the web, `ftp:` or `file:`, ends
   every page command with its reason and exit 2. It crashed them with a
   traceback and exit 1, which means "read, and gave nothing".
+- An address with no host, such as `http:///x`, is refused before anything is
+  asked: `bad_input` for the MCP tools, `AddressRefused` from `fetch()`, exit
+  2 on the command line. It was reported as a robots.txt that could not be
+  read, and marked worth retrying.
 
 ## 0.9.0 - 2026-09-26
 

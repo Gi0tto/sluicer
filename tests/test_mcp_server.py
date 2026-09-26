@@ -2001,3 +2001,20 @@ def test_a_healed_extractor_too_large_for_an_answer_is_refused(monkeypatch):
     got = registered["heal_extractor"](learnt["extractor"], [heavy])
     assert got["ok"] is False and got["error"]["code"] == "too_large"
     _within_the_bound(got)
+
+
+@pytest.mark.parametrize("tool", ["extract_declared", "fetch_page", "page_markdown"])
+def test_an_address_with_no_host_is_bad_input_not_retryable(monkeypatch, tool):
+    """Measured on 0.9.0: http:///x was fetch_failed, retryable true, and its
+    message blamed an unreadable robots.txt."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered[tool]("http:///x")
+
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "bad_input"
+    assert answer["error"]["retryable"] is False
+    assert "names no host" in answer["error"]["message"]

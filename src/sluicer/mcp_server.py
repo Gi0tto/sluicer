@@ -301,6 +301,24 @@ def _html_of(
     return html, url, record
 
 
+def _check_address(url: str) -> None:
+    """Refuse, as ``bad_input``, an http(s) address that names no host.
+
+    ``http:///x`` is a typo, not a site that is down: until 0.9.1 it was
+    answered ``fetch_failed``, ``retryable`` true, blaming its robots.txt.
+    """
+    from urllib.parse import urlsplit
+
+    try:
+        host = urlsplit(url).hostname
+    except ValueError as invalid:
+        raise _BadInput(f"{url!r} is not a valid address: {invalid}") from invalid
+    if not host:
+        raise _BadInput(
+            f"{url!r} names no host: an address is written https://example.com/page"
+        )
+
+
 def _page_of(
     html_or_url: str, at: str | None = None
 ) -> tuple[str, str | None, dict[str, Any] | None, dict[str, str] | None]:
@@ -314,6 +332,8 @@ def _page_of(
     is_url = html_or_url.strip().lower().startswith(("http://", "https://"))
     if at is not None and not is_url:
         raise _BadInput("at reads an address from the Wayback Machine, not HTML")
+    if is_url:
+        _check_address(html_or_url.strip())
     if is_url and at is not None:
         from sluicer.fetch.archive import fetch_archived
 

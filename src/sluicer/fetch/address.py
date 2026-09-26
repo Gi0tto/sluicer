@@ -82,14 +82,21 @@ def why_not_web(url: str) -> str | None:
     """The reason ``url`` is not a web address, http or https, or None when it is.
 
     Asked of every address before it is requested, private ones allowed or
-    not: a scheme is never a question of which network is reachable.
+    not: a scheme is never a question of which network is reachable, and an
+    address with no host (``http:///x``) is nowhere at all. Refused here,
+    before its robots.txt is asked for, it is not taken for a robots.txt
+    that could not be read, which is worth asking again later.
     """
     try:
-        scheme = urlsplit(url).scheme.lower()
+        parts = urlsplit(url)
+        scheme = parts.scheme.lower()
+        host = parts.hostname
     except ValueError:
         return "the address is not a valid URL"
     if scheme not in WEB_SCHEMES:
         return f"only http and https are fetched, not {scheme or 'no scheme'}"
+    if not host:
+        return "the address names no host"
     return None
 
 
