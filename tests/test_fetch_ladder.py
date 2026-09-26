@@ -1,4 +1,5 @@
 import socket
+from pathlib import Path
 
 import pytest
 
@@ -1136,3 +1137,78 @@ def test_a_name_lookup_that_may_be_a_network_loss_is_still_worth_asking_again(
 
     assert failed.value.transient is transient
     assert "does not resolve" not in str(failed.value)
+
+
+def test_the_ladder_judges_a_page_without_extracting_it(monkeypatch):
+    """Whether a page declared a thing was a whole ``extract`` -- summary,
+    links, rights -- run to answer yes or no, then run again by the caller.
+    The readers about things answer it alone."""
+    import sluicer.api
+
+    def extracted(*args, **kwargs):
+        raise AssertionError("the ladder ran a whole extraction")
+
+    monkeypatch.setattr(sluicer.api, "_extract_document", extracted)
+    http = rung("http", RICH)
+    browser = rung("browser", RICH)
+
+    result = fetch(
+        "https://example.com",
+        rungs=[("http", http), ("browser", browser)],
+        obey_robots=False,
+    )
+
+    assert result.rung == "http"
+    assert browser.calls == []
+
+
+_JUDGED = sorted(
+    path
+    for path in (Path(__file__).parent / "fixtures").rglob("*")
+    if path.suffix in (".html", ".htm")
+)
+
+
+@pytest.mark.parametrize("path", _JUDGED, ids=lambda path: path.name)
+def test_the_ladder_s_check_is_what_a_whole_extraction_says(path):
+    from sluicer.api import _declared_about_its_things, extract
+    from sluicer.declared.merge import declares_a_thing
+    from sluicer.document import load
+
+    page = path.read_bytes()
+    whole = _declared_about_its_things(extract(page, url="https://a.example/").records)
+    assert declares_a_thing(load(page, url="https://a.example/")) is whole
+
+
+@pytest.mark.parametrize(
+    ("page", "declares"),
+    [
+        # A type and nothing else is no field.
+        ('<script type="application/ld+json">{"@type": "Product"}</script>', False),
+        # A microdata field folded into a JSON-LD record of its type is one.
+        (
+            '<script type="application/ld+json">{"@type": "Product"}</script>'
+            '<div itemscope itemtype="https://schema.org/Product">'
+            '<span itemprop="name">Pad</span></div>',
+            True,
+        ),
+        (
+            '<div typeof="schema:Product"><span property="schema:name">Pad</span>'
+            "</div>",
+            True,
+        ),
+        # The page's own tags describe the page, not a thing on it.
+        (
+            '<meta property="og:title" content="Pad"><meta name="author" content="A">',
+            False,
+        ),
+    ],
+)
+def test_a_field_about_a_thing_is_what_counts(page, declares):
+    from sluicer.api import _declared_about_its_things, extract
+    from sluicer.declared.merge import declares_a_thing
+    from sluicer.document import load
+
+    html = f"<html><head></head><body>{page}</body></html>"
+    assert _declared_about_its_things(extract(html).records) is declares
+    assert declares_a_thing(load(html)) is declares

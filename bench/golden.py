@@ -214,6 +214,15 @@ def read_page(page: Page, markdown: bool) -> dict[str, str]:
     plain = extract(page.body, url=page.url)
     out["extract"] = _extraction(plain)
     out["found"] = str(_declared_about_its_things(plain.records))
+    try:
+        from sluicer.declared.merge import declares_a_thing
+    except ImportError:  # a tree from before the ladder's own check
+        pass
+    else:
+        from sluicer.document import load
+
+        if declares_a_thing(load(page.body, url=page.url)) != (out["found"] == "True"):
+            out["found"] = "the ladder's check disagrees with extract"
     if headers:
         out["extract+headers"] = _extraction(
             extract(page.body, url=page.url, headers=headers)
