@@ -1413,3 +1413,22 @@ def test_an_author_itemprop_outside_any_item_is_the_first_name_in_it():
     assert author('<li itemprop="author"> Kev </li>') == "Kev"
     page = '<body class="comments-open"><span itemprop="author">Ann Lee</span></body>'
     assert _summary(f"<html>{page}</html>")["author"][0] == "Ann Lee"
+
+
+def test_an_author_itemprop_that_is_a_role_or_another_property_s_is_nobody():
+    """Found by the hostile review of 0.10: a byline's placeholder, "Staff
+    Reporter", answered as the author, and so did a reviewer's name inside
+    <div itemprop="review">, which is the review's author, not the page's."""
+
+    def author(body: str) -> str | None:
+        found = _summary(f"<html><body>{body}</body></html>").get("author")
+        return found[0] if found else None
+
+    for role in ("Staff Reporter", "Senior Correspondent", "News Desk", "Guest"):
+        assert author(f'<span itemprop="author">{role}</span>') is None, role
+    for held in ("review", "comment", "citation"):
+        box = f'<div itemprop="{held}"><span itemprop="author">Rick Roe</span></div>'
+        assert author(box) is None, held
+    # The article's own text is the page's: an author box may close it.
+    body = '<div itemprop="articleBody"><p>By <span itemprop="author">Ann Lee</span>'
+    assert author(body + "</p></div>") == "Ann Lee"

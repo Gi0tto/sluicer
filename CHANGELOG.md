@@ -161,7 +161,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   item, `<span itemprop="author">Ann Smith</span>`, was not read; only a
   `<meta itemprop>` was. It is now the author when nothing else on the page
   declares one: the first text in it that reads as a person's name, never
-  one in a comment or an aside.
+  one in a comment or an aside, nor one inside another property, such as a
+  `<div itemprop="review">`, whose author is the review's (the article's own
+  `articleBody` excepted), and never a role alone, "Staff Reporter" or "News
+  Desk". A name must open with a capital, so a name in lowercase, or in a
+  script without capitals such as `山田太郎`, is not read here.
 - RDFa properties with no subject in force, which RDFa gives to the page
   itself (`<meta property="dc:date">`, `<span property="dcterms:creator">`),
   were not read, since the RDFa reader reads only the subjects a `typeof`

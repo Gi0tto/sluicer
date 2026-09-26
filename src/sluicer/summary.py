@@ -1526,8 +1526,19 @@ def _orphan_itemprop(
                     text, "html", f"<meta itemprop={prop}>", xpath_of(element)
                 )
             # An element that is an item itself holds a card, not a value;
-            # one in a comment or an aside is somebody else's.
-            if element.get("itemscope") is not None or _another_voice(element):
+            # one in a comment or an aside is somebody else's, and one inside
+            # another property, <div itemprop="review">, is that property's:
+            # a review's author is not the page's. The article's own text,
+            # articleBody, is the page's, and an author box may close it.
+            if (
+                element.get("itemscope") is not None
+                or _another_voice(element)
+                or any(
+                    set(held.split()) - _THE_PAGE_S_TEXT
+                    for above in element.iterancestors()
+                    if (held := above.get("itemprop")) is not None
+                )
+            ):
                 continue
             if _itemprop_value(element) is None:
                 continue
@@ -1539,8 +1550,19 @@ def _orphan_itemprop(
     return None
 
 
-# The words of a byline that name nobody: its label, not a person.
-_NOBODY_WORDS = frozenset({"by", "staff", "team", "editor", "editors", "writer"})
+# The properties that hold the page's own text, inside which an author is
+# still the page's.
+_THE_PAGE_S_TEXT = frozenset({"articleBody", "text"})
+# The words of a byline that name nobody: its label or a role, not a person.
+# A byline of these words alone, "Staff Reporter", "News Desk", "Guest
+# Contributor", is a placeholder where no name was written.
+_NOBODY_WORDS = frozenset(
+    (  # noqa: SIM905 -- read as a line of words
+        "by staff team editor editors writer writers reporter reporters "
+        "correspondent correspondents contributor contributors columnist "
+        "journalist author authors desk news newsroom admin guest senior chief special"
+    ).split()
+)
 # The longest text an element outside any item is read as a value: a name or
 # a date, not a paragraph that happens to carry an itemprop.
 _ORPHAN_MOST = 120
