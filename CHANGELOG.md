@@ -54,6 +54,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `ok` true and ignored `want`.
 - `sluicer mcp --tools ''`, a list that names no tool, is refused with the
   twelve names and exit 2. It started a server with no tool, in silence.
+- `sluicer heal --force` without `-o` is a usage error, exit 2, before any
+  page is read. `--force` alone did nothing and said nothing.
 
 ## 0.9.0 - 2026-09-26
 

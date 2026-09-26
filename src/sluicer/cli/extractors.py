@@ -291,6 +291,12 @@ def heal_command(
     Nothing is written then without --force, so a lossy extractor never
     quietly replaces the one that would have kept failing.
     """
+    if force and not output:
+        # Until 0.9.1 --force alone did nothing, and said nothing.
+        raise click.UsageError(
+            "--force writes the healed extractor even when healing lost "
+            "something; it needs -o FILE to write it to."
+        )
     extractor = _load_extractor(extractor_file)
     pages = _read_pages(sources, stealth, no_robots)
     try:
