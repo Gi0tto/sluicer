@@ -10,6 +10,6 @@
     "`sluicer.extract(html, url=...)` reads HTML you already have; the `url` only resolves the page's links. It returns an `Extraction` with `records` and a `summary`.",
     "Each value in `summary` is a `sluicer.SummaryField` with `value`, `source` (the vocabulary), `key` and `where` (an XPath or a JSON pointer): cite `where` for where a value came from.",
     "The base install fetches URLs over plain HTTP (`sluicer[browser]` adds a browser for pages drawn by scripts); `sluicer[mcp]` gives agents the MCP server, `sluicer mcp`; `sluicer[api]` serves the same tools over HTTP, `sluicer serve`.",
-    "Learn an extractor with `sluicer compile --want NAME=VALUE` and replay it with `sluicer run`, which exits 3 when a page no longer fits it; `sluicer heal` says where each field moved."
+    "Learn an extractor with `sluicer compile --want NAME=VALUE` and replay it with `sluicer run`, which exits 3 when a page no longer fits it; `sluicer heal` proposes where each field moved when the new page still shows values it was learnt from."
   ]
 }

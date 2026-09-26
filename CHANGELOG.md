@@ -14,6 +14,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
   environment is active. The README now gives `uv tool install sluicer` for
   the command, `uvx sluicer` to run it once, and `pip install sluicer` for the
   library, and says how to get `examples/brake-pads.html` without a clone.
+- The README, the demo's caption and the why page said `heal` tells you where
+  each field moved. On the drift benchmark's 21 real redesigns it was fully
+  right on none and partly right on 2, since most new pages share no item
+  with the old ones. They now say it proposes moves from the old values it
+  finds again, and when that helps; a test reads those numbers from the drift
+  page.
+- The headline said extractors fail loudly "when a site changes"; it now says
+  when its layout changes, and the README says plainly that a wrong value in
+  the right place passes: the checks flagged 18% of wrong answers on SWDE.
+- The why page's comparison was of Sluicer 0.7.0; it is now 0.9.0's, with the
+  stealth rung and the Docker image in it.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.

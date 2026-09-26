@@ -170,3 +170,27 @@ def test_the_readme_s_heal_runs_as_written_and_prints_what_it_shows(
         main, ["run", "shop-healed.json", "examples/shop/after.html"]
     )
     assert healed.exit_code == 0, healed.stderr
+
+
+def test_what_the_readme_and_why_say_of_heal_is_the_drift_benchmark_s():
+    """The README said `heal` "tells you where each field moved"; on the drift
+    benchmark's redesigns it was fully right on none. What the README and the
+    why page now say of heal's record is read from the drift page's heal
+    table, so a regenerated benchmark cannot leave the claim behind."""
+    drift = (ROOT / "docs" / "drift.md").read_text(encoding="utf-8")
+    table = drift.split("| heal | on the pairs with drift |", 1)[1].split("\n\n", 1)[0]
+    heal = {
+        row.group(1): int(row.group(2))
+        for row in re.finditer(r"^\| ([A-Za-z ]+) \| (\d+) \| \d+ \|$", table, re.M)
+    }
+    assert set(heal) == {"right", "partly right", "nothing to match", "no listing on B"}
+    changed = sum(heal.values())
+    right = "none" if heal["right"] == 0 else str(heal["right"])
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    said = " ".join(readme.split())
+    assert f"{changed} real redesigns, {heal['nothing to match']} of the new" in said
+    assert f"fully right on {right} and partly right on {heal['partly right']}" in said
+    why = " ".join((ROOT / "docs" / "why.md").read_text(encoding="utf-8").split())
+    assert f"{changed} real redesigns" in why
+    assert f"fully right on {right} of them and partly right on" in why
+    assert f"partly right on {heal['partly right']}." in why

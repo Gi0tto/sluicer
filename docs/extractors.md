@@ -5,7 +5,9 @@ and the scraper keeps running and returns nulls, or the wrong column, for weeks
 before anyone notices. An extractor is built the other way round: it is learnt
 once from a few pages, kept in a small file, replayed for nothing, and every
 replay checks the page against what was learnt. A page that drifted is a failed
-run, never a quiet one. When it fails, `heal` says what moved and where.
+run, never a quiet one. When it fails, `heal` looks for the values it was
+learnt from on the new page and proposes where each field moved; it can move
+only a field whose old values the new page still shows.
 
 No model is involved at any step. The same pages always give the same extractor,
 and the same page always gives the same verdict.
