@@ -164,13 +164,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and marked worth retrying.
 - A page the site answers with its error, a 4xx or a 5xx, is no longer read as
   the page. `extract`, `inspect`, `select`, `markdown`, `diff`, `feed` and
-  `compile` exit 2 naming the status, where `extract` printed "404 Not Found"
+  `compile` exit 2 naming the status and how to read the error page anyway
+  (`sluicer fetch URL | sluicer extract - --url URL`, or a file from
+  `sluicer fetch -o`), where `extract` printed "404 Not Found"
   as the title and exited 0; a crawl's or a batch's line is `ok` false,
   `fetch_failed`, retryable for a 429 or a 5xx, and keeps its `landed` and
   `fetch` (and the table its status, landed and rung columns), as do the
   pages of MCP `crawl_site` and `extract_many`, leaving out the error page's
   summary, records, canonical and links; the MCP tools and the HTTP
-  API answer `fetch_failed` (502). `fetch`, `fetch_page`, `audit` and
+  API answer `fetch_failed` (502), saying that `fetch_page` gives the error
+  page and `extract_declared` reads its html. `fetch`, `fetch_page`, `audit` and
   `audit_page` still answer about the error page as it is, as documented.
 - Text that is neither an http(s) URL nor HTML, such as `example.com`, is
   `bad_input` for the MCP tools that take a page, with the address written

@@ -368,7 +368,9 @@ def _page_of(
             fetched.url,
             [],
             f"the site answered status {fetched.status}, which is its error, "
-            "not the page",
+            "not the page. To read the error page anyway: fetch_page answers "
+            "with it as it is, and extract_declared, or any tool that takes a "
+            "page's HTML, reads the html it gives",
             transient=fetched.status == 429 or fetched.status >= 500,
         )
     if is_url:

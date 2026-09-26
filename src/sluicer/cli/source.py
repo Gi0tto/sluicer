@@ -63,11 +63,49 @@ def _read_source(
     if not error_page and fetched is not None and not 200 <= fetched.status < 300:
         _fail(
             f"Could not read {source}: the site answered status "
-            f"{fetched.status}, which is its error, not the page."
+            f"{fetched.status}, which is its error, not the page. "
+            + _read_anyway(source, fetched.url, stealth, no_robots, at)
         )
     if "tdm" in respect:
         _refuse_reserved(html, url, fetched, obey_robots=not no_robots)
     return html, url, fetched
+
+
+# The commands that read one page from standard input, with --url for its
+# address: the error page can be piped to them from `sluicer fetch`.
+_PIPED = ("extract", "inspect", "markdown", "feed")
+
+
+def _read_anyway(
+    source: str, landed: str, stealth: bool, no_robots: bool, at: str | None
+) -> str:
+    """How to read an error page anyway, said after the refusal: ``sluicer
+    fetch`` gives whatever the site sent, and a command reads it from there.
+
+    Until the hostile review of 0.9.1 the refusal named no way forward, and
+    reading a 404 on purpose -- to see what a site says for a page it lost --
+    was a thing no command did.
+    """
+    import shlex
+
+    fetch = f"sluicer fetch {shlex.quote(source)}"
+    if at is not None:
+        fetch += f" --at {shlex.quote(at)}"
+    if stealth:
+        fetch += " --stealth"
+    if no_robots:
+        fetch += " --no-robots"
+    context = click.get_current_context(silent=True)
+    command = context.info_name if context is not None else None
+    if command in _PIPED:
+        return (
+            f"To read the error page anyway: {fetch} | sluicer {command} - "
+            f"--url {shlex.quote(landed)}"
+        )
+    return (
+        f"To read the error page anyway, keep it in a file and give "
+        f"{command or 'the command'} the file: {fetch} -o error-page.html"
+    )
 
 
 def _from_a_file(name: str) -> bool:
