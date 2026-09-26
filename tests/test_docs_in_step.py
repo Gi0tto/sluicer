@@ -194,3 +194,14 @@ def test_what_the_readme_and_why_say_of_heal_is_the_drift_benchmark_s():
     assert f"{changed} real redesigns" in why
     assert f"fully right on {right} of them and partly right on" in why
     assert f"partly right on {heal['partly right']}." in why
+
+
+def test_the_roadmap_names_every_release_the_changelog_does():
+    """ROADMAP.md stopped at "Shipped in 0.6.0" while 0.7.0, 0.8.0 and 0.9.0
+    had shipped: every minor release in the changelog has its section."""
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+    releases = re.findall(r"^## (\d+\.\d+\.0) - ", changelog, re.MULTILINE)
+    assert releases
+    for release in releases:
+        assert f"## Shipped in {release}\n" in roadmap, release

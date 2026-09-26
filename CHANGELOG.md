@@ -25,6 +25,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the right place passes: the checks flagged 18% of wrong answers on SWDE.
 - The why page's comparison was of Sluicer 0.7.0; it is now 0.9.0's, with the
   stealth rung and the Docker image in it.
+- The roadmap stopped at "Shipped in 0.6.0". It now says what 0.7.0, 0.7.1,
+  0.8.0 and 0.9.0 shipped, and a test holds it to the changelog's releases.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.
