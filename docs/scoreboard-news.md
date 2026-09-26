@@ -4,7 +4,7 @@ The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on news pages from 42 countries'
 publishers, in 21 declared languages, with their scripts:
 as fundus fetched them, stored re-encoded as UTF-8.
-Regenerated on 2026-09-25 from commit `10211f3` by
+Regenerated on 2026-09-26 from commit `8a426a2` by
 `uv run bench/news.py`, against fundus at `c1b86b675018`; the method is in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -37,16 +37,16 @@ Hit rate is hits over the pages that carry a label (263 titles, 257 authors, 263
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.9.0 | 0.871 (0.82–0.91) | 0.829 (0.77–0.87) | 0.970 (0.94–0.99) | 4 | 0 |
+| sluicer 0.9.1 | 0.871 (0.82–0.91) | 0.829 (0.77–0.87) | 0.970 (0.94–0.99) | 4 | 0 |
 | trafilatura 2.2.0 | 0.852 (0.80–0.89) | 0.879 (0.83–0.92) | 0.970 (0.94–0.99) | 3 | 0 |
 | metascraper 5.58.1 | 0.726 (0.66–0.78) | 0.864 (0.81–0.91) | 0.981 (0.95–1.00) | 5 | 0 |
 | newspaper4k 0.9.6 | 0.779 (0.72–0.83) | 0.767 (0.71–0.82) | 0.932 (0.89–0.96) | 1 | 0 |
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.9.0 | title | 229 | 34 | 0 | 0 | 0 | 0.871 (0.82–0.91) | 0.871 (0.82–0.91) |
-| sluicer 0.9.0 | author | 213 | 13 | 31 | 2 | 4 | 0.829 (0.77–0.87) | 0.926 (0.88–0.96) |
-| sluicer 0.9.0 | date | 255 | 0 | 8 | 0 | 0 | 0.970 (0.94–0.99) | 1.000 (0.98–1.00) |
+| sluicer 0.9.1 | title | 229 | 34 | 0 | 0 | 0 | 0.871 (0.82–0.91) | 0.871 (0.82–0.91) |
+| sluicer 0.9.1 | author | 213 | 13 | 31 | 2 | 4 | 0.829 (0.77–0.87) | 0.926 (0.88–0.96) |
+| sluicer 0.9.1 | date | 255 | 0 | 8 | 0 | 0 | 0.970 (0.94–0.99) | 1.000 (0.98–1.00) |
 | trafilatura 2.2.0 | title | 224 | 39 | 0 | 0 | 0 | 0.852 (0.80–0.89) | 0.852 (0.80–0.89) |
 | trafilatura 2.2.0 | author | 226 | 12 | 19 | 3 | 3 | 0.879 (0.83–0.92) | 0.938 (0.89–0.97) |
 | trafilatura 2.2.0 | date | 255 | 8 | 0 | 0 | 0 | 0.970 (0.94–0.99) | 0.970 (0.94–0.99) |
@@ -112,12 +112,12 @@ answer and with the guess where it has none, never in its place.
 
 | declared then `--visible`, against | field | rate | difference (95% interval) | verdict |
 |---|---|---|---|---|
-| sluicer 0.9.0, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.9.0, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.9.0, declared | author | hit rate | +0.016 (+0.003 to +0.032) | better |
-| sluicer 0.9.0, declared | author | right when answering | -0.003 (-0.012 to +0.003) | inconclusive |
-| sluicer 0.9.0, declared | date | hit rate | +0.011 (0.000 to +0.027) | inconclusive |
-| sluicer 0.9.0, declared | date | right when answering | -0.008 (-0.020 to 0.000) | inconclusive |
+| sluicer 0.9.1, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.9.1, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.9.1, declared | author | hit rate | +0.016 (+0.003 to +0.032) | better |
+| sluicer 0.9.1, declared | author | right when answering | -0.003 (-0.012 to +0.003) | inconclusive |
+| sluicer 0.9.1, declared | date | hit rate | +0.011 (0.000 to +0.027) | inconclusive |
+| sluicer 0.9.1, declared | date | right when answering | -0.008 (-0.020 to 0.000) | inconclusive |
 | trafilatura 2.2.0 | title | hit rate | +0.019 (-0.039 to +0.077) | inconclusive |
 | trafilatura 2.2.0 | title | right when answering | +0.019 (-0.039 to +0.077) | inconclusive |
 | trafilatura 2.2.0 | author | hit rate | -0.035 (-0.070 to -0.003) | worse |
@@ -152,7 +152,7 @@ Each page is counted under the language its `<html lang>` declares.
 
 ### Title
 
-| language | pages | sluicer 0.9.0 | trafilatura 2.2.0 | metascraper 5.58.1 | newspaper4k 0.9.6 |
+| language | pages | sluicer 0.9.1 | trafilatura 2.2.0 | metascraper 5.58.1 | newspaper4k 0.9.6 |
 |---|---|---|---|---|---|
 | de | 109 | 94/109 | 91/109 | 87/109 | 85/109 |
 | en | 90 | 76/90 | 74/90 | 58/90 | 74/90 |
@@ -179,7 +179,7 @@ Each page is counted under the language its `<html lang>` declares.
 
 ### Author
 
-| language | pages | sluicer 0.9.0 | trafilatura 2.2.0 | metascraper 5.58.1 | newspaper4k 0.9.6 |
+| language | pages | sluicer 0.9.1 | trafilatura 2.2.0 | metascraper 5.58.1 | newspaper4k 0.9.6 |
 |---|---|---|---|---|---|
 | de | 109 | 89/107 | 98/107 | 93/107 | 85/107 |
 | en | 90 | 82/89 | 83/89 | 82/89 | 72/89 |
@@ -206,7 +206,7 @@ Each page is counted under the language its `<html lang>` declares.
 
 ### Date
 
-| language | pages | sluicer 0.9.0 | trafilatura 2.2.0 | metascraper 5.58.1 | newspaper4k 0.9.6 |
+| language | pages | sluicer 0.9.1 | trafilatura 2.2.0 | metascraper 5.58.1 | newspaper4k 0.9.6 |
 |---|---|---|---|---|---|
 | de | 109 | 104/109 | 105/109 | 107/109 | 106/109 |
 | en | 90 | 89/90 | 87/90 | 90/90 | 90/90 |
@@ -233,14 +233,14 @@ Each page is counted under the language its `<html lang>` declares.
 
 ## Speed and size
 
-Measured on 2026-09-25 by `uv run bench/timing.py news` at commit `10211f3`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+Measured on 2026-09-26 by `uv run bench/timing.py news` at commit `8a426a2`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
 
 | tool | runtime | seconds per page | seconds for all 263 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
 |---|---|---|---|---|---|---|---|
-| sluicer 0.9.0 | Python 3.12.13 | 0.0035 | 0.91 (0.91–0.91) | 290 | 193.9 MiB | 19.5 MiB | 5 |
-| trafilatura 2.2.0 | Python 3.12.13 | 0.0075 | 1.98 (1.98–1.98) | 133 | 243.8 MiB | 58.2 MiB | 17 |
-| metascraper 5.58.1 | Node 26.1.0 | 0.0083 | 2.18 (2.17–2.19) | 121 | 1378.4 MiB | 55.5 MiB | 125 |
-| newspaper4k 0.9.6 | Python 3.12.13 | 0.0573 | 15.08 (15.03–15.16) | 17 | 331.8 MiB | 39.4 MiB | 22 |
+| sluicer 0.9.1 | Python 3.12.13 | 0.0048 | 1.27 (1.06–1.49) | 207 | 196.2 MiB | 19.5 MiB | 5 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0107 | 2.81 (2.33–3.40) | 94 | 253.7 MiB | 58.2 MiB | 17 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0134 | 3.53 (2.82–4.13) | 75 | 1454.4 MiB | 55.5 MiB | 125 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0833 | 21.92 (18.68–26.30) | 12 | 331.1 MiB | 39.4 MiB | 22 |
 
 How install size and memory are counted, and the other tables, are in
 [speed and weight](speed.md).
