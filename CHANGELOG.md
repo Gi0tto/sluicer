@@ -176,7 +176,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer.extract()`, `aextract()` and `sluicer.feeds.read_feed()` handed an
   address alone warn (`UserWarning`) that they fetch nothing and say how to
   fetch it first. They returned an empty result, or None, in silence; the
-  answer is the same, since both are documented never to raise.
+  answer is the same, since both are documented never to raise. Only a call
+  of those three warns: `fetch()`, the commands, the MCP tools and the HTTP
+  API read a page or a file whose body is an address without a warning.
 - `sluicer serve` on a port another server holds says so and exits 2 before
   it says it is serving. It printed "serving the tools" and then exited 3,
   the code for a broken contract.

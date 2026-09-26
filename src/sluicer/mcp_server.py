@@ -27,7 +27,7 @@ from dataclasses import asdict
 from typing import Annotated, Any, cast
 
 from sluicer import __version__, crawl as crawling, extractor as extractor_module
-from sluicer.api import extract
+from sluicer.api import _extract as extract
 from sluicer.audit import answered_with, audit
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch import (
@@ -878,7 +878,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         """
         from sluicer.declared.links import read_links
         from sluicer.document import load
-        from sluicer.feeds import read_feed as read
+        from sluicer.feeds import _read_feed as read
 
         _within("limit", limit, 1, FEED_ITEMS)
         html, url, fetched = _html_of(url_or_text, expect_html=False)

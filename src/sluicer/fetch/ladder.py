@@ -34,7 +34,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from urllib.parse import urlsplit
 
-from sluicer.api import extract
+from sluicer.api import _extract as extract
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import load
 from sluicer.fetch.address import (

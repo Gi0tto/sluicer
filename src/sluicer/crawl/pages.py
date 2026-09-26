@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import IO, Any, TypeVar
 from urllib.parse import urlsplit
 
-from sluicer.api import Extraction, extract
+from sluicer.api import Extraction, _extract as extract
 from sluicer.crawl.schedule import (
     CONCURRENCY,
     DEFAULT_DELAY_SECONDS,

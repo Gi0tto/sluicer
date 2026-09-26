@@ -382,7 +382,7 @@ def feed_command(
     """
     from sluicer.declared.links import read_links
     from sluicer.document import load
-    from sluicer.feeds import read_feed
+    from sluicer.feeds import _read_feed as read_feed
 
     html, url, fetched = _read_source(
         source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
