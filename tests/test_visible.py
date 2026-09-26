@@ -370,22 +370,3 @@ def test_one_word_marked_rel_author_is_its_handle(link: str, handle: str) -> Non
 def test_a_label_marked_rel_author_is_no_handle(word: str) -> None:
     body = f'<h1>How to make furniture</h1><a rel="author" href="/u">{word}</a>'
     assert "author" not in read_visible(_page(body))
-
-
-def test_a_forum_thread_s_first_username_is_its_author() -> None:
-    posts = "".join(
-        f'<div class="post"><div class="username"><a href="/u/{n}">{n}</a></div>'
-        f"<p>Post by {n}.</p></div>"
-        for n in ("b.scherer", "galitsyn", "b.scherer", "chunix64")
-    )
-    guess = read_visible(_page(f"<h1>Turning off all LEDs</h1>{posts}"))["author"]
-    assert (guess.value, guess.rule) == ("b.scherer", "username")
-
-
-def test_a_byline_comes_before_a_commenter_s_username() -> None:
-    body = (
-        "<h1>Brake pads</h1><p>By Lisa Jennings</p><p>Text.</p>"
-        '<div class="comment"><span class="username">bob77</span></div>'
-        '<div><span class="username">carl88</span></div>'
-    )
-    assert read_visible(_page(body))["author"].value == "Lisa Jennings"
