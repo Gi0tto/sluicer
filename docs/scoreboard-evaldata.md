@@ -3,7 +3,7 @@
 The same questions as the [scoreboard](scoreboard.md) -- a page's title,
 author and publication date -- on the pages trafilatura evaluates itself
 on, 990 saved with their scripts, 851 of them annotated for their metadata, and the main text beside them.
-Regenerated on 2026-09-26 from commit `8a426a2` by
+Regenerated on 2026-09-26 from commit `5e97f6b` by
 `uv run bench/evaldata.py`, against trafilatura at `c852cae9708a`; the
 method is in [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -29,16 +29,16 @@ Hit rate is hits over the pages that carry a label (845 titles, 538 authors, 728
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.9.1 | 0.776 (0.74–0.81) | 0.468 (0.42–0.52) | 0.585 (0.54–0.63) | 97 | 39 |
+| sluicer 0.10.0 | 0.776 (0.74–0.81) | 0.472 (0.43–0.52) | 0.588 (0.55–0.63) | 97 | 39 |
 | trafilatura 2.2.0 | 0.738 (0.70–0.77) | 0.669 (0.62–0.71) | 0.865 (0.83–0.89) | 122 | 121 |
 | metascraper 5.58.1 | 0.699 (0.66–0.73) | 0.662 (0.62–0.71) | 0.663 (0.62–0.70) | 153 | 62 |
 | newspaper4k 0.9.6 | 0.756 (0.72–0.79) | 0.507 (0.46–0.55) | 0.668 (0.63–0.71) | 106 | 49 |
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.9.1 | title | 656 | 189 | 0 | 0 | 6 | 0.776 (0.74–0.81) | 0.771 (0.74–0.80) |
-| sluicer 0.9.1 | author | 252 | 47 | 239 | 216 | 97 | 0.468 (0.42–0.52) | 0.636 (0.58–0.69) |
-| sluicer 0.9.1 | date | 426 | 72 | 230 | 84 | 39 | 0.585 (0.54–0.63) | 0.793 (0.75–0.83) |
+| sluicer 0.10.0 | title | 656 | 189 | 0 | 0 | 6 | 0.776 (0.74–0.81) | 0.771 (0.74–0.80) |
+| sluicer 0.10.0 | author | 254 | 47 | 237 | 216 | 97 | 0.472 (0.43–0.52) | 0.638 (0.58–0.69) |
+| sluicer 0.10.0 | date | 428 | 69 | 231 | 84 | 39 | 0.588 (0.55–0.63) | 0.799 (0.76–0.84) |
 | trafilatura 2.2.0 | title | 624 | 221 | 0 | 0 | 6 | 0.738 (0.70–0.77) | 0.733 (0.70–0.77) |
 | trafilatura 2.2.0 | author | 360 | 74 | 104 | 191 | 122 | 0.669 (0.62–0.71) | 0.647 (0.60–0.69) |
 | trafilatura 2.2.0 | date | 630 | 97 | 1 | 2 | 121 | 0.865 (0.83–0.89) | 0.743 (0.71–0.78) |
@@ -56,22 +56,22 @@ outwards to two places. Sluicer against each other tool:
 |---|---|---|---|---|
 | trafilatura 2.2.0 | title | hit rate | +0.038 (+0.012 to +0.064) | better |
 | trafilatura 2.2.0 | title | right when answering | +0.038 (+0.012 to +0.064) | better |
-| trafilatura 2.2.0 | author | hit rate | -0.201 (-0.238 to -0.163) | worse |
-| trafilatura 2.2.0 | author | right when answering | -0.011 (-0.043 to +0.022) | inconclusive |
-| trafilatura 2.2.0 | date | hit rate | -0.280 (-0.315 to -0.246) | worse |
-| trafilatura 2.2.0 | date | right when answering | +0.050 (+0.020 to +0.080) | better |
+| trafilatura 2.2.0 | author | hit rate | -0.197 (-0.235 to -0.159) | worse |
+| trafilatura 2.2.0 | author | right when answering | -0.009 (-0.041 to +0.024) | inconclusive |
+| trafilatura 2.2.0 | date | hit rate | -0.277 (-0.312 to -0.244) | worse |
+| trafilatura 2.2.0 | date | right when answering | +0.056 (+0.025 to +0.085) | better |
 | metascraper 5.58.1 | title | hit rate | +0.077 (+0.053 to +0.102) | better |
 | metascraper 5.58.1 | title | right when answering | +0.066 (+0.042 to +0.090) | better |
-| metascraper 5.58.1 | author | hit rate | -0.193 (-0.233 to -0.153) | worse |
-| metascraper 5.58.1 | author | right when answering | +0.061 (+0.025 to +0.098) | better |
-| metascraper 5.58.1 | date | hit rate | -0.078 (-0.106 to -0.051) | worse |
-| metascraper 5.58.1 | date | right when answering | +0.084 (+0.055 to +0.112) | better |
+| metascraper 5.58.1 | author | hit rate | -0.190 (-0.229 to -0.150) | worse |
+| metascraper 5.58.1 | author | right when answering | +0.063 (+0.026 to +0.099) | better |
+| metascraper 5.58.1 | date | hit rate | -0.076 (-0.103 to -0.048) | worse |
+| metascraper 5.58.1 | date | right when answering | +0.089 (+0.062 to +0.117) | better |
 | newspaper4k 0.9.6 | title | hit rate | +0.020 (-0.008 to +0.048) | inconclusive |
 | newspaper4k 0.9.6 | title | right when answering | +0.015 (-0.012 to +0.041) | inconclusive |
-| newspaper4k 0.9.6 | author | hit rate | -0.039 (-0.072 to -0.007) | worse |
-| newspaper4k 0.9.6 | author | right when answering | +0.039 (+0.002 to +0.076) | better |
-| newspaper4k 0.9.6 | date | hit rate | -0.082 (-0.108 to -0.057) | worse |
-| newspaper4k 0.9.6 | date | right when answering | -0.009 (-0.031 to +0.013) | inconclusive |
+| newspaper4k 0.9.6 | author | hit rate | -0.035 (-0.069 to -0.003) | worse |
+| newspaper4k 0.9.6 | author | right when answering | +0.041 (+0.004 to +0.078) | better |
+| newspaper4k 0.9.6 | date | hit rate | -0.080 (-0.105 to -0.055) | worse |
+| newspaper4k 0.9.6 | date | right when answering | -0.003 (-0.025 to +0.017) | inconclusive |
 
 The difference is the first side's rate minus the second's, over the
 same pages. Its interval is the 95% percentile interval of 10,000
@@ -95,37 +95,37 @@ answer and with the guess where it has none, never in its place.
 | field | hit rate, declared | hit rate, declared then `--visible` | right when answering, declared | right when answering, declared then `--visible` | inventions, declared | silent miss made a hit | silent miss made wrong | inventions `--visible` added |
 |---|---|---|---|---|---|---|---|---|
 | title | 0.776 (0.74–0.81) | 0.776 (0.74–0.81) | 0.771 (0.74–0.80) | 0.771 (0.74–0.80) | 6 | 0 | 0 | 0 |
-| author | 0.468 (0.42–0.52) | 0.548 (0.50–0.59) | 0.636 (0.58–0.69) | 0.651 (0.60–0.70) | 97 | 43 | 5 | 9 |
-| date | 0.585 (0.54–0.63) | 0.701 (0.66–0.74) | 0.793 (0.75–0.83) | 0.802 (0.76–0.84) | 39 | 84 | 9 | 6 |
+| author | 0.472 (0.43–0.52) | 0.552 (0.50–0.60) | 0.638 (0.58–0.69) | 0.657 (0.61–0.70) | 97 | 43 | 4 | 7 |
+| date | 0.588 (0.55–0.63) | 0.701 (0.66–0.74) | 0.799 (0.76–0.84) | 0.806 (0.77–0.84) | 39 | 82 | 9 | 6 |
 
-`--visible` answered 156 questions the summary left unanswered: 127 right and 14 wrong where the page carries a label, and 15 invented where it carries none. Each rate carries its 95% Wilson score interval. Declared then `--visible` against the declared answers alone and against each other tool:
+`--visible` answered 151 questions the summary left unanswered: 125 right and 13 wrong where the page carries a label, and 13 invented where it carries none. Each rate carries its 95% Wilson score interval. Declared then `--visible` against the declared answers alone and against each other tool:
 
 | declared then `--visible`, against | field | rate | difference (95% interval) | verdict |
 |---|---|---|---|---|
-| sluicer 0.9.1, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.9.1, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.9.1, declared | author | hit rate | +0.080 (+0.057 to +0.104) | better |
-| sluicer 0.9.1, declared | author | right when answering | +0.015 (-0.001 to +0.031) | inconclusive |
-| sluicer 0.9.1, declared | date | hit rate | +0.115 (+0.092 to +0.139) | better |
-| sluicer 0.9.1, declared | date | right when answering | +0.009 (-0.004 to +0.021) | inconclusive |
+| sluicer 0.10.0, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.10.0, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.10.0, declared | author | hit rate | +0.080 (+0.057 to +0.104) | better |
+| sluicer 0.10.0, declared | author | right when answering | +0.019 (+0.004 to +0.034) | better |
+| sluicer 0.10.0, declared | date | hit rate | +0.113 (+0.089 to +0.136) | better |
+| sluicer 0.10.0, declared | date | right when answering | +0.007 (-0.006 to +0.020) | inconclusive |
 | trafilatura 2.2.0 | title | hit rate | +0.038 (+0.012 to +0.064) | better |
 | trafilatura 2.2.0 | title | right when answering | +0.038 (+0.012 to +0.064) | better |
-| trafilatura 2.2.0 | author | hit rate | -0.121 (-0.158 to -0.082) | worse |
-| trafilatura 2.2.0 | author | right when answering | +0.004 (-0.027 to +0.035) | inconclusive |
+| trafilatura 2.2.0 | author | hit rate | -0.117 (-0.155 to -0.079) | worse |
+| trafilatura 2.2.0 | author | right when answering | +0.010 (-0.021 to +0.041) | inconclusive |
 | trafilatura 2.2.0 | date | hit rate | -0.165 (-0.196 to -0.135) | worse |
-| trafilatura 2.2.0 | date | right when answering | +0.059 (+0.031 to +0.086) | better |
+| trafilatura 2.2.0 | date | right when answering | +0.063 (+0.035 to +0.090) | better |
 | metascraper 5.58.1 | title | hit rate | +0.077 (+0.053 to +0.102) | better |
 | metascraper 5.58.1 | title | right when answering | +0.066 (+0.042 to +0.090) | better |
-| metascraper 5.58.1 | author | hit rate | -0.113 (-0.151 to -0.075) | worse |
-| metascraper 5.58.1 | author | right when answering | +0.076 (+0.042 to +0.110) | better |
+| metascraper 5.58.1 | author | hit rate | -0.110 (-0.147 to -0.071) | worse |
+| metascraper 5.58.1 | author | right when answering | +0.082 (+0.048 to +0.116) | better |
 | metascraper 5.58.1 | date | hit rate | +0.037 (+0.008 to +0.067) | better |
-| metascraper 5.58.1 | date | right when answering | +0.093 (+0.064 to +0.121) | better |
+| metascraper 5.58.1 | date | right when answering | +0.096 (+0.068 to +0.124) | better |
 | newspaper4k 0.9.6 | title | hit rate | +0.020 (-0.008 to +0.048) | inconclusive |
 | newspaper4k 0.9.6 | title | right when answering | +0.015 (-0.012 to +0.041) | inconclusive |
-| newspaper4k 0.9.6 | author | hit rate | +0.041 (+0.007 to +0.075) | better |
-| newspaper4k 0.9.6 | author | right when answering | +0.054 (+0.018 to +0.090) | better |
+| newspaper4k 0.9.6 | author | hit rate | +0.045 (+0.010 to +0.079) | better |
+| newspaper4k 0.9.6 | author | right when answering | +0.060 (+0.023 to +0.096) | better |
 | newspaper4k 0.9.6 | date | hit rate | +0.033 (+0.008 to +0.058) | better |
-| newspaper4k 0.9.6 | date | right when answering | 0.000 (-0.021 to +0.021) | inconclusive |
+| newspaper4k 0.9.6 | date | right when answering | +0.004 (-0.017 to +0.024) | inconclusive |
 
 The difference is the first side's rate minus the second's, over the
 same pages. Its interval is the 95% percentile interval of 10,000
