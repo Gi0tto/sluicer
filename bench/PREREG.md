@@ -518,6 +518,18 @@ and called worse. So:
     whose pages kept clean were called better, gives the extraction the gaps
     are filled in (`read-gap2-W`), and `no-comments` does (`nc-gap2-W`).
 
+**Added on 2026-09-26, after `gap2-W`, `read-gap2-W` and `nc-gap2-W` were
+run on the dev pages, and before these were run.** `read-gap2-12` passed the
+test above (F1 +0.013, called better; pages kept clean -0.002, inconclusive),
+the first to find more without being called less clean. The last round,
+after which the best that passes is kept:
+
+12. *Every passing rescue, then the gaps*: `readability-0.7`'s extraction,
+    then, where it has under 0.7 times the words of trafilatura's recall
+    extraction, that one (`read-recall-gap2-12`); or the same with the recall
+    extraction chosen when it has under 0.7 times the region's words
+    (`read-region-gap2-12`); the gaps then filled as `gap2-12`.
+
 And in `full`, `<noscript>` is kept, without the images in it: a reader that
 runs no script is shown it, and a forum written for such readers keeps its
 posts there. It is still chosen by nothing.
