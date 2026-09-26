@@ -94,7 +94,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A crawl that left links unfollowed because they were deeper than
   `--max-depth` ended "done" without a word, so a paginated listing looked
   shorter than it is. The closing line now says how many links the depth left
-  out, and `crawl()`'s `Crawl` carries the same sentence as `notice`.
+  out, and `crawl()`'s `Crawl` carries the same sentence as `notice`. They
+  are counted up to 10,000, so that a crawl does not hold every link of its
+  last layer; past that the sentence says "at least".
 - The README's quick start opened `p1.html`, a file that exists nowhere, and
   replayed and healed pages of `shop.example`. It now learns from and runs on
   books.toscrape.com, a public scraping sandbox, and heals on a made-up shop

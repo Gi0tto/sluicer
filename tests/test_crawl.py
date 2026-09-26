@@ -1523,3 +1523,41 @@ def test_a_site_whose_name_does_not_exist_is_asked_once():
     assert first.error.code == "fetch_failed"
     assert first.error.retryable is False and first.retries == ()
     assert "does not resolve" in first.error.message
+
+
+def test_the_links_left_out_by_depth_are_counted_within_a_bound(monkeypatch):
+    """The hostile review of 0.9.1: every on-site link past max_depth was kept
+    in a set with no bound, each page of the last depth giving up to 5,000.
+    It now keeps a bounded number and says "at least" past it."""
+    import sluicer.crawl.pages as pages_module
+
+    deep = {
+        f"{ROOT}/": page("Home", *(f"/p/{n}" for n in range(12))),
+        **{f"{ROOT}/p/{n}": page(f"P{n}") for n in range(12)},
+    }
+    kept = []
+    real = pages_module._Frontier
+
+    class Watched(real):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            kept.append(self)
+
+    monkeypatch.setattr(pages_module, "_Frontier", Watched)
+
+    exact = run(FakeWeb(deep), max_depth=0)
+    list(exact)
+    assert exact.notice == "12 links deeper than max_depth 0 were not followed"
+
+    monkeypatch.setattr(pages_module, "_TOO_DEEP_KEPT", 5)
+    capped = run(FakeWeb(deep), max_depth=0)
+    list(capped)
+    assert capped.notice == (
+        "at least 5 links deeper than max_depth 0 were not followed"
+    )
+    assert len(kept[-1].too_deep) == 5
+
+    monkeypatch.setattr(pages_module, "_TOO_DEEP_KEPT", 12)
+    full = run(FakeWeb(deep), max_depth=0)
+    list(full)
+    assert full.notice == "12 links deeper than max_depth 0 were not followed"

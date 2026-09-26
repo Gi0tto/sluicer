@@ -70,6 +70,12 @@ MAX_PAGES = 100
 MAX_DEPTH = 3
 """How many links from the start a crawl goes unless told otherwise."""
 
+_TOO_DEEP_KEPT = 10_000
+"""How many links past ``max_depth`` a crawl keeps, to count them: each page
+at the last depth may give 5,000, so a crawl of many pages would otherwise
+hold every link of its last layer. Past this many, its notice says "at
+least"."""
+
 
 class StateMismatch(ValueError):
     """A state file was not written by this crawl: another start, other options,
@@ -363,8 +369,11 @@ def crawl(
         # Links reached and then taken after all are no longer left out.
         deeper = len(frontier.too_deep - frontier.seen)
         if deeper:
+            # Past the cap more were left out than were kept, so the count
+            # kept is a floor, and says so.
+            floor = "at least " if frontier.too_deep_more else ""
             run.notice = (
-                f"{deeper} link{'s' if deeper != 1 else ''} deeper than "
+                f"{floor}{deeper} link{'s' if deeper != 1 else ''} deeper than "
                 f"max_depth {max_depth} {'were' if deeper != 1 else 'was'} "
                 "not followed"
             )
@@ -614,8 +623,10 @@ class _Frontier:
         self.queue = Queue()
         self.seen: set[str] = {start}
         self.cut = False
-        # Links a crawl would have taken but for max_depth, each once.
+        # Links a crawl would have taken but for max_depth, each once, at
+        # most _TOO_DEEP_KEPT of them; too_deep_more says one more was seen.
         self.too_deep: set[str] = set()
+        self.too_deep_more = False
         if max_pages > 0:
             self.queue.add(start)
 
@@ -631,7 +642,12 @@ class _Frontier:
         if depth > self.max_depth:
             # Counted, not dropped without a word: a paginated listing ten
             # pages deep stopped at the fourth, and the crawl said it was done.
-            self.too_deep.add(url)
+            if url in self.too_deep:
+                return
+            if len(self.too_deep) < _TOO_DEEP_KEPT:
+                self.too_deep.add(url)
+            else:
+                self.too_deep_more = True
             return
         # Last, so that "cut" means a link that would otherwise have been taken.
         if self.queue.added >= self.max_pages:
