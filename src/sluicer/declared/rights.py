@@ -113,7 +113,7 @@ def _licences(doc: Document) -> list[str]:
     base = base_url(doc)
     found: list[str] = []
     for element in scan(doc, RELATED):
-        if element.tag not in ("link", "a", "area"):
+        if element.tag not in ("link", "a", "area") or element.get("href") is None:
             continue
         if "license" not in (element.get("rel") or "").lower().split():
             continue

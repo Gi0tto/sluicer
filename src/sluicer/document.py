@@ -263,9 +263,24 @@ class Document:
 
 METAS = "//meta"
 """Every ``<meta>``: the readers keyed on a meta tag's name each filter it."""
-RELATED = "//@rel/parent::*[@href]"
-"""Every element with a ``rel`` and an ``href``: the ``<link>``, ``<a>`` and
-``<area>`` the link relations and the licences are read from."""
+RELATED = "//@rel"
+"""Every element with a ``rel``: the ``<link>``, ``<a>`` and ``<area>`` the
+link relations and the licences are read from, each reader keeping those
+with an ``href``."""
+
+
+def carrying(tree: lxml.html.HtmlElement, path: str) -> list[lxml.html.HtmlElement]:
+    """The elements carrying the attributes ``path`` selects -- ``//@itemscope``,
+    ``//meta/@name`` -- in document order.
+
+    The attribute axis finds them two to three times faster than a predicate
+    tested on every element (``//*[@itemscope]``); each element carries one
+    attribute of a name, so each comes once. The parent is taken here and not
+    in XPath: asked as ``//@itemscope/..``, libxml2 merges each parent into
+    the node-set with a duplicate check against all it holds, the square of
+    their number: 1.9 s for forty thousand items, 4.8 s for eighty.
+    """
+    return [attribute.getparent() for attribute in tree.xpath(path)]
 
 
 def scan(doc: Document, path: str) -> tuple[lxml.html.HtmlElement, ...]:
@@ -276,11 +291,17 @@ def scan(doc: Document, path: str) -> tuple[lxml.html.HtmlElement, ...]:
     elements with a ``rel``, each walking the whole tree for its own filter
     of the same list; each now filters the one list, which comes out the same
     elements in the same order. A tuple, so no reader can change another's.
+    A path whose last step is an attribute (``RELATED``) gives the elements
+    carrying it, as ``carrying`` finds them.
     """
     key = f"scan {path}"
     found: tuple[lxml.html.HtmlElement, ...] | None = doc.memo.get(key)
     if found is None:
-        found = doc.memo[key] = tuple(doc.tree.xpath(path))
+        found = doc.memo[key] = tuple(
+            carrying(doc.tree, path)
+            if "@" in path.rpartition("/")[2]
+            else doc.tree.xpath(path)
+        )
     return found
 
 
@@ -476,7 +497,7 @@ def base_url(doc: Document) -> str | None:
 
 
 def _base_of(tree: lxml.html.HtmlElement, url: str | None) -> str | None:
-    for base in tree.xpath("//base/@href/.."):
+    for base in carrying(tree, "//base/@href"):
         declared = trimmed(base.get("href"))
         if declared:
             return _join(url, declared) if url else declared

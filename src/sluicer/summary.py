@@ -33,7 +33,7 @@ from sluicer.declared.links import canonicals
 from sluicer.declared.located import Places, paid, place, xpath_of
 from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Overruled, Record
 from sluicer.declared.opengraph import NAMESPACES
-from sluicer.document import METAS, Document, base_url, join, scan
+from sluicer.document import METAS, Document, base_url, carrying, join, scan
 from sluicer.normalise import (
     amount,
     currency as currency_of,
@@ -1450,7 +1450,7 @@ def _canonical(doc: Document, header: list[str]) -> SummaryField | None:
 
 
 def _language(doc: Document) -> SummaryField | None:
-    for element in doc.tree.xpath("//html/@lang/.."):
+    for element in carrying(doc.tree, "//html/@lang"):
         lang = _clean(element.get("lang"))
         if lang:
             return SummaryField(lang, "html", "<html lang>", xpath_of(element))

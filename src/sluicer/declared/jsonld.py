@@ -9,9 +9,9 @@ from typing import Any
 
 from sluicer.declared.located import Located, Place, xpath_of
 from sluicer.declared.types import _SCHEMA_ORG
-from sluicer.document import Document
+from sluicer.document import Document, carrying
 
-_XPATH = "//script/@type/.."
+_XPATH = "//script/@type"
 # How many references one path may follow. One is enough for an article's
 # author, publisher and image, and keeps the output in proportion: measured on
 # 2026-09-22 on a Yoast blog post, one hop gives 22 KB of JSON against 10 KB
@@ -46,7 +46,7 @@ def read_jsonld(doc: Document) -> list[dict[str, Any]]:
     """
     found: list[dict[str, Any]] = []
     places: list[Place] = []
-    for script in doc.tree.xpath(_XPATH):
+    for script in carrying(doc.tree, _XPATH):
         if not _is_ld_json(script.get("type") or ""):
             continue
         raw = (script.text_content() or "").strip()

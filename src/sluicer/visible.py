@@ -377,8 +377,7 @@ def _author(page: _Page) -> Guess | None:
     marked = [
         e
         for e in page.tree.xpath(
-            "//a/@rel/parent::*[contains(concat(' ', normalize-space(@rel), ' '), "
-            "' author ')]"
+            "//a[contains(concat(' ', normalize-space(@rel), ' '), ' author ')]"
         )
         if not page.aside(e)
     ]

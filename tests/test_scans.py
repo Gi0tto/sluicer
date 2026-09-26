@@ -58,3 +58,25 @@ def test_the_page_is_asked_each_question_once(scans, page):
     assert len(whole) == len(set(whole)), whole
     assert len([path for path in whole if "meta" in path]) == 1, whole
     assert len([path for path in whole if "@rel" in path]) == 2, whole  # + head
+
+
+def test_the_elements_carrying_an_attribute_are_found_in_linear_time():
+    """``//@itemscope/..`` finds the same elements as ``//*[@itemscope]``,
+    faster on a real page, but libxml2 merges each parent into the set
+    against all it holds: 4.8 s for eighty thousand items. The parents are
+    taken in Python instead."""
+    import time
+
+    from sluicer.document import carrying, load
+
+    many = 80_000
+    doc = load(
+        "<html><body>"
+        + "<div itemscope typeof=Thing id=a rel=next href=/n>x</div>" * many
+        + "</body></html>"
+    )
+    for attribute in ("itemscope", "typeof", "id", "rel"):
+        started = time.perf_counter()
+        found = carrying(doc.tree, f"//@{attribute}")
+        assert time.perf_counter() - started < 1, attribute
+        assert found == doc.tree.xpath(f"//*[@{attribute}]")

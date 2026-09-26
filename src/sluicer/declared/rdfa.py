@@ -36,7 +36,7 @@ from lxml.html import HtmlElement
 
 from sluicer.declared.located import Located, Place, placed
 from sluicer.declared.types import type_name
-from sluicer.document import Document, absolute, trimmed
+from sluicer.document import Document, absolute, carrying, trimmed
 
 # The address attributes RDFa reads a value from when an element carries no
 # `content` and no `resource`. `href` on the elements HTML gives it, `src` on
@@ -91,7 +91,7 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     left = [max(_PAGE_FLOOR, 10 * len(doc.html))]
     scopes = _Scopes()
     found: list[dict[str, Any]] = []
-    for subject in doc.tree.xpath("//@typeof/.."):
+    for subject in carrying(doc.tree, "//@typeof"):
         if not left[0]:
             # The page's budget is spent: reading more subjects, each
             # walking its words, would cost what no answer can hold.

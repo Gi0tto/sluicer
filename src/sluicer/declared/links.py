@@ -22,6 +22,7 @@ from sluicer.document import (
     RELATED,
     Document,
     base_url,
+    carrying,
     clean_address,
     join,
     scan,
@@ -87,7 +88,9 @@ def canonicals(doc: Document) -> list[str]:
         # A dict keeps them once each, in page order: a list asked whether it
         # held each new one, and forty thousand canonicals took four seconds.
         found: dict[str, None] = {}
-        for link in doc.tree.xpath("//head//link/@rel/parent::*[@href]"):
+        for link in carrying(doc.tree, "//head//link/@rel"):
+            if link.get("href") is None:
+                continue
             if "canonical" in (link.get("rel") or "").lower().split():
                 href = clean_address(link.get("href") or "")
                 if href:
@@ -119,7 +122,7 @@ def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:
     oembed: list[str] = []
     seen: set[tuple[str, str]] = set()
     for element in scan(doc, RELATED):
-        if element.tag not in ("link", "a"):
+        if element.tag not in ("link", "a") or element.get("href") is None:
             continue
         rels = set((element.get("rel") or "").lower().split())
         is_link = element.tag == "link"
