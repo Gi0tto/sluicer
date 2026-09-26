@@ -338,8 +338,23 @@ def _parse_bytes(data: bytes, charset: str | None = None) -> lxml.html.HtmlEleme
     non-ASCII byte it meets, so a curly quote in a ``<title>`` that precedes
     ``<meta charset="utf-8">`` turned every field on the page to mojibake.
     """
-    text = data.decode(sniff_encoding(data, charset), errors="replace")
+    encoding = sniff_encoding(data, charset)
+    if encoding == "utf-8" and (data.isascii() or _utf8(data)):
+        # Valid UTF-8 decodes and encodes back to itself, and a CR or an LF
+        # byte in it is only ever that character: its newlines are read on
+        # the bytes, which lxml is then handed as they are. The round trip
+        # through a str was a tenth of what loading a page cost, and twice
+        # the page in memory.
+        return _parse_utf8(_newline_bytes(data))
+    text = data.decode(encoding, errors="replace")
     return _parse_utf8(_newlines(text).encode("utf-8"))
+
+
+def _newline_bytes(data: bytes) -> bytes:
+    """``_newlines`` of UTF-8 bytes, on the bytes."""
+    if b"\r" not in data:
+        return data
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
 
 def _newlines(text: str) -> str:

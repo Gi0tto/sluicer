@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from hypothesis import given, strategies as st
 
 from sluicer.document import load
 
@@ -474,3 +475,80 @@ def test_an_address_s_spaces_are_found_as_str_isspace_finds_them():
         for code in range(sys.maxunicode + 1)
         if bool(_ANY_SPACE.match(chr(code))) != chr(code).isspace()
     ] == []
+
+
+def test_valid_utf8_is_parsed_from_its_own_bytes(monkeypatch):
+    """A page that is valid UTF-8 is handed to lxml as it came, not decoded
+    and encoded back, which was a tenth of the time loading took and twice
+    the page in memory."""
+    from sluicer import document
+
+    handed: list[bytes] = []
+    parse = document._parse_utf8
+
+    def recorded(data: bytes):
+        handed.append(data)
+        return parse(data)
+
+    monkeypatch.setattr(document, "_parse_utf8", recorded)
+    page = "<html><head><title>Café — menu</title></head></html>".encode()
+    assert load(page).tree.findtext(".//title") == "Café — menu"
+    assert handed[-1] is page
+    crlf = page.replace(b"<head>", b"<head>\r\n\r")
+    load(crlf)
+    assert handed[-1] == page.replace(b"<head>", b"<head>\n\n")
+
+
+def _round_trip(data: bytes, charset: str | None) -> bytes:
+    """What load parsed until 0.10: the page decoded, its newlines read,
+    and encoded back to UTF-8."""
+    from sluicer.document import _newlines, sniff_encoding
+
+    text = data.decode(sniff_encoding(data, charset), errors="replace")
+    return _newlines(text).encode("utf-8")
+
+
+_PIECES = [
+    b"<p>",
+    b"\r\n",
+    b"\r",
+    b"\n",
+    b"caf\xc3\xa9",
+    b"\xe2\x80\x94",
+    b"\xef\xbb\xbf",
+    b"\xed\xa0\x80",  # a surrogate, which UTF-8 may not hold
+    b"\xe9",
+    b"\xc3",
+    b"\xf0\x9f\x98\x80",
+    b'<meta charset="utf-8">',
+    b'<meta charset="windows-1252">',
+    b"&#13;",
+    b"x",
+]
+
+
+@given(
+    st.lists(st.sampled_from(_PIECES), max_size=12),
+    st.sampled_from([None, "utf-8", "windows-1252"]),
+)
+def test_the_bytes_parsed_are_what_the_round_trip_gave(pieces, charset):
+    from lxml import etree
+
+    from sluicer import document
+
+    data = b"<html><body>" + b"".join(pieces) + b"</body></html>"
+    handed: list[bytes] = []
+    parse = document._parse_utf8
+
+    def recorded(given_bytes: bytes):
+        handed.append(given_bytes)
+        return parse(given_bytes)
+
+    original = document._parse_utf8
+    document._parse_utf8 = recorded
+    try:
+        tree = document._parse_bytes(data, charset)
+    finally:
+        document._parse_utf8 = original
+    assert handed == [_round_trip(data, charset)]
+    assert etree.tostring(tree) == etree.tostring(parse(_round_trip(data, charset)))
