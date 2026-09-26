@@ -75,8 +75,8 @@ pages. Its
 rules were made on WCXB's development pages only, and every title, author and
 date scoreboard scores it on pages it was not made on, a guess taken only
 where the summary has no answer (`bench/PREREG.md`). It finds more: authors
-0.532 to 0.649 and dates 0.581 to 0.717 on WCXB, 0.690 to 0.752 and 0.780 to
-0.855 as served, 0.468 to 0.548 and 0.585 to 0.701 on trafilatura's set. And
+0.537 to 0.649 and dates 0.581 to 0.717 on WCXB, 0.698 to 0.760 and 0.780 to
+0.855 as served, 0.472 to 0.552 and 0.588 to 0.701 on trafilatura's set. And
 it invents -- 33 answers on WCXB's 511 pages, 25 of them dates -- so dates
 are right when answering less often with it, 0.823 against 0.917 on WCXB and
 0.701 against 0.734 as served. Trafilatura, which

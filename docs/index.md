@@ -251,7 +251,7 @@ measures, the row shows it.
 | [WCXB](scoreboard.md), 511 pages | title, author, date found; dates invented | 0.727, 0.532, 0.581; 8 invented | trafilatura 0.745, 0.750, 0.838; 216 invented |
 | [As served](scoreboard-served.md), 360 pages | dates found; right when it answers | 0.780; 0.734 | trafilatura 0.855; 0.393 |
 | [News](scoreboard-news.md), 21 languages | title, author, date found | 0.871, 0.829, 0.970 | trafilatura 0.852, 0.879, 0.970 |
-| [trafilatura's set](scoreboard-evaldata.md), 851 annotated pages | title, author, date found | 0.776, 0.468, 0.585 | trafilatura 0.738, 0.669, 0.865 |
+| [trafilatura's set](scoreboard-evaldata.md), 851 annotated pages | title, author, date found | 0.776, 0.472, 0.588 | trafilatura 0.738, 0.669, 0.865 |
 
 Sluicer reads only what a page states in its markup, so on titles, authors and
 dates it answers less often than tools that also read the visible text, and it
