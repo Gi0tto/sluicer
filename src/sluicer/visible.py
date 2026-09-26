@@ -317,12 +317,9 @@ def _own_aside(node: HtmlElement) -> bool:
 
 def _own_aside_below_the_page(node: HtmlElement) -> bool:
     """``_own_aside`` for a byline: not asked of the page's own ``<body>`` and
-    ``<html>``, nor of an article's own ``<footer>``; and a customer's
-    testimonial is another voice too, whose signature is no byline."""
+    ``<html>``, and a customer's testimonial is another voice too, whose
+    signature is no byline."""
     if node.tag in _WHOLE_PAGE or not isinstance(node.tag, str):
-        return False
-    if node.tag == "footer" and any(a.tag == "article" for a in node.iterancestors()):
-        # An article's own footer, which HTML says holds who wrote it.
         return False
     if _own_aside(node):
         return True
