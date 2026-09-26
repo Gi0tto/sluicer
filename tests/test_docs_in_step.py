@@ -239,3 +239,48 @@ def test_every_call_the_guides_spell_from_sluicer_is_there_after_import_sluicer(
         check=True,
     ).stdout.split()
     assert missing == [], missing
+
+
+def test_the_configuration_page_s_first_file_works_where_the_page_saves_it(
+    monkeypatch, tmp_path
+):
+    """configuration.md's first example sets a proxy, and the page said only
+    to call it `sluicer.toml`: saved in the directory a command runs in, it
+    made every command exit 2. Saved where the page now says, and named as it
+    says, a command reads it and runs; found in the working directory, it is
+    still refused, as the page warns."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    page = (ROOT / "docs" / "configuration.md").read_text(encoding="utf-8")
+    lead = page.split("## A file", 1)[1]
+    where = re.search(r"Save it as `~/([^`]+)`", lead)
+    assert where is not None, "the page says where to save the file"
+    named = re.search(r"export SLUICER_CONFIG=~/([^`]+)`", lead)
+    assert named is not None and named.group(1) == where.group(1)
+    toml = re.search(r"```toml\n(.*?)```", lead, re.DOTALL).group(1)
+
+    home = tmp_path / "home"
+    saved = home / where.group(1)
+    saved.parent.mkdir(parents=True)
+    saved.write_text(toml, encoding="utf-8")
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    for name in ("SLUICER_CONFIG", "SLUICER_PROXY"):
+        monkeypatch.setenv(name, "")  # undone when the test ends
+        monkeypatch.delenv(name)
+    page_file = str(ROOT / "examples" / "brake-pads.html")
+
+    monkeypatch.setenv("SLUICER_CONFIG", str(saved))
+    read = CliRunner().invoke(main, ["extract", page_file])
+    assert read.exit_code == 0, read.stderr
+
+    monkeypatch.delenv("SLUICER_CONFIG")
+    (work / "sluicer.toml").write_text(toml, encoding="utf-8")
+    found = CliRunner().invoke(main, ["extract", page_file])
+    assert found.exit_code == 2
+    assert "only in a file you name" in found.stderr

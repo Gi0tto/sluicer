@@ -33,6 +33,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `import sluicer` alone. Its install line for a library is `pip install`,
   and its "declares nothing" example runs on books.toscrape.com instead of
   files that do not exist.
+- The configuration page's first example sets a proxy, a header and a cache,
+  and the page only said to call it `sluicer.toml`: saved in the directory a
+  command runs in, it made every command exit 2. The page now says to save it
+  in `~/.config/sluicer/` and name it with `SLUICER_CONFIG` or `--config`, and
+  why a found file may not set those keys.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.
