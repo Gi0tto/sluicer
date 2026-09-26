@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -221,3 +222,39 @@ def test_the_command_line_shows_guesses_as_guesses(tmp_path) -> None:
     shown = CliRunner().invoke(main, ["inspect", "--visible", str(page)])
     assert "from what the page shows, not declared" in shown.output
     assert "[guess: by-line]" in shown.output
+
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+# A trimmed copy of the page as served on 2026-09-26 (its robots.txt allows
+# all). Framer writes the site's build time in a comment before <html>.
+_TYPESAFE = _FIXTURES / "typesafe_byline_under_heading.html"
+_TYPESAFE_URL = "https://typesafe.ai/blog/introducing-system-one-models-and-jev"
+
+
+def test_a_name_and_role_right_under_the_heading_is_the_author() -> None:
+    read = sluicer.extract(_TYPESAFE.read_bytes(), url=_TYPESAFE_URL, visible=True)
+    assert read.visible["author"] == Guess(
+        "Diogo Almeida", "/html/body/div/div[1]/div[2]/div/p[1]", "name, role"
+    )
+    assert "author" not in read.summary
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # No role after the comma: a place.
+        "<h1>Brake pads</h1><p>Porto Alegre, Brazil</p>",
+        # Not the first line under the heading.
+        "<h1>Brake pads</h1><p>A short intro.</p><p>Diogo Almeida, founder</p>",
+        # A sentence, not a name.
+        "<h1>Brake pads</h1><p>We asked the founder, who said no.</p>",
+        "<h1>Brake pads</h1><p>Then Diogo Almeida left. Later, founder</p>",
+        # One word, or words in lowercase.
+        "<h1>Brake pads</h1><p>Almeida, founder, TypeSafe</p>",
+        "<h1>Brake pads</h1><p>diogo almeida, founder, TypeSafe</p>",
+        # Two headings: no page's heading to be under.
+        "<h1>One</h1><h1>Two</h1><p>Diogo Almeida, founder</p>",
+    ],
+)
+def test_what_is_not_a_name_and_role_under_the_heading(body: str) -> None:
+    assert "author" not in read_visible(_page(body))
