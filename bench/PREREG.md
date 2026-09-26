@@ -478,6 +478,20 @@ a region whose rest was kept. So:
    `<h1>` and the title the page declares (the summary's) are one, the shorter
    within the longer, compared as `bench/score.py` compares titles.
 
+**Added on 2026-09-26, after `container-K` was run on the dev pages and
+before any of these was run.** Written whole, the region brought back 242 of
+the missing snippets and let 159 boilerplate ones in, nearly all of them short
+(a button, a menu item, a forum's "Member" or "Reply with quote") or an author's
+biography. So:
+
+8. *The extraction, with the region's long paragraphs* (`merge-W`, W in 8, 12
+   and 16): the region is found as in `container-K`, and author, bio and byline
+   boxes are left out of it too; its blocks are taken in order, each kept when
+   the extraction already holds its text, or when it has W words or more of
+   which under half are the text of links; then every block of the extraction
+   the kept blocks do not hold is added after them, in its order. With no
+   region, or a region of `<body>`, the extraction stands.
+
 And in `full`, `<noscript>` is kept, without the images in it: a reader that
 runs no script is shown it, and a forum written for such readers keeps its
 posts there. It is still chosen by nothing.
