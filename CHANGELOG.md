@@ -15,6 +15,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   an extractor that checked only those, and a run of it passed any page,
   example.com included. It now learns nothing and says so, as for pages that
   declare nothing at all, and names `--want` and `--select`.
+- The MCP tool `compile_extractor`, and the HTTP API's, given `select` and
+  `want` together used the selectors and dropped the examples without a
+  word, and dropped `listing` the same way. Either beside `select` is now a
+  `bad_input`, as the command line refuses the pair.
 
 ## 0.9.0 - 2026-09-26
 

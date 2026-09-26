@@ -1119,6 +1119,25 @@ def test_an_agent_writes_an_extractor_by_selectors(monkeypatch):
     assert unread["error"]["code"] == "bad_input"
 
 
+@pytest.mark.parametrize(
+    "beside", [{"want": {"price": "£51.77"}}, {"listing": True}, {"listing": False}]
+)
+def test_selectors_and_examples_together_are_a_bad_input(monkeypatch, beside):
+    """Both given, want was dropped without a word and the selectors used;
+    the command line refuses the pair (inventory.md, B7)."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    got = registered["compile_extractor"](
+        [_drift("shop_v1.html")], select={"title": "a.title"}, **beside
+    )
+
+    assert got["ok"] is False
+    assert got["error"]["code"] == "bad_input"
+    assert "one is chosen" in got["error"]["message"]
+
+
 def test_a_bad_extractor_or_no_page_is_a_bad_input(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
