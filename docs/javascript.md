@@ -5,8 +5,8 @@
 rewritten in JavaScript: the package carries the wheel built from the same
 commit as the Python release of the same version, installs it into Pyodide
 when it starts, and hands every call to it. The answers are the Python
-package's, field for field: its tests hold them to the native package's on
-22 pages, a page for each reader and each option.
+package's, field for field: its tests hold them to the native package's in
+29 cases on 19 pages, a page for each reader and a case for each option.
 
 To see it without installing anything, [try it in your browser](try/index.html): paste
 a page's HTML, and Sluicer reads it in the tab, sending it nowhere.
@@ -20,7 +20,9 @@ npm install sluicer
 It needs Node 18 or later, and is an ES module. It brings one dependency,
 `pyodide`, pinned to one version. The first `createSluicer()` on a machine
 downloads lxml, click and cssselect, 2.27 MB, from Pyodide's package repository on
-jsDelivr; later ones download nothing.
+jsDelivr; later ones download nothing. A package that does not load is
+downloaded once more, and one that still does not is a `SluicerError` of
+type `PackageNotLoaded` that names it and where it comes from.
 
 ```js
 import { readFile } from "node:fs/promises";
@@ -53,12 +55,16 @@ The object it resolves to:
 
 | | |
 |---|---|
-| `extract(html, { url, induce, visible, headers })` | What the page declares, as Python's `sluicer.extract`: the summary, each answer's source and place, conflicts, records, links and rights. `induce: true` also reads the rows a page repeats, `visible: true` guesses the byline and dates it shows, `headers` are the response's, when the page came over HTTP. |
-| `compile(pages, { listing, want, names })` | An extractor learnt from pages of one template, each `{ html, url }`: the file `sluicer compile` writes, as an object. |
+| `extract(html, { url, induce, visible, headers })` | What the page declares, as Python's `sluicer.extract`: the summary, each answer's source and place, conflicts, records, links and rights. `induce: true` also reads the rows a page repeats, `visible: true` guesses the byline and dates it shows, `headers` are the response's, when the page came over HTTP, as a plain object: `Object.fromEntries(response.headers)`. |
+| `compile(pages, { listing, want, names, select, rows })` | An extractor learnt from pages of one template, each `{ html, url }`: the file `sluicer compile` writes, as an object. `want` gives example values by name, as `--want`; `select` writes the fields by selector instead, `{ price: "span.price::text" }`, and `rows` the selector of a listing's rows, as `--select` and `--rows`; with `select`, `pages` may be empty. |
 | `run(extractor, html, { url })` | That extractor replayed on a page, as `sluicer run`: `ok` is false when a check failed, and `checks` says which. The extractor is the object, or its JSON text: a file written by the Python CLI runs here, and one written here runs there. |
 | `toMarkdown(html, { url })` | The page's main text as Markdown. Only after `createSluicer({ markdown: true })`. |
 | `version`, `python`, `lxml` | The Sluicer, Python and lxml versions inside. |
 | `pyodide` | The Pyodide instance it runs in. |
+
+Every call takes only the options it names. One it does not know, a
+misspelt `induce` or an option of another call, is thrown as a `TypeError`
+that names it, rather than ignored.
 
 A page is a string, or its bytes: a `Uint8Array`, a Node `Buffer` or an
 `ArrayBuffer`. Give bytes when you have them: the page's own charset

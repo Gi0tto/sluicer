@@ -1,5 +1,6 @@
-// What `npm pack` puts in the package: the code, the wheel it installs, and
-// the licences of what that wheel holds. Nothing the tests or the build read.
+// What `npm pack` puts in the package: the code, the wheel it installs, the
+// licences of what that wheel holds, and the README npmjs.com shows. Nothing
+// the tests or the build read.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -18,12 +19,13 @@ const wheel = JSON.parse(
   await readFile(new URL("python/wheel.json", JS), "utf8"),
 );
 
-test("the package carries the code, the wheel and the licences, and nothing else", () => {
+test("the package carries the code, the wheel, the licences and its README, and nothing else", () => {
   assert.deepEqual(packed.files.map((f) => f.path).sort(), [
     "LICENSE",
     "LICENSES/CC-BY-SA-3.0.txt",
     "LICENSES/Unicode-3.0.txt",
     "NOTICE",
+    "README.md",
     "bridge.py",
     "index.d.ts",
     "index.js",

@@ -1,0 +1,125 @@
+{
+  "page": "tests/fixtures/drift/shop_v1.html",
+  "url": "https://shop.example/shop_v1.html",
+  "answer": {
+    "url": "https://shop.example/shop_v1.html",
+    "ok": true,
+    "rows": [
+      {
+        "title": "A Light in the Attic",
+        "price": "£51.77"
+      },
+      {
+        "title": "Tipping the Velvet",
+        "price": "£53.74"
+      },
+      {
+        "title": "Soumission",
+        "price": "£50.10"
+      },
+      {
+        "title": "Sharp Objects",
+        "price": "£47.82"
+      },
+      {
+        "title": "Sapiens",
+        "price": "£54.23"
+      },
+      {
+        "title": "The Requiem Red",
+        "price": "£22.65"
+      }
+    ],
+    "summary": {
+      "title": "Books | Example Shop",
+      "language": "en"
+    },
+    "checks": [
+      {
+        "name": "summary",
+        "expected": "the summary answers title",
+        "got": "yes",
+        "ok": true
+      },
+      {
+        "name": "summary",
+        "expected": "the summary answers language",
+        "got": "yes",
+        "ok": true
+      },
+      {
+        "name": "listing",
+        "expected": "rows at li.product",
+        "got": "6 found",
+        "ok": true
+      },
+      {
+        "name": "rows",
+        "expected": "at least 1 row",
+        "got": "6",
+        "ok": true
+      },
+      {
+        "name": "rows",
+        "expected": "at most 20% of the listing's members empty",
+        "got": "0 of 6 empty",
+        "ok": true
+      },
+      {
+        "name": "field",
+        "expected": "title in at least 80% of rows",
+        "got": "in 100%",
+        "ok": true
+      },
+      {
+        "name": "shape",
+        "expected": "title shaped L in at least 50% of rows",
+        "got": "100%, e.g. 'A Light in the Attic'",
+        "ok": true
+      },
+      {
+        "name": "values",
+        "expected": "title to differ from row to row, as it did",
+        "got": "they do",
+        "ok": true
+      },
+      {
+        "name": "field",
+        "expected": "title once in each row",
+        "got": "yes",
+        "ok": true
+      },
+      {
+        "name": "field",
+        "expected": "price in at least 80% of rows",
+        "got": "in 100%",
+        "ok": true
+      },
+      {
+        "name": "reads",
+        "expected": "price to read as an amount in at least 50% of rows",
+        "got": "100%, e.g. '£51.77'",
+        "ok": true
+      },
+      {
+        "name": "shape",
+        "expected": "price shaped NPS in at least 50% of rows",
+        "got": "100%, e.g. '£51.77'",
+        "ok": true
+      },
+      {
+        "name": "values",
+        "expected": "price to differ from row to row, as it did",
+        "got": "they do",
+        "ok": true
+      },
+      {
+        "name": "field",
+        "expected": "price once in each row",
+        "got": "yes",
+        "ok": true
+      }
+    ],
+    "fields": {}
+  }
+}

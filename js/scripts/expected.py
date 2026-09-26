@@ -110,6 +110,13 @@ REPLAYED_ON = [
     f"{SHOP}/shop_redesigned.html",
 ]
 
+# The same pages, learnt from examples of their values and named, and written
+# by selectors instead of learnt: compile's other options, each passed on.
+WANT = {"title": "A Light in the Attic", "price": "£51.77"}
+NAMES = ["first page", "second page"]
+SELECT = {"title": "a.title::text", "price": "span.price::text"}
+ROWS = "li.product"
+
 MARKDOWN = {
     "article": {
         "page": "examples/site/article.html",
@@ -144,6 +151,56 @@ def main() -> int:
             f"run-{Path(path).stem}",
             {"page": path, "url": _address(path), "answer": asdict(run)},
         )
+
+    wanted = compile_extractor(pages, want=WANT, names=NAMES)
+    _write(
+        "extractor",
+        "compiled-want",
+        {
+            "pages": [{"page": path, "url": _address(path)} for path in LEARNT_FROM],
+            "options": {"want": WANT, "names": NAMES},
+            "answer": json.loads(wanted.to_json()),
+        },
+    )
+
+    written = compile_extractor(pages, select=SELECT, rows=ROWS)
+    _write(
+        "written",
+        "compiled",
+        {
+            "pages": [{"page": path, "url": _address(path)} for path in LEARNT_FROM],
+            "options": {"select": SELECT, "rows": ROWS},
+            "answer": json.loads(written.to_json()),
+        },
+    )
+    kept = Extractor.from_json(written.to_json())
+    for path in REPLAYED_ON:
+        run = run_extractor(kept, _read(path), _address(path))
+        _write(
+            "written",
+            f"run-{Path(path).stem}",
+            {"page": path, "url": _address(path), "answer": asdict(run)},
+        )
+    alone = compile_extractor([], select={"heading": "h1"})
+    _write(
+        "written",
+        "compiled-from-no-page",
+        {
+            "pages": [],
+            "options": {"select": {"heading": "h1"}},
+            "answer": json.loads(alone.to_json()),
+        },
+    )
+    run = run_extractor(alone, _read(LEARNT_FROM[0]), _address(LEARNT_FROM[0]))
+    _write(
+        "written",
+        "run-from-no-page",
+        {
+            "page": LEARNT_FROM[0],
+            "url": _address(LEARNT_FROM[0]),
+            "answer": asdict(run),
+        },
+    )
 
     for name, case in MARKDOWN.items():
         markdown = sluicer.to_markdown(_page(case), url=case["url"])

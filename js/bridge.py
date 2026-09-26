@@ -73,6 +73,8 @@ def compile(pages, options):
             listing=given.get("listing"),
             names=given.get("names"),
             want=given.get("want"),
+            select=given.get("select"),
+            rows=given.get("rows"),
         )
         return json.loads(extractor.to_json())
 

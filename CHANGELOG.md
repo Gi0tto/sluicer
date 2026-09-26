@@ -34,6 +34,27 @@ Dates are the day the work landed. Anything not listed here did not happen.
   a part was refused naming a Python `KeyError`. Both now say what is wrong.
 - `heal --force` without `-o` wrote nothing and said nothing; it is now
   refused, with exit 2, saying that `-o` says where to write.
+- npm package: every call ignored an option it did not know, so `compile()`
+  given `select` learnt a listing of its own choosing and said nothing. An
+  unknown option is now a `TypeError` that names it, and `compile()` passes
+  `select` and `rows` on to Python, answering as `compile_extractor` does.
+- npm package: when Pyodide failed to load lxml, click or cssselect, after a
+  failed download for one, `createSluicer()` went on and the first call
+  failed on "No module named 'lxml'". It now checks that each
+  package imports, downloads a missing one once more, and otherwise rejects
+  with a `PackageNotLoaded` error naming the package, where it comes from and
+  what to do.
+- npm package: `extract()` given `headers` as a `Headers` (such as
+  `response.headers`) or a `Map` sent Python an empty object, so the
+  response's `X-Robots-Tag` and `Link` were dropped without a word; the same
+  held for `compile()`'s `want` and `select`. Anything but a plain object
+  there is now a `TypeError` that says what to pass.
+- docs/javascript.md said the npm package's answers were held to the native
+  ones on 22 pages; they were 22 answers on 19 pages. It now gives both
+  counts, and a test holds them to the answers.
+- npm package: npmjs.com showed no README. The package now carries
+  `js/README.md`: what it is, how to install it, a five-line example whose
+  printed output a test runs and compares, and what it does not do.
 
 ## 0.9.0 - 2026-09-26
 

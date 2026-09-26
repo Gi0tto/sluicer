@@ -1,0 +1,81 @@
+{
+  "pages": [
+    {
+      "page": "tests/fixtures/drift/shop_v1.html",
+      "url": "https://shop.example/shop_v1.html"
+    },
+    {
+      "page": "tests/fixtures/drift/shop_v1_page2.html",
+      "url": "https://shop.example/shop_v1_page2.html"
+    }
+  ],
+  "options": {
+    "want": {
+      "title": "A Light in the Attic",
+      "price": "£51.77"
+    },
+    "names": [
+      "first page",
+      "second page"
+    ]
+  },
+  "answer": {
+    "format": 1,
+    "sluicer": "0.9.0",
+    "learnt_from": [
+      "first page",
+      "second page"
+    ],
+    "summary": {
+      "title": null,
+      "language": null
+    },
+    "types": [],
+    "listing": {
+      "container": "html>body>div.page>ol.row",
+      "member": "li.product",
+      "rows": [
+        5,
+        6
+      ],
+      "empty": 0.0,
+      "chosen": true,
+      "siblings": [
+        1,
+        1,
+        1
+      ],
+      "fields": [
+        {
+          "name": "title",
+          "path": "a.title",
+          "missing": 0.0,
+          "shape": "L",
+          "reads": null,
+          "samples": [
+            "A Light in the Attic",
+            "Tipping the Velvet",
+            "Soumission",
+            "Sharp Objects",
+            "Sapiens"
+          ]
+        },
+        {
+          "name": "price",
+          "path": "span.price",
+          "missing": 0.0,
+          "shape": "NPS",
+          "reads": "amount",
+          "samples": [
+            "£51.77",
+            "£53.74",
+            "£50.10",
+            "£47.82",
+            "£54.23"
+          ]
+        }
+      ]
+    },
+    "notes": []
+  }
+}
