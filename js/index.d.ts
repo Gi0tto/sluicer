@@ -148,6 +148,21 @@ export interface Extractor {
     samples: string[];
     anchor?: { label: string; kind: string };
   }[];
+  /** An extractor written by selectors (`compile` with `select`). */
+  select?: {
+    /** The selector of a listing's rows, or null for one value per page. */
+    rows: string | null;
+    empty?: number;
+    fields: {
+      name: string;
+      selector: string;
+      missing?: number;
+      shape: string | null;
+      reads: string | null;
+      samples: string[];
+      first: boolean;
+    }[];
+  };
 }
 
 export interface Check {
@@ -174,8 +189,20 @@ export interface CompileOptions {
   want?: { [name: string]: string };
   /** What to call each page in `learnt_from`; its address by default. */
   names?: string[];
+  /**
+   * Fields written by selector instead of learnt, by name: `{ price:
+   * "span.price::text" }`, CSS or XPath. Not with `want` or `listing`. With
+   * no page given, the selectors are all the extractor holds a page to.
+   */
+  select?: { [name: string]: string };
+  /** With `select`, the selector of a listing's rows: `"li.product"`. */
+  rows?: string;
 }
 
+/**
+ * Every call takes only the options it names: one it does not know, a
+ * misspelt `induce` or another call's option, is a TypeError that names it.
+ */
 export interface Sluicer {
   /** The Python package's version, which is this npm package's. */
   readonly version: string;

@@ -2,6 +2,14 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- npm package: every call ignored an option it did not know, so `compile()`
+  given `select` learnt a listing of its own choosing and said nothing. An
+  unknown option is now a `TypeError` that names it, and `compile()` passes
+  `select` and `rows` on to Python, answering as `compile_extractor` does.
+
 ## 0.9.0 - 2026-09-26
 
 ### Added

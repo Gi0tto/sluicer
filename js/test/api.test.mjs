@@ -76,6 +76,42 @@ test("anything else is refused before it reaches Python", () => {
   assert.throws(() => sluicer.compile("<html></html>"), TypeError);
 });
 
+test("an option a call does not know is refused, and named", () => {
+  // Ignored, it gave an answer to another question: compile learnt a listing
+  // of its own when given selectors it did not pass on.
+  const refused = {
+    indcue: () => sluicer.extract("<html></html>", { indcue: true }),
+    selector: () => sluicer.compile([{ html: "<html></html>" }], { selector: { a: "h1" } }),
+    headers: () => sluicer.run({}, "<html></html>", { headers: {} }),
+    base: () => sluicer.toMarkdown("<html></html>", { base: "https://example.com/" }),
+  };
+  for (const [option, call] of Object.entries(refused)) {
+    assert.throws(call, (error) => {
+      assert.ok(error instanceof TypeError, error);
+      assert.match(error.message, new RegExp(`no option "${option}"`));
+      assert.match(error.message, /knows are /);
+      return true;
+    });
+  }
+  assert.throws(
+    () => sluicer.compile([{ html: "<html></html>", name: "a" }]),
+    /page 0 has no key "name": the keys it knows are html, url/,
+  );
+  assert.throws(() => sluicer.extract("<html></html>", "https://example.com/"), TypeError);
+  assert.throws(() => sluicer.compile([], null), TypeError);
+});
+
+test("createSluicer refuses an option it does not know, before starting", async () => {
+  await assert.rejects(
+    createSluicer({ packageCachedir: "/tmp/x" }),
+    (error) =>
+      error instanceof TypeError &&
+      /no option "packageCachedir": the options it knows are markdown, packageCacheDir, pyodide/.test(
+        error.message,
+      ),
+  );
+});
+
 test("an error Sluicer raises keeps its Python name and words", () => {
   assert.throws(
     () => sluicer.compile([{ html: "<html><body></body></html>" }]),

@@ -1,0 +1,30 @@
+{
+  "pages": [],
+  "options": {
+    "select": {
+      "heading": "h1"
+    }
+  },
+  "answer": {
+    "format": 3,
+    "sluicer": "0.9.0",
+    "learnt_from": [],
+    "summary": {},
+    "types": [],
+    "listing": null,
+    "notes": [],
+    "select": {
+      "rows": null,
+      "fields": [
+        {
+          "name": "heading",
+          "selector": "h1",
+          "shape": null,
+          "reads": null,
+          "samples": [],
+          "first": false
+        }
+      ]
+    }
+  }
+}

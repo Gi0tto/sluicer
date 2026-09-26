@@ -1,0 +1,70 @@
+{
+  "pages": [
+    {
+      "page": "tests/fixtures/drift/shop_v1.html",
+      "url": "https://shop.example/shop_v1.html"
+    },
+    {
+      "page": "tests/fixtures/drift/shop_v1_page2.html",
+      "url": "https://shop.example/shop_v1_page2.html"
+    }
+  ],
+  "options": {
+    "select": {
+      "title": "a.title::text",
+      "price": "span.price::text"
+    },
+    "rows": "li.product"
+  },
+  "answer": {
+    "format": 3,
+    "sluicer": "0.9.0",
+    "learnt_from": [
+      "https://shop.example/shop_v1.html",
+      "https://shop.example/shop_v1_page2.html"
+    ],
+    "summary": {
+      "title": null,
+      "language": null
+    },
+    "types": [],
+    "listing": null,
+    "notes": [],
+    "select": {
+      "rows": "li.product",
+      "empty": 0.0,
+      "fields": [
+        {
+          "name": "title",
+          "selector": "a.title::text",
+          "missing": 0.0,
+          "shape": "L",
+          "reads": null,
+          "samples": [
+            "A Light in the Attic",
+            "Tipping the Velvet",
+            "Soumission",
+            "Sharp Objects",
+            "Sapiens"
+          ],
+          "first": false
+        },
+        {
+          "name": "price",
+          "selector": "span.price::text",
+          "missing": 0.0,
+          "shape": "NPS",
+          "reads": "amount",
+          "samples": [
+            "£51.77",
+            "£53.74",
+            "£50.10",
+            "£47.82",
+            "£54.23"
+          ],
+          "first": false
+        }
+      ]
+    }
+  }
+}

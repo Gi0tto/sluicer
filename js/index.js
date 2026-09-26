@@ -29,7 +29,8 @@ export class SluicerError extends Error {
  * call on the returned object after that is synchronous and takes
  * milliseconds.
  */
-export async function createSluicer(options = {}) {
+export async function createSluicer(options) {
+  options = known("createSluicer", options, ["markdown", "packageCacheDir", "pyodide"]);
   const wheel = JSON.parse(
     await readFile(new URL("python/wheel.json", HERE), "utf8"),
   );
@@ -73,7 +74,13 @@ export async function createSluicer(options = {}) {
     markdown,
     pyodide,
 
-    extract(html, { url, induce, visible, headers } = {}) {
+    extract(html, options) {
+      const { url, induce, visible, headers } = known("extract", options, [
+        "url",
+        "induce",
+        "visible",
+        "headers",
+      ]);
       return call(
         "extract",
         page(html),
@@ -81,7 +88,8 @@ export async function createSluicer(options = {}) {
       );
     },
 
-    toMarkdown(html, { url } = {}) {
+    toMarkdown(html, options) {
+      const { url } = known("toMarkdown", options, ["url"]);
       if (!markdown) {
         throw new SluicerError(
           "MarkdownExtraMissing",
@@ -91,10 +99,18 @@ export async function createSluicer(options = {}) {
       return call("to_markdown", page(html), JSON.stringify({ url }));
     },
 
-    compile(pages, { listing, want, names } = {}) {
+    compile(pages, options) {
+      const { listing, want, names, select, rows } = known("compile", options, [
+        "listing",
+        "want",
+        "names",
+        "select",
+        "rows",
+      ]);
       if (!Array.isArray(pages)) {
         throw new TypeError("compile takes an array of { html, url } pages");
       }
+      pages.forEach((p, n) => known(`compile's page ${n}`, p, ["html", "url"], "a page"));
       return call(
         "compile",
         pages.map((p) => page(p.html)),
@@ -103,11 +119,14 @@ export async function createSluicer(options = {}) {
           listing,
           want,
           names,
+          select,
+          rows,
         }),
       );
     },
 
-    run(extractor, html, { url } = {}) {
+    run(extractor, html, options) {
+      const { url } = known("run", options, ["url"]);
       const text =
         typeof extractor === "string" ? extractor : JSON.stringify(extractor);
       return call("run", text, page(html), JSON.stringify({ url }));
@@ -130,6 +149,35 @@ async function installMarkdown(pyodide, wheel) {
     wanted.destroy();
     micropip.destroy();
   }
+}
+
+// A call's options, an object of the keys it knows or nothing. An option it
+// does not know is refused rather than ignored: ignored, a misspelt `induce`
+// or an option another call takes gives an answer to another question, with
+// nothing to say so.
+function known(call, options, names, what = "options") {
+  if (options === undefined && what === "options") {
+    return {};
+  }
+  if (options === null || typeof options !== "object" || Array.isArray(options)) {
+    throw new TypeError(
+      `${call} takes ${what === "options" ? "its options" : what} as an object` +
+        ` of ${names.join(", ")}, not ${describe(options)}`,
+    );
+  }
+  const unknown = Object.keys(options).filter((key) => !names.includes(key));
+  if (unknown.length > 0) {
+    const noun = what === "options" ? "option" : "key";
+    throw new TypeError(
+      `${call} has no ${noun} ${unknown.map((key) => `"${key}"`).join(", ")}:` +
+        ` the ${noun}s it knows are ${names.join(", ")}`,
+    );
+  }
+  return options;
+}
+
+function describe(value) {
+  return value === null ? "null" : Array.isArray(value) ? "an array" : `a ${typeof value}`;
 }
 
 function nameOf(requirement) {

@@ -54,11 +54,15 @@ The object it resolves to:
 | | |
 |---|---|
 | `extract(html, { url, induce, visible, headers })` | What the page declares, as Python's `sluicer.extract`: the summary, each answer's source and place, conflicts, records, links and rights. `induce: true` also reads the rows a page repeats, `visible: true` guesses the byline and dates it shows, `headers` are the response's, when the page came over HTTP. |
-| `compile(pages, { listing, want, names })` | An extractor learnt from pages of one template, each `{ html, url }`: the file `sluicer compile` writes, as an object. |
+| `compile(pages, { listing, want, names, select, rows })` | An extractor learnt from pages of one template, each `{ html, url }`: the file `sluicer compile` writes, as an object. `want` gives example values by name, as `--want`; `select` writes the fields by selector instead, `{ price: "span.price::text" }`, and `rows` the selector of a listing's rows, as `--select` and `--rows`; with `select`, `pages` may be empty. |
 | `run(extractor, html, { url })` | That extractor replayed on a page, as `sluicer run`: `ok` is false when a check failed, and `checks` says which. The extractor is the object, or its JSON text: a file written by the Python CLI runs here, and one written here runs there. |
 | `toMarkdown(html, { url })` | The page's main text as Markdown. Only after `createSluicer({ markdown: true })`. |
 | `version`, `python`, `lxml` | The Sluicer, Python and lxml versions inside. |
 | `pyodide` | The Pyodide instance it runs in. |
+
+Every call takes only the options it names. One it does not know, a
+misspelt `induce` or an option of another call, is thrown as a `TypeError`
+that names it, rather than ignored.
 
 A page is a string, or its bytes: a `Uint8Array`, a Node `Buffer` or an
 `ArrayBuffer`. Give bytes when you have them: the page's own charset

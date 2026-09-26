@@ -1,0 +1,24 @@
+{
+  "page": "tests/fixtures/drift/shop_v1.html",
+  "url": "https://shop.example/shop_v1.html",
+  "answer": {
+    "url": "https://shop.example/shop_v1.html",
+    "ok": true,
+    "rows": [],
+    "summary": {
+      "title": "Books | Example Shop",
+      "language": "en"
+    },
+    "checks": [
+      {
+        "name": "field",
+        "expected": "heading at h1",
+        "got": "found",
+        "ok": true
+      }
+    ],
+    "fields": {
+      "heading": "Books"
+    }
+  }
+}
