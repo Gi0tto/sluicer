@@ -258,3 +258,20 @@ def test_a_page_that_names_a_vendor_s_path_in_its_article_is_not_a_challenge():
     )
 
     assert why_climb(200, article, found_records=False) is None
+
+
+def test_a_page_that_declared_a_thing_is_never_stripped_of_its_tags(monkeypatch):
+    """No rule asks how much text a page that declared a thing has, and
+    stripping its tags was the costliest step of judging it."""
+    from sluicer.fetch import rules
+
+    def stripped(html):
+        raise AssertionError("the page's tags were stripped")
+
+    monkeypatch.setattr(rules, "strip_tags", stripped)
+    page = "<html><head><title>Pads</title></head><body>x</body></html>"
+    assert rules.why_climb(200, page, found_records=True) is None
+    assert rules.challenge_marker(page, found_records=True) is None
+    challenge = "<html><head><title>Just a moment...</title></head></html>"
+    assert rules.why_climb(200, challenge, found_records=True) is not None
+    assert rules.challenge_marker(challenge, found_records=True) == "just a moment"
