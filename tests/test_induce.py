@@ -282,3 +282,23 @@ def test_a_wrapper_does_not_repeat_its_child_s_text() -> None:
     # The paragraph keeps its own text, because "Price:" is nowhere else.
     assert names["p.p"].value == "Price: 10.00"
     assert names["p.p>b.b"].value == "10.00"
+
+
+def test_the_public_induce_reads_what_extract_reads():
+    """It took only a Document, which nothing public makes: HTML and a page
+    ``sluicer.parse`` gave both raised AttributeError (inventory.md, B19)."""
+    raw = (FIXTURES / "listing_no_declared_data.html").read_bytes()
+    expected = induce(listing())
+
+    assert expected
+    assert sluicer.induce(raw) == expected
+    assert sluicer.induce(raw.decode("utf-8"), url="https://shop.example/") == expected
+    assert sluicer.induce(sluicer.parse(raw)) == expected
+    assert sluicer.induce(raw, 3) == expected
+
+
+def test_induce_refuses_what_is_no_page():
+    import pytest
+
+    with pytest.raises(TypeError, match="induce reads a page's HTML"):
+        sluicer.induce(None)  # type: ignore[arg-type]

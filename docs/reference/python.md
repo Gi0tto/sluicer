@@ -161,19 +161,28 @@ cents; ``Extraction.normalised`` reads the summary's prices as decimals.
 ### `sluicer.induce`
 
 ```python
-induce(doc: Document, minimum: int = 3) -> list[Record]
+induce(
+    doc: Document | str | bytes | Page,
+    minimum: int = 3,
+    url: str | None = None,
+) -> list[Record]
 ```
 
 Return one record per row of the page's most promising repeated shape.
 
 **Arguments**
 
-- `doc`: the parsed page.
+- `doc`: the page: its HTML, as ``extract`` takes it -- bytes are best -- or a page ``sluicer.parse`` made, or a parsed ``Document``.
 - `minimum`: the fewest repetitions that count as a listing.
+- `url`: for HTML, the address the page came from, as for ``extract``.
 
 **Returns**
 
 Records whose fields all have ``source="induced"`` and are named by where they sit (``div.meta>span.sku``), or ``[]``. Groups are tried in ranked order and the first that yields records wins: a group whose members hold bare text, in no element of their own, has nothing to name a field after and yields none.
+
+**Raises**
+
+- `TypeError`: ``doc`` is none of these.
 
 ## Selecting by hand
 

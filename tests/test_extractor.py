@@ -189,6 +189,30 @@ def test_nothing_to_learn_is_an_error_that_says_so():
         compile_extractor([(b"<html><body><p>x</p></body></html>", None)])
 
 
+def test_pages_with_only_a_title_and_a_language_give_no_extractor():
+    """Learnt from them, it checked only what every page has, and a run of it
+    passed example.com (inventory.md, B8)."""
+    with pytest.raises(NothingToLearn, match="only a title and a language"):
+        compile_extractor([page("shop_empty.html")])
+    with pytest.raises(NothingToLearn, match="only a title and a language"):
+        compile_extractor([page("shop_empty.html")], listing=True)
+
+
+def test_compile_on_pages_with_only_a_title_writes_nothing(tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    out = tmp_path / "e.json"
+    result = CliRunner().invoke(
+        main, ["compile", str(DRIFT / "shop_empty.html"), "-o", str(out)]
+    )
+
+    assert result.exit_code == 1
+    assert "only a title and a language" in result.stderr
+    assert not out.exists()
+
+
 def test_a_file_that_is_not_an_extractor_is_refused():
     with pytest.raises(ValueError):
         Extractor.from_json('{"format": 99}')
@@ -414,12 +438,15 @@ def test_the_classes_of_html_and_body_are_not_part_of_a_path():
 
 
 def test_a_free_text_answer_keeps_no_shape():
-    template = "<html><head><title>{t}</title></head></html>"
+    template = (
+        '<html><head><title>{t}</title><meta name="description" content="{t}">'
+        "</head></html>"
+    )
     extractor = compile_extractor(
         [(template.format(t="Books"), None), (template.format(t="More books"), None)]
     )
 
-    assert extractor.summary == {"title": None}
+    assert extractor.summary == {"title": None, "description": None}
 
 
 def test_a_moved_field_says_what_its_move_rests_on():
@@ -577,6 +604,72 @@ def test_heal_of_a_chosen_listing_whose_values_are_gone_loses_it():
     )
     _healed, changes = heal(learnt, [declared])
     assert [c.kind for c in changes] == ["summary-gained", "listing-lost"]
+
+
+def _other_books_renamed() -> tuple[str, str]:
+    """The shop's listing, where it was, of other books, each column under
+    another class: the redesign fresh-dev.md made by hand, on page 3."""
+    rows = "".join(
+        f'<li class="product"><a class="name" href="/book/{n}">{title}</a>'
+        f'<span class="cost">£{n}.99</span></li>'
+        for n, title in enumerate(("Olio", "Mesaerion", "Libertarianism", "Rip"), 7)
+    )
+    html = (
+        '<!doctype html><html lang="en"><head><title>Books | Example Shop</title>'
+        '</head><body><div class="page"><h1>Books</h1>'
+        f'<ol class="row">{rows}</ol></div></body></html>'
+    )
+    return html, "https://shop.example/books?page=3"
+
+
+def test_run_and_heal_agree_on_a_listing_whose_columns_moved_to_other_items():
+    """run said the listing held and two fields broke; heal said the listing
+    was lost. The listing held: heal now says the two fields vanished --
+    found again by their values, which this page does not show -- and keeps
+    the listing, so a forced write keeps failing where the run failed."""
+    learnt = compile_extractor(
+        [page("shop_v1.html"), page("shop_v1_page2.html")],
+        want={"title": "A Light in the Attic", "price": "£51.77"},
+    )
+    moved = _other_books_renamed()
+
+    run = run_extractor(learnt, *moved)
+    healed, changes = heal(learnt, [moved])
+
+    assert [(c.name, c.ok) for c in run.checks if c.name == "listing"] == [
+        ("listing", True)
+    ]
+    assert sorted(c.expected.split()[0] for c in run.checks if not c.ok) == [
+        "price",
+        "title",
+    ]
+    assert [(c.kind, c.before) for c in changes] == [
+        ("vanished", "title"),
+        ("vanished", "price"),
+    ]
+    assert healed.listing == learnt.listing
+    assert not run_extractor(healed, *moved).ok
+
+
+def test_heal_says_why_its_words_differ_from_the_run(tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    learnt = compile_extractor(
+        [page("shop_v1.html")], want={"title": "A Light in the Attic"}
+    )
+    extractor = tmp_path / "e.json"
+    extractor.write_text(learnt.to_json(), encoding="utf-8")
+    moved = tmp_path / "page3.html"
+    moved.write_text(_other_books_renamed()[0], encoding="utf-8")
+
+    result = CliRunner().invoke(main, ["heal", str(extractor), str(moved)])
+
+    assert result.exit_code == 3
+    assert "listing-lost" not in result.stderr
+    assert "vanished: title" in result.stderr
+    assert "The listing is where it was" in result.stderr
 
 
 def test_a_chosen_listing_is_kept_through_its_file_and_an_old_file_is_not_one():
@@ -1085,3 +1178,33 @@ def test_a_type_an_extractor_before_0_8_named_as_written_is_the_same_type():
     assert failed(run_extractor(new, *_contao("contao:Page", context=False))) == [
         "type"
     ]
+
+
+def test_pages_that_are_not_pairs_are_refused_saying_so():
+    """A page's bytes were unpacked as two values (inventory.md, B20), and a
+    page of two characters was read as a page and its address."""
+    for pages in ([b"<p>a page</p>"], ["ab"], [("<p>", 3)]):
+        with pytest.raises(ValueError, match=r"a pair of its HTML and its address"):
+            compile_extractor(pages)
+    assert compile_extractor([[*page("shop_v1.html")]]).listing is not None
+
+
+def test_a_file_missing_a_part_says_which():
+    with pytest.raises(ValueError, match="it has no 'listing'"):
+        Extractor.from_json('{"format": 1, "summary": {}}')
+
+
+def test_heal_force_without_an_output_is_refused(tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    extractor = tmp_path / "e.json"
+    extractor.write_text(shop().to_json(), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        main, ["heal", str(extractor), str(DRIFT / "shop_prices_gone.html"), "--force"]
+    )
+
+    assert result.exit_code == 2
+    assert "--force writes the healed extractor, and -o says where" in result.stderr

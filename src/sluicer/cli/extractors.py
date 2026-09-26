@@ -291,6 +291,10 @@ def heal_command(
     Nothing is written then without --force, so a lossy extractor never
     quietly replaces the one that would have kept failing.
     """
+    if force and not output:
+        # Without -o nothing is written, forced or not, and --force said
+        # nothing of it.
+        _fail("--force writes the healed extractor, and -o says where.")
     extractor = _load_extractor(extractor_file)
     pages = _read_pages(sources, stealth, no_robots, pages_only=True)
     try:
@@ -312,6 +316,19 @@ def heal_command(
             click.echo(said, err=True)
         else:
             click.echo(f"{change.kind}: {change.before or change.after}", err=True)
+    listed = {f.name for f in extractor.listing.fields} if extractor.listing else set()
+    gone = [c.before for c in changes if c.kind == "vanished" and c.before in listed]
+    if gone and not any(c.kind in ("listing-lost", "container") for c in changes):
+        # run says these fields broke and the listing held; heal says they
+        # vanished. Both are so, and this says why the words differ.
+        click.echo(
+            f"The listing is where it was; {', '.join(map(str, gone))} "
+            f"{'is' if len(gone) == 1 else 'are'} found again by the values "
+            "learnt, and no place in it holds them on these pages. Heal with a "
+            "page that lists some of the same items to find where they went, "
+            "or compile again.",
+            err=True,
+        )
     if any(c.kind == "broken" for c in changes):
         click.echo(
             "A selector you wrote no longer holds, and heal does not rewrite a "

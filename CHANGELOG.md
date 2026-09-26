@@ -2,6 +2,39 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- `compile --want` took a product's table of labelled facts (UPC, type,
+  prices, tax, availability) for a listing of the value asked for, and a run
+  on another product passed with every row of the table as a "price". Such a
+  table is now no listing: the example is learnt as the page's own value, with
+  a note that says why, `--listing` refuses it with the same reason, and a run
+  of an extractor 0.9.0 learnt that way fails.
+- `compile` on pages that declare nothing but a title and a language wrote
+  an extractor that checked only those, and a run of it passed any page,
+  example.com included. It now learns nothing and says so, as for pages that
+  declare nothing at all, and names `--want` and `--select`.
+- The MCP tool `compile_extractor`, and the HTTP API's, given `select` and
+  `want` together used the selectors and dropped the examples without a
+  word, and dropped `listing` the same way. Either beside `select` is now a
+  `bad_input`, as the command line refuses the pair.
+- `heal` of a listing learnt with `--want` said `listing-lost` for a page
+  whose rows were where they were, of other items, with their columns under
+  new classes, where `run` said the listing held and its fields broke. heal
+  now finds the listing at its place, reports each field it cannot find by
+  its old values as vanished, keeps the listing as it was when none is left,
+  and says why a page that lists some of the same items is needed.
+- `sluicer.induce` took only a parsed `Document`, which nothing public makes:
+  given a page's HTML, or a page `sluicer.parse` made, it raised
+  `AttributeError`. It now takes HTML as `str` or `bytes`, with `url=` as
+  `extract` does, or a parsed page, and a `Document` as before.
+- `compile_extractor` given a page's bare HTML instead of an `(html, url)`
+  pair failed with "too many values to unpack", and an extractor file missing
+  a part was refused naming a Python `KeyError`. Both now say what is wrong.
+- `heal --force` without `-o` wrote nothing and said nothing; it is now
+  refused, with exit 2, saying that `-o` says where to write.
+
 ## 0.9.0 - 2026-09-26
 
 ### Added

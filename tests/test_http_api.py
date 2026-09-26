@@ -190,6 +190,20 @@ def test_a_drifted_page_is_a_200_whose_answer_is_not_ok(client):
     assert healed.json()["ok"] is False and healed.json()["lost"] is True
 
 
+def test_selectors_and_examples_together_are_a_bad_request(client):
+    answer = client().post(
+        "/v1/tools/compile_extractor",
+        json={
+            "pages": [_drift("shop_v1.html")],
+            "select": {"title": "a.title"},
+            "want": {"price": "£51.77"},
+        },
+    )
+
+    assert answer.status_code == 400
+    assert answer.json()["error"]["code"] == "bad_input"
+
+
 def test_a_page_that_keeps_to_its_extractor_replays_and_heals_over_http(client):
     http = client()
     learnt = http.post(
