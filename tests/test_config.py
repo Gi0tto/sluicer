@@ -721,3 +721,43 @@ def test_an_access_list_that_only_denies_is_no_reason_to_refuse(here, crawled):
     _run("crawl", URL)
 
     assert crawled[0]["min_delay"] == 4
+
+
+@pytest.fixture
+def mapped(monkeypatch):
+    """``sluicer map`` answering one address, asking nobody."""
+    from sluicer.crawl.sitemaps import SiteMap, SiteUrl
+
+    def recorder(url, **kwargs):
+        return SiteMap(url, "sitemaps", (SiteUrl("https://example.com/a"),), ())
+
+    monkeypatch.setattr("sluicer.cli.sites.map_site", recorder)
+
+
+def test_format_on_the_command_line_wins_over_plain_in_the_file(here, mapped):
+    """``plain = true`` in the file and ``--format csv`` typed was refused with
+    "--plain is one address a line; --format is another"."""
+    named = _write(here / "s.toml", "[map]\nplain = true\n")
+
+    result = _run("--config", str(named), "map", URL, "--format", "csv")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines()[0] == "url,lastmod,sitemap"
+
+
+def test_plain_on_the_command_line_wins_over_format_in_the_file(here, mapped):
+    named = _write(here / "s.toml", '[map]\nformat = "csv"\n')
+
+    result = _run("--config", str(named), "map", URL, "--plain")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "https://example.com/a\n"
+
+
+def test_plain_and_format_both_typed_are_still_refused(here, mapped):
+    result = CliRunner().invoke(
+        cli.main, ["--no-config", "map", URL, "--plain", "--format", "csv"]
+    )
+
+    assert result.exit_code == 2
+    assert "--plain is one address a line" in result.stderr

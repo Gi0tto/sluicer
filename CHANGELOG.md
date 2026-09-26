@@ -19,6 +19,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   start page's links without a word. It now says so on stderr, before the
   first page and in the closing line, and `sitemap_pages()`'s `Crawl` carries
   the same sentence as `notice`.
+- `plain = true` in a configuration file and `--format csv` on the command
+  line (or `format` in the file and `--plain` typed) was refused as if both
+  had been typed. The command line now wins, as the configuration page says;
+  both typed are still refused.
 
 ## 0.9.0 - 2026-09-26
 
