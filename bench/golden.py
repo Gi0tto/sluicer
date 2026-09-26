@@ -442,6 +442,7 @@ def _time(
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
         )
         for tree in trees
     ]
@@ -527,7 +528,8 @@ def main() -> None:
             args.json.write_text(
                 json.dumps(
                     {str(t): _summary(f) for t, f in zip(trees, times, strict=True)}
-                )
+                ),
+                encoding="utf-8",
             )
         return
     started = time.monotonic()
@@ -535,11 +537,13 @@ def main() -> None:
     seconds = time.monotonic() - started
     if args.command == "record":
         args.path.parent.mkdir(parents=True, exist_ok=True)
-        args.path.write_text(json.dumps(found, indent=0, sort_keys=True))
+        args.path.write_text(
+            json.dumps(found, indent=0, sort_keys=True), encoding="utf-8"
+        )
         readings = sum(len(v) for v in found.values())
         print(f"recorded {len(found)} entries, {readings} readings, {seconds:.0f} s")
         return
-    old = json.loads(args.path.read_text())
+    old = json.loads(args.path.read_text(encoding="utf-8"))
     changed = _compare(old, found)
     readings = sum(len(v) for v in found.values())
     print(
