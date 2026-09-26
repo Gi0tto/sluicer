@@ -1,0 +1,78 @@
+{
+  "format": 1,
+  "sluicer": "0.9.0",
+  "learnt_from": [
+    "a-light-in-the-attic_1000.html",
+    "sapiens-a-brief-history-of-humankind_996.html",
+    "tipping-the-velvet_999.html"
+  ],
+  "summary": {
+    "title": null,
+    "description": null,
+    "language": null
+  },
+  "types": [],
+  "listing": null,
+  "notes": [
+    "title='A Light in the Attic' was in 3 places on the page; the first, html>body>div.container-fluid>div.page_inner>div.content>div[2]>article.product_page>div.row>div.col-sm-6[2]>h1, was taken",
+    "price='51.77' was in 3 places on the page; the first, html>body>div.container-fluid>div.page_inner>div.content>div[2]>article.product_page>div.row>div.col-sm-6[2]>p.price_color, was taken",
+    "availability='In stock (22 available)' was in 2 places on the page; the first, html>body>div.container-fluid>div.page_inner>div.content>div[2]>article.product_page>div.row>div.col-sm-6[2]>p.availability, was taken"
+  ],
+  "fields": [
+    {
+      "name": "title",
+      "path": "html>body>div.container-fluid>div.page_inner>div.content>div[2]>article.product_page>div.row>div.col-sm-6[2]>h1",
+      "shape": null,
+      "reads": null,
+      "samples": [
+        "A Light in the Attic",
+        "Sapiens: A Brief History of Humankind",
+        "Tipping the Velvet"
+      ]
+    },
+    {
+      "name": "price",
+      "path": "html>body>div.container-fluid>div.page_inner>div.content>div[2]>article.product_page>div.row>div.col-sm-6[2]>p.price_color",
+      "shape": null,
+      "reads": "amount",
+      "samples": [
+        "£51.77",
+        "£54.23",
+        "£53.74"
+      ]
+    },
+    {
+      "name": "availability",
+      "path": "html>body>div.container-fluid>div.page_inner>div.content>div[2]>article.product_page>div.row>div.col-sm-6[2]>p.availability",
+      "shape": null,
+      "reads": null,
+      "samples": [
+        "In stock (22 available)",
+        "In stock (20 available)"
+      ]
+    },
+    {
+      "name": "upc",
+      "path": "html>body>div.container-fluid>div.page_inner>div.content>div[2]>article.product_page>table.table>tr[1]>td",
+      "shape": null,
+      "reads": null,
+      "samples": [
+        "a897fe39b1053632",
+        "4165285e1663650f",
+        "90fa61229261140a"
+      ],
+      "label": "UPC"
+    },
+    {
+      "name": "category",
+      "path": "html>body>div.container-fluid>div.page_inner>ul.breadcrumb>li[3]>a",
+      "shape": null,
+      "reads": null,
+      "samples": [
+        "Poetry",
+        "History",
+        "Historical Fiction"
+      ]
+    }
+  ]
+}

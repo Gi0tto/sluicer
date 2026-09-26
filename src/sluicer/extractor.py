@@ -2112,12 +2112,48 @@ def _places(doc: Document, example: str, own: bool = False) -> list[str]:
         )
 
     if own:
-        deepest = [element for element in deepest if not any(aside(element))]
-        attributes = [(e, a) for e, a in attributes if not any(aside(e))]
+        # A strip of one related item is no repeated group, and its card says
+        # another product's price as much as a strip of ten does.
+        deepest = [
+            element
+            for element in deepest
+            if not any(aside(element)) and not _in_a_card(element, doc)
+        ]
+        attributes = [
+            (e, a)
+            for e, a in attributes
+            if not any(aside(e)) and not _in_a_card(e, doc)
+        ]
     ranked = sorted(range(len(deepest)), key=lambda n: (*aside(deepest[n]), n))
     return [path_of(deepest[n]) for n in ranked] + [
         f"{path_of(element)}@{attribute}" for element, attribute in attributes
     ]
+
+
+def _in_a_card(element: HtmlElement, doc: Document) -> bool:
+    """Whether ``element`` is in an item about another page: an ``<article>``
+    inside another, which HTML makes a related item of its own, or a list
+    item that links to another page -- "You might also like" with one book
+    in it, its price that book's."""
+    here = (doc.url or "").partition("#")[0]
+    base = base_url(doc)
+    for node in element.iterancestors():
+        if not isinstance(node.tag, str):
+            continue
+        tag = node.tag.lower()
+        if tag == "article" and any(
+            isinstance(a.tag, str) and a.tag.lower() == "article"
+            for a in node.iterancestors()
+        ):
+            return True
+        if tag == "li" and any(
+            (href := (link.get("href") or "").strip())
+            and not href.startswith("#")
+            and join(base, href).partition("#")[0] != here
+            for link in node.iter("a")
+        ):
+            return True
+    return False
 
 
 def _a_trail(element: HtmlElement) -> bool:
@@ -2887,41 +2923,38 @@ def _heal_fields(
                 anchor = Anchor(f.label, "after")
                 found = [v for nodes in texts if (v := _value_after(nodes, anchor)[0])]
                 if found and (read is None or all(read(v) for v in found)):
-                    changes.append(Change("moved", f.name, f"after {f.label!r}"))
+                    changes.append(_moved_after(f, anchor, found, docs))
                     kept.append(_relearnt(f, f.path, found, anchor))
                     continue
-        claimed = next(
-            (
-                places
-                for sample in f.samples
-                for doc in docs
-                if (places := _places(doc, sample, own=True))
-            ),
-            None,
-        )
-        if claimed is None:
+        # Every own place that shows one of the old values, and how many of
+        # them: on one page, the book's own price and a related book's are
+        # both old values, and neither is more the field's than the other.
+        seen = _own_places_of(f, docs)
+        if not seen:
             changes.append(Change("vanished", f.name, None))
             continue
-        moved = claimed[0]
+        moved = max(seen, key=lambda place: len(seen[place]))
+        evidence = _evidence(f, len(seen[moved]), seen, moved)
         read_there = [_value_at(doc, moved) for doc in docs]
         if _labelled_otherwise(docs, moved) is not None:
             # The new place is another field on one of the pages: read after
             # a label, or left to a person.
             again = _after_a_label(f, docs, texts)
             if again is None:
-                changes.append(Change("ambiguous", f.name, moved))
+                changes.append(Change("ambiguous", f.name, moved, evidence))
             else:
                 changes.append(again[0])
                 kept.append(again[1])
             continue
         if any(
             [_value_at(doc, other) for doc in docs] != read_there
-            for other in claimed[1:]
+            for other, held in seen.items()
+            if other != moved and len(held) == evidence["seen"]
         ):
-            changes.append(Change("ambiguous", f.name, moved))
+            changes.append(Change("ambiguous", f.name, moved, evidence))
             continue
         found = [v for v in read_there if v]
-        changes.append(Change("moved", f.name, moved))
+        changes.append(Change("moved", f.name, moved, evidence))
         kept.append(_relearnt(f, moved, found, label=_label_before(docs, moved)))
     return tuple(kept), changes
 
@@ -2936,8 +2969,47 @@ def _after_a_label(
         return None
     anchor, where = again
     found = [v for nodes in texts if (v := _value_after(nodes, anchor)[0])]
-    return Change("moved", f.name, f"after {anchor.label!r}"), _relearnt(
-        f, where, found, anchor
+    return _moved_after(f, anchor, found, docs), _relearnt(f, where, found, anchor)
+
+
+def _own_places_of(f: PageField, docs: list[Document]) -> dict[str, set[str]]:
+    """Each of the page's own places (``_places``) that shows one of ``f``'s
+    old values on a page given, with the old values it shows."""
+    seen: dict[str, set[str]] = {}
+    for sample in f.samples:
+        for doc in docs:
+            for place in _places(doc, sample, own=True):
+                seen.setdefault(place, set()).add(sample)
+    return seen
+
+
+def _evidence(
+    f: PageField, count: int, seen: Mapping[str, set[str]], place: str | None
+) -> dict[str, int]:
+    """What a page field's move rests on, as ``Change.evidence`` says: ``count``
+    of its old values seen where it went, and the most another own place
+    showed."""
+    return {
+        "seen": count,
+        "samples": len(f.samples),
+        "runner_up": max(
+            (len(held) for other, held in seen.items() if other != place), default=0
+        ),
+    }
+
+
+def _moved_after(
+    f: PageField, anchor: Anchor, found: list[str], docs: list[Document]
+) -> Change:
+    """``f`` moved to be read after ``anchor``'s label, where ``found`` was
+    read, and what the move rests on: the old values among them, beside the
+    most any own place shows."""
+    count = sum(1 for sample in f.samples if any(map(_says(sample), found)))
+    return Change(
+        "moved",
+        f.name,
+        f"after {anchor.label!r}",
+        _evidence(f, count, _own_places_of(f, docs), None),
     )
 
 

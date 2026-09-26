@@ -41,6 +41,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `compile_extractor` given a page's bare HTML instead of an `(html, url)`
   pair failed with "too many values to unpack", and an extractor file missing
   a part was refused naming a Python `KeyError`. Both now say what is wrong.
+- `heal` given one redesigned product page moved its `price` into a
+  "recently viewed" strip of one other book, whose price was a learnt one,
+  exited 0 and wrote an extractor that read that book's price as the
+  page's. A page field now never moves into an item about another page, a
+  list item or nested `<article>` that links elsewhere; two own places each
+  showing an old value make the move `ambiguous`, which exits 3 and is not
+  written without `--force`; and every page field's move says what it rests on.
 - `heal --force` without `-o` wrote nothing and said nothing; it is now
   refused, with exit 2, saying that `-o` says where to write.
 - npm package: every call ignored an option it did not know, so `compile()`
