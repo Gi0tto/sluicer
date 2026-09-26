@@ -31,6 +31,7 @@ from sluicer.fetch import (
 )
 from test_mcp_server import fake_fetch
 
+CHECK_CAN_LISTEN = getattr(http_api, "_check_can_listen", None)
 PAGE = '<script type="application/ld+json">{"@type":"Product","name":"Pad"}</script>'
 TOKEN = "a-token-for-the-tests"
 AUTHORISED = {"Authorization": f"Bearer {TOKEN}"}
@@ -799,6 +800,10 @@ def uvicorn_run(monkeypatch):
     module = types.ModuleType("uvicorn")
     module.run = lambda app, **options: ran.update(app=app, **options)
     monkeypatch.setitem(sys.modules, "uvicorn", module)
+    # No port is bound for a server that is never run.
+    monkeypatch.setattr(
+        http_api, "_check_can_listen", lambda host, port: None, raising=False
+    )
     # What serve's protocol is built on, by name.
     monkeypatch.setitem(
         sys.modules,
@@ -1118,3 +1123,30 @@ def test_a_page_the_site_answered_404_is_a_502_not_ok(client, monkeypatch):
     assert answer.json()["ok"] is False
     assert answer.json()["error"]["code"] == "fetch_failed"
     assert "answered status 404" in answer.json()["error"]["message"]
+
+
+def test_the_command_exits_2_before_saying_it_serves_on_a_port_taken(
+    monkeypatch, uvicorn_run
+):
+    """Measured on 0.9.0: sluicer serve --port <busy> printed "serving the
+    tools" and then exited 3, the code for a broken contract; its help says
+    "Exits 2 without listening when it cannot serve"."""
+    import socket
+
+    from sluicer import cli
+
+    pytest.importorskip("starlette")
+    pytest.importorskip("mcp.server.mcpserver")
+    monkeypatch.setattr(http_api, "_check_can_listen", CHECK_CAN_LISTEN, raising=False)
+    monkeypatch.delenv(http_api.TOKEN_ENV, raising=False)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as held:
+        held.bind(("127.0.0.1", 0))
+        held.listen(1)
+        port = held.getsockname()[1]
+
+        result = CliRunner().invoke(cli.main, ["serve", "--port", str(port)])
+
+    assert result.exit_code == 2, result.output
+    assert f"Cannot listen on 127.0.0.1 port {port}" in result.stderr
+    assert "serving" not in result.stderr
+    assert uvicorn_run == {}

@@ -30,6 +30,7 @@ import itertools
 import json
 import logging
 import os
+import socket
 import sys
 import time
 from collections.abc import (
@@ -151,6 +152,31 @@ class ApiExtraMissing(MissingExtra):
 
 class Unprotected(ValueError):
     """Asked to listen beyond loopback with no token, and not told to anyway."""
+
+
+class _CannotListen(OSError):
+    """The host and port cannot be listened on: taken, or not this machine's."""
+
+
+def _check_can_listen(host: str, port: int) -> None:
+    """Raise ``_CannotListen`` when ``host``:``port`` cannot be bound.
+
+    Bound and let go as uvicorn will bind it, with ``SO_REUSEADDR`` and the
+    family its host is written in, so a port another server holds is said
+    before "serving the tools" is printed. Until 0.9.1 uvicorn found it
+    after, and ``sluicer serve`` exited 3, the code for a broken contract.
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind((host, port))
+        except OSError as taken:
+            why = taken.strerror or str(taken)
+            raise _CannotListen(
+                f"Cannot listen on {host} port {port}: {why}. Another server may "
+                "hold it; choose another with --port."
+            ) from taken
 
 
 def status_of(answer: Mapping[str, Any]) -> int:
@@ -922,7 +948,9 @@ def serve(
 
     Raises ``Unprotected`` rather than listen beyond loopback with no token,
     unless ``allow_unauthenticated``: anyone who can reach the port could make
-    this machine fetch any URL. Raises ``ApiExtraMissing`` without the extra.
+    this machine fetch any URL. Raises ``ApiExtraMissing`` without the extra,
+    and ``_CannotListen``, an ``OSError``, before saying it serves, when the
+    port is taken or the host is not this machine's.
     """
     token = os.environ.get(TOKEN_ENV, "").strip() or None
     local = is_loopback(host)
@@ -940,6 +968,7 @@ def serve(
     guard = "a token" if token else "no token"
     if local:
         guard += ", answering only requests addressed to this machine"
+    _check_can_listen(host, port)
     print(f"sluicer {__version__}: serving the tools with {guard}.", file=sys.stderr)
     uvicorn.run(
         app,

@@ -27,6 +27,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   address alone warn (`UserWarning`) that they fetch nothing and say how to
   fetch it first. They returned an empty result, or None, in silence; the
   answer is the same, since both are documented never to raise.
+- `sluicer serve` on a port another server holds says so and exits 2 before
+  it says it is serving. It printed "serving the tools" and then exited 3,
+  the code for a broken contract.
 
 ## 0.9.0 - 2026-09-26
 
