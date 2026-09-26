@@ -63,8 +63,18 @@ def test_a_crawl_goes_breadth_first_and_keeps_to_its_site():
 
 
 def test_the_same_site_crawled_twice_gives_the_same_pages_in_the_same_order():
-    first = [p.to_json() for p in run(FakeWeb(shop()))]
-    second = [p.to_json() for p in run(FakeWeb(shop()), concurrency=4)]
+    def timeless(line):
+        # The seconds are measured: 0.001 on one run and 0.0 on the other
+        # failed this on Python 3.10 in CI, and they are no part of the order.
+        if "fetch" in line:
+            line["fetch"] = {**line["fetch"], "seconds": 0}
+            line["fetch"]["climbs"] = [
+                {**climb, "seconds": 0} for climb in line["fetch"].get("climbs", [])
+            ]
+        return line
+
+    first = [timeless(p.to_json()) for p in run(FakeWeb(shop()))]
+    second = [timeless(p.to_json()) for p in run(FakeWeb(shop()), concurrency=4)]
 
     assert first == second
 
