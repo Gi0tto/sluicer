@@ -319,11 +319,24 @@ def robots_cached(
 def _cache_key(url: str) -> str:
     """The robots resource ``url`` is governed by, as one string.
 
-    Scheme and host: ``http://`` and ``https://`` robots.txt are two
-    resources, and a site may publish different rules at each.
+    Scheme, host and port: ``http://`` and ``https://`` robots.txt are two
+    resources, and a site may publish different rules at each. Written as
+    the origin is, whatever the address's spelling: the scheme and host
+    lowercased, a default port left out, a user and password dropped. Until
+    0.9.1 the key was the raw ``scheme://netloc``, so ``http://A.com:80/``
+    and ``http://a.com/`` were two entries, and the robots.txt asked twice.
     """
-    parts = urlsplit(url)
-    return f"{parts.scheme}://{parts.netloc}"
+    try:
+        parts = urlsplit(url)
+        scheme = parts.scheme.lower()
+        host = (parts.hostname or "").lower()
+        port = parts.port
+    except ValueError:
+        return url
+    written = f"[{host}]" if ":" in host else host
+    if port is not None and port != {"http": 80, "https": 443}.get(scheme):
+        written += f":{port}"
+    return f"{scheme}://{written}"
 
 
 class _Recent(OrderedDict[str, tuple[float, str | None]]):

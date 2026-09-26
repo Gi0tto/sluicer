@@ -44,6 +44,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   a message naming both: a usage error on the command line, exit 2 for
   `sluicer mcp` and `sluicer serve`, `UnknownBrowser` (a `ValueError`) from
   `fetch()`. Any other value was Chromium in silence.
+- One site's robots.txt is remembered once however its address is written:
+  `http://A.com:80/` and `http://a.com/` were two entries, each asked for.
 
 ## 0.9.0 - 2026-09-26
 
