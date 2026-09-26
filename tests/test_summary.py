@@ -1296,3 +1296,31 @@ def test_an_offer_s_sku_is_the_product_s_when_the_product_has_none():
     assert _summary(_page({**product, "offers": same}))["sku"][2] == (
         "Product.offers[0].sku"
     )
+
+
+def test_a_product_id_answers_before_an_offer_s_sku():
+    """Found by the hostile review of 0.10: the offer's SKU was asked before
+    the product's own productID, so a page that declared one answered 0.10
+    with another SKU than 0.9.1's, and an extractor learnt on 0.9.1 failed
+    on it."""
+    offer = {"@type": "Offer", "price": "9.99", "sku": "BR-114"}
+    product = {"@type": "Product", "name": "Pads", "productID": "BP-9", "offers": offer}
+    assert _summary(_page(product))["sku"] == ("BP-9", "jsonld", "Product.productID")
+
+
+def test_the_own_offset_is_moved_to_only_when_written_in_iso_8601():
+    """Found by the hostile review of 0.10: the same instant in the
+    publisher's offset was taken however it was written, a JavaScript Date's
+    string or an RFC 2822 date over the ISO 8601 UTC one 0.9.1 answered."""
+    utc = {"@type": "Article", "headline": "H", "datePublished": "2018-02-20T00:00:00Z"}
+    for written in (
+        "Tue Feb 20 2018 01:00:00 GMT+0100 (Central European Standard Time)",
+        "Tue, 20 Feb 2018 01:00:00 +0100",
+        "2018-02-20T01:00:00+0100",
+    ):
+        own = f'<meta property="article:published_time" content="{written}">'
+        found = _summary(_page(utc, head=own))["published"]
+        assert found == ("2018-02-20T00:00:00Z", "jsonld", "Article.datePublished")
+    for written in ("2018-02-20T01:00:00+01:00", "2018-02-20T01:00:00.000+01:00"):
+        own = f'<meta property="article:published_time" content="{written}">'
+        assert _summary(_page(utc, head=own))["published"][0] == written

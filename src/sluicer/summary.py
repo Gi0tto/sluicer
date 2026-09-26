@@ -415,8 +415,8 @@ def read_summary(
         "brand": [own("brand", _names), og("brand"), og("product:brand")],
         "sku": [
             own("sku"),
-            _offers_sku(subject, variants),
             own("productID"),
+            _offers_sku(subject, variants),
             og("product:retailer_item_id"),
             og("sku"),
             og("product:sku"),
@@ -968,6 +968,13 @@ def _same_moment(
     return one[0] == other[0]
 
 
+# An instant as ISO 8601's extended format writes it, with its offset:
+# 2019-12-31T20:30:00-05:00, 2026-01-07T18:34:29.712+01:00.
+_ISO_INSTANT = re.compile(
+    r"\s*\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?[+-]\d{2}:\d{2}\s*$"
+)
+
+
 def _in_own_offset(answers: list[Answer]) -> list[Answer]:
     """``answers`` with the first moved behind a declaration of the same
     instant in the publisher's own time zone, when it is written in UTC.
@@ -983,6 +990,10 @@ def _in_own_offset(answers: list[Answer]) -> list[Answer]:
         return answers
     if moment[1].utcoffset() != datetime.timedelta(0):
         return answers
+    # Only an instant written in ISO 8601 is moved to: a JavaScript Date's
+    # "Tue Feb 20 2018 01:00:00 GMT+0100 (...)" or an RFC 2822 "Sat, 19 Oct
+    # 2019 00:04:00 +0200" names the same instant worse than the UTC one, and
+    # 0.9.1's answer, which an extractor learnt, stays.
     for answer in answers:
         other = _moment(answer.value) if answer else None
         if (
@@ -991,6 +1002,7 @@ def _in_own_offset(answers: list[Answer]) -> list[Answer]:
             and other[1] is not None
             and other[1] == moment[1]
             and other[1].utcoffset() != datetime.timedelta(0)
+            and _ISO_INSTANT.match(answer.value)
         ):
             return [answer, *(a for a in answers if a is not answer)]
     return answers

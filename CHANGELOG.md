@@ -125,7 +125,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   asked.
 - A page declaring its publication instant twice, once in UTC and once in its
   own time zone, was answered in UTC, which can fall on the next day. The
-  declaration in the publisher's own offset is now the answer.
+  declaration in the publisher's own offset is now the answer when it is
+  written in ISO 8601 (`2019-12-31T20:30:00-05:00`); written otherwise, as a
+  JavaScript date or an RFC 2822 one, the UTC answer stays.
 - An author written as `itemprop="author"` on an element outside any microdata
   item, `<span itemprop="author">Ann Smith</span>`, was not read; only a
   `<meta itemprop>` was. It is now the author when nothing else on the page
@@ -137,7 +139,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   answer the summary when nothing else on the page does.
 - A product whose SKU was declared only on its offer, `"offers": {"sku":
   ...}`, had no SKU in the summary. The offer's SKU is now the product's when
-  the product declares none and its offers name one SKU.
+  the product declares neither a SKU nor a `productID` and its offers name
+  one SKU.
 
 ## 0.9.1 - 2026-09-26
 
