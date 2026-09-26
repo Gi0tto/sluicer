@@ -9,9 +9,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   given `select` learnt a listing of its own choosing and said nothing. An
   unknown option is now a `TypeError` that names it, and `compile()` passes
   `select` and `rows` on to Python, answering as `compile_extractor` does.
-- npm package: when Pyodide failed to load lxml, click or cssselect, a
-  failed download or a half-written cache, `createSluicer()` went on and the
-  first call failed on "No module named 'lxml'". It now checks that each
+- npm package: when Pyodide failed to load lxml, click or cssselect, after a
+  failed download for one, `createSluicer()` went on and the first call
+  failed on "No module named 'lxml'". It now checks that each
   package imports, downloads a missing one once more, and otherwise rejects
   with a `PackageNotLoaded` error naming the package, where it comes from and
   what to do.
