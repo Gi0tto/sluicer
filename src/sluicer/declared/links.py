@@ -18,7 +18,15 @@ from __future__ import annotations
 from typing import TypedDict
 
 from sluicer.declared.headers import HeaderLinks
-from sluicer.document import Document, base_url, clean_address, join, trimmed
+from sluicer.document import (
+    RELATED,
+    Document,
+    base_url,
+    clean_address,
+    join,
+    scan,
+    trimmed,
+)
 
 
 class Alternate(TypedDict):
@@ -73,15 +81,22 @@ def canonicals(doc: Document) -> list[str]:
     is one address; two different ones are a conflict, and Google then uses
     neither.
     """
-    # A dict keeps them once each, in page order: a list asked whether it held
-    # each new one, and forty thousand canonicals took four seconds.
-    found: dict[str, None] = {}
-    for link in doc.tree.xpath("//head//link/@rel/parent::*[@href]"):
-        if "canonical" in (link.get("rel") or "").lower().split():
-            href = clean_address(link.get("href") or "")
-            if href:
-                found.setdefault(href)
-    return list(found)
+    # Read once per page: the links and the summary both ask.
+    held: tuple[str, ...] | None = doc.memo.get(_CANONICALS)
+    if held is None:
+        # A dict keeps them once each, in page order: a list asked whether it
+        # held each new one, and forty thousand canonicals took four seconds.
+        found: dict[str, None] = {}
+        for link in doc.tree.xpath("//head//link/@rel/parent::*[@href]"):
+            if "canonical" in (link.get("rel") or "").lower().split():
+                href = clean_address(link.get("href") or "")
+                if href:
+                    found.setdefault(href)
+        held = doc.memo[_CANONICALS] = tuple(found)
+    return list(held)
+
+
+_CANONICALS = "links.canonicals"
 
 
 def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:
@@ -103,7 +118,9 @@ def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:
     feeds: list[Feed] = []
     oembed: list[str] = []
     seen: set[tuple[str, str]] = set()
-    for element in doc.tree.xpath("//@rel/parent::*[self::link or self::a][@href]"):
+    for element in scan(doc, RELATED):
+        if element.tag not in ("link", "a"):
+            continue
         rels = set((element.get("rel") or "").lower().split())
         is_link = element.tag == "link"
         if not rels & (_READ_ON_LINKS if is_link else _READ_ON_ANCHORS):

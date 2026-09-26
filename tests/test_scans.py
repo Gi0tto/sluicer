@@ -43,3 +43,18 @@ def test_no_whole_document_scan_tests_an_attribute_on_every_element(scans, page)
     assert scans
     walked = [path for path in scans if _PREDICATE_ON_EVERY_ELEMENT.search(path)]
     assert walked == []
+
+
+@pytest.mark.parametrize(
+    "page", ["product_all_three.html", "article_relative_links.html"]
+)
+def test_the_page_is_asked_each_question_once(scans, page):
+    """Five readers asked for the ``<meta>`` tags, two for the elements with
+    a ``rel``, and the links and the summary both for the canonicals: each
+    whole-document question is now asked once, and every reader filters the
+    one answer."""
+    extract((FIXTURES / page).read_bytes(), url="https://shop.example/p")
+    whole = [path for path in scans if path.startswith(("//", "(//"))]
+    assert len(whole) == len(set(whole)), whole
+    assert len([path for path in whole if "meta" in path]) == 1, whole
+    assert len([path for path in whole if "@rel" in path]) == 2, whole  # + head

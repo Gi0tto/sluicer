@@ -31,7 +31,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from sluicer.declared.headers import HeaderRights
-from sluicer.document import Document, base_url, join, trimmed
+from sluicer.document import METAS, RELATED, Document, base_url, join, scan, trimmed
 
 # Crawler names a page may put in place of ``robots``, as the engines document
 # them. A name outside this list is some other meta tag, not a directive.
@@ -79,7 +79,9 @@ def read_rights(doc: Document, header: HeaderRights | None = None) -> Rights:
     found: Rights = {}
     general: list[str] = []
     agents: dict[str, list[str]] = {}
-    for meta in doc.tree.xpath("//meta/@name/parent::*[@content]"):
+    for meta in scan(doc, METAS):
+        if meta.get("name") is None or meta.get("content") is None:
+            continue
         name = (meta.get("name") or "").strip().lower()
         content = " ".join((meta.get("content") or "").split())
         if not content:
@@ -110,9 +112,9 @@ def _licences(doc: Document) -> list[str]:
     """Every address a ``rel=license`` names, resolved, each once, in order."""
     base = base_url(doc)
     found: list[str] = []
-    for element in doc.tree.xpath(
-        "//@rel/parent::*[self::link or self::a or self::area][@href]"
-    ):
+    for element in scan(doc, RELATED):
+        if element.tag not in ("link", "a", "area"):
+            continue
         if "license" not in (element.get("rel") or "").lower().split():
             continue
         href = trimmed(element.get("href"))

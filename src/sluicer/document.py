@@ -260,6 +260,29 @@ class Document:
     changed."""
 
 
+METAS = "//meta"
+"""Every ``<meta>``: the readers keyed on a meta tag's name each filter it."""
+RELATED = "//@rel/parent::*[@href]"
+"""Every element with a ``rel`` and an ``href``: the ``<link>``, ``<a>`` and
+``<area>`` the link relations and the licences are read from."""
+
+
+def scan(doc: Document, path: str) -> tuple[lxml.html.HtmlElement, ...]:
+    """The elements ``path`` finds in the whole page, in document order,
+    found once per page whichever reader asks first.
+
+    Five readers asked the page for its ``<meta>`` tags and two for its
+    elements with a ``rel``, each walking the whole tree for its own filter
+    of the same list; each now filters the one list, which comes out the same
+    elements in the same order. A tuple, so no reader can change another's.
+    """
+    key = f"scan {path}"
+    found: tuple[lxml.html.HtmlElement, ...] | None = doc.memo.get(key)
+    if found is None:
+        found = doc.memo[key] = tuple(doc.tree.xpath(path))
+    return found
+
+
 def load(
     html: str | bytes, url: str | None = None, charset: str | None = None
 ) -> Document:

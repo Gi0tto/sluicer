@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from sluicer.document import Document
+from sluicer.document import METAS, Document, scan
 
 
 def meta_tags(doc: Document) -> Iterator[tuple[list[str], str, str]]:
@@ -53,7 +53,9 @@ _SCAN = "meta_tags"
 
 
 def _scan(doc: Document) -> Iterator[tuple[tuple[str, ...], str, str]]:
-    for meta in doc.tree.xpath("(//meta/@property | //meta/@name)/.."):
+    for meta in scan(doc, METAS):
+        if meta.get("property") is None and meta.get("name") is None:
+            continue
         content = (meta.get("content") or "").strip()
         if not content:
             continue

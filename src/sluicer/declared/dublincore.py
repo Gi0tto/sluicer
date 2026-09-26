@@ -17,7 +17,7 @@ Dublin Core describes the document, so it is not in
 
 from __future__ import annotations
 
-from sluicer.document import Document
+from sluicer.document import METAS, Document, scan
 
 _PREFIXES = ("dc.", "dcterms.")
 
@@ -25,7 +25,9 @@ _PREFIXES = ("dc.", "dcterms.")
 def read_dublincore(doc: Document) -> dict[str, str]:
     """Return the Dublin Core meta tags, prefixes stripped, keys lowercased."""
     found: dict[str, str] = {}
-    for meta in doc.tree.xpath("//meta/@name/.."):
+    for meta in scan(doc, METAS):
+        if meta.get("name") is None:
+            continue
         name = (meta.get("name") or "").strip().lower()
         content = (meta.get("content") or "").strip()
         if not content:

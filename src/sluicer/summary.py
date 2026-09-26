@@ -33,7 +33,7 @@ from sluicer.declared.links import canonicals
 from sluicer.declared.located import Places, paid, place, xpath_of
 from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Overruled, Record
 from sluicer.declared.opengraph import NAMESPACES
-from sluicer.document import Document, base_url, join
+from sluicer.document import METAS, Document, base_url, join, scan
 from sluicer.normalise import (
     amount,
     currency as currency_of,
@@ -1322,7 +1322,7 @@ def _headline_or_name(
         text.casefold()
         for text in (
             opengraph.get("title"),
-            *(title.text_content() for title in doc.tree.xpath(_PAGE_TITLE)),
+            *(title.text_content() for title in scan(doc, _PAGE_TITLE)),
         )
         if text
     )
@@ -1332,7 +1332,7 @@ def _headline_or_name(
 
 
 def _element_text(doc: Document, path: str, key: str) -> SummaryField | None:
-    found = doc.tree.xpath(path)
+    found = scan(doc, path)
     text = _clean(found[0].text_content()) if found else None
     return SummaryField(text, "html", key, xpath_of(found[0])) if text else None
 
@@ -1385,7 +1385,9 @@ def _meta_names(doc: Document) -> dict[str, list[tuple[str, HtmlElement]]]:
     )
     if found is None:
         found = doc.memo["summary.meta_names"] = {}
-        for meta in doc.tree.xpath("//meta/@name/parent::*[@content]"):
+        for meta in scan(doc, METAS):
+            if meta.get("name") is None or meta.get("content") is None:
+                continue
             text = _clean(meta.get("content"))
             if text:
                 name = (meta.get("name") or "").strip().lower()
@@ -1402,9 +1404,15 @@ def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
     """
     orphans: list[HtmlElement] | None = doc.memo.get("summary.orphan_itemprops")
     if orphans is None:
-        orphans = doc.memo["summary.orphan_itemprops"] = doc.tree.xpath(
-            "//meta/@itemprop/parent::*[@content][not(ancestor::*[@itemscope])]"
-        )
+        orphans = doc.memo["summary.orphan_itemprops"] = [
+            meta
+            for meta in scan(doc, METAS)
+            if meta.get("itemprop") is not None
+            and meta.get("content") is not None
+            and not any(
+                above.get("itemscope") is not None for above in meta.iterancestors()
+            )
+        ]
     for meta in orphans:
         if prop in (meta.get("itemprop") or "").split():
             text = _clean(meta.get("content"))
