@@ -1173,3 +1173,23 @@ def test_what_a_fold_sets_aside_never_answers_the_summary():
 
     assert "currency" not in found.summary
     assert found.conflicts == []
+
+
+def test_a_published_date_that_is_only_a_time_is_no_date():
+    """A page writing "10:52" where its date goes has not said which day."""
+    only = '<html><head><meta name="date" content="10:52"></head></html>'
+    assert "published" not in _summary(only)
+    for time in ("2:33 PM", "3 pm", "07:01:27 UTC"):
+        html = _page(
+            {"@type": "Article", "headline": "H", "datePublished": time},
+            head='<meta name="pubdate" content="2020-05-01">',
+        )
+        assert _summary(html)["published"] == (
+            "2020-05-01",
+            "html",
+            "meta name=pubdate",
+        )
+    # A date with a time is a date, and so is one whose year is two digits.
+    for date in ("2020-05-01 10:52", "01/07/16"):
+        page = f'<html><head><meta name="date" content="{date}"></head></html>'
+        assert _summary(page)["published"][0] == date

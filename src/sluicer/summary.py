@@ -168,6 +168,12 @@ _DATE_NAMES = (
 # scoreboards' pages and trafilatura's evaluation set they gave seven answers,
 # six wrong or where the label has no author, and one where the label itself
 # reads "Unknown".
+# A clock time and nothing else: "10:52", "2:33 PM", "3 pm", "07:01:27 UTC".
+_ONLY_A_TIME = re.compile(
+    r"^\s*\d{1,2}(?:(?::\d{2}){1,2}(?:\.\d+)?\s*(?:[ap]\.?\s?m\.?)?"
+    r"|\s*[ap]\.?\s?m\.?)\s*(?:z|[a-z]{2,4}|[+-]\d{2}:?\d{2})?\s*$",
+    re.IGNORECASE,
+)
 _NO_ONE = frozenset({"admin", "administrator", "super user", "unknown"})
 _AUTHOR_NAMES = ("citation_author", "parsely-author", "sailthru.author", "byl")
 _TITLE_NAMES = ("citation_title",)
@@ -443,6 +449,13 @@ def read_summary(
         )
         and answer.value.casefold() not in _NO_ONE
         and any(c.isalpha() for c in answer.value)
+    ]
+    # A time with no day is no date: a page that writes "10:52" where its
+    # publication date goes has not said which day, and the next is asked.
+    questions["published"] = [
+        answer
+        for answer in questions["published"]
+        if answer and not _ONLY_A_TIME.match(answer.value)
     ]
     questions["title"] = [
         _without_site(answer, site_names)
