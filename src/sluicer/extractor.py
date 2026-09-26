@@ -1376,8 +1376,13 @@ def _facts_of_one_thing(
             if counted and alike < SHAPE_KEPT * len(counted):
                 return pages[0]
             continue
+        # Facts when most labels never hold the example's kind: a product's
+        # keys (UPC, type, availability, reviews) beside its prices; a
+        # listing where one item is "Call for price" on both snapshots is
+        # still a listing, its other items all priced.
         items = {label for label, kind in counted if kind == example}
-        if any(label not in items for label, _ in counted):
+        named = {label for label, _ in counted}
+        if named and len(named - items) > len(named) / 2:
             return pages[0]
     return None
 
@@ -2150,9 +2155,33 @@ def _in_a_card(element: HtmlElement, doc: Document) -> bool:
             (href := (link.get("href") or "").strip())
             and not href.startswith("#")
             and join(base, href).partition("#")[0] != here
+            and _looks_like_a_card(node, link, element)
             for link in node.iter("a")
         ):
             return True
+    return False
+
+
+def _looks_like_a_card(
+    item: HtmlElement, link: HtmlElement, element: HtmlElement
+) -> bool:
+    """Whether a list item holding ``link`` to another page is shaped as that
+    page's card: an image or a heading in it, or the link before the value,
+    as a card puts its item's name above its price. A product's own details
+    -- its price, then an "incl. VAT" link -- are the page's own place."""
+    if any(
+        isinstance(node.tag, str)
+        and node.tag.lower() in ("img", "picture", "h2", "h3", "h4", "h5", "h6")
+        for node in item.iter()
+    ):
+        return True
+    if element in set(link.iter()):
+        return True
+    for node in item.iter():
+        if node is link:
+            return True
+        if node is element:
+            return False
     return False
 
 

@@ -155,3 +155,22 @@ def test_a_price_only_a_related_item_shows_is_no_move():
 
         price = next(c for c in changes if c.before == "price")
         assert (price.kind, price.after) == ("vanished", None), related
+
+
+def test_a_price_beside_a_help_link_in_the_products_own_details_still_moves():
+    """The product's own details list, its price then an "incl. VAT" link,
+    is the page's own place: 0.9.1's first card rule took any list item with
+    a link for another product's card, and lost the price 0.9.0 moved.
+    Found by the second review of 0.9.1."""
+    details = (
+        "<ul class='details'><li class='cost'><span class='amount'>£41.90</span>"
+        " <a href='/help/vat'>incl. VAT</a></li>"
+        "<li><a href='/delivery'>Free delivery</a></li></ul>"
+    )
+    page = product("Brake pads", "Call us", details, own="span.ask")
+
+    _, changes = heal(two_parts(), [(page, "https://shop.example/p/brake-pads")])
+
+    price = next(c for c in changes if c.before == "price")
+    assert price.kind == "moved"
+    assert price.after is not None and price.after.endswith("li.cost>span.amount")

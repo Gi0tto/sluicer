@@ -20,8 +20,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   a note that says why, `--listing` refuses it with the same reason, and a run
   of an extractor 0.9.0 learnt that way fails. A table of products, each row
   headed by its name, stays a listing: its prices are of one kind, "£10"
-  beside "£12.50", however many items are "Sold out", and on two snapshots
-  of one category.
+  beside "£12.50", and on two snapshots of one category it is facts only
+  when most of its labels never hold a price, so items that are "Sold out"
+  or "Call for price" leave it a listing.
 - `compile` on pages that declare nothing but a title and a language wrote
   an extractor that checked only those, and a run of it passed any page,
   example.com included. It now learns nothing and says so, as for pages that
@@ -46,10 +47,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `heal` given one redesigned product page moved its `price` into a
   "recently viewed" strip of one other book, whose price was a learnt one,
   exited 0 and wrote an extractor that read that book's price as the
-  page's. A page field now never moves into an item about another page, a
-  list item or nested `<article>` that links elsewhere; two own places each
-  showing an old value make the move `ambiguous`, which exits 3 and is not
-  written without `--force`; and every page field's move says what it rests on.
+  page's. A page field now never moves into an item about another page: an
+  `<article>` nested in another, or a list item shaped as another page's
+  card (an image or a heading in it, or its link before the value; a price
+  followed by an "incl. VAT" link is still the page's own). Of two own
+  places showing old values, the one showing more wins; a tie between
+  places that read different values makes the move `ambiguous`, which exits
+  3 and is not written without `--force`; and every page field's move says
+  what it rests on.
 - `heal --force` without `-o` wrote nothing and said nothing; it is now
   refused, with exit 2, saying that `-o` says where to write.
 - npm package: every call ignored an option it did not know, so `compile()`

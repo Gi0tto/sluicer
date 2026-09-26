@@ -270,3 +270,24 @@ def test_a_listing_090_learnt_from_products_runs_on_a_page_with_one_sold_out():
 
     assert run.ok, [check for check in run.checks if not check.ok]
     assert [row["price"] for row in run.rows] == ["£141.90", "Sold out", "£45"]
+
+
+def test_two_snapshots_where_an_item_asks_to_call_for_its_price_are_a_listing():
+    """One item that is "Call for price" on both snapshots of a category
+    flipped the whole table to one thing's facts. Found by the second review
+    of 0.9.1."""
+    rows = [
+        ("Brake pad set", "£41.90"),
+        ("Clutch kit", "Call for price"),
+        ("Oil filter", "£8.99"),
+        ("Timing belt", "£64.00"),
+        ("Water pump", "£45.00"),
+    ]
+    later = [(name, "£39.90" if price == "£41.90" else price) for name, price in rows]
+
+    extractor = compile_extractor(
+        [(products(rows), None), (products(later), None)],
+        want={"price": "£41.90"},
+    )
+
+    assert extractor.listing is not None
