@@ -159,6 +159,34 @@ uv run bench/evaldata.py --tools html-to-markdown   # the converter alone
 repository. The annotations were written to measure trafilatura, and follow
 the byline and date a reader sees.
 
+## Every tool, on the same pages
+
+[`docs/scoreboard-tools.md`](../docs/scoreboard-tools.md) puts the tools
+people reach for to turn a page into its title, author, date and text on the
+same pages as served, scripts intact: Sluicer (with and without `--visible`),
+trafilatura, newspaper4k, markitdown, Scrapling's markdown and metascraper.
+
+```bash
+uv run bench/timing.py tools               # the seconds, on a clean checkout
+uv run bench/tools_compare.py              # every tool, then the scoreboard
+uv run bench/tools_compare.py --tools markitdown   # rerun one, reuse the others
+```
+
+The pages are WCXB's 360 test pages as served (`bench/realweb.py`'s pinned
+captures, with WCXB's labels, the whole main text included), trafilatura's
+990 evaluation pages (`bench/evaldata.py`), and the page added by hand in
+[`tools-added.json`](tools-added.json), a Wayback capture pinned by its
+SHA-256 with labels written from the page. Each tool runs in an environment
+of its own (`tools/compare_*.py`, pinned by `requirements/` and
+`metascraper/`). Every tool's text is made plain text by one rule, then
+scored by trafilatura's snippets (what it must hold, and the menus and
+footers it must not), and on the served pages by WCXB's word scores against
+the whole labelled text. A wrong or invented title, author or date is
+*silent* unless the tool's output warns of it; the one warning any of them
+gives is Sluicer's `conflicts`. [`PREREG.md`](PREREG.md) fixed all of it
+before any tool was run. Firecrawl is left out: it needs an account, or a
+Docker Compose of services to host.
+
 ## extruct's interface, beside extruct
 
 [`docs/extruct.md`](../docs/extruct.md) measures `sluicer.compat.extruct`

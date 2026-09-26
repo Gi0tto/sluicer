@@ -290,6 +290,12 @@ selectors someone writes (the drift and SWDE benchmarks measure selectors);
 **html-to-markdown**, a converter of whole pages already beside the markdown
 on trafilatura's scoreboard.
 
+Added while the harness was written, before it was run on any page:
+Scrapling's fetchers build a `Response` with the charset the server sent, and
+given bytes alone it reads them as UTF-8; so each page is handed to it as
+text, decoded by the rule html-to-markdown is given above (`snippets.as_text`),
+before the clock starts, as newspaper4k's page is decoded before it.
+
 A tool that raises on a page answered nothing on it, and the raise is counted
 apart. A question a tool does not answer (markitdown's and Scrapling's author
 and date, metascraper's text) is not scored for it: the page prints a dash,

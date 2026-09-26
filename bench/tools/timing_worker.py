@@ -1,6 +1,6 @@
 """One tool's timed pass over a table's pages, for ``bench/timing.py``.
 
-    python timing_worker.py TOOL PAGES
+    python timing_worker.py TOOL PAGES [HARNESS]
 
 Run in the tool's own environment, a fresh process each time, as
 ``bench/PREREG.md`` fixes it under "How a second is measured": it reads every
@@ -114,9 +114,16 @@ def _peak_rss() -> int:
     return peak if sys.platform == "darwin" else peak * 1024
 
 
-def main(tool: str, pages_path: str) -> None:
-    name, distribution = HARNESSES[tool]
-    harness = _harness(name)
+def main(tool: str, pages_path: str, harness_name: str | None = None) -> None:
+    """``harness_name``, when given, is the harness of a table that asks the
+    tool more than its scoreboard's harness does (``docs/scoreboard-tools.md``
+    asks for the text too); it names the distribution it scores."""
+    if harness_name is None:
+        name, distribution = HARNESSES[tool]
+        harness = _harness(name)
+    else:
+        harness = _harness(harness_name)
+        distribution = harness.DISTRIBUTION
     prepare = getattr(harness, "prepare", lambda html: html)
     pages = [(prepare(html), url) for html, url in _pages(Path(pages_path))]
     for page, url in pages:
@@ -143,4 +150,4 @@ def main(tool: str, pages_path: str) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(*sys.argv[1:4])
