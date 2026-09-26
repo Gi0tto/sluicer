@@ -59,6 +59,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The crawling guide's commands and Python example read `shop.example`,
   which serves nothing. They now read books.toscrape.com, except the two
   templates that need a site of your own.
+- The agents page's framework and "other tools" snippets use names they do
+  not define and top-level `await`; the page now says they are fragments for
+  your own code. It also installs `sluicer-mcp` with `pip`, not `uv pip`.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.
