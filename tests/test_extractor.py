@@ -670,6 +670,12 @@ def test_heal_says_why_its_words_differ_from_the_run(tmp_path):
     assert "listing-lost" not in result.stderr
     assert "vanished: title" in result.stderr
     assert "The listing is where it was" in result.stderr
+    # Said of fields heal did not find: they are looked for, not found again.
+    assert "found again" not in result.stderr
+    assert (
+        "title is looked for by the values learnt, and no place in it holds "
+        "them on these pages" in result.stderr
+    )
 
 
 def test_a_chosen_listing_is_kept_through_its_file_and_an_old_file_is_not_one():
@@ -1187,6 +1193,19 @@ def test_pages_that_are_not_pairs_are_refused_saying_so():
         with pytest.raises(ValueError, match=r"a pair of its HTML and its address"):
             compile_extractor(pages)
     assert compile_extractor([[*page("shop_v1.html")]]).listing is not None
+
+
+def test_pages_given_as_a_generator_or_a_map_are_read_once():
+    """The pages were iterated once to check them and the spent iterator
+    handed on, so a generator or a map failed with IndexError."""
+    names = ("shop_v1.html", "shop_v1_page2.html")
+    as_list = compile_extractor([page(name) for name in names])
+
+    for pages in ((page(name) for name in names), map(page, names)):
+        learnt = compile_extractor(pages)
+        assert learnt.listing == as_list.listing
+    with pytest.raises(NothingToLearn, match="at least one page"):
+        compile_extractor(page(name) for name in ())
 
 
 def test_a_file_missing_a_part_says_which():

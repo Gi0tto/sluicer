@@ -18,7 +18,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   on another product passed with every row of the table as a "price". Such a
   table is now no listing: the example is learnt as the page's own value, with
   a note that says why, `--listing` refuses it with the same reason, and a run
-  of an extractor 0.9.0 learnt that way fails.
+  of an extractor 0.9.0 learnt that way fails. A table of products, each row
+  headed by its name, stays a listing: its prices are of one kind, "£10"
+  beside "£12.50", however many items are "Sold out", and on two snapshots
+  of one category.
 - `compile` on pages that declare nothing but a title and a language wrote
   an extractor that checked only those, and a run of it passed any page,
   example.com included. It now learns nothing and says so, as for pages that
@@ -40,6 +43,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `compile_extractor` given a page's bare HTML instead of an `(html, url)`
   pair failed with "too many values to unpack", and an extractor file missing
   a part was refused naming a Python `KeyError`. Both now say what is wrong.
+- `heal` given one redesigned product page moved its `price` into a
+  "recently viewed" strip of one other book, whose price was a learnt one,
+  exited 0 and wrote an extractor that read that book's price as the
+  page's. A page field now never moves into an item about another page, a
+  list item or nested `<article>` that links elsewhere; two own places each
+  showing an old value make the move `ambiguous`, which exits 3 and is not
+  written without `--force`; and every page field's move says what it rests on.
 - `heal --force` without `-o` wrote nothing and said nothing; it is now
   refused, with exit 2, saying that `-o` says where to write.
 - npm package: every call ignored an option it did not know, so `compile()`
