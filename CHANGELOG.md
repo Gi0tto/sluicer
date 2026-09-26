@@ -27,6 +27,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   stealth rung and the Docker image in it.
 - The roadmap stopped at "Shipped in 0.6.0". It now says what 0.7.0, 0.7.1,
   0.8.0 and 0.9.0 shipped, and a test holds it to the changelog's releases.
+- Getting started said `sluicer.fetch.fetch(url)` after `import sluicer`,
+  which raises `AttributeError`; it, the crawling page and the WARC page now
+  name the import each call needs, and a test looks every such call up after
+  `import sluicer` alone. Its install line for a library is `pip install`,
+  and its "declares nothing" example runs on books.toscrape.com instead of
+  files that do not exist.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.

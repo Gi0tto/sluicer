@@ -361,8 +361,8 @@ and no-break spaces a spreadsheet may trim, and with a fullwidth `＝` or `＋`
 read as the sign it looks like. A table holds no page's links, so it cannot be resumed:
 `--resume` refuses it; crawl as JSON Lines and make the table after.
 `sluicer map --format csv` is a row per address: `url`, `lastmod`,
-`sitemap`. From Python, `sluicer.crawl.table.page_row()` flattens a page's
-line.
+`sitemap`. From Python, `page_row()`, after `from sluicer.crawl.table import page_row`,
+flattens a page's line.
 
 ## Exit codes
 

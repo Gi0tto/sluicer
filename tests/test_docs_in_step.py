@@ -205,3 +205,37 @@ def test_the_roadmap_names_every_release_the_changelog_does():
     assert releases
     for release in releases:
         assert f"## Shipped in {release}\n" in roadmap, release
+
+
+def test_every_call_the_guides_spell_from_sluicer_is_there_after_import_sluicer():
+    """getting-started said `sluicer.fetch.fetch(url)` after `import sluicer`,
+    which raises AttributeError: `sluicer.fetch` is a module `import sluicer`
+    does not load. Each `sluicer.a.b(` a guide spells is looked up as a reader
+    would, in a fresh interpreter that ran only `import sluicer`."""
+    import subprocess
+    import sys
+
+    pages = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
+    names = set()
+    for page in pages:
+        if page.is_symlink():  # the changelog tells history, not usage
+            continue
+        text = page.read_text(encoding="utf-8")
+        names.update(re.findall(r"`sluicer\.([A-Za-z_][\w.]*)\(", text))
+    assert "extract" in names
+    lookup = (
+        "import sluicer, sys\n"
+        "for name in sys.argv[1:]:\n"
+        "    thing = sluicer\n"
+        "    for part in name.split('.'):\n"
+        "        thing = getattr(thing, part, None)\n"
+        "    if thing is None:\n"
+        "        print(name)\n"
+    )
+    missing = subprocess.run(
+        [sys.executable, "-c", lookup, *sorted(names)],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    assert missing == [], missing
