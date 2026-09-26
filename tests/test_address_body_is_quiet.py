@@ -57,7 +57,7 @@ def test_the_extract_command_on_a_file_holding_an_address_does_not_warn(
     from sluicer.cli import main
 
     page = tmp_path / "url.html"
-    page.write_text(BODY)
+    page.write_text(BODY, encoding="utf-8")
 
     result = CliRunner().invoke(main, ["extract", str(page)])
 
@@ -72,7 +72,7 @@ def test_the_markdown_and_feed_commands_on_such_a_file_do_not_warn(
     from sluicer.cli import main
 
     page = tmp_path / "url.html"
-    page.write_text(BODY)
+    page.write_text(BODY, encoding="utf-8")
 
     for command in (["markdown", "--front-matter"], ["feed"]):
         result = CliRunner().invoke(main, [*command, str(page)])
