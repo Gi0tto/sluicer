@@ -479,6 +479,8 @@ def test_an_unknown_browser_is_no_matter_for_a_command_that_fetches_nothing(
     """The hostile review of 0.9.1: SLUICER_BROWSER=firefox made `sluicer
     extract E.html` of a local file exit 2 (0.9.0: 0), where no browser could
     run, while SLUICER_PROXY=ftp://x did not."""
+    if command[0] == "markdown":
+        pytest.importorskip("trafilatura")
     from click.testing import CliRunner
 
     from sluicer.cli import main

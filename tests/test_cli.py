@@ -1557,6 +1557,8 @@ def test_an_error_page_refused_says_the_pipe_that_reads_it_and_it_does(
 ):
     """The hostile review of 0.9.1: an error page was refused with no way
     forward. The refusal now names one, and it is run here as written."""
+    if command == "markdown":
+        pytest.importorskip("trafilatura")
     _answered(monkeypatch, 404, ERROR_PAGE)
     url = "https://example.com/gone?a=1&b=2"
     runner = CliRunner()
