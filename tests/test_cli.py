@@ -1306,3 +1306,21 @@ def test_extract_of_an_empty_error_page_names_the_status(monkeypatch, status):
     assert result.exit_code == 1
     assert f"the site answered status {status}" in result.stderr
     assert "compile" not in result.stderr
+
+
+def test_select_of_an_attribute_of_the_page_that_gives_nothing_says_where_it_read(
+    tmp_path,
+):
+    """'@href' is read from the <html> element and gave nothing without a word
+    of why; //@href is what reads every href."""
+    page = tmp_path / "p.html"
+    page.write_text(
+        '<html lang="en"><body><a href="/x">x</a></body></html>', encoding="utf-8"
+    )
+
+    nothing = CliRunner().invoke(main, ["select", str(page), "@href"])
+    lang = CliRunner().invoke(main, ["select", str(page), "@lang"])
+
+    assert nothing.exit_code == 1
+    assert "reads the <html> element's attribute; //@href reads it" in (nothing.stderr)
+    assert lang.exit_code == 0 and lang.stdout.startswith("en\t/html")

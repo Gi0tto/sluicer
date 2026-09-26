@@ -251,6 +251,17 @@ def test_a_selector_with_a_character_xpath_cannot_hold_is_an_error_naming_it(wri
         shop().select(written)
 
 
+def test_a_guessed_css_selector_that_fails_names_every_way_an_xpath_begins():
+    """The message said "an XPath begins with /, ./ or (" while selector()
+    reads ../ and @ as XPath too, as the MCP select_values tool says."""
+    with pytest.raises(SelectorError) as raised:
+        shop().select("h1:::text")
+
+    assert "an XPath begins with /, ./, ../, ( or @, or is written after xpath:" in (
+        str(raised.value)
+    )
+
+
 def test_a_selector_error_is_a_value_error():
     assert issubclass(SelectorError, ValueError)
 

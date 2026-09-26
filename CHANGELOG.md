@@ -30,6 +30,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   that reads a page, a local file included, with "--max-age ... needs
   --cache". A file's `max-age` now applies only to runs that use a cache; a
   typed `--max-age` without `--cache` is still refused.
+- A selector that was neither CSS nor XPath was refused with "an XPath begins
+  with /, ./ or (", leaving out the `../` and `@` that are read as XPath too.
+  The message now names all five. `select PAGE @href`, which reads the
+  `<html>` element's attribute and so gives nothing, now says so and names
+  `//@href`.
 
 ## 0.9.0 - 2026-09-26
 

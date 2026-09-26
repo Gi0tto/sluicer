@@ -8,6 +8,7 @@ JSON, is built here.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import asdict
 from typing import Any
@@ -175,7 +176,18 @@ def select_command(
     except SelectorError as unread:
         _fail(f"{unread}.", unread)
     if not found:
-        click.echo(f"{selector!r} gives nothing on this page.", err=True)
+        hint = ""
+        attribute = re.fullmatch(r"@([\w:.-]+)", selector.strip())
+        if attribute is not None:
+            # Read from the page's <html> element, as an XPath of the page is:
+            # '@href' asks for its href, which it never has, and read as
+            # every href on the page it would have been another selector.
+            name = attribute.group(1)
+            hint = (
+                f": an XPath that begins with @ reads the <html> element's "
+                f"attribute; //@{name} reads it on every element"
+            )
+        click.echo(f"{selector!r} gives nothing on this page{hint}.", err=True)
         raise SystemExit(NOTHING_FOUND)
     if as_json:
         values = [{"value": one.value, "where": one.where} for one in found]
