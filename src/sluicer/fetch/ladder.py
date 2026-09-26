@@ -50,6 +50,7 @@ from sluicer.fetch.identity import (
     ROBOTS_TTL_SECONDS,
     UNAVAILABLE,
     UNREACHABLE,
+    UNREACHABLE_AGAIN,
     RobotsUnreachable,
     outgoing,
     robots_refusal,
@@ -67,7 +68,7 @@ from sluicer.fetch.result import (
     shown_fetched,
 )
 from sluicer.fetch.rules import challenge_marker, why_climb
-from sluicer.fetch.wire import passing
+from sluicer.fetch.wire import passing, unknown_name
 
 __all__ = [
     "AddressRefused",
@@ -143,7 +144,9 @@ def transient(error: BaseException) -> bool:
     Anything else is taken for the site's answer, which asking again would
     be given again: a crawl retries only these.
     """
-    if isinstance(error, RobotsUnreachable) or passing(error):
+    if isinstance(error, RobotsUnreachable):
+        return error.transient
+    if passing(error):
         return True
     if type(error).__name__ == "TimeoutError":
         # Playwright's, which is not the built-in one.
@@ -293,7 +296,14 @@ def robots_reader_from(cheapest_rung: Rung) -> Callable[[str], str | None]:
         # the same event, "unreachable", and a list of exception types would
         # be a list of the failures someone happened to think of.
         except Exception as failure:  # noqa: BLE001
-            return _stay_out(UNREACHABLE, f"{type(failure).__name__}: {failure}")
+            said = f"{type(failure).__name__}: {failure}"
+            if unknown_name(failure):
+                # The one failure asking again cannot change, as the page's
+                # own lookup is judged: until 0.9.1 a crawl asked a name that
+                # does not exist again, and an agent was told to retry it.
+                host = urlsplit(url).hostname
+                return _stay_out(UNREACHABLE_AGAIN, f"{host} does not resolve ({said})")
+            return _stay_out(UNREACHABLE, said)
         if response.status >= 500:
             return _stay_out(UNAVAILABLE, f"status {response.status}")
         if response.status >= 400:
@@ -400,7 +410,9 @@ def fetch(
             transport writes, or a header or cookie that would break the
             request; or they were given with injected ``rungs``, which send
             what their caller built them to, or with ``stealth``, which sends
-            nothing that says who is asking.
+            nothing that says who is asking; or, with the default rungs,
+            ``SLUICER_BROWSER`` is neither ``chromium`` nor ``none``
+            (``UnknownBrowser``).
         FetchFailed: every rung failed, the URL is invalid, or its robots.txt
             could not be read.
         FetchExtraMissing: ``stealth`` was asked for and the ``stealth`` extra
@@ -658,7 +670,9 @@ def _robots(url: str, read: Callable[[str], str | None]) -> str | None:
     try:
         return robots_refusal(url, read=read)
     except RobotsUnreachable as unreachable:
-        raise FetchFailed(url, [], str(unreachable), transient=True) from unreachable
+        raise FetchFailed(
+            url, [], str(unreachable), transient=unreachable.transient
+        ) from unreachable
 
 
 def _origin(url: str) -> tuple[str, str, int | None]:

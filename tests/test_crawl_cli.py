@@ -554,3 +554,27 @@ def test_a_site_the_sitemap_template_cannot_map_exits_two(fake):
 
     assert result.exit_code == 2
     assert "503" in result.stderr
+
+
+# -- a page the site answered with its error -----------------------------------
+
+
+@pytest.mark.parametrize("status", [404, 503])
+@pytest.mark.parametrize("command", ["crawl", "batch"])
+def test_an_error_page_is_a_failed_line_and_exits_two(fake, command, status):
+    """Measured on 0.9.0: a crawl of a 404 said "ok": true, "1 pages: 1
+    read." and exit 0, with "404 Not Found" as the page's title; a batch of a
+    503 the same after its retries."""
+    fake.pages[f"{ROOT}/gone"] = (status, page(f"{status} Not Found"), {})
+    args = [f"{ROOT}/gone"] if command == "crawl" else ["-"]
+    stdin = None if command == "crawl" else f"{ROOT}/gone\n"
+
+    result = invoke(command, *args, "--retries", "0", stdin=stdin)
+
+    assert result.exit_code == 2, result.stderr
+    [line] = lines(result.stdout)
+    assert line["ok"] is False
+    assert line["error"]["code"] == "fetch_failed"
+    assert f"answered status {status}" in line["error"]["message"]
+    assert line["error"]["retryable"] is (status == 503)
+    assert "summary" not in line

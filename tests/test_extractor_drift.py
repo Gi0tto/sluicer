@@ -614,6 +614,24 @@ def test_heal_writes_a_lossy_extractor_when_forced(tmp_path):
     assert "span.price" not in out.read_text(encoding="utf-8")
 
 
+def test_heal_force_without_somewhere_to_write_is_refused(tmp_path):
+    """Measured on 0.9.0 (inventory audit, B17): --force without -o did
+    nothing and said nothing, exit 3 as for any lossy heal."""
+    out = tmp_path / "shop.json"
+    before = learn(shop_page(books(10))).to_json()
+    out.write_text(before, encoding="utf-8")
+    gone = tmp_path / "gone.html"
+    gone.write_text(
+        shop_page([li(TITLES[i], f"/b/{i}", "") for i in range(10)]), encoding="utf-8"
+    )
+
+    result = _cli("heal", str(out), str(gone), "--force")
+
+    assert result.exit_code == 2
+    assert "it needs -o FILE" in result.stderr
+    assert out.read_text(encoding="utf-8") == before
+
+
 def test_compile_into_a_folder_that_does_not_exist_is_a_message(tmp_path):
     page = tmp_path / "p.html"
     page.write_text(shop_page(books(6)), encoding="utf-8")

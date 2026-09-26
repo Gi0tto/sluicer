@@ -64,6 +64,47 @@ def test_the_answer_is_cached_per_host():
     assert calls == ["https://example.com/robots.txt", "https://other.com/robots.txt"]
 
 
+def test_one_origin_spelled_two_ways_is_one_robots_txt():
+    """Measured on 0.9.0 (architecture audit, D10): the key was the raw
+    scheme://netloc, so http://A.com:80/ and http://a.com/ were two entries,
+    and one site's robots.txt was asked twice."""
+    calls = []
+
+    def read(url):
+        calls.append(url)
+        return ALLOW_ALL
+
+    cache: dict = {}
+    for url in (
+        "http://A.com:80/a",
+        "http://a.com/b",
+        "HTTP://a.COM/c",
+        "http://user:secret@a.com/d",
+        "https://a.com:443/e",
+        "https://a.com/f",
+        "http://[::1]:80/g",
+        "http://[::1]/h",
+    ):
+        robots_allows(url, read=read, cache=cache)
+
+    assert calls == [
+        "http://A.com:80/robots.txt",
+        "https://a.com:443/robots.txt",
+        "http://[::1]:80/robots.txt",
+    ]
+    assert sorted(cache) == ["http://[::1]", "http://a.com", "https://a.com"]
+
+
+def test_a_port_that_is_not_the_default_is_another_robots_txt():
+    calls = []
+    cache: dict = {}
+
+    for url in ("http://a.com:8080/a", "http://a.com/b", "https://a.com:80/c"):
+        robots_allows(url, read=lambda u: calls.append(u) or ALLOW_ALL, cache=cache)
+
+    assert len(calls) == 3
+
+
 def test_an_answer_older_than_a_day_is_asked_again():
     """A site that adds a Disallow must be noticed, not pinned for the process.
 

@@ -65,8 +65,17 @@ def audit_command(
     there was nothing to audit, and 0. 2, as everywhere, when the page could
     not be read.
     """
+    # A 403 or a 404 is audited as the answer it is, and the audit says so.
     html, url, fetched = _read_source(
-        source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
+        source,
+        stealth,
+        no_robots,
+        base_url,
+        at,
+        respect,
+        cache_dir,
+        max_age,
+        error_page=True,
     )
     site = None
     if fetched is not None and not no_site and fetched.archived is None:

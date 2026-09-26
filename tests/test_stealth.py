@@ -188,3 +188,58 @@ def test_the_stealth_page_is_held_to_the_bound(monkeypatch):
 
     with pytest.raises(ResponseTooLarge):
         stealth_rung(max_bytes=1000)[1]("https://example.com/p")
+
+
+class _RepeatingHeaders:
+    """A response's headers that name some twice, as a multi-dict does."""
+
+    def __init__(self, pairs):
+        self.pairs = pairs
+
+    def items(self):
+        return list(self.pairs)
+
+    def __bool__(self):
+        return bool(self.pairs)
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        _RepeatingHeaders(
+            [
+                ("Link", "<https://a.example/c>; rel=canonical"),
+                ("X-Robots-Tag", "noindex"),
+                ("Link", "<https://a.example/n>; rel=next"),
+                ("X-Robots-Tag", "nofollow"),
+            ]
+        ),
+        {
+            "Link": "<https://a.example/c>; rel=canonical",
+            "link": "<https://a.example/n>; rel=next",
+            "X-Robots-Tag": "noindex",
+            "x-robots-tag": "nofollow",
+        },
+    ],
+    ids=["repeated", "two-cases"],
+)
+def test_a_header_the_stealth_rung_is_given_twice_keeps_both_values(
+    monkeypatch, headers
+):
+    """The architecture audit of 0.9.0 (D8): the rung kept only the last value
+    of a name given twice, against Fetched.headers' "a repeated one's values
+    joined". scrapling 0.4.15 joins them itself, measured on a local server;
+    the rung no longer relies on it."""
+    fake_scrapling(monkeypatch)
+    from sluicer.fetch.stealth import _as_fetched
+
+    response = types.SimpleNamespace(
+        html_content="<p>hi</p>", status=200, url="https://a.example/", headers=headers
+    )
+
+    page = _as_fetched(response, "https://a.example/")
+
+    assert page.headers == {
+        "link": "<https://a.example/c>; rel=canonical, <https://a.example/n>; rel=next",
+        "x-robots-tag": "noindex, nofollow",
+    }

@@ -149,6 +149,70 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.
+- A page that redirects to an address off the web, `ftp:` or `file:`, ends
+  every page command with its reason and exit 2. It crashed them with a
+  traceback and exit 1, which means "read, and gave nothing".
+- An address with no host, such as `http:///x`, is refused before anything is
+  asked: `bad_input` for the MCP tools, `AddressRefused` from `fetch()`, exit
+  2 on the command line. It was reported as a robots.txt that could not be
+  read, and marked worth retrying.
+- A page the site answers with its error, a 4xx or a 5xx, is no longer read as
+  the page. `extract`, `inspect`, `select`, `markdown`, `diff`, `feed` and
+  `compile` exit 2 naming the status, where `extract` printed "404 Not Found"
+  as the title and exited 0; a crawl's or a batch's line is `ok` false,
+  `fetch_failed`, retryable for a 429 or a 5xx; the MCP tools and the HTTP
+  API answer `fetch_failed` (502). `fetch`, `fetch_page`, `audit` and
+  `audit_page` still answer about the error page as it is, as documented.
+- Text that is neither an http(s) URL nor HTML, such as `example.com`, is
+  `bad_input` for the MCP tools that take a page, with the address written
+  with its scheme when it looks like one. It was read as a page and answered
+  `ok` true with nothing in it.
+- `sluicer.extract()`, `aextract()` and `sluicer.feeds.read_feed()` handed an
+  address alone warn (`UserWarning`) that they fetch nothing and say how to
+  fetch it first. They returned an empty result, or None, in silence; the
+  answer is the same, since both are documented never to raise.
+- `sluicer serve` on a port another server holds says so and exits 2 before
+  it says it is serving. It printed "serving the tools" and then exited 3,
+  the code for a broken contract.
+- `sluicer mcp` and `sluicer-mcp` without the `mcp` extra exit 2 with the
+  line that installs it, as `sluicer serve` does without its own. They
+  exited 1, the code for "read, and found nothing".
+- `--at` and `--proxy` are read with the command line: a date or a proxy that
+  is not one is a usage error, exit 2, before anything is fetched. They
+  failed at fetch time as "Could not fetch URL: ValueError: ..." or
+  "UnusableProxy: ...", and a `SLUICER_PROXY` that is not a proxy is now
+  named as the variable.
+- `--at 2000`, and any year ending in 00, is a date. The year was checked by
+  its last two digits against 1 to 9999, so `'2000' is not a date`.
+- `SLUICER_BROWSER` set to anything but `chromium` or `none` is refused with
+  a message naming both: a usage error on the command line, exit 2 for
+  `sluicer mcp` and `sluicer serve`, `UnknownBrowser` (a `ValueError`) from
+  `fetch()`. Any other value was Chromium in silence.
+- One site's robots.txt is remembered once however its address is written:
+  `http://A.com:80/` and `http://a.com/` were two entries, each asked for.
+- The stealth rung joins the values of a header given twice, as every other
+  rung does, instead of keeping the last. scrapling 0.4.15 already joins
+  them, so this guards a contract the rung relied on scrapling to keep.
+- MCP `compile_extractor` refuses `select` beside `want` or `listing`, as the
+  command line and the library do, before any page is fetched. It answered
+  `ok` true and ignored `want`.
+- `sluicer mcp --tools ''`, a list that names no tool, is refused with the
+  twelve names and exit 2. It started a server with no tool, in silence.
+- `sluicer heal --force` without `-o` is a usage error, exit 2, before any
+  page is read. `--force` alone did nothing and said nothing.
+- `sluicer diff - -` is refused: standard input is one page. It read the page,
+  then said standard input "contains no HTML".
+- A file that cannot be read is said of the file: "nothere.warc does not
+  exist", not "[Errno 2] No such file or directory", for `run`, `heal`, `warc`
+  and `batch`; an extractor missing a part names the part, not
+  `KeyError('listing')`, on the command line and in MCP `run_extractor`; and
+  `fetch()` of a path says it names no scheme, not "not no scheme".
+- A site whose name does not exist is not worth asking again: its robots.txt
+  failure says the name does not resolve and is `retryable` false, so a
+  crawl or a batch asks it once. It was marked retryable and asked three
+  times; a lookup that failed only for now is still retried.
+- `sluicer-mcp --help` prints its usage, and any other argument exits 2
+  saying it takes none. Both started the server, which then waited on stdin.
 
 ## 0.9.0 - 2026-09-26
 

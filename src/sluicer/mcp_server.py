@@ -289,7 +289,10 @@ def _allow_private() -> bool:
 
 
 def _html_of(
-    html_or_url: str, at: str | None = None
+    html_or_url: str,
+    at: str | None = None,
+    error_page: bool = False,
+    expect_html: bool = True,
 ) -> tuple[str, str | None, dict[str, Any] | None]:
     """Return the page's HTML, the URL to attribute it to, and the fetch record.
 
@@ -297,12 +300,33 @@ def _html_of(
     page's relative links resolve against; for literal HTML it is None. Literal
     HTML is held to the bound a fetched page is.
     """
-    html, url, record, _headers = _page_of(html_or_url, at)
+    html, url, record, _headers = _page_of(html_or_url, at, error_page, expect_html)
     return html, url, record
 
 
+def _check_address(url: str) -> None:
+    """Refuse, as ``bad_input``, an http(s) address that names no host.
+
+    ``http:///x`` is a typo, not a site that is down: until 0.9.1 it was
+    answered ``fetch_failed``, ``retryable`` true, blaming its robots.txt.
+    """
+    from urllib.parse import urlsplit
+
+    try:
+        host = urlsplit(url).hostname
+    except ValueError as invalid:
+        raise _BadInput(f"{url!r} is not a valid address: {invalid}") from invalid
+    if not host:
+        raise _BadInput(
+            f"{url!r} names no host: an address is written https://example.com/page"
+        )
+
+
 def _page_of(
-    html_or_url: str, at: str | None = None
+    html_or_url: str,
+    at: str | None = None,
+    error_page: bool = False,
+    expect_html: bool = True,
 ) -> tuple[str, str | None, dict[str, Any] | None, dict[str, str] | None]:
     """``_html_of``, and the response's headers for a URL.
 
@@ -310,10 +334,22 @@ def _page_of(
     ``X-Robots-Tag`` -- and never sent back raw: a response's cookies are not
     the agent's to see. ``at`` reads a URL as the Wayback Machine captured it
     nearest to that date, and the record then says which capture it was.
+
+    A URL the site answered with a status outside 2xx is ``fetch_failed``
+    naming the status, retryable for a 429 or a 5xx: its answer is the
+    site's error, not the page, and until 0.9.1 ``extract_declared`` said
+    ``ok`` true with "404 Not Found" as its title. ``error_page`` keeps it,
+    for the tools whose answer is about whatever the site sent:
+    ``fetch_page`` and ``audit_page``. Text that is neither a URL nor HTML,
+    with no ``<`` in it -- ``example.com``, an empty string -- is
+    ``bad_input`` unless ``expect_html`` is false, for a feed, whose JSON
+    has none.
     """
     is_url = html_or_url.strip().lower().startswith(("http://", "https://"))
     if at is not None and not is_url:
         raise _BadInput("at reads an address from the Wayback Machine, not HTML")
+    if is_url:
+        _check_address(html_or_url.strip())
     if is_url and at is not None:
         from sluicer.fetch.archive import fetch_archived
 
@@ -327,6 +363,14 @@ def _page_of(
         from sluicer.fetch import fetch
 
         fetched = fetch(html_or_url, allow_private=_allow_private())
+    if is_url and not error_page and not 200 <= fetched.status < 300:
+        raise FetchFailed(
+            fetched.url,
+            [],
+            f"the site answered status {fetched.status}, which is its error, "
+            "not the page",
+            transient=fetched.status == 429 or fetched.status >= 500,
+        )
     if is_url:
         return (
             fetched.html,
@@ -349,7 +393,23 @@ def _page_of(
         )
     if len(html_or_url) > MAX_RESPONSE_BYTES:
         raise ResponseTooLarge("the HTML handed in", MAX_RESPONSE_BYTES)
+    if expect_html and "<" not in html_or_url:
+        raise _BadInput(_neither_url_nor_html(html_or_url))
     return html_or_url, None, None, None
+
+
+def _neither_url_nor_html(text: str) -> str:
+    """What to say of text that is neither an http(s) URL nor HTML: until
+    0.9.1, extract_declared("example.com") answered ok true with nothing in
+    it, a page whose whole text was "example.com"."""
+    given = text.strip()
+    shown_given = repr(given[:80] + ("..." if len(given) > 80 else ""))
+    said = f"{shown_given} is neither an http(s) URL nor HTML"
+    if not given:
+        return "html_or_url is empty: give an http(s) URL or the HTML itself"
+    if re.fullmatch(r"(?:www\.)?[\w-]+(?:\.[\w-]+)+(?:[/?#]\S*)?", given):
+        return f"{said}: an address needs its scheme, as https://{given}"
+    return f"{said}: give an http(s) URL to fetch, or the page's HTML"
 
 
 def build_server(tools: Iterable[str] | None = None) -> Any:
@@ -357,15 +417,17 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
 
     ``tools`` names the ones to register, when a client wants fewer: each
     registered tool costs an agent context whether it is called or not. A
-    name that is not one of the twelve is an ``UnknownTool``, a ``ValueError``,
-    that lists them.
+    name that is not one of the twelve, or a list that names none, is an
+    ``UnknownTool``, a ``ValueError``, that lists them.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
 
     A ``SLUICER_PROXY`` it cannot use is an ``UnusableProxy``, raised here
     rather than by the first tool that fetches: there it was an internal
-    error, and its traceback wrote the proxy's password into the log.
+    error, and its traceback wrote the proxy's password into the log. A
+    ``SLUICER_BROWSER`` that is neither ``chromium`` nor ``none`` is an
+    ``UnknownBrowser``, raised here too.
     """
     through = chosen_proxy()
     if through is not None:
@@ -373,6 +435,10 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             Proxy.parse(through)
         except UnusableProxy as unusable:
             raise UnusableProxy(f"{PROXY_ENV}: {unusable}") from None
+    from sluicer.fetch.browser import browser_wanted
+
+    # An UnknownBrowser, a ValueError, here rather than at the first fetch.
+    browser_wanted()
     wanted = None if tools is None else list(tools)
     seen: list[str] = []
     server_class = _server_class()
@@ -601,7 +667,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             # Refused rather than echoed back: a caller handed the string it
             # sent, with no way to tell nothing was fetched, is worse off.
             raise _BadInput(f"fetch_page needs an http:// or https:// URL, got {url!r}")
-        html, landed, fetched = _html_of(url)
+        html, landed, fetched = _html_of(url, error_page=True)
         part, following = _slice(html, offset, max_chars)
         page = {
             "ok": True,
@@ -775,7 +841,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         the last records, page findings and other_agents are left out,
         counted in records_left_out, page_left_out and other_agents_left_out.
         """
-        html, url, fetched = _html_of(html_or_url)
+        html, url, fetched = _html_of(html_or_url, error_page=True)
         read = None
         if site and url is not None:
             from sluicer.fetch.site import read_site
@@ -815,7 +881,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         from sluicer.feeds import read_feed as read
 
         _within("limit", limit, 1, FEED_ITEMS)
-        html, url, fetched = _html_of(url_or_text)
+        html, url, fetched = _html_of(url_or_text, expect_html=False)
         feed = read(html, url=url)
         if feed is None and url is not None:
             declared = read_links(load(html, url=url)).get("feeds", [])
@@ -1066,6 +1132,12 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         raise UnknownTool(
             f"no such tool: {', '.join(map(repr, unknown))}; "
             f"the tools are {', '.join(seen)}"
+        )
+    if wanted is not None and not wanted:
+        # Until 0.9.1 `--tools ''` served no tool at all, and said nothing.
+        raise UnknownTool(
+            f"no tool named: name one or more of {', '.join(seen)}, or leave "
+            "the list out for all twelve"
         )
     return server
 
@@ -1321,14 +1393,46 @@ TOOLS_ENV = "SLUICER_MCP_TOOLS"
 a command line; ``sluicer mcp --tools`` says the same."""
 
 
+SCRIPT_USAGE = (
+    "Usage: sluicer-mcp\n\n"
+    "  Run Sluicer's MCP server over stdio (needs sluicer[mcp]); it takes no\n"
+    "  arguments. SLUICER_MCP_TOOLS=extract_declared,page_markdown registers\n"
+    "  only those tools, as sluicer mcp --tools does."
+)
+
+
+def _refuse_script_arguments(argv: list[str]) -> None:
+    """``sluicer-mcp --help`` prints its usage and exits 0; any other argument
+    exits 2. Until 0.9.1 both started the server, which then sat waiting on
+    stdin. ``sluicer mcp`` reads its own arguments, and is left alone."""
+    if not argv or not os.path.basename(argv[0]).startswith("sluicer-mcp"):
+        return
+    given = argv[1:]
+    if not given:
+        return
+    if given in (["--help"], ["-h"]):
+        print(SCRIPT_USAGE)
+        raise SystemExit(0)
+    print(
+        f"sluicer-mcp takes no arguments, not {' '.join(given)!r}.\n\n" + SCRIPT_USAGE,
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+
+
 def main(tools: Iterable[str] | None = None) -> None:
     """Run the server over stdio, or explain a missing ``mcp`` extra in one line.
 
     ``tools`` names the tools to register, or ``SLUICER_MCP_TOOLS`` does; all
     twelve when neither says. A name that is not a tool exits 2, as a wrong
-    option does, with the list of the twelve. A broken install, as opposed to a
-    missing one, keeps its traceback.
+    option does, with the list of the twelve. A missing ``mcp`` extra exits 2
+    too, with the line that installs it: until 0.9.1 it exited 1, which the
+    command line's codes keep for "read, and found nothing". A broken
+    install, as opposed to a missing one, keeps its traceback.
     """
+    from sluicer.fetch.browser import UnknownBrowser
+
+    _refuse_script_arguments(sys.argv)
     if tools is None and os.environ.get(TOOLS_ENV, "").strip():
         tools = [n.strip() for n in os.environ[TOOLS_ENV].split(",") if n.strip()]
     try:
@@ -1337,8 +1441,8 @@ def main(tools: Iterable[str] | None = None) -> None:
         # Flushed now: the exit that follows must not be what decides whether
         # the one line that says what to install is ever written.
         print(str(missing), file=sys.stderr, flush=True)
-        raise SystemExit(1) from missing
-    except (UnknownTool, UnusableProxy) as unknown:
+        raise SystemExit(2) from missing
+    except (UnknownTool, UnusableProxy, UnknownBrowser) as unknown:
         print(str(unknown), file=sys.stderr, flush=True)
         raise SystemExit(2) from unknown
     # scrapling logs every request at INFO into the server's stderr, and sets

@@ -4,9 +4,12 @@ Exit codes follow grep: 0 when something was found -- a record, or at least one
 summary answer, a ``<title>`` alone included, or with ``--visible`` a guess --
 1 when the page was read and gives nothing at all, 2 when it could not be
 read. A script can tell "this page gives nothing" from "the fetch failed"
-without parsing English. ``run`` and ``heal`` add 3: a page broke the
-extractor's contract, or healing lost a field, and that is never a success; a
-page the site answered with a status outside 2xx is one they could not read.
+without parsing English. A page the site answered with a status outside
+2xx is one a command could not read: its answer is the site's error, not the
+page. Only ``fetch``, which prints whatever came back, and ``audit``, which
+audits an error page as the answer it is, take it. ``run`` and ``heal`` add
+3: a page broke the extractor's contract, or healing lost a field, and that
+is never a success.
 ``audit`` uses 3 in the same sense: the page was read and breaks a rule it is
 held to, here one its documentation states.
 
@@ -36,3 +39,15 @@ def _fail(message: str, cause: BaseException | None = None) -> NoReturn:
     it names is written ``***``."""
     click.echo(shown(message), err=True)
     raise SystemExit(COULD_NOT_READ) from cause
+
+
+def _unreadable(path: str, failure: OSError) -> str:
+    """Why the file ``path`` could not be read, said of the file, without the
+    ``[Errno 2]`` and the repr Python writes."""
+    if isinstance(failure, FileNotFoundError):
+        return f"{path} does not exist"
+    if isinstance(failure, IsADirectoryError):
+        return f"{path} is not a file"
+    if isinstance(failure, PermissionError):
+        return f"{path} cannot be read: permission denied"
+    return f"{path} cannot be read: {failure.strerror or failure}"

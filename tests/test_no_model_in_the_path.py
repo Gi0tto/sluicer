@@ -68,6 +68,10 @@ ALLOWED = {
     # through wire's own dialling.
     ("sluicer/fetch/browser_proxy.py", "socket"),
     ("sluicer/fetch/http_rung.py", "http.client"),
+    # sluicer serve binds its own port once, and lets it go, before uvicorn
+    # does, to say a port is taken before it says it serves: it connects
+    # nowhere and sends nothing.
+    ("sluicer/http_api.py", "socket"),
 }
 
 # The calls that import a module named by a string.

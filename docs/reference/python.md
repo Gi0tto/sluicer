@@ -38,6 +38,10 @@ An ``Extraction``: the ``summary``, the ``records`` (a record with no field is n
 - `MicroformatsExtraMissing`: ``microformats=True`` without the extra.
 - Nothing else: any input, however broken, is read or reported empty.
 
+``html`` that is an http(s) address and nothing else is read as a
+page's text, which declares nothing, with a ``UserWarning`` saying so:
+nothing is fetched here, so fetch it first, with ``sluicer.fetch.fetch``.
+
 Why the order is what it is, and when induction runs, is in
 ``docs/design-notes.md``.
 
@@ -58,9 +62,10 @@ aextract(
 read on a worker thread of the loop's default executor so that a large
 page does not hold the event loop while it is parsed.
 
-Nothing is fetched: ``html`` is the page, as for ``extract``. To fetch
-one from a coroutine, ``await sluicer.fetch.afetch(url)`` and hand its
-``html`` and ``headers`` here.
+Nothing is fetched: ``html`` is the page, as for ``extract``, which
+warns the same way when it is an address alone. To fetch one from a
+coroutine, ``await sluicer.fetch.afetch(url)`` and hand its ``html`` and
+``headers`` here.
 
 ### `sluicer.Extraction`
 
@@ -428,7 +433,7 @@ The ``Fetched`` page, with every climb, the final URL, and how long each rung to
 - `AddressRefused`: the address, or one a redirect led to, is not http or https; or ``allow_private`` is false and it is private.
 - `ResponseTooLarge`: the page is heavier than ``max_bytes``.
 - `RedirectRefused`: an injected rung was given a rule for redirects, and a hop broke it.
-- `ValueError`: ``headers`` hold a ``User-Agent``, or a header the transport writes, or a header or cookie that would break the request; or they were given with injected ``rungs``, which send what their caller built them to, or with ``stealth``, which sends nothing that says who is asking.
+- `ValueError`: ``headers`` hold a ``User-Agent``, or a header the transport writes, or a header or cookie that would break the request; or they were given with injected ``rungs``, which send what their caller built them to, or with ``stealth``, which sends nothing that says who is asking; or, with the default rungs, ``SLUICER_BROWSER`` is neither ``chromium`` nor ``none`` (``UnknownBrowser``).
 - `FetchFailed`: every rung failed, the URL is invalid, or its robots.txt could not be read.
 - `FetchExtraMissing`: ``stealth`` was asked for and the ``stealth`` extra is not installed.
 
@@ -816,7 +821,9 @@ The feed ``data`` is, or None when it is not one.
 
 ``url`` is the address the feed came from, which relative links resolve
 against. Never raises: a document that is not a feed, or not well formed,
-is None.
+is None. ``data`` that is an http(s) address alone is None too, with a
+``UserWarning`` saying so: nothing is fetched here, so fetch the feed
+first, with ``sluicer.fetch.fetch``.
 
 ## Web archives
 

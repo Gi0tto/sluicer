@@ -1829,3 +1829,32 @@ def test_a_redirect_the_callers_rule_refused_is_not_a_reason_to_climb():
         )
 
     assert browser.calls == []
+
+
+@pytest.mark.parametrize("url", ["http:///x", "https://", "http://:80/p"])
+def test_an_address_with_no_host_is_refused_before_its_robots_txt(url):
+    """Measured on 0.9.0: fetch("http:///x") read its robots.txt first, the
+    rung refused that, and the refusal came back as a robots.txt nobody could
+    read: FetchFailed, transient, which a crawl and an agent ask again."""
+    asked = []
+
+    def rung(address):
+        asked.append(address)
+        return Fetched(url=address, html="<p>ok</p>", status=200, rung="x")
+
+    with pytest.raises(AddressRefused, match="names no host"):
+        fetch(url, rungs=[("x", rung)])
+
+    assert asked == []
+
+
+def test_a_path_handed_to_fetch_is_said_to_name_no_scheme():
+    """Measured on 0.9.0 (inventory audit, B21): "only http and https are
+    fetched, not no scheme"."""
+    with pytest.raises(AddressRefused) as refused:
+        fetch("/etc/hosts", rungs=[("x", _rung("x"))])
+
+    assert str(refused.value) == (
+        "/etc/hosts is not fetched: it names no scheme, and only http and "
+        "https addresses are fetched"
+    )

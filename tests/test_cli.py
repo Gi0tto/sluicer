@@ -1046,7 +1046,7 @@ def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):
         monkeypatch.delitem(sys.modules, name, raising=False)
     monkeypatch.setattr(sys, "meta_path", [_NoMcp(), *sys.meta_path])
     result = CliRunner().invoke(main, ["mcp"])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "sluicer[mcp]" in result.stderr and "Traceback" not in result.stderr
 
 
@@ -1303,7 +1303,7 @@ def test_extract_of_an_empty_error_page_names_the_status(monkeypatch, status):
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert f"the site answered status {status}" in result.stderr
     assert "compile" not in result.stderr
 
@@ -1324,3 +1324,211 @@ def test_select_of_an_attribute_of_the_page_that_gives_nothing_says_where_it_rea
     assert nothing.exit_code == 1
     assert "reads the <html> element's attribute; //@href reads it" in (nothing.stderr)
     assert lang.exit_code == 0 and lang.stdout.startswith("en\t/html")
+
+
+ERROR_PAGE = (
+    "<html><head><title>404 Not Found</title></head>"
+    "<body><h1>Not Found</h1><p>No such page.</p></body></html>"
+)
+
+
+@pytest.mark.parametrize("status", [404, 410, 500, 503])
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["extract"],
+        ["inspect"],
+        ["select", "{url}", "h1"],
+        ["markdown"],
+        ["feed"],
+        ["diff", "{url}", "{url}"],
+        ["compile", "{url}", "-o", "{out}"],
+    ],
+    ids=lambda c: c[0] if isinstance(c, list) else str(c),
+)
+def test_a_page_the_site_answered_with_its_error_exits_two(
+    monkeypatch, tmp_path, command, status
+):
+    """Measured on 0.9.0: sluicer extract of a 404 exited 0 with "404 Not
+    Found" as the page's title; select, markdown and compile read the error
+    page as the page too. Only run and heal refused it."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    _answered(monkeypatch, status, ERROR_PAGE)
+    url = "https://example.com/gone"
+    out = tmp_path / "e.json"
+    args = [part.format(url=url, out=out) for part in command]
+    if len(args) == 1:
+        args.append(url)
+
+    result = CliRunner().invoke(main, args)
+
+    assert result.exit_code == 2, result.output
+    assert f"Could not read {url}: the site answered status {status}" in result.stderr
+    assert "Not Found" not in result.stdout
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("command", ["fetch", "audit"])
+def test_fetch_and_audit_still_answer_about_an_error_page(monkeypatch, command):
+    """fetch prints a page whatever its status, and audit audits a 404 as the
+    answer it is: both documented, both kept."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    _answered(monkeypatch, 404, ERROR_PAGE)
+    extra = ["--no-site"] if command == "audit" else []
+
+    result = CliRunner().invoke(main, [command, "https://example.com/gone", *extra])
+
+    assert result.exit_code != 2, result.output
+    assert "404" in result.output
+
+
+# -- an address that is not on the web --------------------------------------
+
+
+@pytest.mark.parametrize("command", ["extract", "fetch", "select", "markdown"])
+@pytest.mark.parametrize(
+    "target", ["ftp://example.invalid/x", "file:///etc/passwd"], ids=["ftp", "file"]
+)
+def test_a_redirect_off_the_web_exits_two_with_a_message(monkeypatch, command, target):
+    """Measured on 0.9.0: a page redirecting to ftp: or file: crashed every
+    page command with a traceback and exit 1, which means "read, and gave
+    nothing"; the MCP server and a crawl already refused it."""
+    import socket
+
+    from click.testing import CliRunner
+
+    from fake_wire import fake_http
+    from sluicer.cli import main
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.215.14", 0))
+        ],
+    )
+    fake_http(monkeypatch, [(404, b"", {}), (302, b"", {"Location": target})])
+    args = [command, "https://example.com/p", *(["h1"] if command == "select" else [])]
+
+    result = CliRunner().invoke(main, args)
+
+    assert result.exit_code == 2, result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert f"{target} is not fetched: only http and https" in result.stderr
+    assert "Traceback" not in result.output
+
+
+# -- options read when the command line is -----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("args", "said"),
+    [
+        (["--at", "foo"], "Invalid value for '--at': 'foo' is not a date: write 2025"),
+        (["--at", "2025-13"], "'2025-13' is not a date: its month is not 1 to 12"),
+        (["--proxy", "foo"], "Invalid value for '--proxy': 'foo' is not a proxy"),
+    ],
+)
+@pytest.mark.parametrize("command", ["fetch", "extract", "markdown"])
+def test_a_date_or_a_proxy_that_is_not_one_is_refused_before_any_fetch(
+    monkeypatch, command, args, said
+):
+    """Measured on 0.9.0: --at foo and --proxy foo failed only at fetch time,
+    "Could not fetch https://example.com/: ValueError: 'foo' is not a date",
+    naming a Python class and blaming the fetch."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    asked = []
+    monkeypatch.setattr(
+        "sluicer.cli.source.fetch_url", lambda url, **kw: asked.append(url)
+    )
+    monkeypatch.setattr(
+        "sluicer.fetch.archive.fetch_archived", lambda url, at, **kw: asked.append(url)
+    )
+    monkeypatch.delenv("SLUICER_PROXY", raising=False)
+
+    result = CliRunner().invoke(main, [command, "https://example.com/", *args])
+
+    assert result.exit_code == 2, result.output
+    assert said in result.stderr
+    assert "ValueError" not in result.stderr and "UnusableProxy" not in result.stderr
+    assert asked == []
+
+
+def test_a_proxy_variable_that_is_not_one_is_named_without_a_class(monkeypatch):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    monkeypatch.setenv("SLUICER_PROXY", "foo")
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/"])
+
+    assert result.exit_code == 2
+    assert "SLUICER_PROXY: 'foo' is not a proxy" in result.stderr
+    assert "UnusableProxy" not in result.stderr
+
+
+@pytest.mark.parametrize("year", ["2000", "2100", "2000-06-01"])
+def test_a_year_that_ends_in_00_is_a_date(year):
+    """Measured on 0.9.0: --at 2000 was "'2000' is not a date": the year was
+    checked by its last two digits, 00, against 1 to 9999."""
+    from sluicer.fetch.archive import timestamp
+
+    assert timestamp(year) == year.replace("-", "")
+
+
+@pytest.mark.parametrize("given", ["", " , "])
+def test_sluicer_mcp_with_a_list_that_names_no_tool_is_an_error(monkeypatch, given):
+    """Measured on 0.9.0 (inventory audit, B11): `sluicer mcp --tools ''`
+    started a server with no tool at all, exit 0, and said nothing."""
+    from test_mcp_server import fake_mcp
+
+    fake_mcp(monkeypatch)
+
+    result = CliRunner().invoke(main, ["mcp", "--tools", given])
+
+    assert result.exit_code == 2, result.output
+    assert "no tool named" in result.stderr and "crawl_site" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+# -- messages about the input, not about Python --------------------------------
+
+
+@pytest.mark.parametrize(
+    ("args", "said"),
+    [
+        (["run", "{missing}.json", "p.html"], "{missing}.json does not exist."),
+        (["warc", "{missing}.warc"], "{missing}.warc does not exist; 0 pages"),
+        (["batch", "{missing}.txt"], "{missing}.txt does not exist."),
+        (["run", "{bad}", "p.html"], "not a whole sluicer extractor: it has no"),
+    ],
+    ids=["run", "warc", "batch", "extractor"],
+)
+def test_a_file_that_cannot_be_read_is_said_of_the_file(tmp_path, args, said):
+    """Measured on 0.9.0 (inventory audit, B22): "[Errno 2] No such file or
+    directory: 'nothere.warc'", and "not a whole sluicer extractor:
+    KeyError('listing')"."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    bad = tmp_path / "bad.json"
+    bad.write_text('{"format": 1}', encoding="utf-8")
+    names = {"missing": str(tmp_path / "nothere"), "bad": str(bad)}
+
+    result = CliRunner().invoke(main, [a.format(**names) for a in args])
+
+    assert result.exit_code == 2, result.output
+    assert said.format(**names) in result.stderr
+    assert "Errno" not in result.stderr and "KeyError" not in result.stderr

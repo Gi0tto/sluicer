@@ -416,3 +416,46 @@ def test_the_default_ladder_hands_the_browser_its_cookies_apart_from_its_headers
 
     assert sorted(c["name"] for c in host.contexts[0].cookies) == ["session", "theme"]
     assert [pattern for pattern, _ in host.contexts[0].routes] == ["**/*"]
+
+
+@pytest.mark.parametrize("given", ["firefox", "nnone", "off"])
+def test_a_browser_the_environment_names_and_sluicer_does_not_drive_is_refused(
+    monkeypatch, given
+):
+    """Measured on 0.9.0: SLUICER_BROWSER=firefox, or a typo of none, was
+    Chromium in silence."""
+    from sluicer.fetch.browser import UnknownBrowser
+    from sluicer.fetch.rungs import default_rungs
+
+    monkeypatch.setenv("SLUICER_BROWSER", given)
+
+    with pytest.raises(UnknownBrowser, match=r"chromium .* or none"):
+        default_rungs()
+
+
+@pytest.mark.parametrize(("given", "rungs"), [("", 2), (" Chromium ", 2), ("NONE", 1)])
+def test_the_browsers_sluicer_drives_are_still_read(monkeypatch, given, rungs):
+    from sluicer.fetch.rungs import default_rungs
+
+    monkeypatch.setenv("SLUICER_BROWSER", given)
+
+    assert len(default_rungs()) == rungs
+
+
+def test_the_commands_refuse_an_unknown_browser_before_they_start(monkeypatch):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    asked = []
+    monkeypatch.setattr(
+        "sluicer.cli.source.fetch_url", lambda url, **kw: asked.append(url)
+    )
+    monkeypatch.setenv("SLUICER_BROWSER", "firefox")
+
+    result = CliRunner().invoke(main, ["fetch", "https://example.com/"])
+
+    assert asked == []
+    assert result.exit_code == 2
+    assert "SLUICER_BROWSER='firefox' is not a browser Sluicer drives" in result.stderr
+    assert "Traceback" not in result.output

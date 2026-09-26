@@ -17,12 +17,13 @@ from __future__ import annotations
 
 import json
 import re
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
 import lxml.etree
 
-from sluicer.document import join
+from sluicer.document import an_address_alone, join
 from sluicer.normalise import iso_date
 from sluicer.safexml import as_text, declares_what_expands
 
@@ -79,8 +80,21 @@ def read_feed(data: str | bytes, url: str | None = None) -> Feed | None:
 
     ``url`` is the address the feed came from, which relative links resolve
     against. Never raises: a document that is not a feed, or not well formed,
-    is None.
+    is None. ``data`` that is an http(s) address alone is None too, with a
+    ``UserWarning`` saying so: nothing is fetched here, so fetch the feed
+    first, with ``sluicer.fetch.fetch``.
     """
+    address = an_address_alone(data)
+    if address is not None:
+        warnings.warn(
+            "sluicer.feeds.read_feed() reads a feed's text and fetches nothing: "
+            f"{address!r} is an address, not a feed. Fetch it first: from "
+            "sluicer.fetch import fetch; page = fetch(url); then "
+            "read_feed(page.html, url=page.url).",
+            UserWarning,
+            stacklevel=2,
+        )
+        return None
     raw = data.encode("utf-8") if isinstance(data, str) else data
     start = raw.lstrip(b"\xef\xbb\xbf \t\r\n")[:1]
     if start in (b"{", b"["):

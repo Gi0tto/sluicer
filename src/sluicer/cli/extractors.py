@@ -14,7 +14,7 @@ from pathlib import Path
 
 import click
 
-from sluicer.cli.exits import CONTRACT_BROKEN, NOTHING_FOUND, _fail
+from sluicer.cli.exits import CONTRACT_BROKEN, NOTHING_FOUND, _fail, _unreadable
 from sluicer.cli.options import _with_proxy
 from sluicer.cli.source import _read_pages
 from sluicer.extractor import (
@@ -30,8 +30,12 @@ from sluicer.selectors import SelectorError
 
 def _load_extractor(path: str) -> Extractor:
     try:
-        return Extractor.from_json(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as failure:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError as failure:
+        _fail(f"{_unreadable(path, failure)}.", failure)
+    try:
+        return Extractor.from_json(text)
+    except ValueError as failure:
         _fail(f"{path} is not an extractor: {failure}", failure)
 
 
@@ -232,7 +236,7 @@ def run_command(
     pages = []
     broken = False
     for source, (html, url) in zip(
-        sources, _read_pages(sources, stealth, no_robots, pages_only=True), strict=True
+        sources, _read_pages(sources, stealth, no_robots), strict=True
     ):
         run = run_extractor(extractor, html, url=url)
         failed = [asdict(check) for check in run.checks if not check.ok]
@@ -292,11 +296,13 @@ def heal_command(
     quietly replaces the one that would have kept failing.
     """
     if force and not output:
-        # Without -o nothing is written, forced or not, and --force said
-        # nothing of it.
-        _fail("--force writes the healed extractor, and -o says where.")
+        # Until 0.9.1 --force alone did nothing, and said nothing.
+        raise click.UsageError(
+            "--force writes the healed extractor even when healing lost "
+            "something; it needs -o FILE to write it to."
+        )
     extractor = _load_extractor(extractor_file)
-    pages = _read_pages(sources, stealth, no_robots, pages_only=True)
+    pages = _read_pages(sources, stealth, no_robots)
     try:
         healed, changes = heal_extractor(extractor, pages, names=list(sources))
     except NothingToLearn as nothing:

@@ -112,3 +112,17 @@ def test_a_price_json_writes_with_an_exponent_names_no_currency():
     assert [(d.question, d.kind) for d in found] == [("price", "rewritten")]
     found = compare(extract(_priced("£1500")), extract(_priced("1.5e3")))
     assert [(d.question, d.kind) for d in found] == [("price", "changed")]
+
+
+def test_diff_refuses_standard_input_for_both_pages():
+    """Measured on 0.9.0 (inventory audit, B24): `sluicer diff - -` read
+    stdin twice and said "Standard input contains no HTML." of the page it
+    had just read."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    result = CliRunner().invoke(main, ["diff", "-", "-"], input="<title>A</title>")
+
+    assert result.exit_code == 2
+    assert "Standard input is one page" in result.stderr

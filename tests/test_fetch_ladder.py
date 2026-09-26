@@ -1,3 +1,5 @@
+import socket
+
 import pytest
 
 from sluicer.fetch.ladder import AddressRefused, FetchFailed, RobotsRefused, fetch
@@ -1076,3 +1078,24 @@ def test_a_robots_txt_that_did_not_answer_is_transient():
         fetch("https://example.com/p", rungs=ladder)
 
     assert failed.value.transient
+
+
+@pytest.mark.parametrize(
+    ("code", "transient"), [(socket.EAI_NONAME, False), (socket.EAI_AGAIN, True)]
+)
+def test_a_robots_txt_whose_name_does_not_exist_is_not_worth_asking_again(
+    code, transient
+):
+    """Measured on 0.9.0 (inventory audit, B15): a host that does not exist
+    was "could not read the robots.txt ...: gaierror", transient, so a batch
+    asked it three times and the MCP server said retryable. A lookup that
+    failed for now is still worth asking again."""
+    ladder = [("http", _failing(socket.gaierror(code, "no such name")))]
+
+    with pytest.raises(FetchFailed, match=r"robots\.txt") as failed:
+        fetch("https://nonexistent.invalid/p", rungs=ladder)
+
+    assert failed.value.transient is transient
+    assert ("nonexistent.invalid does not resolve" in str(failed.value)) is not (
+        transient
+    )

@@ -1207,4 +1207,5 @@ def test_heal_force_without_an_output_is_refused(tmp_path):
     )
 
     assert result.exit_code == 2
-    assert "--force writes the healed extractor, and -o says where" in result.stderr
+    assert "--force writes the healed extractor" in result.stderr
+    assert "-o FILE" in result.stderr

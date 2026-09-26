@@ -346,7 +346,8 @@ class _Listing:
                 return failed("refused_by_robots", f"{address} is refused: {refusal}")
             delay = self.polite.delay_for(address)
         except RobotsUnreachable as unreachable:
-            return failed("fetch_failed", str(unreachable), again=str(unreachable))
+            again = str(unreachable) if unreachable.transient else None
+            return failed("fetch_failed", str(unreachable), again=again)
         if delay > self.max_delay:
             return failed(
                 "crawl_delay_too_long",

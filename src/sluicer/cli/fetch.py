@@ -16,7 +16,7 @@ from typing import Any
 import click
 
 from sluicer.cli.exits import _fail
-from sluicer.cli.options import _with_proxy
+from sluicer.cli.options import _a_date, _with_proxy
 from sluicer.cli.output import _kept_line
 from sluicer.cli.source import _read_source
 
@@ -63,6 +63,7 @@ from sluicer.cli.source import _read_source
 @click.option(
     "--at",
     metavar="DATE",
+    callback=_a_date,
     help="Read the URL as the Wayback Machine captured it nearest to DATE.",
 )
 @_with_proxy
@@ -87,7 +88,7 @@ def fetch_command(
     if not url.lower().startswith(("http://", "https://")):
         _fail(f"fetch takes an http(s) address; {url} is not one.")
     html, _, fetched = _read_source(
-        url, stealth, no_robots, None, at, (), cache_dir, max_age
+        url, stealth, no_robots, None, at, (), cache_dir, max_age, error_page=True
     )
     if fetched is None:  # pragma: no cover -- an address is always fetched
         _fail(f"fetch takes an http(s) address; {url} is not one.")

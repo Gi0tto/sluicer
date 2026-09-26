@@ -17,6 +17,35 @@ import click
 
 from sluicer.fetch.http_rung import PROXY_ENV
 
+
+def _a_date(ctx: click.Context, param: click.Parameter, value: str | None) -> Any:
+    """``--at``, read when the command line is: until 0.9.1 a date that is
+    not one failed at fetch time, "Could not fetch URL: ValueError: ...",
+    as if the site were at fault."""
+    if value is None:
+        return None
+    from sluicer.fetch.archive import timestamp
+
+    try:
+        timestamp(value)
+    except ValueError as unread:
+        raise click.BadParameter(str(unread)) from None
+    return value
+
+
+def _a_proxy(ctx: click.Context, param: click.Parameter, value: str | None) -> Any:
+    """``--proxy``, read when the command line is, as ``--header`` is."""
+    if value is None or not value.strip():
+        return value
+    from sluicer.fetch.wire import Proxy, UnusableProxy
+
+    try:
+        Proxy.parse(value.strip())
+    except UnusableProxy as unusable:
+        raise click.BadParameter(str(unusable)) from None
+    return value
+
+
 _fetch_options = [
     click.option(
         "--stealth",
@@ -58,6 +87,7 @@ _fetch_options = [
     click.option(
         "--at",
         metavar="DATE",
+        callback=_a_date,
         help="Read a URL as the Wayback Machine captured it nearest to DATE "
         "(2025, 2025-06, 2025-06-01), not from its site.",
     ),
@@ -67,6 +97,7 @@ _fetch_options = [
 _proxy_option = click.option(
     "--proxy",
     metavar="URL",
+    callback=_a_proxy,
     help="Fetch through this proxy (http://host:port, socks5h://host:port); "
     "the environment's HTTPS_PROXY is never used. Same as SLUICER_PROXY.",
 )
@@ -153,6 +184,12 @@ def _with_proxy(command: click.decorators.FC) -> click.decorators.FC:
         if proxy is not None:
             os.environ[PROXY_ENV] = proxy
         _sending(headers, cookies)
+        from sluicer.fetch.browser import UnknownBrowser, browser_wanted
+
+        try:
+            browser_wanted()
+        except UnknownBrowser as unknown:
+            raise click.UsageError(str(unknown)) from None
         return command(*args, **kwargs)
 
     return _proxy_option(_header_option(_cookie_option(through)))  # type: ignore[return-value]

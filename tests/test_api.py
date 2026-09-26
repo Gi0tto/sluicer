@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 import sluicer
 from sluicer.api import _declared_about_its_things
 
@@ -298,3 +300,33 @@ def test_a_bare_meta_name_does_not_switch_induction_off():
     )
 
     assert "induced" in sluicer.extract(html, induce=True).sources
+
+
+@pytest.mark.parametrize(
+    "given", ["https://example.com/", b"  http://example.com/p?q=1\n"]
+)
+def test_extract_of_an_address_alone_warns_that_it_fetches_nothing(given):
+    """Measured on 0.9.0: sluicer.extract("https://example.com/") returned an
+    empty Extraction and said nothing: nothing is fetched there."""
+    with pytest.warns(UserWarning, match="fetches nothing") as caught:
+        result = sluicer.extract(given)
+
+    assert "from sluicer.fetch import fetch" in str(caught[0].message)
+    assert caught[0].filename == __file__
+    assert not result.records and not result.summary
+
+
+def test_aextract_of_an_address_alone_warns_too():
+    import asyncio
+
+    with pytest.warns(UserWarning, match=r"sluicer\.aextract\(\) reads"):
+        asyncio.run(sluicer.aextract("https://example.com/"))
+
+
+def test_a_page_that_holds_an_address_is_read_without_a_warning():
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        sluicer.extract("<p>https://example.com/</p>")
+        sluicer.extract("https://example.com/ is where it is")

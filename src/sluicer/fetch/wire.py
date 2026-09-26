@@ -98,6 +98,12 @@ def passing(error: BaseException) -> bool:
     return isinstance(error, OSError) and error.errno in _NETWORK_DOWN
 
 
+def unknown_name(error: BaseException) -> bool:
+    """Whether ``error`` is a name lookup that failed for good: the resolver
+    said the name does not exist, not that it could not look it up now."""
+    return isinstance(error, socket.gaierror) and not passing(error)
+
+
 class UnreadableEncoding(ValueError):
     """The body came in a content encoding this install cannot decode."""
 

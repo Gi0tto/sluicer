@@ -203,7 +203,8 @@ def test_running_without_the_extra_is_a_message_not_a_traceback(monkeypatch, cap
     with pytest.raises(SystemExit) as raised:
         server_module.main()
 
-    assert raised.value.code == 1
+    # 2, as for any command that could not start: 1 is "found nothing".
+    assert raised.value.code == 2
     captured = capsys.readouterr()
     assert "sluicer[mcp]" in captured.err
     assert "Traceback" not in captured.err
@@ -2034,3 +2035,247 @@ def test_a_healed_extractor_too_large_for_an_answer_is_refused(monkeypatch):
     got = registered["heal_extractor"](learnt["extractor"], [heavy])
     assert got["ok"] is False and got["error"]["code"] == "too_large"
     _within_the_bound(got)
+
+
+@pytest.mark.parametrize("tool", ["extract_declared", "fetch_page", "page_markdown"])
+def test_an_address_with_no_host_is_bad_input_not_retryable(monkeypatch, tool):
+    """Measured on 0.9.0: http:///x was fetch_failed, retryable true, and its
+    message blamed an unreadable robots.txt."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered[tool]("http:///x")
+
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "bad_input"
+    assert answer["error"]["retryable"] is False
+    assert "names no host" in answer["error"]["message"]
+
+
+_NOT_FOUND = (
+    "<html><head><title>404 Not Found</title></head>"
+    "<body><h1>Not Found</h1></body></html>"
+)
+
+
+def _answering(monkeypatch, status):
+    from sluicer.fetch.result import Fetched
+
+    def fetch(url, **kwargs):
+        return Fetched(url=url, html=_NOT_FOUND, status=status, rung="http")
+
+    monkeypatch.setattr("sluicer.fetch.fetch", fetch)
+
+
+@pytest.mark.parametrize("status", [404, 503])
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("extract_declared", {}),
+        ("page_markdown", {}),
+        ("select_values", {"selector": "h1"}),
+        ("read_feed", {}),
+        ("compile_extractor", {}),
+        ("run_extractor", {}),
+        ("heal_extractor", {}),
+    ],
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_page_the_site_answered_with_its_error_is_not_ok(
+    monkeypatch, tool, arguments, status
+):
+    """Measured on 0.9.0: extract_declared of a 404 answered ok true with
+    "404 Not Found" as the page's title, though ok is true only when the
+    answer can be used as it is."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    url = "https://example.com/gone"
+    if tool in ("run_extractor", "heal_extractor"):
+        # A page declaring a product: one with a title alone gives no
+        # extractor since 0.9.1.
+        learnt = registered["compile_extractor"](
+            [
+                '<html><head><title>A shop</title><script type="application/ld+json">'
+                '{"@context": "https://schema.org", "@type": "Product",'
+                ' "name": "Lamp"}</script></head><body></body></html>'
+            ]
+        )
+        arguments = {**arguments, "extractor": learnt["extractor"]}
+    _answering(monkeypatch, status)
+    given = (
+        {"pages": [url]}
+        if tool in ("compile_extractor", "heal_extractor")
+        else {"url_or_text": url}
+        if tool == "read_feed"
+        else {"html_or_url": url}
+    )
+
+    answer = registered[tool](**given, **arguments)
+
+    assert answer["ok"] is False, answer
+    assert answer["error"]["code"] == "fetch_failed"
+    assert f"the site answered status {status}" in answer["error"]["message"]
+    assert answer["error"]["retryable"] is (status == 503)
+    assert answer["error"]["url"] == url
+
+
+@pytest.mark.parametrize("tool", ["fetch_page", "audit_page"])
+def test_fetch_page_and_audit_page_still_answer_about_an_error_page(monkeypatch, tool):
+    """fetch_page hands back whatever the site sent, with its status, and
+    audit_page audits a 404 as the answer it is."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    _answering(monkeypatch, 404)
+    given = {"url": "https://example.com/gone"}
+    if tool == "audit_page":
+        given = {"html_or_url": given["url"], "site": False}
+
+    answer = registered[tool](**given)
+
+    assert answer["ok"] is True
+    assert answer["fetch"]["status"] == 404
+
+
+@pytest.mark.parametrize(
+    ("given", "said"),
+    [
+        ("example.com", "an address needs its scheme, as https://example.com"),
+        ("www.example.com/p/1", "as https://www.example.com/p/1"),
+        ("not html and not url", "give an http(s) URL to fetch, or the page's HTML"),
+        ("", "html_or_url is empty"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("extract_declared", {}),
+        ("page_markdown", {}),
+        ("select_values", {"selector": "h1"}),
+        ("audit_page", {}),
+    ],
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_text_that_is_neither_a_url_nor_html_is_bad_input(
+    monkeypatch, tool, arguments, given, said
+):
+    """Measured on 0.9.0: extract_declared("example.com") answered ok true
+    with everything empty, the page read being the text "example.com"."""
+    registered = fake_mcp(monkeypatch)
+    fetch = fake_fetch(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered[tool](html_or_url=given, **arguments)
+
+    assert answer["ok"] is False, answer
+    assert answer["error"]["code"] == "bad_input"
+    assert said in answer["error"]["message"]
+    assert fetch.calls == []
+
+
+def test_a_page_of_html_with_no_markup_that_matters_is_still_read(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered["extract_declared"]("<p>example.com</p>")
+
+    assert answer["ok"] is True
+
+
+def test_sluicer_mcp_without_the_extra_exits_2_with_the_install_line(monkeypatch):
+    """Measured on 0.9.0: exit 1, which means "read, and gave nothing";
+    sluicer serve without its extra already exited 2."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    absent(monkeypatch, "mcp")
+
+    result = CliRunner().invoke(main, ["mcp"])
+
+    assert result.exit_code == 2, result.output
+    assert 'uv pip install "sluicer[mcp]"' in result.stderr
+    assert "Traceback" not in result.output
+
+
+def test_the_server_refuses_to_start_with_a_browser_it_does_not_drive(
+    monkeypatch, capsys
+):
+    fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    monkeypatch.setenv("SLUICER_BROWSER", "firefox")
+
+    with pytest.raises(SystemExit) as raised:
+        server_module.main()
+
+    assert raised.value.code == 2
+    assert "SLUICER_BROWSER='firefox'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "learnt", [{"want": {"price": "41.90"}}, {"listing": True}, {"listing": False}]
+)
+def test_compile_extractor_refuses_select_beside_the_learnt_way(monkeypatch, learnt):
+    """Measured on 0.9.0 (inventory audit, B7): want and select together
+    answered ok true, want silently ignored; the command line refuses the
+    pair, and so does the library."""
+    registered = fake_mcp(monkeypatch)
+    fetch = fake_fetch(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered["compile_extractor"](
+        ["https://example.com/p"], select={"title": "h1"}, **learnt
+    )
+
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "bad_input"
+    assert "one is chosen" in answer["error"]["message"]
+    assert fetch.calls == []
+
+
+@pytest.mark.parametrize(
+    ("argv", "code", "stream"),
+    [
+        (["/venv/bin/sluicer-mcp", "--help"], 0, "out"),
+        (["/venv/bin/sluicer-mcp", "--tools", "x"], 2, "err"),
+    ],
+)
+def test_sluicer_mcp_with_arguments_answers_instead_of_serving(
+    monkeypatch, capsys, argv, code, stream
+):
+    """Measured on 0.9.0 (inventory audit, B32): sluicer-mcp --help started
+    the server, which sat waiting on stdin."""
+    registered = fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    served = []
+    monkeypatch.setattr(
+        server_module, "build_server", lambda **kw: served.append(kw) or registered
+    )
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit) as raised:
+        server_module.main()
+
+    assert raised.value.code == code
+    assert "Usage: sluicer-mcp" in getattr(capsys.readouterr(), stream)
+    assert served == []
+
+
+def test_sluicer_mcp_is_not_asked_about_sluicer_s_own_arguments(monkeypatch):
+    """`sluicer mcp --tools x` calls the same main: its argv is sluicer's."""
+    from sluicer.mcp_server import _refuse_script_arguments
+
+    _refuse_script_arguments(["/venv/bin/sluicer", "mcp", "--tools", "x"])
