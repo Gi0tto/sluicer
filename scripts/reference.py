@@ -53,7 +53,11 @@ PYTHON: list[tuple[str, str, list[str]]] = [
         ["parse", "Page", "Selection", "Selected", "SelectorError"],
     ),
     ("The selector language", "sluicer.selectors", ["selector", "Selector"]),
-    ("The main content as markdown", "sluicer", ["to_markdown"]),
+    (
+        "The main content as markdown",
+        "sluicer",
+        ["to_markdown", "read_markdown", "MainText"],
+    ),
     (
         "What a value means",
         "sluicer.normalise",

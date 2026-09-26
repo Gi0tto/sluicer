@@ -4,6 +4,8 @@ import types
 
 import pytest
 
+from sluicer.markdown import MainText
+
 
 def fake_mcp(monkeypatch):
     """Stand in for the mcp SDK, recording every tool the server registers.
@@ -858,7 +860,11 @@ def test_markdown_is_read_in_slices_too(monkeypatch):
     import sluicer.mcp_server as server_module
 
     text = "".join(f"line {n}\n" for n in range(10_000))
-    monkeypatch.setattr(server_module, "to_markdown", lambda *a, **k: text)
+    monkeypatch.setattr(
+        server_module,
+        "read_markdown",
+        lambda *a, **k: MainText(text, "extracted", "trafilatura"),
+    )
     server_module.build_server()
     slices, offset = [], 0
     while offset is not None:
@@ -1861,7 +1867,11 @@ def test_a_slice_of_markdown_is_held_to_the_bound_in_bytes_too(monkeypatch):
     import sluicer.mcp_server as server_module
 
     text = '"quoted"\n' * 20_000
-    monkeypatch.setattr(server_module, "to_markdown", lambda *a, **k: text)
+    monkeypatch.setattr(
+        server_module,
+        "read_markdown",
+        lambda *a, **k: MainText(text, "extracted", "trafilatura"),
+    )
     server_module.build_server()
     slices, offset = [], 0
     while offset is not None:

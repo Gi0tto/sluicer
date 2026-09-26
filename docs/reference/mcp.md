@@ -55,14 +55,18 @@ Return a page's main content as markdown, without navigation or footer.
 
 - `html_or_url`: an http(s) URL to fetch, or the HTML itself.
 - `front_matter`: open the markdown with a YAML block of what the page declares about itself (title, author, dates, url...) and each answer's source.
+- `full`: the whole page, menus and footers included, not its main content.
 - `at`: a date: read the URL as the Wayback Machine captured it then.
 - `respect_tdm`: answer tdm_reserved when the site reserves its text and data mining rights (TDMRep).
 - `offset`: where in the markdown this answer starts, 0 for the beginning; the answer before gives the next as next_offset.
 - `max_chars`: the most characters this answer carries, 1 to 60,000; fewer when more would weigh over 75,000 bytes, as 60,000 characters of Chinese do.
 
-Returns {"ok", "markdown", "url", "length", "next_offset"}, and
-"fetch" for a URL: markdown is one slice, length the whole markdown's,
-next_offset where the next slice starts or null at the end. The
+Returns {"ok", "markdown", "text_from", "url", "length",
+"next_offset"}, and "fetch" for a URL: markdown is one slice, length
+the whole markdown's, next_offset where the next slice starts or null
+at the end. text_from says where the text came from: source
+"extracted" (the main content, method naming the extractor) or
+"page" (full), and "" with no text. The
 markdown is always the page's own content: a failure is ok false with
 "error", never text that could be mistaken for the page.
 
@@ -70,6 +74,7 @@ markdown is always the page's own content: a failure is ok false with
 |---|---|---|
 | `html_or_url` | string | required |
 | `front_matter` | boolean | `False` |
+| `full` | boolean | `False` |
 | `at` | string or null | `None` |
 | `respect_tdm` | boolean | `False` |
 | `offset` | integer | `0` |
