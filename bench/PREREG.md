@@ -241,8 +241,8 @@ counts, and the same per page):
 |---|---|---|
 | `817ae10` | summary: the declared title the page's `<h1>` shows is the title | title hits 935 -> 1047, wrong 423 -> 311 |
 | `b835274` | `--visible`: no byline in a box that says it has none, in `<body>`, `<main>` or `<article>`, or on another article's card | author, declared then `--visible`: inventions 58 -> 56 |
-| `1afc3ca` | `--visible`: the page's own `<body>` classes do not hide its byline; a testimonial's signature is none | author hits 473 -> 487, wrong 26 -> 27 |
-| `a974a09` | `--visible`: a byline in an article's own `<footer>` | author hits 487 -> 488 |
+| `fb353a1` | `--visible`: the page's own `<body>` classes do not hide its byline; a testimonial's signature is none | author hits 473 -> 487, wrong 26 -> 27 |
+| `c21d51f` | `--visible`: a byline in an article's own `<footer>` | author hits 487 -> 488 |
 | `d750661` | `--visible`: one word in a link marked `rel=author` is its author's handle | author hits 488 -> 491 |
 | `fd2eabb` | `--visible`: a forum thread's first `username`, asked last | author hits 491 -> 497, wrong 27 -> 28 |
 
@@ -266,6 +266,15 @@ The title commit changes which declared title is answered, never whether one
 is, so it cannot invent; it is reverted if it lowers the title's hits on any
 set. Whatever is reverted is said in the commit that reverts it, with the
 numbers.
+
+**Read once, on 2026-09-26.** Every rule but the first `--visible` one was
+reverted: `fb353a1`, `c21d51f`, `d750661` and `fd2eabb` each added
+inventions (`fb353a1` on three sets), and the title commit, `817ae10`,
+lowered the news pages' title hits, 229 -> 224, while raising the other
+three sets'. `b835274` added none and is kept. Each revert gives its
+numbers. (The table named `fb353a1` and `c21d51f` by the hashes they had
+before their messages were amended, `1afc3ca` and `a974a09`; the code is
+the same.)
 
 **Its cost.** The seconds `--visible` adds are measured on the development
 split's pages, not a scoreboard's: every page read by `extract` with
