@@ -1,7 +1,7 @@
 """The author and date a page declares, and a guess from its visible text beside them.
 
 Sluicer answers only what a page declares. When it declares no author or no
-date, trafilatura -- which ``sluicer[markdown]`` installs -- can guess one from
+date, trafilatura -- which the base install brings -- can guess one from
 the byline and the dates a reader sees. The guess is kept apart and named as
 one: where nothing is declared it is right on 42% of the general web pages
 Sluicer's scoreboards measure for an author and 24% for a date, and more often

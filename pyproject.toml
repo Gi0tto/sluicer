@@ -53,12 +53,21 @@ classifiers = [
 #   BSD-3-Clause, the translator of parsel and of lxml's own `cssselect`.
 #   1.2 is the first with `:is()`, `:where()` and `:has()`, and with types;
 #   `:has()` is translated right from 1.5, and refused below it.
+#   trafilatura turns a page into markdown, in the base install since 0.10 so
+#   that `pip install sluicer` is the whole install line for every command
+#   but the browser's. Measured on 2026-09-26 with uv venvs: the base install
+#   went from 5 packages and 22 MB to 21 and 69 MB on Python 3.14 (6 and 22 MB
+#   to 22 and 69 MB on 3.10), 33 MB of the difference babel's locale data,
+#   which courlan requires; `import sluicer` did not change (30-49 ms), since
+#   trafilatura is imported when a page is first turned into markdown, which
+#   then costs about 0.12-0.3 s once.
 dependencies = [
     "lxml>=5.3",
     "click>=8.2",
     "protego>=0.3",
     "tomli>=1.0.3; python_version < '3.11'",
     "cssselect>=1.2",
+    "trafilatura>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -76,20 +85,23 @@ stealth = ["scrapling[fetchers]>=0.4.6"]
 # installs what it meant: every rung. Plain HTTP needs no extra now; ask for
 # `browser`, or `stealth`, by name.
 fetch = ["sluicer[browser]", "sluicer[stealth]"]
+# In the base install since 0.10, and kept so that an install line written for
+# 0.9 still installs, and so that `sluicer[markdown]` puts trafilatura back in
+# an environment that lost it, whatever installed it.
 markdown = ["trafilatura>=2.0"]
 # The only reader behind an extra: microformats2 has a reference parser, and an
-# environment holding mf2py alone holds twelve packages (measured 2026-09-22)
-# against a base install of three.
+# environment holding mf2py alone held twelve packages (measured 2026-09-22)
+# against a base install of three at the time.
 microformats = ["mf2py>=2.0"]
-# The server brings the markdown extra, which page_markdown needs for any
-# input. It fetches over plain HTTP with no extra; add `browser` for pages
-# that need one (`sluicer[mcp,browser]`).
+# page_markdown's trafilatura is the base install's. The server fetches over
+# plain HTTP with no extra; add `browser` for pages that need one
+# (`sluicer[mcp,browser]`).
 # Pinned >=2: mcp 2.x renamed FastMCP to MCPServer and removed the old name.
 # 2.1 is the first that can build this server on Python 3.10: 2.0.0 and 2.0.1
 # refuse the Required[...] keys of its output schemas there (measured on
 # 2026-09-23; 3.11 and later build on 2.0.0). The suite fakes the SDK, so the
 # floors job had never built it for real.
-mcp = ["mcp>=2.1", "sluicer[markdown]"]
+mcp = ["mcp>=2.1"]
 # The HTTP door serves the MCP server's own tools, so it brings that extra.
 # starlette and uvicorn arrive with mcp today and are declared anyway: a
 # transitive dependency is not a declared one. Both floors are measured, and the
@@ -99,6 +111,10 @@ mcp = ["mcp>=2.1", "sluicer[markdown]"]
 #   tests that use it cannot start.
 #   uvicorn 0.31.1 is mcp's own floor, so nothing older installs beside it.
 api = ["sluicer[mcp]", "starlette>=1.2", "uvicorn>=0.31.1"]
+# Every extra but stealth, which fetches the way a site asked not to be, and
+# stays one to ask for by name. The browser itself is downloaded afterwards,
+# with `sluicer install browser`.
+all = ["sluicer[browser,mcp,api,microformats]"]
 
 [project.urls]
 Homepage = "https://github.com/Gi0tto/sluicer"

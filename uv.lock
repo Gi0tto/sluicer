@@ -2454,13 +2454,20 @@ dependencies = [
     { name = "lxml" },
     { name = "protego" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
+    { name = "trafilatura" },
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "mcp" },
+    { name = "mf2py" },
+    { name = "playwright" },
+    { name = "starlette" },
+    { name = "uvicorn" },
+]
 api = [
     { name = "mcp" },
     { name = "starlette" },
-    { name = "trafilatura" },
     { name = "uvicorn" },
 ]
 browser = [
@@ -2475,7 +2482,6 @@ markdown = [
 ]
 mcp = [
     { name = "mcp" },
-    { name = "trafilatura" },
 ]
 microformats = [
     { name = "mf2py" },
@@ -2505,15 +2511,16 @@ requires-dist = [
     { name = "protego", specifier = ">=0.3" },
     { name = "scrapling", extras = ["fetchers"], marker = "extra == 'stealth'", specifier = ">=0.4.6" },
     { name = "sluicer", extras = ["browser"], marker = "extra == 'fetch'" },
-    { name = "sluicer", extras = ["markdown"], marker = "extra == 'mcp'" },
+    { name = "sluicer", extras = ["browser", "mcp", "api", "microformats"], marker = "extra == 'all'" },
     { name = "sluicer", extras = ["mcp"], marker = "extra == 'api'" },
     { name = "sluicer", extras = ["stealth"], marker = "extra == 'fetch'" },
     { name = "starlette", marker = "extra == 'api'", specifier = ">=1.2" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=1.0.3" },
+    { name = "trafilatura", specifier = ">=2.0" },
     { name = "trafilatura", marker = "extra == 'markdown'", specifier = ">=2.0" },
     { name = "uvicorn", marker = "extra == 'api'", specifier = ">=0.31.1" },
 ]
-provides-extras = ["browser", "stealth", "fetch", "markdown", "microformats", "mcp", "api"]
+provides-extras = ["browser", "stealth", "fetch", "markdown", "microformats", "mcp", "api", "all"]
 
 [package.metadata.requires-dev]
 dev = [
