@@ -34,6 +34,19 @@ Dates are the day the work landed. Anything not listed here did not happen.
   text itself is trafilatura's extraction exactly as before.
 
 ### Changed
+- A page's summary can differ from 0.9.1's in four ways, by the fixes
+  below: `published` given in UTC is answered in the publisher's own
+  offset when another declaration writes the same instant so in ISO 8601;
+  `published` that is only a clock time ("10:52") is no answer, and the next
+  declaration is asked; `author` and `published` are answered where 0.9.1
+  had none from an `itemprop` outside any item or an RDFa property of the
+  page; and `sku` where 0.9.1 had none from the product's offer. No other
+  summary answer moves. Over the 4,976 cached benchmark pages 33 summaries
+  differ from 0.9.1's: 12 dates moved to their own offset, 3 clock times
+  gone, and 18 answers added. An extractor learnt on 0.9.1 checks the
+  answers it learnt, so on a page whose `published` moved or went it fails
+  `run` with exit 3 until it is learnt again with `sluicer heal` (with
+  `--force` where the answer is gone) or `sluicer compile`.
 - The guesses read off the visible page are on by default: `extract()` and
   `aextract()` take `visible=True` unless told `visible=False`, `sluicer
   extract`, `inspect`, `crawl`, `batch` and `warc` guess unless given
