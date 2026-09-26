@@ -258,3 +258,34 @@ def test_a_name_and_role_right_under_the_heading_is_the_author() -> None:
 )
 def test_what_is_not_a_name_and_role_under_the_heading(body: str) -> None:
     assert "author" not in read_visible(_page(body))
+
+
+def test_a_date_in_an_html_comment_is_never_read() -> None:
+    read = sluicer.extract(_TYPESAFE.read_bytes(), url=_TYPESAFE_URL, visible=True)
+    assert read.visible["published"].value == "2026-09-15"
+    assert read.visible["published"].rule == "near-heading"
+    assert "published" not in read.summary
+    assert "modified" not in read.summary
+    assert "modified" not in read.visible
+
+
+def test_no_reader_or_guess_takes_a_date_from_a_comment() -> None:
+    comment = "<!-- Published Sep 26, 2026, 7:01 AM UTC -->"
+    page = (
+        f"<!doctype html>{comment}<html><head>{comment}"
+        '<meta name="date" content="2025-03-04">'
+        '<!--[if IE]><meta name="dcterms.modified" content="2026-09-26"><![endif]-->'
+        f"</head><body>{comment}"
+        f'<h1>Brake pads</h1>{comment}<p class="date">{comment}</p>'
+        f'<div itemscope itemtype="https://schema.org/Article">'
+        f'<span itemprop="dateModified">{comment}</span></div>'
+        f'<span property="dc:date">{comment}</span>'
+        f"<time>{comment}</time><p>{comment} Published: {comment}</p>"
+        f'<p class="byline">By Ada Lovelace {comment}</p></body></html>'
+    )
+    read = sluicer.extract(page, url="https://example.com/brake-pads", visible=True)
+    answers = [a.value for a in read.summary.values()]
+    answers += [g.value for g in read.visible.values()]
+    answers += [str(f.value) for r in read.records for f in r.fields.values()]
+    assert not [a for a in answers if "2026" in str(a) or "Sep 26" in str(a)]
+    assert read.summary["published"].value == "2025-03-04"
