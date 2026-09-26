@@ -425,7 +425,9 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
 
     A ``SLUICER_PROXY`` it cannot use is an ``UnusableProxy``, raised here
     rather than by the first tool that fetches: there it was an internal
-    error, and its traceback wrote the proxy's password into the log.
+    error, and its traceback wrote the proxy's password into the log. A
+    ``SLUICER_BROWSER`` that is neither ``chromium`` nor ``none`` is an
+    ``UnknownBrowser``, raised here too.
     """
     through = chosen_proxy()
     if through is not None:
@@ -433,6 +435,10 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             Proxy.parse(through)
         except UnusableProxy as unusable:
             raise UnusableProxy(f"{PROXY_ENV}: {unusable}") from None
+    from sluicer.fetch.browser import browser_wanted
+
+    # An UnknownBrowser, a ValueError, here rather than at the first fetch.
+    browser_wanted()
     wanted = None if tools is None else list(tools)
     seen: list[str] = []
     server_class = _server_class()
@@ -1387,6 +1393,8 @@ def main(tools: Iterable[str] | None = None) -> None:
     command line's codes keep for "read, and found nothing". A broken
     install, as opposed to a missing one, keeps its traceback.
     """
+    from sluicer.fetch.browser import UnknownBrowser
+
     if tools is None and os.environ.get(TOOLS_ENV, "").strip():
         tools = [n.strip() for n in os.environ[TOOLS_ENV].split(",") if n.strip()]
     try:
@@ -1396,7 +1404,7 @@ def main(tools: Iterable[str] | None = None) -> None:
         # the one line that says what to install is ever written.
         print(str(missing), file=sys.stderr, flush=True)
         raise SystemExit(2) from missing
-    except (UnknownTool, UnusableProxy) as unknown:
+    except (UnknownTool, UnusableProxy, UnknownBrowser) as unknown:
         print(str(unknown), file=sys.stderr, flush=True)
         raise SystemExit(2) from unknown
     # scrapling logs every request at INFO into the server's stderr, and sets

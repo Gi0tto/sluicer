@@ -184,6 +184,12 @@ def _with_proxy(command: click.decorators.FC) -> click.decorators.FC:
         if proxy is not None:
             os.environ[PROXY_ENV] = proxy
         _sending(headers, cookies)
+        from sluicer.fetch.browser import UnknownBrowser, browser_wanted
+
+        try:
+            browser_wanted()
+        except UnknownBrowser as unknown:
+            raise click.UsageError(str(unknown)) from None
         return command(*args, **kwargs)
 
     return _proxy_option(_header_option(_cookie_option(through)))  # type: ignore[return-value]

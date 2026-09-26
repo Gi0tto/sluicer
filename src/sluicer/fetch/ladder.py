@@ -400,7 +400,9 @@ def fetch(
             transport writes, or a header or cookie that would break the
             request; or they were given with injected ``rungs``, which send
             what their caller built them to, or with ``stealth``, which sends
-            nothing that says who is asking.
+            nothing that says who is asking; or, with the default rungs,
+            ``SLUICER_BROWSER`` is neither ``chromium`` nor ``none``
+            (``UnknownBrowser``).
         FetchFailed: every rung failed, the URL is invalid, or its robots.txt
             could not be read.
         FetchExtraMissing: ``stealth`` was asked for and the ``stealth`` extra

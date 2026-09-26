@@ -2166,3 +2166,18 @@ def test_sluicer_mcp_without_the_extra_exits_2_with_the_install_line(monkeypatch
     assert result.exit_code == 2, result.output
     assert 'uv pip install "sluicer[mcp]"' in result.stderr
     assert "Traceback" not in result.output
+
+
+def test_the_server_refuses_to_start_with_a_browser_it_does_not_drive(
+    monkeypatch, capsys
+):
+    fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    monkeypatch.setenv("SLUICER_BROWSER", "firefox")
+
+    with pytest.raises(SystemExit) as raised:
+        server_module.main()
+
+    assert raised.value.code == 2
+    assert "SLUICER_BROWSER='firefox'" in capsys.readouterr().err

@@ -94,9 +94,29 @@ fails: pages are loaded one at a time, and a browser that stopped answering
 must not hold its callers for ever."""
 
 
+BROWSERS = ("chromium", "none")
+"""What ``SLUICER_BROWSER`` may say; unset or empty is ``chromium``."""
+
+
+class UnknownBrowser(ValueError):
+    """``SLUICER_BROWSER`` names a browser this rung does not drive."""
+
+
 def browser_wanted() -> bool:
-    """Whether the environment asks for a browser rung at all."""
-    return os.environ.get(BROWSER_ENV, "chromium").strip().lower() != "none"
+    """Whether the environment asks for a browser rung at all.
+
+    Raises ``UnknownBrowser`` for a value that is neither ``chromium`` nor
+    ``none``: until 0.9.1 ``SLUICER_BROWSER=firefox``, or a typo of
+    ``none``, was Chromium in silence.
+    """
+    given = os.environ.get(BROWSER_ENV, "")
+    chosen = given.strip().lower() or "chromium"
+    if chosen not in BROWSERS:
+        raise UnknownBrowser(
+            f"{BROWSER_ENV}={given!r} is not a browser Sluicer drives: write "
+            "chromium (the default, Playwright's own) or none (no browser rung)"
+        )
+    return chosen != "none"
 
 
 @dataclass
