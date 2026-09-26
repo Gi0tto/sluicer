@@ -234,10 +234,13 @@ class _Page:
         # The XPath predicate string-length(normalize-space()) > 1 cost libxml2
         # the square of a page's tail texts: 16,000 took 2.2 s, a 3.6 MB page
         # held a server's workers past their budget. The same test, in Python.
+        # Collapsed, a text is longer than one character exactly when it is
+        # once its ends are stripped of the same four characters: read so,
+        # since collapsing every text node of a page cost a third of --visible.
         return [
             text
             for text in self.tree.xpath("//text()")
-            if len(_XML_SPACES.sub(" ", text).strip(" ")) > 1
+            if len(text.strip(_XML_SPACE_CHARACTERS)) > 1
         ]
 
     @cached_property
@@ -286,7 +289,7 @@ class _Page:
 
 # What XPath's normalize-space() collapses: XML's four white-space characters,
 # not a no-break space.
-_XML_SPACES = re.compile(r"[ \t\n\r]+")
+_XML_SPACE_CHARACTERS = " \t\n\r"
 
 
 def _text(element: HtmlElement) -> str:
@@ -381,7 +384,8 @@ def _author(page: _Page) -> Guess | None:
     named = [
         e
         for e, names in page.named
-        if _BYLINE.search(_NO_BYLINE.sub("", names))
+        if _BYLINE.search(names)
+        and _BYLINE.search(_NO_BYLINE.sub("", names))
         and e.tag not in _NO_BYLINE_BOX
         and not page.aside(e)
     ]
