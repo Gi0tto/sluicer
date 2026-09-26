@@ -542,6 +542,18 @@ against `baseline` and is called worse than `read-recall-gap2-12` on neither
 F1 nor pages kept clean; otherwise the declared text and the heading are left
 out of the default, and the code is `read-recall-gap2-12` alone.
 
+**Read once on 2026-09-26**, at `cd6fba5`, as fixed above, and not changed
+on reading it. Sluicer's text against trafilatura's, paired by page: on the
+served pages snippet F1 0.869 against 0.862 (+0.007, -0.003 to +0.017,
+inconclusive), recall 0.802 against 0.786 (inconclusive), pages kept clean
+0.891 against 0.900 (inconclusive); on trafilatura's set F1 0.907 against
+0.915 (-0.008, called worse), precision called worse, pages kept clean 0.719
+against 0.758 (called worse); on the page added by hand six of six found,
+none leaked, as before. Against newspaper4k, markitdown and Scrapling, F1 is
+called better on both sets. The rules did not carry to trafilatura's set:
+they are not changed here, and the next rule for the text is to be made on
+the dev pages again, recorded here first.
+
 And in `full`, `<noscript>` is kept, without the images in it: a reader that
 runs no script is shown it, and a forum written for such readers keeps its
 posts there. It is still chosen by nothing.
