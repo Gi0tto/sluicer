@@ -300,6 +300,24 @@ a page's label:
   that page. Over the 4,976 cached benchmark pages it changes three
   answers, the same page three times (WCXB test and dev 4048, and its copy
   as served), each to "Keith Barry".
+- `--visible`'s "Name, role" line under the heading (`d95510f`) read a
+  role or an organisation as the name ("Managing Editor, Senior Writer",
+  "The Daily Planet, Editor") and the first line of a team's list. The fix,
+  made on synthetic cases, asks that the first part hold no role's word,
+  open with no "The", "A" or "An" and not be all capitals, and that the next
+  line not be another such line. On the development split it keeps the
+  rule's one hit (author, `--visible` alone: 191 -> 192 hits, 7 wrong and
+  10 inventions both ways).
+
+**`d95510f`, measured once after, on 2026-09-26.** The rule was made after
+the reading above and never run on the four sets, which this section asks
+of every `--visible` rule. Read once, as numbers, the code without the rule
+against the rule as shipped and as fixed above, author hits / wrong /
+inventions of `--visible` alone and of declared then `--visible`: WCXB's
+test pages 51/6/9 and 122/12/50, as served 29/4/4 and 98/7/46, the news
+pages 89/13/0 and 217/14/4, trafilatura's set 129/17/12 and 297/51/104,
+the same with and without the rule in either form: it fires on none of
+their 1,985 pages. It adds no invention and is kept.
 
 ## Two more tools, beside the markdown and beside heal
 

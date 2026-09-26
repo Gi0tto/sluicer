@@ -119,7 +119,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `--visible` did not read a byline written as "Name, role" or "Name, role,
   Organisation" on the line right under the page's heading, as Framer's blog
   posts write it ("Diogo Almeida, founder, TypeSafe"). It now guesses the
-  name, naming its element and the rule `name, role`.
+  name, naming its element and the rule `name, role`, when that name holds
+  no role's word, opens with no "The" or "A" and is not all capitals, and
+  the next line is not another "Name, role": a team's list is no byline.
 - A publication date that was only a clock time ("10:52", "2:33 PM") was
   answered as the page's date. It is no date now, and the next declaration is
   asked.

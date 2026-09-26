@@ -272,6 +272,15 @@ def test_a_name_and_role_right_under_the_heading_is_the_author() -> None:
         "<h1>Brake pads</h1><p>diogo almeida, founder, TypeSafe</p>",
         # Two headings: no page's heading to be under.
         "<h1>One</h1><h1>Two</h1><p>Diogo Almeida, founder</p>",
+        # Found by the hostile review of 0.10: roles, organisations and a
+        # team's list read as a byline's name.
+        "<h1>Brake pads</h1><p>Managing Editor, Senior Writer</p>",
+        "<h1>Brake pads</h1><p>The Daily Planet, Editor</p>",
+        "<h1>Brake pads</h1><p>A Better Team, founder</p>",
+        "<h1>Brake pads</h1><p>NASA JPL, Director</p>",
+        "<h1>Brake pads</h1><p>, founder</p>",
+        "<h1>Leadership</h1><ul><li>Jane Doe, CEO</li><li>John Roe, CTO</li></ul>",
+        "<h1>Leadership</h1><p><b>Jane Doe, CEO</b></p><p>John Roe, CTO</p>",
     ],
 )
 def test_what_is_not_a_name_and_role_under_the_heading(body: str) -> None:

@@ -468,22 +468,40 @@ def _a_role(part: str) -> bool:
 def _name_and_role(page: _Page) -> Guess | None:
     """A line right under the page's one heading written as "Name, role" or
     "Name, role, Organisation": the first text after the heading, short, its
-    first part a person's name and its second a role."""
+    first part a person's name and its second a role. One such line alone: a
+    list of them, "Jane Doe, CEO" then "John Roe, CTO", is a team's page,
+    not a byline."""
     if page.heading is None:
         return None
     # Only the first line: reading the first three added a wrong answer on
     # WCXB's development split, a "By" label's name whose role WCXB keeps.
-    for text in page.heading.xpath(
-        f"following::text()[position() <= {_AFTER_HEADING * 4}]"
-    ):
-        element = _box_of(text)
-        if text.strip() and element is not None and element.tag not in _AWAY:
-            return _person_and_role(page, element)
+    line = _line_after(page, page.heading)
+    if line is None:
+        return None
+    found = _person_and_role(page, line)
+    if found is None:
+        return None
+    name, box = found
+    following = _line_after(page, box)
+    if following is not None and _person_and_role(page, following) is not None:
+        return None
+    return Guess(name, _where(box), "name, role")
+
+
+def _line_after(page: _Page, element: HtmlElement) -> HtmlElement | None:
+    """The element holding the first text after ``element`` and outside it."""
+    for text in element.xpath(f"following::text()[position() <= {_AFTER_HEADING * 4}]"):
+        box = _box_of(text)
+        if text.strip() and box is not None and box.tag not in _AWAY:
+            return box
     return None
 
 
-def _person_and_role(page: _Page, element: HtmlElement) -> Guess | None:
-    """The name a "Name, role" line whose text is in ``element`` writes."""
+def _person_and_role(
+    page: _Page, element: HtmlElement
+) -> tuple[str, HtmlElement] | None:
+    """The name a "Name, role" line whose text is in ``element`` writes, and
+    the line's box."""
     # The line's box: the inline elements round the text climbed to the
     # block that holds them, "<p><em>Name, role</em></p>".
     while (
@@ -500,7 +518,7 @@ def _person_and_role(page: _Page, element: HtmlElement) -> Guess | None:
     parts = [part.strip() for part in line.split(",")]
     if not 2 <= len(parts) <= 4 or _SENTENCE_MARKS.search(parts[0]):
         return None
-    if not _a_role(parts[1]):
+    if not _a_role(parts[1]) or not _a_person(parts[0]):
         return None
     capitals = [word for word in parts[0].split() if word not in _PARTICLES]
     if not 2 <= len(capitals) <= 4 or any(not w[:1].isupper() for w in capitals):
@@ -508,7 +526,26 @@ def _person_and_role(page: _Page, element: HtmlElement) -> Guess | None:
     name = _name(parts[0])
     if name is None or name != parts[0]:
         return None
-    return Guess(name, _where(element), "name, role")
+    return name, element
+
+
+# Words that open an organisation's name or a title, not a person's.
+_NOT_A_FIRST_NAME = frozenset({"the", "a", "an"})
+
+
+def _a_person(part: str) -> bool:
+    """Whether ``part``, a line's first part, may be a person's name: no word
+    of it a role's ("Managing Editor"), not opened by an article ("The Daily
+    Planet"), and not written all in capitals as an organisation is
+    ("NASA JPL")."""
+    words = [word.strip(".'\u2019&") for word in part.split()]
+    lowered = [word.lower() for word in words]
+    if not words or lowered[0] in _NOT_A_FIRST_NAME:
+        return False
+    if _ROLE_WORDS.intersection(lowered):
+        return False
+    lettered = [word for word in words if sum(c.isalpha() for c in word) > 1]
+    return not (lettered and all(word.isupper() for word in lettered))
 
 
 # Elements that hold a line's words without being its box.
