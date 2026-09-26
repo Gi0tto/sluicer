@@ -56,6 +56,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   page with no record, so its Python example printed nothing. They now audit
   quotes.toscrape.com and the repository's product page, and the guide shows
   what the Python example prints.
+- The crawling guide's commands and Python example read `shop.example`,
+  which serves nothing. They now read books.toscrape.com, except the two
+  templates that need a site of your own.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.
