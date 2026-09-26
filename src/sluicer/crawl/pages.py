@@ -48,7 +48,7 @@ from sluicer.crawl.urls import (
 )
 from sluicer.crawl.web import Parts, Web, default_web
 from sluicer.declared.tdmrep import WELL_KNOWN, TdmRule, read_tdmrep, reservation
-from sluicer.document import load_and_keep
+from sluicer.document import let_go, load_and_keep
 from sluicer.fetch import (
     AddressRefused,
     Climb,
@@ -747,14 +747,19 @@ class _Visitor:
     def visit(self, task: Task) -> Page:
         """Take ``task``, asking again, a bounded number of times and each time
         later, while what came back may be different later."""
-        page, retries = asking_again(
-            self.polite,
-            task.url,
-            self.retries,
-            self.deadline,
-            lambda: self._take(task),
-            _worth_asking_again,
-        )
+        try:
+            page, retries = asking_again(
+                self.polite,
+                task.url,
+                self.retries,
+                self.deadline,
+                lambda: self._take(task),
+                _worth_asking_again,
+            )
+        finally:
+            # A page fetched and then dropped (off the site, refused) was
+            # kept parsed on this worker until its next page.
+            let_go()
         return replace(page, retries=retries) if retries else page
 
     def _take(self, task: Task) -> Page:

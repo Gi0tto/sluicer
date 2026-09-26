@@ -107,6 +107,50 @@ def test_pipx_installs_over_its_environment_only_with_force(tmp_path):
     )
 
 
+def test_a_pinned_pipx_requirement_keeps_its_extras(tmp_path):
+    """pipx records the requirement as it was asked for; a pinned one,
+    "sluicer[microformats]==0.10.0", was read as no extra at all, and the
+    line given dropped microformats."""
+    prefix = _venv(tmp_path / "pipx" / "venvs" / "sluicer", uv=False)
+    for asked in ("sluicer[microformats]==0.10.0", "sluicer [microformats] >=0.10"):
+        (prefix / "pipx_metadata.json").write_text(
+            json.dumps({"main_package": {"package_or_url": asked}}),
+            encoding="utf-8",
+        )
+
+        found = detect(prefix, "python", {}, _no_pip)
+
+        assert found.asked == {"microformats"}, asked
+        assert found.command(["browser"], found.kept()) == (
+            'pipx install --force "sluicer[browser,microformats]"'
+        )
+
+
+def test_an_environment_without_pip_is_not_told_to_run_pip(tmp_path, monkeypatch):
+    """A venv made --without-pip was told "python -m pip install", which
+    fails there: "No module named pip"."""
+    prefix = _venv(tmp_path / "env", uv=False)
+    python = str(prefix / "bin" / "python")
+    monkeypatch.setattr(installer.sys, "prefix", str(prefix))
+    monkeypatch.setattr(installer, "_importable", lambda module: module != "pip")
+
+    with_uv = detect(prefix, python, {}, lambda name: f"/bin/{name}")
+    without = detect(prefix, python, {}, _no_pip)
+
+    assert with_uv.kind == without.kind == "pip"
+    assert with_uv.command(["mcp"]) == (
+        f'uv pip install --python {python} "sluicer[mcp]"'
+    )
+    assert without.command(["mcp"]) == (
+        f'{python} -m ensurepip, then: {python} -m pip install "sluicer[mcp]"'
+    )
+    # One that has pip is told pip, as before.
+    monkeypatch.setattr(installer, "_importable", lambda module: True)
+    assert detect(prefix, python, {}, _no_pip).command(["mcp"]) == (
+        f'{python} -m pip install "sluicer[mcp]"'
+    )
+
+
 def test_uvx_is_told_to_run_again_with_the_extra(tmp_path):
     """uvx installs nothing to keep: its environment is one in uv's cache,
     made for one set of requirements, so the fix is the next run's line."""
@@ -357,3 +401,46 @@ def test_chromium_is_unknown_when_playwright_cannot_say():
 
     assert installer.chromium_missing(failing) is None
     assert installer.chromium_missing(absent) is None
+
+
+def _package(folder: Path, main: str) -> None:
+    (folder / "playwright").mkdir(parents=True)
+    (folder / "playwright" / "__init__.py").write_text("", encoding="utf-8")
+    (folder / "playwright" / "__main__.py").write_text(main, encoding="utf-8")
+
+
+def test_a_playwright_in_the_working_directory_is_never_run(tmp_path, monkeypatch):
+    """``python -m playwright`` put the working directory first on the path:
+    a playwright/__main__.py planted in a cloned repository ran when
+    ``sluicer doctor`` was run there. Only the installed one runs now, even
+    when the working directory is on this process's own path, as it is under
+    ``python -m sluicer``."""
+    clone = tmp_path / "clone"
+    installed = tmp_path / "site"
+    planted = tmp_path / "PLANTED"
+    _package(
+        clone,
+        "import pathlib, sys\n"
+        f"pathlib.Path({str(planted)!r}).write_text(repr(sys.argv))\n",
+    )
+    location = tmp_path / "chromium-1243"
+    location.mkdir()
+    (location / "INSTALLATION_COMPLETE").write_text("", encoding="utf-8")
+    _package(
+        installed,
+        "import sys\n"
+        "assert sys.argv[1:] == ['install', '--dry-run', 'chromium'], sys.argv\n"
+        f"print('Browser\\n  Install location:    ' + {str(location)!r})\n",
+    )
+    monkeypatch.syspath_prepend(str(installed))
+    monkeypatch.syspath_prepend(str(clone))
+    monkeypatch.chdir(clone)
+    monkeypatch.setenv("PYTHONPATH", str(clone))
+
+    assert installer.chromium_missing() == []
+    assert not planted.exists()
+
+    argv = installer.playwright_argv("install", "chromium")
+    assert argv[:3] == [installer.sys.executable, "-I", "-c"]
+    assert "-m" not in argv
+    assert str(clone) not in json.loads(argv[4])

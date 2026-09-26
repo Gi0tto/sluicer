@@ -19,7 +19,9 @@ the running Python lives in, and each leaves a mark there:
   ``uv.lock``; what ``uv pip install`` puts there the next ``uv sync`` takes
   away, so the command is ``uv add``.
 * any other environment uv made has no pip in it, and takes
-  ``uv pip install``; the rest take pip.
+  ``uv pip install``; the rest take pip, and one with no pip in it takes
+  ``uv pip install --python`` when uv is on the ``PATH``, or else
+  ``python -m ensurepip`` first.
 
 Which extras are installed is read from the packages they bring, found without
 importing them, so the answer is the same whichever way Sluicer was installed.
@@ -45,6 +47,7 @@ __all__ = [
     "current",
     "detect",
     "how_to_add",
+    "playwright_argv",
     "present",
 ]
 
@@ -86,6 +89,12 @@ class Installation:
     asked: frozenset[str] | None = None
     """The extras the installer's own record says were asked for, where it
     keeps one (``uv tool``, pipx); ``None`` elsewhere."""
+    pip: bool = True
+    """For ``pip``: whether pip is installed in the environment. A venv made
+    with ``--without-pip`` has none, and ``python -m pip`` fails there."""
+    uv: bool = False
+    """Whether ``uv`` is on the ``PATH``, to install into an environment
+    that has no pip."""
 
     def kept(self) -> set[str]:
         """The extras a command that replaces the requirement must name again:
@@ -135,9 +144,14 @@ class Installation:
         if self.kind == "uv venv":
             python = "" if self.short else f" --python {_quoted(self.python)}"
             return f"uv pip install{python} {spec}"
+        python = _quoted(self.python)
+        if not self.pip:
+            if self.uv:
+                return f"uv pip install --python {python} {spec}"
+            return f"{python} -m ensurepip, then: {python} -m pip install {spec}"
         if self.short:
             return f"pip install {spec}"
-        return f"{_quoted(self.python)} -m pip install {spec}"
+        return f"{python} -m pip install {spec}"
 
 
 def _spec(extras: Iterable[str]) -> str:
@@ -221,11 +235,22 @@ def detect(
         return Installation("uv venv", python, short=short)
     found = which("pip")
     short = found is not None and _same(Path(found).parent, Path(python).parent)
-    return Installation("pip", python, short=short)
+    pip = _has_pip(root)
+    return Installation(
+        "pip", python, short=short and pip, pip=pip, uv=which("uv") is not None
+    )
+
+
+def _has_pip(prefix: Path) -> bool:
+    """Whether the environment at ``prefix`` has pip, asked of this process
+    when it is the one running there; another is taken to have it."""
+    return not _same(prefix, Path(sys.prefix)) or _importable("pip")
 
 
 _UV_RECEIPT = re.compile(r"""name\s*=\s*"sluicer"[^}]*?extras\s*=\s*\[([^\]]*)\]""")
-_BRACKETS = re.compile(r"\[([^\]]*)\]\s*$")
+# The extras right after the name: "sluicer[api]", and pinned,
+# "sluicer[microformats]==0.10.0", which a pattern anchored at the end missed.
+_BRACKETS = re.compile(r"\s*[A-Za-z0-9][A-Za-z0-9._-]*\s*\[([^\]]*)\]")
 
 
 def _asked(record: Path) -> frozenset[str] | None:
@@ -238,7 +263,7 @@ def _asked(record: Path) -> frozenset[str] | None:
         text = record.read_text(encoding="utf-8")
         if record.suffix == ".json":
             asked = json.loads(text)["main_package"]["package_or_url"]
-            found = _BRACKETS.search(asked) if isinstance(asked, str) else None
+            found = _BRACKETS.match(asked) if isinstance(asked, str) else None
         else:
             found = _UV_RECEIPT.search(text)
     except (OSError, ValueError, KeyError, TypeError):
@@ -292,6 +317,33 @@ def how_to_add(extra: str, *, then: str = "") -> str:
     return f"Install it with: {command}"
 
 
+# Playwright's command line, run the way ``sluicer.isolated`` runs its child:
+# with -I, so the working directory is not on the path and no PYTHON*
+# variable is read, and handed the parent's own path to import from, less the
+# working directory. ``python -m playwright`` put the working directory first:
+# a playwright/__main__.py in the folder ``sluicer doctor`` was run in -- a
+# cloned repository -- ran in Playwright's place.
+_PLAYWRIGHT = (
+    "import json, runpy, sys; sys.path[:] = json.loads(sys.argv.pop(1)); "
+    "runpy.run_module('playwright', run_name='__main__', alter_sys=True)"
+)
+
+
+def _trusted_path() -> list[str]:
+    """This process's import path without the working directory: the empty
+    entry ``-c`` and ``-m`` stand it in with, or its own spelling."""
+    here = Path.cwd()
+    return [entry for entry in sys.path if entry and not _same(Path(entry), here)]
+
+
+def playwright_argv(*arguments: str) -> list[str]:
+    """The command that runs the installed Playwright's command line with
+    ``arguments``, on this interpreter, importing nothing from the working
+    directory."""
+    path = json.dumps(_trusted_path())
+    return [sys.executable, "-I", "-c", _PLAYWRIGHT, path, *arguments]
+
+
 _LOCATION = re.compile(r"^\s*Install location:\s*(.+?)\s*$", re.MULTILINE)
 
 
@@ -311,7 +363,7 @@ def chromium_missing(
     run = run or subprocess.run
     try:
         answer = run(
-            [sys.executable, "-m", "playwright", "install", "--dry-run", "chromium"],
+            playwright_argv("install", "--dry-run", "chromium"),
             capture_output=True,
             # Playwright's driver is Node, which writes UTF-8 everywhere; a
             # path it prints may hold any letter of a user's name.

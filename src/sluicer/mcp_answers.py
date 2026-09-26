@@ -437,6 +437,8 @@ class CrawledPage(TypedDict, total=False):
     sources: list[str]
     types: list[str]
     links: int
+    visible: dict[str, GuessAnswer]
+    visible_left_out: list[str]
     retries: list[RetryAnswer]
     error: PageError
 
@@ -457,6 +459,8 @@ class ExtractedPage(TypedDict, total=False):
     sources: list[str]
     types: list[str]
     links: int
+    visible: dict[str, GuessAnswer]
+    visible_left_out: list[str]
     retries: list[RetryAnswer]
     error: PageError
 

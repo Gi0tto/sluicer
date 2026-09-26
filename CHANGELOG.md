@@ -19,8 +19,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   that every part of it is there; without the extra, it prints the command
   that adds it and exits 2.
 - `sluicer doctor` says what is installed, what each missing piece is for, and
-  the command that adds it; it exits 2 when part of the base install is
-  missing.
+  the command that adds it; it exits 2 when protego or trafilatura is
+  missing, or when `SLUICER_BROWSER` names a browser no fetch accepts.
+  Without lxml, click or cssselect no command starts, `doctor` included.
 - `bench/golden.py`: a digest of every public reading of every cached
   benchmark page, so a change meant only to be faster is shown to change no
   byte of any answer, and a timer per page.
@@ -57,6 +58,24 @@ Dates are the day the work landed. Anything not listed here did not happen.
   as it did with `--visible`; `--no-visible` keeps the old exit 1. On WCXB's
   development pages the guesses add 2 to 3 ms to a page at the median and 8 to
   10 ms at the 95th percentile, about four fifths more time.
+- What 0.10 answers differently, for a program that reads its output: every
+  line of `crawl`, `batch` and `warc` carries `visible` (empty with
+  `--no-visible`), and so does every page of the MCP tools `crawl_site` and
+  `extract_many`, which now take `visible` (true by default; false leaves the
+  key out) and cut a page's heaviest guesses first, named in its
+  `visible_left_out`, when an answer is over its bound; `inspect` prints a
+  block of the visible guesses; a page that declares nothing but shows a
+  heading exits 0, not 1; `page_markdown` answers `text_from`. A `crawl
+  --resume` or `batch --resume` over a file 0.9.1 wrote leaves its lines
+  without `visible` beside the new lines with it.
+- The default `extract()` is slower than 0.9.1's default, because it now
+  makes the guesses 0.9.1 made only when asked: the 0.10 review measured it
+  1.2 to 1.6 ms slower a page at the median on WCXB's development pages, 1.55
+  to 1.62 times 0.9.1's default. Each mode on its own is faster than it was:
+  with `visible=False` about 7% less time in total than 0.9.1's default (the
+  median page about the same), and with the guesses about a quarter less at
+  the median than 0.9.1's `visible=True`. The speed-ups below are each
+  mode's, not the new default's against the old.
 - A missing extra's message names the command that adds it for the way Sluicer
   was installed: `pip install`, `uv tool install` or `pipx install --force`
   with the extras already there, `uvx --from`, `uv add` in a uv project, or
@@ -103,8 +122,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the crawl, the MCP server's TDM check) parsed to judge the page is handed to
   the `extract` of that very page that follows in the same thread, instead of
   the page being parsed again. The same answers; a fetch followed by an
-  extraction takes about 30% less CPU. One parsed page is kept per thread
-  until it is extracted or replaced.
+  extraction takes about 30% less CPU. One parsed page of up to 1 MB is kept
+  per thread until it is extracted or replaced, and let go when an MCP or
+  HTTP API call ends, when a crawl is done with a page and when a page is
+  turned into markdown; `to_markdown(full=True)` reads the kept tree itself.
 - `visible=True`: a text node is measured by stripping its ends instead of
   rewriting its white space with a regex, and the elements a class or an id
   names as a byline are found once for the author and the date: the same
@@ -152,6 +173,35 @@ Dates are the day the work landed. Anything not listed here did not happen.
   ...}`, had no SKU in the summary. The offer's SKU is now the product's when
   the product declares neither a SKU nor a `productID` and its offers name
   one SKU.
+- A page fetched and never extracted stayed parsed for as long as its thread
+  lived: sixteen threads that each fetched a 10 MB page without extracting it
+  held 1.4 GB where 0.9.1 held 0.3 GB, and `page_markdown` kept the fetched
+  tree alive through trafilatura's own parse of the page. A page over 1 MB is
+  no longer kept, and a kept page is let go wherever no extraction follows;
+  the same sixteen threads now hold 0.2 GB.
+- `--full` markdown wrote what a reader is not shown: a table's hidden cells,
+  rows, bodies and caption, anything hidden with `display:` and a tab or a
+  newline before `none`, and a `<script>` or `<style>` inside `<code>`. It
+  wrote `href="java&#9;script:..."` as a link, a `<pre
+  class="language-```x">` opened a fence the page never closed, and a page
+  600 `<div>`s deep failed with a RecursionError. None of these happens now:
+  past 100 levels the rest is written as plain text.
+- The install lines `doctor` and a missing extra's message give: a pipx
+  install pinned to a version (`sluicer[microformats]==0.10.0`) was read as
+  having no extra, and the line dropped microformats; an environment with no
+  pip in it was told `python -m pip`, which fails there, and is now told `uv
+  pip install --python` when uv is on the `PATH`, or `python -m ensurepip`
+  first; in a uv project, "then: sluicer install browser" ran whichever
+  sluicer the `PATH` found, and now names the project's own Python.
+  `SLUICER_BROWSER=chrome sluicer doctor` said "ok browser" while every
+  fetch refused the value; it is now reported invalid, and doctor exits 2.
+- The scoreboard still said `--visible` guesses bylines and dates "when
+  asked"; 0.10 guesses by default, and its generator and page now say so.
+- `sluicer doctor` and `sluicer install browser` ran Playwright with
+  `python -m playwright`, which imports from the working directory first: a
+  `playwright/__main__.py` in the folder they were run in, a cloned
+  repository, ran in Playwright's place. Playwright now runs in an isolated
+  interpreter (`-I`) importing only from this Sluicer's own path.
 
 ## 0.9.1 - 2026-09-26
 

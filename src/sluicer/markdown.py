@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from types import ModuleType
 from urllib.parse import quote
 
-from sluicer.document import _base_of, join, load, trimmed
+from sluicer.document import _base_of, join, let_go, load_kept, trimmed
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.markdown_writer import element_markdown
 
@@ -102,6 +102,11 @@ def read_markdown(
     if full:
         written = _full_markdown(html, url)
         return MainText(written, "page" if written else "", "")
+    # trafilatura parses the page its own way (comments dropped, the
+    # encoding its own guess), so a page a fetch kept parsed is of no use to
+    # it: let go here, the kept tree would otherwise stay as long as the
+    # thread.
+    let_go()
     trafilatura = _trafilatura()
     # trafilatura is imported by name, so what it returns is untyped; the
     # annotation states what its ``extract`` documents.
@@ -119,8 +124,9 @@ def read_markdown(
 
 def _full_markdown(html: str | bytes, url: str | None) -> str:
     """The whole page's body as markdown, as a reader running no script is
-    shown it."""
-    doc = load(html, url=url)
+    shown it: the tree a fetch of this very page kept, when it kept one,
+    which is then let go."""
+    doc = load_kept(html, url=url)
     body = doc.tree.find("body")
     return element_markdown(
         body if body is not None else doc.tree, doc.base, noscript=True
