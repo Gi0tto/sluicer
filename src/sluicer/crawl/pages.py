@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import IO, Any, TypeVar
 from urllib.parse import urlsplit
 
-from sluicer.api import Extraction, extract
+from sluicer.api import Extraction, _extract as extract
 from sluicer.crawl.schedule import (
     CONCURRENCY,
     DEFAULT_DELAY_SECONDS,
@@ -69,6 +69,12 @@ MAX_PAGES = 100
 
 MAX_DEPTH = 3
 """How many links from the start a crawl goes unless told otherwise."""
+
+_TOO_DEEP_KEPT = 10_000
+"""How many links past ``max_depth`` a crawl keeps, to count them: each page
+at the last depth may give 5,000, so a crawl of many pages would otherwise
+hold every link of its last layer. Past this many, its notice says "at
+least"."""
 
 
 class StateMismatch(ValueError):
@@ -118,10 +124,12 @@ class Page:
     rel=canonical>``, and ``links`` every address it lets a crawl follow, in
     document order. A page the site answered with 4xx or 5xx is an
     ``error``, ``fetch_failed``, whose message names the status -- retryable
-    for a 429 or a 5xx -- and ``status`` keeps it; its error page's
-    declarations, links and canonical are not the page's. ``extraction`` is
-    ``sluicer.extract``'s reading, as for one fetch; it and the other fetch
-    fields are None exactly when ``error`` is not. ``retries`` is every time
+    for a 429 or a 5xx -- and keeps ``landed``, ``rung``, ``status``,
+    ``seconds`` and ``climbs``, as its line keeps ``landed`` and ``fetch``;
+    its error page's declarations, links and canonical are not the page's.
+    ``extraction`` is ``sluicer.extract``'s reading, as for one fetch; it is
+    None exactly when ``error`` is not, and so are the fetch fields but for
+    such a page. ``retries`` is every time
     the page was asked again after a request that may succeed later, oldest
     first; what the page is, is what its last request came to.
     """
@@ -169,25 +177,32 @@ class Page:
             error = asdict(self.error)
             if error["target"] is None:
                 del error["target"]
+            if self.status is not None:
+                # The site answered, with its error: where and how is kept, as
+                # 0.9.0 printed it, and only its page is left out.
+                line |= {"landed": self.landed, "fetch": self._fetch()}
             return {**line, "error": error}
         read = asdict(self.extraction) if self.extraction is not None else {}
         return {
             **line,
             "landed": self.landed,
-            "fetch": {
-                "rung": self.rung,
-                "status": self.status,
-                "seconds": round(self.seconds, 3),
-                "climbs": [
-                    {**asdict(climb), "seconds": round(climb.seconds, 3)}
-                    for climb in self.climbs
-                ],
-            },
+            "fetch": self._fetch(),
             "canonical": self.canonical,
             "summary": read.get("summary", {}),
             "records": read.get("records", []),
             "sources": read.get("sources", []),
             "links": list(self.links),
+        }
+
+    def _fetch(self) -> dict[str, Any]:
+        return {
+            "rung": self.rung,
+            "status": self.status,
+            "seconds": round(self.seconds, 3),
+            "climbs": [
+                {**asdict(climb), "seconds": round(climb.seconds, 3)}
+                for climb in self.climbs
+            ],
         }
 
 
@@ -354,8 +369,11 @@ def crawl(
         # Links reached and then taken after all are no longer left out.
         deeper = len(frontier.too_deep - frontier.seen)
         if deeper:
+            # Past the cap more were left out than were kept, so the count
+            # kept is a floor, and says so.
+            floor = "at least " if frontier.too_deep_more else ""
             run.notice = (
-                f"{deeper} link{'s' if deeper != 1 else ''} deeper than "
+                f"{floor}{deeper} link{'s' if deeper != 1 else ''} deeper than "
                 f"max_depth {max_depth} {'were' if deeper != 1 else 'was'} "
                 "not followed"
             )
@@ -605,8 +623,10 @@ class _Frontier:
         self.queue = Queue()
         self.seen: set[str] = {start}
         self.cut = False
-        # Links a crawl would have taken but for max_depth, each once.
+        # Links a crawl would have taken but for max_depth, each once, at
+        # most _TOO_DEEP_KEPT of them; too_deep_more says one more was seen.
         self.too_deep: set[str] = set()
+        self.too_deep_more = False
         if max_pages > 0:
             self.queue.add(start)
 
@@ -622,7 +642,12 @@ class _Frontier:
         if depth > self.max_depth:
             # Counted, not dropped without a word: a paginated listing ten
             # pages deep stopped at the fourth, and the crawl said it was done.
-            self.too_deep.add(url)
+            if url in self.too_deep:
+                return
+            if len(self.too_deep) < _TOO_DEEP_KEPT:
+                self.too_deep.add(url)
+            else:
+                self.too_deep_more = True
             return
         # Last, so that "cut" means a link that would otherwise have been taken.
         if self.queue.added >= self.max_pages:
@@ -830,7 +855,15 @@ class _Visitor:
                 retryable=again,
             )
             return Page(
-                task.url, task.depth, task.found_on, status=fetched.status, error=error
+                task.url,
+                task.depth,
+                task.found_on,
+                landed=landed,
+                rung=fetched.rung,
+                status=fetched.status,
+                seconds=fetched.seconds,
+                climbs=tuple(fetched.climbs),
+                error=error,
             )
         answered = fetched.status < 400
         return Page(

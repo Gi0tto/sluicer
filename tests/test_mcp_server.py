@@ -2279,3 +2279,46 @@ def test_sluicer_mcp_is_not_asked_about_sluicer_s_own_arguments(monkeypatch):
     from sluicer.mcp_server import _refuse_script_arguments
 
     _refuse_script_arguments(["/venv/bin/sluicer", "mcp", "--tools", "x"])
+
+
+def test_an_error_page_of_extract_many_keeps_where_it_landed_and_its_fetch(
+    monkeypatch,
+):
+    """As a crawl's line does since the hostile review of 0.9.1: 0.9.0 gave
+    them, and the first 0.9.1 left the status only in the message."""
+    registered = fake_mcp(monkeypatch)
+    pages = _shop()
+    pages["https://example.com/gone"] = (404, "<title>404 Not Found</title>", {})
+    _fake_site_library(monkeypatch, pages)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    answer = registered["extract_many"](["https://example.com/gone"])
+
+    [page] = answer["pages"]
+    assert page["ok"] is False and page["error"]["code"] == "fetch_failed"
+    assert page["landed"] == "https://example.com/gone"
+    assert page["fetch"]["status"] == 404
+    assert "summary" not in page
+
+
+def test_an_error_page_refused_says_how_to_read_it_and_that_way_works(monkeypatch):
+    """The hostile review of 0.9.1: extract_declared refused a 404 with no way
+    forward. The message names fetch_page, then extract_declared on its html,
+    and that is done here."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    _answering(monkeypatch, 404)
+    url = "https://example.com/gone"
+
+    refused = registered["extract_declared"](url)
+    message = refused["error"]["message"]
+    assert "fetch_page" in message and "extract_declared" in message
+
+    fetched = registered["fetch_page"](url)
+    assert fetched["ok"] is True and fetched["fetch"]["status"] == 404
+    read = registered["extract_declared"](fetched["html"])
+    assert read["summary"]["title"]["value"] == "404 Not Found"
+    assert read["ok"] is True

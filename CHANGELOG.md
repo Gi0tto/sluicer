@@ -98,7 +98,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A crawl that left links unfollowed because they were deeper than
   `--max-depth` ended "done" without a word, so a paginated listing looked
   shorter than it is. The closing line now says how many links the depth left
-  out, and `crawl()`'s `Crawl` carries the same sentence as `notice`.
+  out, and `crawl()`'s `Crawl` carries the same sentence as `notice`. They
+  are counted up to 10,000, so that a crawl does not hold every link of its
+  last layer; past that the sentence says "at least".
 - The README's quick start opened `p1.html`, a file that exists nowhere, and
   replayed and healed pages of `shop.example`. It now learns from and runs on
   books.toscrape.com, a public scraping sandbox, and heals on a made-up shop
@@ -168,10 +170,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   read, and marked worth retrying.
 - A page the site answers with its error, a 4xx or a 5xx, is no longer read as
   the page. `extract`, `inspect`, `select`, `markdown`, `diff`, `feed` and
-  `compile` exit 2 naming the status, where `extract` printed "404 Not Found"
+  `compile` exit 2 naming the status and how to read the error page anyway
+  (`sluicer fetch URL | sluicer extract - --url URL`, or a file from
+  `sluicer fetch -o`), where `extract` printed "404 Not Found"
   as the title and exited 0; a crawl's or a batch's line is `ok` false,
-  `fetch_failed`, retryable for a 429 or a 5xx; the MCP tools and the HTTP
-  API answer `fetch_failed` (502). `fetch`, `fetch_page`, `audit` and
+  `fetch_failed`, retryable for a 429 or a 5xx, and keeps its `landed` and
+  `fetch` (and the table its status, landed and rung columns), as do the
+  pages of MCP `crawl_site` and `extract_many`, leaving out the error page's
+  summary, records, canonical and links; the MCP tools and the HTTP
+  API answer `fetch_failed` (502), saying that `fetch_page` gives the error
+  page and `extract_declared` reads its html. `fetch`, `fetch_page`, `audit` and
   `audit_page` still answer about the error page as it is, as documented.
 - Text that is neither an http(s) URL nor HTML, such as `example.com`, is
   `bad_input` for the MCP tools that take a page, with the address written
@@ -180,7 +188,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer.extract()`, `aextract()` and `sluicer.feeds.read_feed()` handed an
   address alone warn (`UserWarning`) that they fetch nothing and say how to
   fetch it first. They returned an empty result, or None, in silence; the
-  answer is the same, since both are documented never to raise.
+  answer is the same, since both are documented never to raise. Only a call
+  of those three warns: `fetch()`, the commands, the MCP tools and the HTTP
+  API read a page or a file whose body is an address without a warning.
 - `sluicer serve` on a port another server holds says so and exits 2 before
   it says it is serving. It printed "serving the tools" and then exited 3,
   the code for a broken contract.
@@ -195,9 +205,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `--at 2000`, and any year ending in 00, is a date. The year was checked by
   its last two digits against 1 to 9999, so `'2000' is not a date`.
 - `SLUICER_BROWSER` set to anything but `chromium` or `none` is refused with
-  a message naming both: a usage error on the command line, exit 2 for
-  `sluicer mcp` and `sluicer serve`, `UnknownBrowser` (a `ValueError`) from
-  `fetch()`. Any other value was Chromium in silence.
+  a message naming both: a usage error on the command line before an
+  address is fetched (a command reading a file or stdin does not look at
+  it), exit 2 for `sluicer mcp` and `sluicer serve`, `UnknownBrowser` (a
+  `ValueError`) from `fetch()`. Any other value was Chromium in silence.
 - One site's robots.txt is remembered once however its address is written:
   `http://A.com:80/` and `http://a.com/` were two entries, each asked for.
 - The stealth rung joins the values of a header given twice, as every other
@@ -217,10 +228,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   and `batch`; an extractor missing a part names the part, not
   `KeyError('listing')`, on the command line and in MCP `run_extractor`; and
   `fetch()` of a path says it names no scheme, not "not no scheme".
-- A site whose name does not exist is not worth asking again: its robots.txt
-  failure says the name does not resolve and is `retryable` false, so a
-  crawl or a batch asks it once. It was marked retryable and asked three
-  times; a lookup that failed only for now is still retried.
+- On Linux, a site whose name does not exist is not worth asking again: its
+  robots.txt failure says the name does not resolve and is `retryable`
+  false, so a crawl or a batch asks it once. It was marked retryable and
+  asked three times. A lookup that failed only for now is still retried, and
+  so, on macOS and Windows, is a name the resolver says does not exist: an
+  offline machine gets that same answer there.
 - `sluicer-mcp --help` prints its usage, and any other argument exits 2
   saying it takes none. Both started the server, which then waited on stdin.
 

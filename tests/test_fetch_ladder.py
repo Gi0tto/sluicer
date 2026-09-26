@@ -1081,15 +1081,22 @@ def test_a_robots_txt_that_did_not_answer_is_transient():
 
 
 @pytest.mark.parametrize(
-    ("code", "transient"), [(socket.EAI_NONAME, False), (socket.EAI_AGAIN, True)]
+    ("code", "transient"),
+    [
+        (socket.EAI_NONAME, False),
+        (socket.EAI_NODATA, False),
+        (socket.EAI_AGAIN, True),
+    ],
 )
 def test_a_robots_txt_whose_name_does_not_exist_is_not_worth_asking_again(
-    code, transient
+    monkeypatch, code, transient
 ):
     """Measured on 0.9.0 (inventory audit, B15): a host that does not exist
     was "could not read the robots.txt ...: gaierror", transient, so a batch
     asked it three times and the MCP server said retryable. A lookup that
-    failed for now is still worth asking again."""
+    failed for now is still worth asking again. Linux's resolver, which
+    says a name does not exist only when it does not."""
+    monkeypatch.setattr("sluicer.fetch.wire._NO_ADDRESS_IS_FINAL", True)
     ladder = [("http", _failing(socket.gaierror(code, "no such name")))]
 
     with pytest.raises(FetchFailed, match=r"robots\.txt") as failed:
@@ -1099,3 +1106,33 @@ def test_a_robots_txt_whose_name_does_not_exist_is_not_worth_asking_again(
     assert ("nonexistent.invalid does not resolve" in str(failed.value)) is not (
         transient
     )
+
+
+@pytest.mark.parametrize(
+    ("final", "code", "transient"),
+    [
+        # macOS answers EAI_NONAME when the machine is offline, as it does
+        # for a name that does not exist; Windows the same.
+        (False, socket.EAI_NONAME, True),
+        (False, socket.EAI_AGAIN, True),
+        # Linux: a failure of the resolver itself is not the name's answer.
+        (True, socket.EAI_FAIL, True),
+        (True, socket.EAI_AGAIN, True),
+    ],
+)
+def test_a_name_lookup_that_may_be_a_network_loss_is_still_worth_asking_again(
+    monkeypatch, final, code, transient
+):
+    """The hostile review of 0.9.1: an offline Mac gives EAI_NONAME, not
+    EAI_AGAIN, so a robots.txt asked during a brief network loss was marked
+    not worth asking again. Where the two cannot be told apart, and for any
+    lookup that failed other than "no such name", it is retryable, as in
+    0.9.0."""
+    monkeypatch.setattr("sluicer.fetch.wire._NO_ADDRESS_IS_FINAL", final)
+    ladder = [("http", _failing(socket.gaierror(code, "lookup failed")))]
+
+    with pytest.raises(FetchFailed, match=r"robots\.txt") as failed:
+        fetch("https://example.com/p", rungs=ladder)
+
+    assert failed.value.transient is transient
+    assert "does not resolve" not in str(failed.value)

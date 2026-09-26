@@ -1532,3 +1532,62 @@ def test_a_file_that_cannot_be_read_is_said_of_the_file(tmp_path, args, said):
     assert result.exit_code == 2, result.output
     assert said.format(**names) in result.stderr
     assert "Errno" not in result.stderr and "KeyError" not in result.stderr
+
+
+def _way_forward(stderr):
+    """The command a refusal of an error page says reads it anyway."""
+    for lead in ("To read the error page anyway: ", "give "):
+        if lead in stderr:
+            said = stderr.split(lead, 1)[1].strip()
+            return said.split(" the file: ", 1)[-1]
+    raise AssertionError(f"no way forward in {stderr!r}")
+
+
+def _run(line, runner, stdin=None):
+    import shlex
+
+    words = shlex.split(line)
+    assert words[0] == "sluicer", line
+    return runner.invoke(main, words[1:], input=stdin)
+
+
+@pytest.mark.parametrize("command", ["extract", "inspect", "markdown"])
+def test_an_error_page_refused_says_the_pipe_that_reads_it_and_it_does(
+    monkeypatch, command
+):
+    """The hostile review of 0.9.1: an error page was refused with no way
+    forward. The refusal now names one, and it is run here as written."""
+    _answered(monkeypatch, 404, ERROR_PAGE)
+    url = "https://example.com/gone?a=1&b=2"
+    runner = CliRunner()
+
+    refused = runner.invoke(main, [command, url])
+
+    assert refused.exit_code == 2
+    way = _way_forward(refused.stderr)
+    fetch, then = way.split(" | ")
+    assert then.startswith(f"sluicer {command} - --url ")
+    fetched = _run(fetch, runner)
+    assert fetched.exit_code == 0, fetched.output
+    read = _run(then, runner, stdin=fetched.stdout)
+    assert read.exit_code == 0, read.output
+    assert "Not Found" in read.stdout
+
+
+def test_an_error_page_refused_by_a_command_of_several_pages_says_to_keep_a_file(
+    monkeypatch, tmp_path
+):
+    _answered(monkeypatch, 503, ERROR_PAGE)
+    runner = CliRunner()
+    url = "https://example.com/gone"
+
+    monkeypatch.chdir(tmp_path)
+    refused = runner.invoke(main, ["select", url, "h1", "--no-robots"])
+    assert refused.exit_code == 2
+    way = _way_forward(refused.stderr)
+    assert way.endswith("--no-robots -o error-page.html"), way
+    assert _run(way, runner).exit_code == 0
+    read = runner.invoke(main, ["select", "error-page.html", "h1"])
+
+    assert read.exit_code == 0, read.output
+    assert read.stdout.startswith("Not Found\t/html/body/h1")

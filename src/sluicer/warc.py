@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from sluicer.api import Extraction, extract
+from sluicer.api import Extraction, _extract as extract
 from sluicer.fetch.result import MAX_RESPONSE_BYTES
 
 # The longest header line read, and the most header lines a record may have:

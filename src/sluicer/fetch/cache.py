@@ -33,7 +33,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from sluicer.api import extract
+from sluicer.api import _extract as extract
 from sluicer.declared.headers import charset
 from sluicer.declared.merge import ABOUT_A_THING
 from sluicer.document import sniff_encoding

@@ -117,7 +117,7 @@ def declared_front_matter(html: str | bytes, url: str | None = None) -> str:
     """
     # Imported here: the summary is the library's heaviest import, and a caller
     # who never asks for front matter should not pay for it.
-    from sluicer.api import extract
+    from sluicer.api import _extract as extract
 
     result = extract(html, url=url)
     if not result.summary:

@@ -15,7 +15,7 @@ from typing import Any
 
 import click
 
-from sluicer.api import Extraction, extract as extract_html
+from sluicer.api import Extraction, _extract as extract_html
 from sluicer.cli.exits import NOTHING_FOUND, _fail
 from sluicer.cli.options import _with_fetch_options
 from sluicer.cli.output import _brief, _kept_line, _moment

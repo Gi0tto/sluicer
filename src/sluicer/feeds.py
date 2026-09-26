@@ -95,6 +95,12 @@ def read_feed(data: str | bytes, url: str | None = None) -> Feed | None:
             stacklevel=2,
         )
         return None
+    return _read_feed(data, url)
+
+
+def _read_feed(data: str | bytes, url: str | None = None) -> Feed | None:
+    """``read_feed`` without its warning, for Sluicer's own callers, whose
+    ``data`` was fetched or read from a file and is what it is."""
     raw = data.encode("utf-8") if isinstance(data, str) else data
     start = raw.lstrip(b"\xef\xbb\xbf \t\r\n")[:1]
     if start in (b"{", b"["):

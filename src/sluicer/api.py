@@ -134,12 +134,17 @@ def _warn_if_an_address(html: str | bytes, name: str) -> None:
 
 def _extract(
     html: str | bytes,
-    url: str | None,
-    induce: bool,
-    microformats: bool,
-    headers: Mapping[str, str] | None,
-    visible: bool,
+    url: str | None = None,
+    induce: bool = False,
+    microformats: bool = False,
+    headers: Mapping[str, str] | None = None,
+    visible: bool = False,
 ) -> Extraction:
+    """``extract`` without its warning, for Sluicer's own callers.
+
+    A page fetched, or a file read, whose body is an address alone was asked
+    for as a page, and is one: ``fetch()`` and every command read it without
+    telling the caller to fetch what it already fetched."""
     sent = lowered(headers)
     doc = load(html, url=url, charset=charset(sent))
     return _extract_document(doc, sent, induce, microformats, visible)

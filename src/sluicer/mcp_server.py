@@ -27,7 +27,7 @@ from dataclasses import asdict
 from typing import Annotated, Any, cast
 
 from sluicer import __version__, crawl as crawling, extractor as extractor_module
-from sluicer.api import extract
+from sluicer.api import _extract as extract
 from sluicer.audit import answered_with, audit
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch import (
@@ -368,7 +368,9 @@ def _page_of(
             fetched.url,
             [],
             f"the site answered status {fetched.status}, which is its error, "
-            "not the page",
+            "not the page. To read the error page anyway: fetch_page answers "
+            "with it as it is, and extract_declared, or any tool that takes a "
+            "page's HTML, reads the html it gives",
             transient=fetched.status == 429 or fetched.status >= 500,
         )
     if is_url:
@@ -878,7 +880,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         """
         from sluicer.declared.links import read_links
         from sluicer.document import load
-        from sluicer.feeds import read_feed as read
+        from sluicer.feeds import _read_feed as read
 
         _within("limit", limit, 1, FEED_ITEMS)
         html, url, fetched = _html_of(url_or_text, expect_html=False)
@@ -1342,7 +1344,7 @@ def _crawled(page: crawling.Page, records: bool = False) -> dict[str, Any]:
     line = page.to_json()
     if not page.ok:
         error = {**line["error"], "url": page.url}
-        kept = ("ok", "url", "depth", "retries")
+        kept = ("ok", "url", "depth", "retries", "landed", "fetch")
         return {key: line[key] for key in kept if key in line} | {"error": error}
     read = line["records"] if records else line.pop("records")
     line["types"] = sorted({kind for record in read for kind in record["types"]})
