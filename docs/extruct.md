@@ -2,7 +2,15 @@
 
 extruct reads the vocabularies a page declares and returns each as the page
 wrote it. It has had no release since 8 November 2024. `sluicer.compat.extruct`
-answers extruct's calls with extruct's shapes, so the move is one line:
+answers extruct's calls with extruct's shapes. extruct reads microformats by
+default, and Sluicer reads them with mf2py, which its `microformats` extra
+installs, so install that extra in place of extruct:
+
+```bash
+pip install "sluicer[microformats]"
+```
+
+Then the move is one line:
 
 ```python
 from sluicer.compat import extruct      # was: import extruct
@@ -11,10 +19,10 @@ data = extruct.extract(html, base_url=url)
 data["json-ld"], data["microdata"], data["opengraph"], data["rdfa"]
 ```
 
-```bash
-uv pip install "sluicer[microformats]"  # mf2py, for the microformat syntax
-uv pip install sluicer                  # without it: syntaxes=[...] leaving it out
-```
+With `pip install sluicer` alone, that call raises `MicroformatsExtraMissing`,
+since it asks for microformats too. Name the syntaxes you read, leaving
+`"microformat"` out, and it needs no extra:
+`extruct.extract(html, base_url=url, syntaxes=["json-ld", "microdata", "opengraph", "rdfa", "dublincore"])`.
 
 `extract` takes every argument extruct's does -- `base_url`, `encoding`,
 `syntaxes`, `errors`, `uniform`, `return_html_node`, `schema_context`,

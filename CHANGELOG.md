@@ -42,6 +42,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   pad set" for `https://example.com/product`, a 404 page titled "Example
   Domain". It is now the whole real answer for `https://example.com/`, and a
   test makes the page's call and compares.
+- The extruct page called the move from extruct "one line", but that line
+  raises `MicroformatsExtraMissing` without the `microformats` extra. The
+  page now installs the extra first, and gives the call that needs none.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.

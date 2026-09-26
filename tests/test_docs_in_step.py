@@ -14,6 +14,8 @@ import os
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -284,3 +286,33 @@ def test_the_configuration_page_s_first_file_works_where_the_page_saves_it(
     found = CliRunner().invoke(main, ["extract", page_file])
     assert found.exit_code == 2
     assert "only in a file you name" in found.stderr
+
+
+def test_the_extruct_page_s_calls_do_what_it_says_on_a_base_install(absent):
+    """docs/extruct.md called the move "one line", then listed the extra: on
+    an install without mf2py the one line raises. The page installs the extra
+    first, says the call raises without it, and gives the call that does not;
+    each is run here with mf2py absent."""
+    from sluicer import MicroformatsExtraMissing
+    from sluicer.compat import extruct
+
+    page = (ROOT / "docs" / "extruct.md").read_text(encoding="utf-8")
+    lead = page.split("\n## ", 1)[0]
+    install = re.search(r"```bash\n(.*?)```", lead, re.DOTALL).group(1)
+    assert install.strip() == 'pip install "sluicer[microformats]"'
+    one_line = re.search(r"^data = (extruct\.extract\(.*\))$", lead, re.MULTILINE)
+    base = re.search(r"`(extruct\.extract\(html, base_url=url, syntaxes=.*?\))`", lead)
+    assert one_line is not None and base is not None
+    names = {
+        "extruct": extruct,
+        "html": (ROOT / "examples" / "brake-pads.html").read_text(encoding="utf-8"),
+        "url": "https://example.com/p/bp-2210",
+    }
+
+    absent("mf2py")
+    assert "MicroformatsExtraMissing" in lead
+    with pytest.raises(MicroformatsExtraMissing):
+        eval(one_line.group(1), names)
+    data = eval(base.group(1), names)
+    assert "microformat" not in data
+    assert data["json-ld"][0]["@type"] == "Product"
