@@ -37,6 +37,7 @@ requirements:
     - cssselect >=1.2
     - lxml >=5.3
     - protego >=0.3
+    - trafilatura >=2.0
 
 tests:
   - python:
@@ -63,8 +64,8 @@ about:
     microdata, RDFa, OpenGraph, Dublin Core, Twitter cards, HTML's meta
     names -- merged into one answer that names where every value came
     from, with no model in the loop. This package is the base install:
-    it fetches over plain HTTP; the browser, markdown and MCP extras are
-    on PyPI.
+    it fetches over plain HTTP and turns a page into markdown; the
+    browser and MCP extras are on PyPI.
   license: MIT AND CC-BY-SA-3.0 AND Unicode-3.0
   license_file:
     - LICENSE

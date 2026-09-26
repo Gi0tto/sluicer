@@ -2,12 +2,12 @@
 
 Each file runs on its own and reaches nothing beyond this machine: `_site.py`
 serves the small made-up site in `site/` locally, and every example reads its
-pages from there. Run them from this folder, with the extras they need:
+pages from there. Run them from this folder:
 
 ```bash
 cd examples
-uv run --with "sluicer[markdown]" python 01_declared_fields.py
-uv run --with "sluicer[markdown]" python 01_declared_fields.py https://example.com/
+uv run --with sluicer python 01_declared_fields.py
+uv run --with sluicer python 01_declared_fields.py https://example.com/
 ```
 
 Given an address, `01`, `03` and `04` read that page instead. `uv tool install`

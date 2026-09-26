@@ -220,8 +220,8 @@ have a reason you would defend.
 **It climbs only on a measurement.** Plain HTTP first; a browser only for a
 refusal, a challenge, or a page that is a script waiting to render. The stealth
 rung is never automatic. Plain HTTP needs no extra; the browser is the
-`browser` extra and needs installing once:
-`uvx --from "sluicer[browser]" playwright install chromium`; without it, a climb
+`browser` extra, and its Chromium is downloaded once with
+`sluicer install browser`; without it, a climb
 falls back to what plain HTTP brought back and says so. A site that needed the
 browser once starts its next pages there.
 

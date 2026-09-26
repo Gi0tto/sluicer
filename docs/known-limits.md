@@ -77,7 +77,7 @@ where the summary has no answer (`bench/PREREG.md`). It finds more: authors
 it invents -- 33 answers on WCXB's 511 pages, 25 of them dates -- so dates
 are right when answering less often with it, 0.823 against 0.917 on WCXB and
 0.701 against 0.734 as served. Trafilatura, which
-`sluicer[markdown]` installs, can guess too: `examples/04_a_guess_from_the_visible_page.py`
+the base install brings, can guess too: `examples/04_a_guess_from_the_visible_page.py`
 puts its guess beside Sluicer's answer, named a guess, when the page declares
 no author or date. Measured where Sluicer answers nothing, the guess is right
 on 48 of the 114 WCXB pages where it names an author and on 76 of the 312

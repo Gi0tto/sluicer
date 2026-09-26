@@ -51,10 +51,10 @@ def test_the_rung_type_lives_beside_the_result_it_returns():
 
 
 def test_installing_the_mcp_extra_gives_a_server_whose_tools_all_work():
-    """page_markdown needs trafilatura for any input, so the extra must pull
-    it; fetching needs nothing past the base install, so it must pull no
-    browser: until 0.8 it brought two Playwright drivers, 86 to 96 MB of
-    wheels, for a rung most calls never reach.
+    """page_markdown needs trafilatura for any input, which the base install
+    brings since 0.10; fetching needs nothing past the base install, so the
+    extra must pull no browser: until 0.8 it brought two Playwright drivers,
+    86 to 96 MB of wheels, for a rung most calls never reach.
 
     Read back out of the built metadata rather than out of pyproject.toml: a
     self-referential extra is a thing the packaging machinery has to resolve,
@@ -63,17 +63,52 @@ def test_installing_the_mcp_extra_gives_a_server_whose_tools_all_work():
     from importlib import metadata
 
     required = metadata.requires("sluicer")
+    base = [line for line in required if "extra ==" not in line]
     under_mcp = [line for line in required if "extra == 'mcp'" in line]
 
-    # Asserted by effect, not by spelling: hatchling may flatten the
-    # self-reference sluicer[markdown] to trafilatura itself.
-    assert any(
-        "trafilatura" in line or "sluicer[markdown]" in line for line in under_mcp
-    ), f"the mcp extra does not bring the markdown extra: {under_mcp}"
+    assert any(line.startswith("trafilatura") for line in base), base
+    assert any(line.startswith("mcp") for line in under_mcp), under_mcp
     for heavy in ("scrapling", "playwright", "patchright", "sluicer[fetch]"):
         assert not any(heavy in line for line in under_mcp), (
             f"the mcp extra brings {heavy}: {under_mcp}"
         )
+
+
+def test_pip_install_sluicer_is_the_whole_install_for_markdown():
+    """`pip install sluicer` is the one install line: markdown, the one
+    command the base install could not run, needed `sluicer[markdown]`. The
+    extra stays, so a line written for 0.9 still installs, and brings the
+    same trafilatura the base install does."""
+    from importlib import metadata
+
+    required = metadata.requires("sluicer")
+    base = {line for line in required if "extra ==" not in line}
+    under_markdown = [line for line in required if "extra == 'markdown'" in line]
+
+    assert "trafilatura>=2.0" in base
+    assert [line.split(";")[0] for line in under_markdown] == ["trafilatura>=2.0"]
+
+
+def test_the_all_extra_is_every_extra_but_stealth():
+    """`sluicer[all]` brings what browser, mcp, api and microformats bring,
+    and not scrapling: the stealth rung stays asked for by name."""
+    from importlib import metadata
+
+    required = metadata.requires("sluicer")
+
+    def under(extra: str) -> set[str]:
+        return {
+            line.split(";")[0].strip()
+            for line in required
+            if f"extra == '{extra}'" in line
+        }
+
+    extras = set(metadata.metadata("sluicer").get_all("Provides-Extra") or [])
+    assert {"all", "browser", "stealth", "fetch", "markdown", "mcp", "api"} <= extras
+    assert "microformats" in extras
+    wanted = set().union(*(under(e) for e in ("browser", "mcp", "api", "microformats")))
+    assert under("all") == wanted - {"sluicer[mcp]"}
+    assert not any("scrapling" in line for line in under("all"))
 
 
 def test_the_fetch_extra_still_installs_every_rung_it_meant():
@@ -382,3 +417,35 @@ def test_the_npm_package_is_tested_and_published_only_from_a_tag():
     assert "needs:" in publish
     assert "GITHUB_REF_NAME" in publish
     assert "npm publish --provenance" in publish
+
+
+def test_the_npm_package_starts_without_trafilatura(tmp_path):
+    """Pyodide's repository has no trafilatura: once it joined the base
+    install, a start that loaded every base requirement from there would fail.
+    The npm package leaves it to its `markdown` option, which installs the
+    markdown extra from PyPI."""
+    import importlib.util
+    import zipfile
+    from importlib import metadata
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parent.parent / "js" / "scripts"
+    spec = importlib.util.spec_from_file_location(
+        "build_wheel", script / "build_wheel.py"
+    )
+    assert spec is not None and spec.loader is not None
+    build_wheel = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build_wheel)
+    wheel = tmp_path / "sluicer-1.0.0-py3-none-any.whl"
+    lines = [f"Requires-Dist: {line}" for line in metadata.requires("sluicer")]
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("sluicer-1.0.0.dist-info/METADATA", "\n".join(lines))
+
+    requires, extras = build_wheel._requirements(wheel, "1.0.0", (3, 14))
+    started, fetching = build_wheel._loaded_at_start(requires, extras)
+
+    assert any(r.startswith("trafilatura") for r in requires)
+    assert not any(r.startswith("trafilatura") for r in started)
+    assert [r.split(">")[0] for r in fetching] == ["protego"]
+    assert any(r.startswith("trafilatura") for r in extras["markdown"])
+    assert {r.split(">")[0] for r in started} == {"lxml", "click", "cssselect"}

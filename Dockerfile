@@ -1,8 +1,8 @@
 # A Sluicer that can fetch, read, and serve an agent or any HTTP client, in one
 # image.
 #
-# The base install fetches over plain HTTP; this image adds the markdown, MCP
-# and HTTP API extras, so that one image serves every door.
+# The base install fetches over plain HTTP and turns a page into markdown; this
+# image adds the MCP and HTTP API extras, so that one image serves every door.
 #
 # The browser is a build argument, because it is most of the image. Built as
 # is, the image fetches with the plain HTTP rung only: a page that makes the

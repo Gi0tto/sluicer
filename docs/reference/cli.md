@@ -44,6 +44,10 @@ Extractors:
 Servers:
   mcp       Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
   serve     Serve the MCP server's tools over HTTP (needs sluicer[api]).
+
+Setup:
+  install   Download the Chromium the browser extra drives, once.
+  doctor    Say what is installed, what each missing piece is for, and how to add it.
 ```
 
 ## `sluicer audit`
@@ -275,6 +279,23 @@ Options:
   --help                      Show this message and exit.
 ```
 
+## `sluicer doctor`
+
+```text
+Usage: sluicer doctor [OPTIONS]
+
+  Say what is installed, what each missing piece is for, and how to add it.
+
+  One line for the base install and one for each extra: ok, missing, or off, with what
+  it is for and, when it is not there, the one command that adds it for the way sluicer
+  was installed (pip, uv tool, pipx, uvx or a uv project). The browser is ok only when
+  Playwright's Chromium is downloaded too. Exits 0 when everything a plain install gives
+  works, a missing extra included, and 2 when some of it does not.
+
+Options:
+  --help  Show this message and exit.
+```
+
 ## `sluicer extract`
 
 ```text
@@ -459,6 +480,25 @@ Options:
                                   to DATE (2025, 2025-06, 2025-06-01), not from its
                                   site.
   --help                          Show this message and exit.
+```
+
+## `sluicer install`
+
+```text
+Usage: sluicer install [OPTIONS] browser
+
+  Download the Chromium the browser extra drives, once.
+
+  Runs Playwright's own "playwright install chromium" with the Python this sluicer runs
+  on, and then asks Playwright whether every part of Chromium is there. Run again, it
+  downloads nothing that is already there. Without the browser extra, prints the command
+  that adds it for the way sluicer was installed (pip, uv tool, pipx or uvx) and exits
+  2. Exits 2 as well when the download fails.
+
+Options:
+  --with-deps  Also install the system libraries Chromium needs, on Linux; Playwright
+               may ask for sudo.
+  --help       Show this message and exit.
 ```
 
 ## `sluicer map`
