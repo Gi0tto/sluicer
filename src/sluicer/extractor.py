@@ -318,7 +318,11 @@ class Extractor:
         try:
             body = json.loads(text)
             return _extractor_of(body)
-        except (KeyError, TypeError, IndexError, AttributeError) as broken:
+        except KeyError as missing:
+            raise ValueError(
+                f"not a whole sluicer extractor: it has no {missing.args[0]!r}"
+            ) from None
+        except (TypeError, IndexError, AttributeError) as broken:
             raise ValueError(f"not a whole sluicer extractor: {broken!r}") from None
 
 
@@ -735,12 +739,31 @@ def compile_extractor(
     if want is not None and (not want or any(not name.strip() for name in want)):
         raise ValueError("every example needs a name and a value: name=value")
     return _compiled(
-        [load(html, url=url) for html, url in pages],
+        [load(html, url=url) for html, url in _pairs(pages)],
         listing,
         names,
         want,
         refuse_vacuous=True,
     )
+
+
+def _pairs(pages: Sequence[Page]) -> Sequence[Page]:
+    """``pages``, each checked to be the ``(html, url)`` pair it is read as:
+    a page's bare bytes were unpacked as two values, and failed saying only
+    that there were too many -- or, two characters long, were read as a
+    page and its address."""
+    for one in pages:
+        if (
+            not isinstance(one, tuple | list)
+            or len(one) != 2
+            or not isinstance(one[0], str | bytes)
+            or not (one[1] is None or isinstance(one[1], str))
+        ):
+            raise ValueError(
+                "each page is a pair of its HTML and its address, None for "
+                f"none: [(html, url), ...], not a {type(one).__name__}"
+            )
+    return pages
 
 
 def _compiled(

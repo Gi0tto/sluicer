@@ -29,6 +29,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   given a page's HTML, or a page `sluicer.parse` made, it raised
   `AttributeError`. It now takes HTML as `str` or `bytes`, with `url=` as
   `extract` does, or a parsed page, and a `Document` as before.
+- `compile_extractor` given a page's bare HTML instead of an `(html, url)`
+  pair failed with "too many values to unpack", and an extractor file missing
+  a part was refused naming a Python `KeyError`. Both now say what is wrong.
+- `heal --force` without `-o` wrote nothing and said nothing; it is now
+  refused, with exit 2, saying that `-o` says where to write.
 
 ## 0.9.0 - 2026-09-26
 

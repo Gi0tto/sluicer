@@ -1178,3 +1178,33 @@ def test_a_type_an_extractor_before_0_8_named_as_written_is_the_same_type():
     assert failed(run_extractor(new, *_contao("contao:Page", context=False))) == [
         "type"
     ]
+
+
+def test_pages_that_are_not_pairs_are_refused_saying_so():
+    """A page's bytes were unpacked as two values (inventory.md, B20), and a
+    page of two characters was read as a page and its address."""
+    for pages in ([b"<p>a page</p>"], ["ab"], [("<p>", 3)]):
+        with pytest.raises(ValueError, match=r"a pair of its HTML and its address"):
+            compile_extractor(pages)
+    assert compile_extractor([[*page("shop_v1.html")]]).listing is not None
+
+
+def test_a_file_missing_a_part_says_which():
+    with pytest.raises(ValueError, match="it has no 'listing'"):
+        Extractor.from_json('{"format": 1, "summary": {}}')
+
+
+def test_heal_force_without_an_output_is_refused(tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    extractor = tmp_path / "e.json"
+    extractor.write_text(shop().to_json(), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        main, ["heal", str(extractor), str(DRIFT / "shop_prices_gone.html"), "--force"]
+    )
+
+    assert result.exit_code == 2
+    assert "--force writes the healed extractor, and -o says where" in result.stderr
