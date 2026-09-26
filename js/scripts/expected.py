@@ -195,7 +195,11 @@ def main() -> int:
     _write(
         "written",
         "run-from-no-page",
-        {"page": LEARNT_FROM[0], "url": _address(LEARNT_FROM[0]), "answer": asdict(run)},
+        {
+            "page": LEARNT_FROM[0],
+            "url": _address(LEARNT_FROM[0]),
+            "answer": asdict(run),
+        },
     )
 
     for name, case in MARKDOWN.items():
