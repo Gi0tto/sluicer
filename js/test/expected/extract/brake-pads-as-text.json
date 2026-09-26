@@ -199,6 +199,12 @@
       "canonical": "https://example.com/p/bp-2210"
     },
     "rights": {},
-    "visible": {}
+    "visible": {
+      "title": {
+        "value": "Brake pad set",
+        "where": "/html/body/div/h1",
+        "rule": "h1"
+      }
+    }
   }
 }

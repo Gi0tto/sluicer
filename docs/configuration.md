@@ -23,7 +23,7 @@ delay = 2.0
 max-pages = 500
 
 [extract]
-visible = true
+visible = false
 ```
 
 This file sets a proxy, a header and a cache, which only a file you name may
@@ -110,7 +110,7 @@ header or a cookie.
 | `respect` | the commands that take `--respect` | a list: `["tdm"]` |
 | `induce` | `extract`, `inspect`, `crawl`, `batch`, `warc` | a flag |
 | `microformats` | `extract`, `inspect`, `warc` | a flag |
-| `visible` | `extract`, `inspect` | a flag |
+| `visible` | `extract`, `inspect`, `crawl`, `batch`, `warc` | a flag, on unless `false` |
 | `front-matter` | `markdown` | a flag |
 | `json` | `fetch`, `diff`, `audit` | a flag: print JSON |
 | `plain` | `map` | a flag: one address a line |

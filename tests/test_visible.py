@@ -202,26 +202,42 @@ _SHOWN = (
 )
 
 
-def test_extract_guesses_only_when_asked_and_never_in_the_summary() -> None:
-    assert sluicer.extract(_SHOWN).visible == {}
-    read = sluicer.extract(_SHOWN, visible=True)
+def test_extract_guesses_by_default_and_never_in_the_summary() -> None:
+    assert sluicer.extract(_SHOWN, visible=False).visible == {}
+    read = sluicer.extract(_SHOWN)
     assert read.visible["author"].value == "Ada Lovelace"
     assert read.visible["published"].value == "2025-06-03"
     assert read.summary == {}
+    # visible=True, the spelling before 0.10, still asks for the same.
+    assert sluicer.extract(_SHOWN, visible=True) == read
+
+
+async def _awaited() -> sluicer.Extraction:
+    return await sluicer.aextract(_SHOWN)
+
+
+def test_aextract_guesses_by_default_too() -> None:
+    import asyncio
+
+    assert asyncio.run(_awaited()).visible["author"].value == "Ada Lovelace"
 
 
 def test_the_command_line_shows_guesses_as_guesses(tmp_path) -> None:
     page = tmp_path / "page.html"
     page.write_text(_SHOWN, encoding="utf-8")
 
+    declared = CliRunner().invoke(main, ["extract", "--no-visible", str(page)])
+    assert declared.exit_code == 1
     plain = CliRunner().invoke(main, ["extract", str(page)])
-    assert plain.exit_code == 1
+    assert plain.exit_code == 0
+    assert json.loads(plain.output)["visible"]["title"]["rule"] == "h1"
     asked = CliRunner().invoke(main, ["extract", "--visible", str(page)])
-    assert asked.exit_code == 0
-    assert json.loads(asked.output)["visible"]["title"]["rule"] == "h1"
-    shown = CliRunner().invoke(main, ["inspect", "--visible", str(page)])
+    assert asked.output == plain.output
+    shown = CliRunner().invoke(main, ["inspect", str(page)])
     assert "from what the page shows, not declared" in shown.output
     assert "[guess: by-line]" in shown.output
+    hidden = CliRunner().invoke(main, ["inspect", "--no-visible", str(page)])
+    assert "[guess:" not in hidden.output
 
 
 _FIXTURES = Path(__file__).parent / "fixtures"
@@ -301,7 +317,9 @@ def test_a_box_that_says_there_is_no_byline_is_none() -> None:
 
 @pytest.mark.parametrize("tag", ["main", "article"])
 def test_a_box_holding_the_whole_article_is_no_byline(tag: str) -> None:
-    body = f'<{tag} class="author-archive"><h1>Store Policies</h1><p>Read on.</p></{tag}>'
+    body = (
+        f'<{tag} class="author-archive"><h1>Store Policies</h1><p>Read on.</p></{tag}>'
+    )
     assert "author" not in read_visible(_page(body))
 
 
@@ -312,9 +330,7 @@ def test_a_by_line_on_another_article_s_card_is_not_the_author() -> None:
         "</div><div>From baseball games in Tokyo to F1 races.</div>"
         "<div>By Noah Cortez</div></a>"
     )
-    assert "author" not in read_visible(
-        _page(body), url="https://example.com/topic/1"
-    )
+    assert "author" not in read_visible(_page(body), url="https://example.com/topic/1")
 
 
 def test_a_by_line_linked_to_its_author_s_page_is_the_author() -> None:

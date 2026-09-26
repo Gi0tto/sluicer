@@ -33,10 +33,11 @@ field says `"source": "induced"`.
 ## The MCP tools
 
 - `extract_declared(html_or_url, induce=false, at=null, respect_tdm=false,
-  records=true, visible=false)` -- the summary and the records.
+  records=true, visible=true)` -- the summary and the records.
   `records=false` keeps only the summary and what was normalised, a small
-  answer. `visible=true` adds the title, author and dates the page shows a
-  reader, as guesses in `visible`, never in the summary. `at` is a date (`2024`, `2024-06-01`): the URL
+  answer. `visible`, on by default, adds the title, author and dates the page
+  shows a reader, as guesses in `visible`, never in the summary; `false`
+  leaves them out. `at` is a date (`2024`, `2024-06-01`): the URL
   as the Wayback Machine captured it nearest to then, and `fetch.archived`
   says which capture. `respect_tdm=true` answers `tdm_reserved` instead of a
   page whose site reserves its text and data mining rights.

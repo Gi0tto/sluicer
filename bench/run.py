@@ -690,7 +690,7 @@ def _document(pages_list, pages, runs, per_page) -> str:
         "  the answer writes every part of the date the label writes, alike. Dots",
         "  are day first, slashes month first; with a UTC offset on both, the",
         "  answer is read in the label's. The rule is in `bench/PREREG.md`.",
-        "- **Sluicer.** `extract(html, url=...).summary`, fields `title`, `author`,",
+        "- **Sluicer.** `extract(html, url=..., visible=False).summary`, fields `title`, `author`,",
         "  `published`, base install, from this checkout.",
         "- **Sluicer, declared then `--visible`.** The summary's answer, and where",
         "  it has none the guess of `extract(html, url=..., visible=True).visible`,",

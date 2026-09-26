@@ -48,10 +48,10 @@ class Extraction:
     ``conflicts`` is every question the page answers in two ways that mean
     different things -- a price in JSON-LD and another in OpenGraph -- the
     summary's answer first (see ``sluicer.summary.Conflict``). ``visible`` is
-    empty unless ``extract`` was asked for it: then the title, author,
-    publication and update dates the page shows a reader, each a guess naming
-    its element and rule, kept apart from the summary, which holds only what
-    the page declares (see ``sluicer.visible``).
+    the title, author, publication and update dates the page shows a reader,
+    each a guess naming its element and rule, kept apart from the summary,
+    which holds only what the page declares (see ``sluicer.visible``); empty
+    when ``extract`` was told ``visible=False``.
     """
 
     url: str | None = None
@@ -71,7 +71,7 @@ def extract(
     induce: bool = False,
     microformats: bool = False,
     headers: Mapping[str, str] | None = None,
-    visible: bool = False,
+    visible: bool = True,
 ) -> Extraction:
     """Read the structured data ``html`` declares, merged, with its provenance.
 
@@ -93,7 +93,9 @@ def extract(
             does. ``Fetched.headers`` is this.
         visible: also read what the page shows and may not declare -- its
             heading, byline, publication and update dates -- into
-            ``visible``, each answer a guess, never into the summary.
+            ``visible``, each answer a guess, never into the summary. On by
+            default since 0.10; ``visible=False`` reads the declarations
+            alone, a little faster.
 
     Returns:
         An ``Extraction``: the ``summary``, the ``records`` (a record with no
@@ -156,7 +158,7 @@ async def aextract(
     induce: bool = False,
     microformats: bool = False,
     headers: Mapping[str, str] | None = None,
-    visible: bool = False,
+    visible: bool = True,
 ) -> Extraction:
     """``extract``, awaited: the same arguments and the same ``Extraction``,
     read on a worker thread of the loop's default executor so that a large

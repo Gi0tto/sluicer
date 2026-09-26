@@ -65,10 +65,13 @@ still believed. When only text is available and lxml cannot parse it, the
 retry reads it as UTF-8 whatever the document claims, because the text has
 already been decoded.
 
-**A guess from the visible page only when asked, and kept apart.** The
-summary holds only what a page declares. `--visible` (`extract(...,
-visible=True)`, `extract_declared`'s `visible`) guesses the heading, byline
-and dates a page shows, in `visible`, each with its element and rule; its
+**A guess from the visible page, on by default, and kept apart.** The
+summary holds only what a page declares. `--visible` (`extract(...)`,
+`extract_declared`'s `visible`), on by default since 0.10 and off with
+`--no-visible` or `visible=False`, guesses the heading, byline and dates a
+page shows, in `visible`, each with its element and rule; it adds 2 to 3 ms
+to a page at the median, about four fifths more time on WCXB's development
+pages. Its
 rules were made on WCXB's development pages only, and every title, author and
 date scoreboard scores it on pages it was not made on, a guess taken only
 where the summary has no answer (`bench/PREREG.md`). It finds more: authors

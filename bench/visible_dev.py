@@ -75,7 +75,7 @@ def answers(all_pages: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     }
     for page in all_pages:
         html = gzip.decompress(page["html"].read_bytes())
-        result = sluicer.extract(html, url=page["url"])
+        result = sluicer.extract(html, url=page["url"], visible=False)
         guesses = read_visible(html, url=page["url"])
         declared = {
             field: (a.value if (a := result.summary.get(q)) else None)

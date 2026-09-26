@@ -89,7 +89,7 @@ def _check(address: str) -> int:
             page.fill("#html", case["text"])
             page.fill("#url", case["url"] or "")
             page.set_checked("#induce", bool(case["options"].get("induce")))
-            page.set_checked("#visible", bool(case["options"].get("visible")))
+            page.set_checked("#visible", bool(case["options"].get("visible", True)))
             page.click("#run")
             shown = json.loads(page.text_content("#json") or "null")
             found = sluicer.extract(case["text"], url=case["url"], **case["options"])

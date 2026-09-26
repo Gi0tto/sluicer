@@ -128,15 +128,16 @@ def test_extract_declared_reads_html_given_directly(monkeypatch):
     assert result["records"][0]["fields"]["name"]["value"] == "Brake pad set"
 
 
-def test_extract_declared_guesses_the_visible_page_only_when_asked(monkeypatch):
+def test_extract_declared_guesses_the_visible_page_unless_told_not_to(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
     build_server()
     page = "<html><body><h1>Brake pads</h1><p>By Ada Lovelace</p></body></html>"
 
-    assert "visible" not in registered["extract_declared"](page)
-    shown = registered["extract_declared"](page, visible=True)["visible"]
+    assert "visible" not in registered["extract_declared"](page, visible=False)
+    assert registered["extract_declared"](page, visible=True)["visible"]
+    shown = registered["extract_declared"](page)["visible"]
     assert shown["author"] == {
         "value": "Ada Lovelace",
         "where": "/html/body/p",

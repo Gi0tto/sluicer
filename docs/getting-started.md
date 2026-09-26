@@ -83,6 +83,7 @@ from the web Sluicer knows that already.
 | `records` | everything the page declared, one record per thing, every field with its source and place; every value is text, a JSON-LD number as the page wrote it (`"41.90"`, not `41.9`) |
 | `sources` | the vocabularies that declared something, in the order they are trusted |
 | `links`, `rights` | where else the page lives -- canonical, languages, feeds -- and what it says about how it may be used |
+| `visible` | guesses, never part of the summary: the title, byline and dates the page shows a reader, each naming its element and rule; `--no-visible` leaves them out |
 
 Every answer says where it came from in the same three parts. Here is the
 summary's price:

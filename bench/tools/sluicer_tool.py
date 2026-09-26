@@ -27,7 +27,7 @@ _INTERPRETER = {"pip", "setuptools", "wheel"}
 
 def extract(html: bytes, url: str | None) -> Any:
     """The call a scoreboard scores and ``bench/timing.py`` times."""
-    return sluicer.extract(html, url=url).summary
+    return sluicer.extract(html, url=url, visible=False).summary
 
 
 def guesses(html: bytes, url: str | None, summary: Any) -> dict[str, str | None]:

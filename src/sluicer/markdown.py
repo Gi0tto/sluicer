@@ -119,7 +119,7 @@ def declared_front_matter(html: str | bytes, url: str | None = None) -> str:
     # who never asks for front matter should not pay for it.
     from sluicer.api import _extract as extract
 
-    result = extract(html, url=url)
+    result = extract(html, url=url, visible=False)
     if not result.summary:
         return ""
     lines = ["---"]

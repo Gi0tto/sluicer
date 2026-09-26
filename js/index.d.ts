@@ -97,7 +97,7 @@ export interface Extraction {
   sources: string[];
   links: Links;
   rights: Rights;
-  /** Empty unless `visible: true` was asked for. */
+  /** The guesses read off the visible page; empty when `visible: false` was asked for. */
   visible: { [question: string]: Guess };
 }
 
@@ -106,7 +106,7 @@ export interface ExtractOptions {
   url?: string;
   /** Also read the rows a page repeats when it declares nothing about them. */
   induce?: boolean;
-  /** Also guess the title, byline and dates the page shows. */
+  /** Also guess the title, byline and dates the page shows, never in the summary. On by default; `false` reads what the page declares alone. */
   visible?: boolean;
   /** The response's headers, when the page came over HTTP. */
   headers?: { [name: string]: string };

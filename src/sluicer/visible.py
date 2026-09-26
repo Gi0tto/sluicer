@@ -1,6 +1,7 @@
 """What a page shows a reader and does not declare: a byline, a date, a heading.
 
-``read_visible`` is the opt-in ``--visible`` reading. Every answer is a guess,
+``read_visible`` is the ``--visible`` reading, on by default since 0.10 and
+off with ``--no-visible`` or ``visible=False``. Every answer is a guess,
 kept apart from the summary, which only ever holds what a page declares, and
 each names the element it was read from and the rule that read it. The rules
 are deterministic: no clock is read, so the same page gives the same guesses,

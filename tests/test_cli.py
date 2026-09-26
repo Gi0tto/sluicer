@@ -45,9 +45,13 @@ def test_a_page_that_gives_nothing_says_what_to_try_next(tmp_path):
     page = tmp_path / "bare.html"
     page.write_text("<html><body><p>Words.</p></body></html>", encoding="utf-8")
 
+    # --visible is on by default since 0.10: tried, so not offered.
     said = CliRunner().invoke(main, ["extract", str(page)]).stderr
-    assert "--induce" in said and "--visible" in said
+    assert "--induce" in said and "--visible" not in said
     assert f"sluicer compile {page} --want" in said
+
+    declared = CliRunner().invoke(main, ["extract", "--no-visible", str(page)])
+    assert declared.exit_code == 1 and "--visible" in declared.stderr
 
     tried = CliRunner().invoke(main, ["extract", "--induce", "--visible", str(page)])
     assert tried.exit_code == 1

@@ -593,7 +593,7 @@ def _climb(
         # What counts as having delivered is a field about a thing, the rule
         # induction uses: a theme-color in the head of an empty React shell is
         # not the page's data.
-        records = extract(result.html, url=result.url).records
+        records = extract(result.html, url=result.url, visible=False).records
         found = any(
             field.source in ABOUT_A_THING
             for record in records
