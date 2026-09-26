@@ -456,6 +456,32 @@ they are measured, and pass the same test against `baseline`. The `h1` rule is
 kept unless it is called worse on F1 or on pages kept clean: it is about the
 markdown being right, not about the score.
 
+**Added on 2026-09-26, after the first run of the candidates above on the
+dev pages and before any of these was run.** That run found every candidate's
+gain at most 0.011 of F1, and, reading the dev pages' misses only, that of the
+6,044 `with` snippets 781 are in the page's own text and left out by the
+extraction, on 378 pages, often a few paragraphs, a nested list or a card of
+a region whose rest was kept. So:
+
+6. *The extraction's own region* (`container-K`, K in 1.25, 1.5 and 2.0): the
+   blocks of the extraction of six words or more are found in the page, by
+   their first words, in the text of its elements; the deepest element that
+   holds four in five of those found, when it is not `<body>` or `<html>`, is
+   written as markdown by Sluicer's converter, without images and without
+   `nav`, `aside`, `footer`, `form`, the ARIA roles `navigation`, `banner`,
+   `contentinfo`, `complementary` and `search`, and elements whose class or id
+   names a share, social, related, comment, newsletter, subscribe, cookie,
+   breadcrumb, sidebar, advert, promo, sponsor, popup or modal box. It
+   replaces the extraction when it holds at least the extraction's words and
+   at most K times them; otherwise the extraction stands.
+7. *The heading, when it is the title* (`h1-titled`): as `h1`, only when the
+   `<h1>` and the title the page declares (the summary's) are one, the shorter
+   within the longer, compared as `bench/score.py` compares titles.
+
+And in `full`, `<noscript>` is kept, without the images in it: a reader that
+runs no script is shown it, and a forum written for such readers keeps its
+posts there. It is still chosen by nothing.
+
 **`full`**, the whole page as markdown -- the body with `script`, `style`,
 `noscript`, `template`, `svg`, `iframe` and `[hidden]` taken out, links and
 images resolved against the page -- is an option, not a candidate for the
