@@ -595,3 +595,81 @@ def test_a_page_kept_in_one_thread_is_not_handed_to_another():
     other.join()
     assert found[0] is not kept
     assert load_kept(page) is kept
+
+
+def test_a_str_is_parsed_as_utf8_bytes(monkeypatch):
+    """libxml2 reads UTF-8 bytes faster than the UCS-2 or UCS-4 a str is
+    handed to it in, and builds the same tree."""
+    from sluicer import document
+
+    handed: list[bytes] = []
+    parse = document._parse_utf8
+
+    def recorded(data: bytes):
+        handed.append(data)
+        return parse(data)
+
+    monkeypatch.setattr(document, "_parse_utf8", recorded)
+    page = "<html><head><title>Café \U0001f600</title></head></html>"
+    assert load(page).tree.findtext(".//title") == "Café \U0001f600"
+    assert handed == [page.encode("utf-8")]
+    # A lone surrogate cannot be UTF-8: that str is parsed as it is.
+    assert load("<p>a\ud800b</p>").tree.findtext(".//p") == "a"
+
+
+def _as_str_was_parsed(text: str) -> bytes:
+    """The tree ``load`` made of a str until 0.10, serialised."""
+    import lxml.etree
+    import lxml.html
+
+    from sluicer.document import _TEXT_PARSER, _newlines, _parse_utf8
+
+    text = _newlines(text)
+    try:
+        tree = lxml.html.document_fromstring(text, parser=_TEXT_PARSER)
+    except lxml.etree.LxmlError:
+        tree = lxml.html.Element("html")
+    except ValueError:
+        tree = _parse_utf8(text.encode("utf-8", "replace"))
+    return lxml.etree.tostring(tree)
+
+
+_STR_PIECES = [
+    "<p>",
+    "</p>",
+    "<b>",
+    "\x00",
+    "\x01",
+    "\x0c",
+    "\x7f",
+    "\x80",
+    "﻿",
+    "￾",
+    "￿",
+    "\U0001f600",
+    "é",
+    "—",
+    "&amp;",
+    "&#0;",
+    "&#x80;",
+    "\r\n",
+    "\r",
+    " ",
+    "<meta charset='windows-1252'>",
+    "<!--",
+    "-->",
+    "<script>",
+    "</script>",
+    '<?xml version="1.0" encoding="utf-8"?>',
+    "\ud800",
+]
+
+
+@given(st.lists(st.sampled_from(_STR_PIECES), max_size=12), st.booleans())
+def test_a_str_gives_the_tree_it_always_gave(pieces, whole):
+    from lxml import etree
+
+    text = "".join(pieces)
+    if whole:
+        text = f"<html><body>{text}</body></html>"
+    assert etree.tostring(load(text).tree) == _as_str_was_parsed(text)

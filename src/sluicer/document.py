@@ -318,6 +318,17 @@ def load(
         return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
     text = _newlines(html)
     try:
+        # As UTF-8 bytes: libxml2 builds the same tree from them as from the
+        # str, and faster than from a str lxml hands it as UCS-2 or UCS-4.
+        data = text.encode("utf-8")
+    except UnicodeEncodeError:
+        # A lone surrogate, which a str can hold and UTF-8 cannot: the str
+        # is parsed as it is, as it always was.
+        pass
+    else:
+        tree = _parse_utf8(data)
+        return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
+    try:
         tree = lxml.html.document_fromstring(text, parser=_TEXT_PARSER)
     except lxml.etree.LxmlError:
         # ParserError ("Document is empty"): nothing to read, not an error.
