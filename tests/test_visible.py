@@ -249,11 +249,14 @@ _TYPESAFE = _FIXTURES / "typesafe_byline_under_heading.html"
 _TYPESAFE_URL = "https://typesafe.ai/blog/introducing-system-one-models-and-jev"
 
 
-def test_a_name_and_role_right_under_the_heading_is_the_author() -> None:
+def test_a_name_and_role_under_the_heading_with_no_byline_mark_is_not_read() -> None:
+    """0.10's development read "Diogo Almeida, founder, TypeSafe" under this
+    page's heading as its byline. The hostile review of 0.10 showed that
+    nothing in such a line tells it from a deck, a team's list or a job's
+    department (the cases below), so it is not read: silence here, as in
+    0.9, rather than a wrong author on other pages."""
     read = sluicer.extract(_TYPESAFE.read_bytes(), url=_TYPESAFE_URL, visible=True)
-    assert read.visible["author"] == Guess(
-        "Diogo Almeida", "/html/body/div/div[1]/div[2]/div/p[1]", "name, role"
-    )
+    assert "author" not in read.visible
     assert "author" not in read.summary
 
 
@@ -281,6 +284,15 @@ def test_a_name_and_role_right_under_the_heading_is_the_author() -> None:
         "<h1>Brake pads</h1><p>, founder</p>",
         "<h1>Leadership</h1><ul><li>Jane Doe, CEO</li><li>John Roe, CTO</li></ul>",
         "<h1>Leadership</h1><p><b>Jane Doe, CEO</b></p><p>John Roe, CTO</p>",
+        # Found by the second pass of that review: an organisation, a deck,
+        # a job's department and a board's list, each read as a byline.
+        "<h1>Hello</h1><p>Acme Widgets, Chief Executive Officer office</p>",
+        "<h1>Hello</h1><p>Apple Inc, CEO Tim Cook said</p>",
+        "<h1>Hello</h1><p>Prime Minister, President meet in Paris</p>",
+        "<h1>Engineer</h1><p>Product Engineering, Senior Engineer, Remote</p>",
+        "<h1>Minutes</h1><p>Jane Doe, Chair, John Roe, Treasurer</p>",
+        "<h1>Keynote</h1><p>Ada Lovelace, Chief Scientist, Engines</p>",
+        "<h1>Interview</h1><p><em>Mary Jones, Head of Marketing, Acme</em></p>",
     ],
 )
 def test_what_is_not_a_name_and_role_under_the_heading(body: str) -> None:

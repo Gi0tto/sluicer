@@ -319,6 +319,24 @@ pages 89/13/0 and 217/14/4, trafilatura's set 129/17/12 and 297/51/104,
 the same with and without the rule in either form: it fires on none of
 their 1,985 pages. It adds no invention and is kept.
 
+**`d95510f`, dropped after a second review.** The same day a second pass
+of the hostile review wrote synthetic lines the fix above still read as a
+byline: an organisation ("Acme Widgets, Chief Executive Officer office"),
+decks ("Apple Inc, CEO Tim Cook said", "Prime Minister, President meet in
+Paris"), a job's department ("Product Engineering, Senior Engineer,
+Remote") and a board's list ("Jane Doe, Chair, John Roe, Treasurer").
+Each word-list patch leaves the next one open, and "Product Engineering,
+Senior Engineer, Remote" is written exactly as "Jane Doe, Senior Engineer,
+Acme": nothing in a line with no byline mark tells them apart. The rule is
+taken out whole; a line marked as a byline is still read by the byline
+rules. What it costs, measured on WCXB's development split and the 4,976
+cached benchmark pages, never on the four sets: the rule fired on two
+pages, WCXB development page 0056, whose declared author is the same
+name (author, `--visible` alone: 0.285 -> 0.284 hit rate, 10 inventions
+both ways; declared then `--visible` unchanged), and the TypeSafe page it
+was written for, which is silent again, as it was in 0.9 and is for every
+tool on `docs/scoreboard-tools.md`.
+
 **The publisher's own offset, measured and dropped.** `1af29f0` answered a
 publication instant declared twice, in UTC and in the publisher's own
 offset, with the own offset. Its commit measured it, in-sample, at one wrong

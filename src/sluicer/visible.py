@@ -383,9 +383,10 @@ def _first_name(element: HtmlElement) -> str | None:
 
 def _author(page: _Page) -> Guess | None:
     """A byline: a link marked rel=author, then an element named as a byline,
-    then a "By X" line, then a "Name, role" line right under the heading; a
-    card a selector matches more than three times of is testimonials or
-    comments, and is passed over."""
+    then a "By X" line; a card a selector matches more than three times of is
+    testimonials or comments, and is passed over. A line with no such mark,
+    "Name, role" under the heading, is not read: nothing in it tells a
+    byline from a deck, a team's list or a job's department."""
     marked = [
         e
         for e in page.tree.xpath(
@@ -435,121 +436,7 @@ def _author(page: _Page) -> Guess | None:
                 return None
     if first is not None:
         return Guess(first[0], _where(first[1]), "by-line")
-    return _name_and_role(page)
-
-
-# Words that say a line's second part is somebody's role, "Diogo Almeida,
-# founder, TypeSafe": the line names a person, not a place or a list.
-_ROLE_WORDS = frozenset(
-    (  # noqa: SIM905 -- read as a line of words
-        "founder co-founder cofounder ceo cto coo cfo cmo cpo president chair "
-        "chairman chairwoman director head lead manager editor writer reporter "
-        "correspondent contributor columnist journalist author engineer "
-        "researcher scientist analyst partner professor lecturer fellow "
-        "designer developer consultant advisor adviser specialist expert "
-        "officer chief senior principal vp owner producer strategist attorney "
-        "lawyer dietitian physician nurse therapist coach educator teacher "
-        "student intern executive"
-    ).split()
-)
-# A person's name as the first part of such a line: its words start with a
-# capital, and no sentence's punctuation is in it (an initial's dot aside).
-_SENTENCE_MARKS = re.compile(r"[!?:;\"“”()\[\]]|(?<=\w\w)\.")
-# The longest such a line may be, and its role's most words.
-_ROLE_LINE_MOST, _ROLE_MOST_WORDS = 100, 6
-
-
-def _a_role(part: str) -> bool:
-    """Whether ``part``, what follows a name's comma, is somebody's role."""
-    words = [word.strip(".'\u2019&").lower() for word in part.split()]
-    return 1 <= len(words) <= _ROLE_MOST_WORDS and bool(_ROLE_WORDS.intersection(words))
-
-
-def _name_and_role(page: _Page) -> Guess | None:
-    """A line right under the page's one heading written as "Name, role" or
-    "Name, role, Organisation": the first text after the heading, short, its
-    first part a person's name and its second a role. One such line alone: a
-    list of them, "Jane Doe, CEO" then "John Roe, CTO", is a team's page,
-    not a byline."""
-    if page.heading is None:
-        return None
-    # Only the first line: reading the first three added a wrong answer on
-    # WCXB's development split, a "By" label's name whose role WCXB keeps.
-    line = _line_after(page, page.heading)
-    if line is None:
-        return None
-    found = _person_and_role(page, line)
-    if found is None:
-        return None
-    name, box = found
-    following = _line_after(page, box)
-    if following is not None and _person_and_role(page, following) is not None:
-        return None
-    return Guess(name, _where(box), "name, role")
-
-
-def _line_after(page: _Page, element: HtmlElement) -> HtmlElement | None:
-    """The element holding the first text after ``element`` and outside it."""
-    for text in element.xpath(f"following::text()[position() <= {_AFTER_HEADING * 4}]"):
-        box = _box_of(text)
-        if text.strip() and box is not None and box.tag not in _AWAY:
-            return box
     return None
-
-
-def _person_and_role(
-    page: _Page, element: HtmlElement
-) -> tuple[str, HtmlElement] | None:
-    """The name a "Name, role" line whose text is in ``element`` writes, and
-    the line's box."""
-    # The line's box: the inline elements round the text climbed to the
-    # block that holds them, "<p><em>Name, role</em></p>".
-    while (
-        element.tag in _INLINE
-        and (parent := element.getparent()) is not None
-        and page.short(parent, _ROLE_LINE_MOST) == page.text(element)
-    ):
-        element = parent
-    if not _small(element) or page.aside(element) or page.hidden(element):
-        return None
-    line = page.short(element, _ROLE_LINE_MOST)
-    if line is None:
-        return None
-    parts = [part.strip() for part in line.split(",")]
-    if not 2 <= len(parts) <= 4 or _SENTENCE_MARKS.search(parts[0]):
-        return None
-    if not _a_role(parts[1]) or not _a_person(parts[0]):
-        return None
-    capitals = [word for word in parts[0].split() if word not in _PARTICLES]
-    if not 2 <= len(capitals) <= 4 or any(not w[:1].isupper() for w in capitals):
-        return None
-    name = _name(parts[0])
-    if name is None or name != parts[0]:
-        return None
-    return name, element
-
-
-# Words that open an organisation's name or a title, not a person's.
-_NOT_A_FIRST_NAME = frozenset({"the", "a", "an"})
-
-
-def _a_person(part: str) -> bool:
-    """Whether ``part``, a line's first part, may be a person's name: no word
-    of it a role's ("Managing Editor"), not opened by an article ("The Daily
-    Planet"), and not written all in capitals as an organisation is
-    ("NASA JPL")."""
-    words = [word.strip(".'\u2019&") for word in part.split()]
-    lowered = [word.lower() for word in words]
-    if not words or lowered[0] in _NOT_A_FIRST_NAME:
-        return False
-    if _ROLE_WORDS.intersection(lowered):
-        return False
-    lettered = [word for word in words if sum(c.isalpha() for c in word) > 1]
-    return not (lettered and all(word.isupper() for word in lettered))
-
-
-# Elements that hold a line's words without being its box.
-_INLINE = frozenset({"em", "i", "strong", "b", "span", "small", "a", "cite"})
 
 
 # Somebody a line names who is not the author: "Medically reviewed by".
