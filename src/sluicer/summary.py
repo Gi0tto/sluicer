@@ -31,7 +31,7 @@ from lxml.html import HtmlElement
 
 from sluicer.declared.links import canonicals
 from sluicer.declared.located import Places, paid, place, xpath_of
-from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Record
+from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Overruled, Record
 from sluicer.declared.opengraph import NAMESPACES
 from sluicer.document import Document, base_url, join
 from sluicer.normalise import (
@@ -217,6 +217,7 @@ def read_summary(
     htmlmeta: dict[str, str],
     header_canonicals: list[str] | None = None,
     places: Places | None = None,
+    overruled: Overruled | None = None,
 ) -> tuple[dict[str, SummaryField], list[Conflict]]:
     """The summary, and every question the page answers in two ways.
 
@@ -449,6 +450,9 @@ def read_summary(
         else answer
         for answer in questions["title"]
     ]
+
+    if overruled and subject is not None:
+        _add_overruled(questions, subject, overruled.get(id(subject), {}))
 
     base = base_url(doc)
     summary: dict[str, SummaryField] = {}
@@ -1006,6 +1010,41 @@ def _conflicts(questions: dict[str, list[Answer]]) -> list[Conflict]:
         if len(kept) > 1:
             found.append(Conflict(question, [answer for answer, _ in kept]))
     return found
+
+
+def _add_overruled(
+    questions: dict[str, list[Answer]],
+    subject: Record,
+    overruled: dict[str, list[Field]],
+) -> None:
+    """Add, after the answers already asked, what a later vocabulary declared
+    for the subject and a fold set aside, for the questions a conflict is
+    reported on (``_COMPARED``): a product whose JSON-LD says 41.90 and whose
+    microdata says 39.90 is one product with two prices, and the second was
+    dropped without a word. The summary still answers from the first; the
+    conflict is now reported."""
+    for held in overruled.get("offers", ()):
+        other = Record(
+            type=subject.type,
+            types=subject.types,
+            fields={**subject.fields, "offers": held},
+            source=held.source,
+        )
+        pricing = _pricing(other, held.value)
+        for question, answer in (
+            ("price", _one_amount(pricing.price)),
+            ("currency", pricing.currency),
+        ):
+            if answer is not None:
+                questions[question].append(answer)
+    name = subject.type or "Thing"
+    for question, key in (("published", "datePublished"), ("modified", "dateModified")):
+        for held in overruled.get(key, ()):
+            text = _text(held.value)
+            if text:
+                questions[question].append(
+                    SummaryField(text, held.source, f"{name}.{key}", held.where)
+                )
 
 
 @dataclass(frozen=True)

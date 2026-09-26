@@ -94,7 +94,18 @@ class Record:
     """Where on the page the record was declared, as ``Field.where``."""
 
 
-def merge(*, places: Places | None = None, **found: Any) -> list[Record]:
+Overruled: TypeAlias = "dict[int, dict[str, list[Field]]]"
+"""What folding set aside: for a record (by ``id``), each key's fields a later
+reader declared with another value. Kept out of the records, whose fields hold
+one value each; the summary reads them to report the disagreement."""
+
+
+def merge(
+    *,
+    places: Places | None = None,
+    overruled: Overruled | None = None,
+    **found: Any,
+) -> list[Record]:
     """Merge what each reader found. Earlier readers win; every field keeps its source.
 
     ``found`` maps a reader's name (``jsonld``, ``html``, see ``READERS``) to
@@ -114,6 +125,9 @@ def merge(*, places: Places | None = None, **found: Any) -> list[Record]:
     Every record and field says where on the page it was declared, when its
     reader knows (``Field.where``); ``places`` pays for those, and without it
     they are free, as for a page the caller trusts.
+
+    ``overruled``, when given, collects the fields a fold set aside because
+    the record already held another value under their key.
 
     Raises:
         ValueError: a name no reader has, which would otherwise be dropped.
@@ -146,7 +160,18 @@ def merge(*, places: Places | None = None, **found: Any) -> list[Record]:
                 records.append(record)
                 continue
             for key, value in record.fields.items():
-                target.fields.setdefault(key, value)
+                kept = target.fields.setdefault(key, value)
+                if (
+                    overruled is not None
+                    and kept is not value
+                    and kept.value != value.value
+                ):
+                    # The same thing declared twice with two values: the
+                    # earlier reader's stays, and the other is kept aside so
+                    # the disagreement is reported, not lost.
+                    overruled.setdefault(id(target), {}).setdefault(key, []).append(
+                        value
+                    )
 
     # The document-level readers declare no type, so each fills the first
     # record, in the registry's order. That settles og:title against

@@ -1081,3 +1081,54 @@ def test_a_headline_is_weighed_against_the_page_s_title_not_an_icon_s():
     ).replace("<body>", "<body><svg><title>Dam</title></svg>")
 
     assert _summary(html)["title"][0] == "hydraulic structure"
+
+
+def test_a_price_two_vocabularies_disagree_on_is_a_conflict_not_lost():
+    """JSON-LD said 41.90 and microdata 39.90 for one product: the fold kept
+    JSON-LD's offers, dropped microdata's without a word, and the conflict
+    list was empty. Found by the hands-on study of 0.9.0."""
+    from sluicer import extract
+
+    page = (
+        "<html><head><title>Lamp</title>"
+        '<script type="application/ld+json">{"@context": "https://schema.org",'
+        ' "@type": "Product", "name": "Lamp", "offers": {"@type": "Offer",'
+        ' "price": "41.90", "priceCurrency": "EUR"}}</script></head><body>'
+        '<div itemscope itemtype="https://schema.org/Product">'
+        '<h1 itemprop="name">Lamp</h1><div itemprop="offers" itemscope'
+        ' itemtype="https://schema.org/Offer"><span itemprop="price"'
+        ' content="39.90">39,90</span><meta itemprop="priceCurrency"'
+        ' content="EUR"></div></div></body></html>'
+    )
+
+    found = extract(page)
+
+    assert found.summary["price"].value == "41.90"
+    assert found.summary["price"].source == "jsonld"
+    (conflict,) = found.conflicts
+    assert conflict.question == "price"
+    assert [(a.value, a.source) for a in conflict.answers] == [
+        ("41.90", "jsonld"),
+        ("39.90", "microdata"),
+    ]
+
+
+def test_a_date_two_vocabularies_disagree_on_is_a_conflict():
+    from sluicer import extract
+
+    page = (
+        '<html><head><script type="application/ld+json">{"@context":'
+        ' "https://schema.org", "@type": "Article", "headline": "News",'
+        ' "datePublished": "2026-09-20"}</script></head><body><article itemscope'
+        ' itemtype="https://schema.org/Article"><h1 itemprop="headline">News'
+        '</h1><time itemprop="datePublished" datetime="2026-09-24">24 Sept'
+        "</time></article></body></html>"
+    )
+
+    found = extract(page)
+
+    assert found.summary["published"].value == "2026-09-20"
+    assert [(a.value, a.source) for c in found.conflicts for a in c.answers] == [
+        ("2026-09-20", "jsonld"),
+        ("2026-09-24", "microdata"),
+    ]

@@ -5,6 +5,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- A price or date two vocabularies disagree on for one thing is a conflict.
+  A product whose JSON-LD said 41.90 and whose microdata said 39.90 was
+  folded into one record, the second price dropped and no conflict reported;
+  the summary still answers from JSON-LD, and the conflict now lists both.
+  Over the 4,000 cached corpus pages no summary changes and one conflict
+  appears, El País's publication date, declared a day apart.
 - `compile --want` took a product's table of labelled facts (UPC, type,
   prices, tax, availability) for a listing of the value asked for, and a run
   on another product passed with every row of the table as a "price". Such a
