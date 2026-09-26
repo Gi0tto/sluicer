@@ -451,9 +451,6 @@ def read_summary(
         for answer in questions["title"]
     ]
 
-    if overruled and subject is not None:
-        _add_overruled(questions, subject, overruled.get(id(subject), {}))
-
     base = base_url(doc)
     summary: dict[str, SummaryField] = {}
     for name in FIELDS:
@@ -473,7 +470,7 @@ def read_summary(
                 for answer in conflict.answers
             ],
         )
-        for conflict in _conflicts(questions)
+        for conflict in _conflicts(_with_overruled(questions, subject, overruled))
     ]
     return summary, found_conflicts
 
@@ -1012,39 +1009,48 @@ def _conflicts(questions: dict[str, list[Answer]]) -> list[Conflict]:
     return found
 
 
-def _add_overruled(
+def _with_overruled(
     questions: dict[str, list[Answer]],
-    subject: Record,
-    overruled: dict[str, list[Field]],
-) -> None:
-    """Add, after the answers already asked, what a later vocabulary declared
-    for the subject and a fold set aside, for the questions a conflict is
-    reported on (``_COMPARED``): a product whose JSON-LD says 41.90 and whose
-    microdata says 39.90 is one product with two prices, and the second was
-    dropped without a word. The summary still answers from the first; the
-    conflict is now reported."""
-    for held in overruled.get("offers", ()):
+    subject: Record | None,
+    overruled: Overruled | None,
+) -> dict[str, list[Answer]]:
+    """The questions, with what a later vocabulary declared for the subject
+    and a fold set aside added after the answers already asked, for the
+    questions a conflict is reported on (``_COMPARED``). Compared only, never
+    answered from: a product whose JSON-LD says 41.90 and whose microdata
+    says 39.90 is one product with two prices, and the second was dropped
+    without a word; the summary is what it was, and the conflict is now
+    reported."""
+    held = overruled.get(id(subject), {}) if overruled and subject else {}
+    if not held or subject is None:
+        return questions
+    extra: dict[str, list[Answer]] = {}
+    for offers in held.get("offers", ()):
         other = Record(
             type=subject.type,
             types=subject.types,
-            fields={**subject.fields, "offers": held},
-            source=held.source,
+            fields={**subject.fields, "offers": offers},
+            source=offers.source,
         )
-        pricing = _pricing(other, held.value)
+        pricing = _pricing(other, offers.value)
         for question, answer in (
             ("price", _one_amount(pricing.price)),
             ("currency", pricing.currency),
         ):
             if answer is not None:
-                questions[question].append(answer)
+                extra.setdefault(question, []).append(answer)
     name = subject.type or "Thing"
     for question, key in (("published", "datePublished"), ("modified", "dateModified")):
-        for held in overruled.get(key, ()):
-            text = _text(held.value)
+        for field_ in held.get(key, ()):
+            text = _text(field_.value)
             if text:
-                questions[question].append(
-                    SummaryField(text, held.source, f"{name}.{key}", held.where)
+                extra.setdefault(question, []).append(
+                    SummaryField(text, field_.source, f"{name}.{key}", field_.where)
                 )
+    return {
+        question: [*answers, *extra.get(question, [])]
+        for question, answers in questions.items()
+    }
 
 
 @dataclass(frozen=True)

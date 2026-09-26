@@ -1132,3 +1132,44 @@ def test_a_date_two_vocabularies_disagree_on_is_a_conflict():
         ("2026-09-20", "jsonld"),
         ("2026-09-24", "microdata"),
     ]
+
+
+def test_a_related_product_in_another_vocabulary_is_no_conflict():
+    """A main product in JSON-LD and a related-products strip in microdata
+    fold by type, and are two products: their prices are no conflict. Found
+    by the review of 0.9.1's first version of the fix above."""
+    from sluicer import extract
+
+    page = (
+        '<html><head><script type="application/ld+json">{"@context":'
+        ' "https://schema.org", "@type": "Product", "name": "Brake pads X",'
+        ' "sku": "A1", "offers": {"@type": "Offer", "price": "41.90",'
+        ' "priceCurrency": "EUR"}}</script></head><body><div itemscope'
+        ' itemtype="https://schema.org/Product"><span itemprop="name">Wiper'
+        ' blade</span><div itemprop="offers" itemscope'
+        ' itemtype="https://schema.org/Offer"><span itemprop="price">9.99</span>'
+        '<meta itemprop="priceCurrency" content="EUR"></div></div></body></html>'
+    )
+
+    assert extract(page).conflicts == []
+
+
+def test_what_a_fold_sets_aside_never_answers_the_summary():
+    """The currency only the second vocabulary declared was dropped by the
+    fold; it stays out of the summary, as it was in 0.9.0."""
+    from sluicer import extract
+
+    page = (
+        '<html><head><script type="application/ld+json">{"@context":'
+        ' "https://schema.org", "@type": "Product", "name": "Lamp", "offers":'
+        ' {"@type": "Offer", "price": "41.90"}}</script></head><body><div'
+        ' itemscope itemtype="https://schema.org/Product"><span itemprop="name">'
+        'Lamp</span><div itemprop="offers" itemscope'
+        ' itemtype="https://schema.org/Offer"><span itemprop="price">41.90</span>'
+        '<meta itemprop="priceCurrency" content="USD"></div></div></body></html>'
+    )
+
+    found = extract(page)
+
+    assert "currency" not in found.summary
+    assert found.conflicts == []

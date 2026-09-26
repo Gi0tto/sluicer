@@ -165,6 +165,7 @@ def merge(
                     overruled is not None
                     and kept is not value
                     and kept.value != value.value
+                    and _one_thing(target, record)
                 ):
                     # The same thing declared twice with two values: the
                     # earlier reader's stays, and the other is kept aside so
@@ -193,6 +194,43 @@ def merge(
         if not records:
             records.append(target)
     return records
+
+
+# What names a thing: two records folded by type are one thing, for the
+# conflicts, only when they share one of these and differ on none. A main
+# product and the first product of a related strip in another vocabulary fold
+# by type, and are two products.
+_IDENTITY = (
+    "@id",
+    "url",
+    "sku",
+    "gtin",
+    "gtin8",
+    "gtin12",
+    "gtin13",
+    "gtin14",
+    "mpn",
+    "name",
+    "headline",
+)
+
+
+def _one_thing(held: Record, other: Record) -> bool:
+    """Whether two records folded by type say they are the same thing."""
+    shared = False
+    for key in _IDENTITY:
+        one, two = held.fields.get(key), other.fields.get(key)
+        if one is None or two is None:
+            continue
+        if not isinstance(one.value, str) or not isinstance(two.value, str):
+            continue
+        if (
+            " ".join(one.value.split()).casefold()
+            != " ".join(two.value.split()).casefold()
+        ):
+            return False
+        shared = True
+    return shared
 
 
 class _Candidates:
