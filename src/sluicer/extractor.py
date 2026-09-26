@@ -728,6 +728,8 @@ def compile_extractor(
         ValueError: ``want`` with ``listing=False``, or a name that is empty;
             ``select`` with ``want`` or ``listing``, or ``rows`` without it.
     """
+    # Read once: a generator or a map checked, then learnt, would be spent.
+    pages = list(pages)
     if select is not None or rows is not None:
         if want is not None or listing is not None or select is None:
             raise ValueError(

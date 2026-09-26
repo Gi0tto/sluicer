@@ -1189,6 +1189,19 @@ def test_pages_that_are_not_pairs_are_refused_saying_so():
     assert compile_extractor([[*page("shop_v1.html")]]).listing is not None
 
 
+def test_pages_given_as_a_generator_or_a_map_are_read_once():
+    """The pages were iterated once to check them and the spent iterator
+    handed on, so a generator or a map failed with IndexError."""
+    names = ("shop_v1.html", "shop_v1_page2.html")
+    as_list = compile_extractor([page(name) for name in names])
+
+    for pages in ((page(name) for name in names), map(page, names)):
+        learnt = compile_extractor(pages)
+        assert learnt.listing == as_list.listing
+    with pytest.raises(NothingToLearn, match="at least one page"):
+        compile_extractor(page(name) for name in ())
+
+
 def test_a_file_missing_a_part_says_which():
     with pytest.raises(ValueError, match="it has no 'listing'"):
         Extractor.from_json('{"format": 1, "summary": {}}')
