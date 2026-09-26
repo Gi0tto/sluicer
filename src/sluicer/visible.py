@@ -410,9 +410,9 @@ def _first_name(element: HtmlElement) -> str | None:
 
 def _author(page: _Page) -> Guess | None:
     """A byline: a link marked rel=author, then an element named as a byline,
-    then a "By X" line, then a "Name, role" line right under the heading; a
-    card a selector matches more than three times of is testimonials or
-    comments, and is passed over."""
+    then a "By X" line, then a "Name, role" line right under the heading,
+    then a forum's first username; a card a selector matches more than three
+    times of is testimonials or comments, and is passed over."""
     marked = [
         e
         for e in page.tree.xpath(
@@ -459,7 +459,23 @@ def _author(page: _Page) -> Guess | None:
                 return None
     if lines:
         return lines[0]
-    return _name_and_role(page)
+    return _name_and_role(page) or _first_username(page)
+
+
+def _first_username(page: _Page) -> Guess | None:
+    """The first element a forum names as a username, class "username": the
+    thread's first post's author, who started it (XenForo's, phpBB's and
+    vBulletin's posts all name their poster so). Asked last, after every
+    byline."""
+    for element in page.tree.xpath(
+        "//*[contains(concat(' ', normalize-space(@class), ' '), ' username ')]"
+    ):
+        if page.byline_aside(element):
+            continue
+        text = _text(element)
+        name = _handle(text) or _name(text)
+        return Guess(name, _where(element), "username") if name else None
+    return None
 
 
 # Words that say a line's second part is somebody's role, "Diogo Almeida,
