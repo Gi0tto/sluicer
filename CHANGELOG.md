@@ -52,6 +52,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - MCP `compile_extractor` refuses `select` beside `want` or `listing`, as the
   command line and the library do, before any page is fetched. It answered
   `ok` true and ignored `want`.
+- `sluicer mcp --tools ''`, a list that names no tool, is refused with the
+  twelve names and exit 2. It started a server with no tool, in silence.
 
 ## 0.9.0 - 2026-09-26
 

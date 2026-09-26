@@ -1431,3 +1431,18 @@ def test_a_year_that_ends_in_00_is_a_date(year):
     from sluicer.fetch.archive import timestamp
 
     assert timestamp(year) == year.replace("-", "")
+
+
+@pytest.mark.parametrize("given", ["", " , "])
+def test_sluicer_mcp_with_a_list_that_names_no_tool_is_an_error(monkeypatch, given):
+    """Measured on 0.9.0 (inventory audit, B11): `sluicer mcp --tools ''`
+    started a server with no tool at all, exit 0, and said nothing."""
+    from test_mcp_server import fake_mcp
+
+    fake_mcp(monkeypatch)
+
+    result = CliRunner().invoke(main, ["mcp", "--tools", given])
+
+    assert result.exit_code == 2, result.output
+    assert "no tool named" in result.stderr and "crawl_site" in result.stderr
+    assert "Traceback" not in result.stderr

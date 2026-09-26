@@ -417,8 +417,8 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
 
     ``tools`` names the ones to register, when a client wants fewer: each
     registered tool costs an agent context whether it is called or not. A
-    name that is not one of the twelve is an ``UnknownTool``, a ``ValueError``,
-    that lists them.
+    name that is not one of the twelve, or a list that names none, is an
+    ``UnknownTool``, a ``ValueError``, that lists them.
 
     Returns the SDK's ``MCPServer``, typed ``Any`` because ``mcp`` is never
     imported at module level.
@@ -1132,6 +1132,12 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         raise UnknownTool(
             f"no such tool: {', '.join(map(repr, unknown))}; "
             f"the tools are {', '.join(seen)}"
+        )
+    if wanted is not None and not wanted:
+        # Until 0.9.1 `--tools ''` served no tool at all, and said nothing.
+        raise UnknownTool(
+            f"no tool named: name one or more of {', '.join(seen)}, or leave "
+            "the list out for all twelve"
         )
     return server
 
