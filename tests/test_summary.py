@@ -1193,3 +1193,25 @@ def test_a_published_date_that_is_only_a_time_is_no_date():
     for date in ("2020-05-01 10:52", "01/07/16"):
         page = f'<html><head><meta name="date" content="{date}"></head></html>'
         assert _summary(page)["published"][0] == date
+
+
+def test_of_one_instant_written_twice_the_publisher_s_own_offset_is_kept():
+    """UTC is how a platform stores the instant; the day it was published
+    where it was published is the one its own offset writes."""
+    own = '<meta property="article:published_time" content="2019-12-31T20:30:00-05:00">'
+    utc = {"@type": "Article", "headline": "H", "datePublished": "2020-01-01T01:30:00Z"}
+    found = extract(_page(utc, head=own)).summary
+    assert (found["published"].value, found["published"].key) == (
+        "2019-12-31T20:30:00-05:00",
+        "article:published_time",
+    )
+    assert not extract(_page(utc, head=own)).conflicts
+    # Two instants are two answers: the first is kept, and they conflict.
+    other = own.replace("20:30:00", "21:30:00")
+    read = extract(_page(utc, head=other))
+    assert read.summary["published"].value == "2020-01-01T01:30:00Z"
+    assert [c.question for c in read.conflicts] == ["published"]
+    # Written in the publisher's offset first, it stays first.
+    first = {**utc, "datePublished": "2019-12-31T20:30:00-05:00"}
+    zulu = '<meta property="article:published_time" content="2020-01-01T01:30:00Z">'
+    assert _summary(_page(first, head=zulu))["published"][2] == "Article.datePublished"
