@@ -969,7 +969,15 @@ def heal(
         # Where it was, while it still keeps its contract there: a listing's
         # items change from one visit to the next, and a sidebar that lists
         # some of the same ones is not where it went.
-        found = _still_listed(docs, old_listing) or _learn_by_values(docs, old_listing)
+        # Where the rows still are, however their columns moved, when no
+        # group holds the old values -- the page lists other items: a run
+        # finds the listing there, and says the fields broke, not that the
+        # listing is gone.
+        found = (
+            _still_listed(docs, old_listing)
+            or _learn_by_values(docs, old_listing)
+            or _rows_still_at(docs, old_listing)
+        )
         try:
             fresh = _compile_again(docs, False, names)
         except NothingToLearn:
@@ -1010,6 +1018,10 @@ def heal(
     if extractor.listing is not None and listing is not None:
         listing, listing_changes = _heal_listing(extractor.listing, listing, docs)
         changes.extend(listing_changes)
+        if not listing.fields:
+            # Every column vanished, and a listing of none checks nothing:
+            # kept as it was, so a run keeps failing, as for listing-lost.
+            listing = extractor.listing
     elif extractor.listing is not None:
         changes.append(Change("listing-lost", extractor.listing.container, None))
         # Kept as it was, so a run keeps failing where it is not: an
@@ -1383,6 +1395,16 @@ def _still_listed(docs: list[Document], old: Listing) -> Listing | None:
             return None
         held = True
     return _listing_at(docs, old.container, old.member) if held else None
+
+
+def _rows_still_at(docs: list[Document], old: Listing) -> Listing | None:
+    """The listing at ``old``'s place, every column of it, when a page given
+    still has rows of its kind there; None when none does."""
+    for doc in docs:
+        container, _found = _locate(doc, old)
+        if container is not None and _rows_of(_members(container, old.member), doc):
+            return _listing_at(docs, old.container, old.member)
+    return None
 
 
 def _learn_by_values(docs: list[Document], old: Listing) -> Listing | None:

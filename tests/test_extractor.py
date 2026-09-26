@@ -606,6 +606,72 @@ def test_heal_of_a_chosen_listing_whose_values_are_gone_loses_it():
     assert [c.kind for c in changes] == ["summary-gained", "listing-lost"]
 
 
+def _other_books_renamed() -> tuple[str, str]:
+    """The shop's listing, where it was, of other books, each column under
+    another class: the redesign fresh-dev.md made by hand, on page 3."""
+    rows = "".join(
+        f'<li class="product"><a class="name" href="/book/{n}">{title}</a>'
+        f'<span class="cost">£{n}.99</span></li>'
+        for n, title in enumerate(("Olio", "Mesaerion", "Libertarianism", "Rip"), 7)
+    )
+    html = (
+        '<!doctype html><html lang="en"><head><title>Books | Example Shop</title>'
+        '</head><body><div class="page"><h1>Books</h1>'
+        f'<ol class="row">{rows}</ol></div></body></html>'
+    )
+    return html, "https://shop.example/books?page=3"
+
+
+def test_run_and_heal_agree_on_a_listing_whose_columns_moved_to_other_items():
+    """run said the listing held and two fields broke; heal said the listing
+    was lost. The listing held: heal now says the two fields vanished --
+    found again by their values, which this page does not show -- and keeps
+    the listing, so a forced write keeps failing where the run failed."""
+    learnt = compile_extractor(
+        [page("shop_v1.html"), page("shop_v1_page2.html")],
+        want={"title": "A Light in the Attic", "price": "£51.77"},
+    )
+    moved = _other_books_renamed()
+
+    run = run_extractor(learnt, *moved)
+    healed, changes = heal(learnt, [moved])
+
+    assert [(c.name, c.ok) for c in run.checks if c.name == "listing"] == [
+        ("listing", True)
+    ]
+    assert sorted(c.expected.split()[0] for c in run.checks if not c.ok) == [
+        "price",
+        "title",
+    ]
+    assert [(c.kind, c.before) for c in changes] == [
+        ("vanished", "title"),
+        ("vanished", "price"),
+    ]
+    assert healed.listing == learnt.listing
+    assert not run_extractor(healed, *moved).ok
+
+
+def test_heal_says_why_its_words_differ_from_the_run(tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    learnt = compile_extractor(
+        [page("shop_v1.html")], want={"title": "A Light in the Attic"}
+    )
+    extractor = tmp_path / "e.json"
+    extractor.write_text(learnt.to_json(), encoding="utf-8")
+    moved = tmp_path / "page3.html"
+    moved.write_text(_other_books_renamed()[0], encoding="utf-8")
+
+    result = CliRunner().invoke(main, ["heal", str(extractor), str(moved)])
+
+    assert result.exit_code == 3
+    assert "listing-lost" not in result.stderr
+    assert "vanished: title" in result.stderr
+    assert "The listing is where it was" in result.stderr
+
+
 def test_a_chosen_listing_is_kept_through_its_file_and_an_old_file_is_not_one():
     learnt = compile_extractor([_two_listings()], want={"title": "Sapiens"})
     text = learnt.to_json()

@@ -19,6 +19,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `want` together used the selectors and dropped the examples without a
   word, and dropped `listing` the same way. Either beside `select` is now a
   `bad_input`, as the command line refuses the pair.
+- `heal` of a listing learnt with `--want` said `listing-lost` for a page
+  whose rows were where they were, of other items, with their columns under
+  new classes, where `run` said the listing held and its fields broke. heal
+  now finds the listing at its place, reports each field it cannot find by
+  its old values as vanished, keeps the listing as it was when none is left,
+  and says why a page that lists some of the same items is needed.
 
 ## 0.9.0 - 2026-09-26
 
