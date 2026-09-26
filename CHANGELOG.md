@@ -20,6 +20,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   response's `X-Robots-Tag` and `Link` were dropped without a word; the same
   held for `compile()`'s `want` and `select`. Anything but a plain object
   there is now a `TypeError` that says what to pass.
+- docs/javascript.md said the npm package's answers were held to the native
+  ones on 22 pages; they were 22 answers on 19 pages. It now gives both
+  counts, and a test holds them to the answers.
 - npm package: npmjs.com showed no README. The package now carries
   `js/README.md`: what it is, how to install it, a five-line example whose
   printed output a test runs and compares, and what it does not do.
