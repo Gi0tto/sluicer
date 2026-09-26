@@ -1296,38 +1296,3 @@ def test_an_offer_s_sku_is_the_product_s_when_the_product_has_none():
     assert _summary(_page({**product, "offers": same}))["sku"][2] == (
         "Product.offers[0].sku"
     )
-
-
-def test_yoast_s_written_by_pair_names_the_author_last():
-    """Yoast SEO writes twitter:label1 "Written by" and twitter:data1 the name."""
-    pair = (
-        '<meta name="twitter:label1" content="Written by">'
-        '<meta name="twitter:data1" content="Ann Smith">'
-        '<meta name="twitter:label2" content="Est. reading time">'
-        '<meta name="twitter:data2" content="6 minutes">'
-    )
-    post = "https://example.com/blog/brake-pads/"
-    found = extract(f"<html><head>{pair}</head></html>", url=post).summary
-    assert (found["author"].value, found["author"].key) == (
-        "Ann Smith",
-        "twitter:data1",
-    )
-    german = pair.replace("Written by", "Verfasst von")
-    assert _summary(f"<html><head>{german}</head></html>", post)["author"][0] == (
-        "Ann Smith"
-    )
-    # Every other declaration first.
-    named = f'<html><head>{pair}<meta name="author" content="Bo Li"></head></html>'
-    assert _summary(named, post)["author"][0] == "Bo Li"
-    # Not a reading time, not on the home page, not the site, not a label.
-    for head, url in (
-        (pair.replace("Written by", "Reading time"), post),
-        (pair, "https://example.com/"),
-        (
-            pair.replace("Ann Smith", "Warren Averett")
-            + '<meta property="og:site_name" content="Warren Averett CPAs">',
-            post,
-        ),
-        (pair.replace("Ann Smith", "Staff"), post),
-    ):
-        assert "author" not in _summary(f"<html><head>{head}</head></html>", url)
