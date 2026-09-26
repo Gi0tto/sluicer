@@ -384,6 +384,97 @@ is added, if at all, in a release's own commit.
 first section), and the page says so. No rule of Sluicer's is changed on
 reading this page's numbers in the commit that first publishes it.
 
+## The main text: made on WCXB's development split, measured on the scoreboards once
+
+Fixed on 2026-09-26, before any rule below was written or run on a page. The
+every-tool scoreboard found Sluicer's text level with trafilatura's, whose
+extraction it is: on the served pages snippet F1 0.859 and pages kept clean
+0.897, but recall 0.782, against 0.90 for markitdown and Scrapling, which keep
+the menus (0.006 and 0.017 of pages clean). What follows says how
+`sluicer.markdown.to_markdown`, the `markdown` command and the MCP
+`page_markdown` may change to find more of the text without taking the menus
+with it, on which pages that is decided, and how the result is read.
+
+**The pages rules are made on**: WCXB's `dev` split, the 1,358 pages
+`metadata.json` marks `dev`, in the archive already pinned at `c039d5e`, with
+their labels (`with`, `without`, `main_content`) and every candidate's output
+on them. They are WCXB's own copies, which lost many of their `<script>`s, so a
+rule reading JSON-LD is measured only on the dev pages whose JSON-LD survived,
+and the numbers say how many those are. No page of a scoreboard -- WCXB's test
+split, its pages as served, trafilatura's set, the page added by hand, the news
+fixtures -- is read while the rules are made, nor any tool's answer on one.
+
+**The measure** (`bench/markdown_dev.py`, run from the checkout's
+environment): each candidate's markdown on each dev page is written as plain
+text by `bench/tools_compare.py`'s `plain`, the six first `with` and `without`
+snippets of each page are counted by `bench/tools/snippets.py`'s `counted`, as
+the served set is; printed are snippet precision, recall and F1 over the
+summed counts, each with its interval bootstrapped over pages, the pages kept
+clean with their Wilson interval, WCXB's mean word precision, recall and F1,
+and the pages silently empty. Each candidate is compared with the 0.9.1 call
+(`baseline`: trafilatura's markdown with links and tables, links resolved
+against the page), paired by page, as the section on differences below fixes.
+
+**The candidates**, measured one by one against `baseline`:
+
+1. *Declared text.* The page's one record of type `Article` or a schema.org
+   subtype of it (`NewsArticle`, `BlogPosting`, `Report`, `ScholarlyArticle`,
+   `TechArticle`, `SocialMediaPosting` and theirs), from JSON-LD or microdata,
+   carrying `articleBody` (or `text`). It is the page's main entity when it is
+   the only such record carrying a body, and, when it names a `url` or
+   `mainEntityOfPage` and the page's address is known, that address is the
+   page's (scheme, a trailing slash and a fragment aside). It is written as
+   markdown: a microdata body by converting its element, a JSON-LD body by
+   converting it when it holds HTML markup, else as its paragraphs. Used first
+   (`declared-first-R`) when it has at least R times the words of the
+   extraction, R in 0.5, 0.8 and 1.0, else the extraction; used as a rescue
+   (`declared-rescue`) only when the extraction has under half its words. A
+   body ending in an ellipsis is truncated and never used.
+2. *Recall.* trafilatura's `favor_recall=True` always (`recall`); only when
+   the extraction has under X times the words of the recall extraction
+   (`recall-if-short-X`, X in 0.5 and 0.7); or only when it has under X times
+   the words of the page's main region's visible text (`region-X`, X in 0.5
+   and 0.7): the first `<main>`, else the first `[role=main]`, else the page's
+   one `<article>`, else `<body>`, without `script`, `style`, `noscript`,
+   `template`, `nav`, `header`, `footer`, `aside`, `form` and `[hidden]`.
+3. *A second extractor, as a rescue*: under the same trigger as `region-X`,
+   the longer of the extraction and the text of trafilatura's own copy of
+   readability or of jusText (both ship with trafilatura, so nothing is added
+   to the install), written as markdown by Sluicer's converter
+   (`readability-X`, `justext-X`).
+4. *Precision*: `include_comments=False` (`no-comments`), and
+   `favor_precision=True` (`precision`), for reference.
+5. *The heading*: `# ` and the page's `<h1>`, the only one, before the text
+   when the text does not already hold it (`h1`), on top of `baseline`.
+
+**What is kept.** A candidate replaces `baseline` when on the dev pages its
+snippet F1 is called better by the paired comparison, and its pages kept clean
+are not called worse and are not more than 0.010 below `baseline`'s. Of several
+that pass, the one with the highest F1. Combinations of passing candidates, and
+any rule added after reading the dev pages' outputs, are recorded here before
+they are measured, and pass the same test against `baseline`. The `h1` rule is
+kept unless it is called worse on F1 or on pages kept clean: it is about the
+markdown being right, not about the score.
+
+**`full`**, the whole page as markdown -- the body with `script`, `style`,
+`noscript`, `template`, `svg`, `iframe` and `[hidden]` taken out, links and
+images resolved against the page -- is an option, not a candidate for the
+default: it is measured on the dev pages to be described, and chosen by
+nothing.
+
+**The scoreboards, once, at the end.** With the code chosen above committed,
+`bench/tools/compare_sluicer.py` is run on the served pages, trafilatura's set
+and the page added by hand, from the checkout's own environment, whose
+trafilatura and its dependencies are exactly the pins of
+`bench/requirements/trafilatura.txt`, since `uv run` is not used on this
+branch. The other tools' results are those of v010-bench's run (`ed3b378`),
+reused as they are. Scored by `bench/tools_compare.py`'s functions: snippet
+precision, recall, F1, pages kept clean and word F1, each with its interval,
+and Sluicer's paired comparisons with trafilatura, newspaper4k, markitdown and
+Scrapling on them. The numbers are reported whatever they are, and no rule is
+changed on reading them; if they are read more than once, the reason is written
+here.
+
 ## How sure a number is, and how a difference is called
 
 Fixed on 2026-09-24, before any interval or verdict was computed on a
