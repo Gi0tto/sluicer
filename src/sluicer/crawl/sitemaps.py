@@ -342,7 +342,9 @@ def map_site(
     try:
         named = robots_sitemaps(start, polite.reader, now=clock)
     except RobotsUnreachable as unreachable:
-        raise FetchFailed(start, [], str(unreachable)) from unreachable
+        raise FetchFailed(
+            start, [], str(unreachable), transient=unreachable.transient
+        ) from unreachable
     # Each sitemap is queued once, however often it is named: an index that
     # names one 20,000 times queued it 20,000 times, each taken off the front
     # of a list, and fifty such indexes took 12 s.
@@ -481,7 +483,9 @@ def _links_of_start(
     try:
         delay = polite.delay_for(start)
     except RobotsUnreachable as unreachable:
-        raise FetchFailed(start, [], str(unreachable)) from unreachable
+        raise FetchFailed(
+            start, [], str(unreachable), transient=unreachable.transient
+        ) from unreachable
     polite.wait(start, delay)
     try:
         fetched = fetch(

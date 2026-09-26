@@ -127,6 +127,10 @@ most, and a site pushed out is only asked again.
 UNREACHABLE = "sluicer: robots.txt unreachable"
 """The comment a reader's stand-in carries when nothing answered at all."""
 
+UNREACHABLE_AGAIN = "sluicer: robots.txt unreachable, and would be again"
+"""The same, when what failed would fail again if asked later: a name that
+does not exist, an encoding this install cannot read. Not worth a retry."""
+
 UNAVAILABLE = "sluicer: robots.txt unavailable"
 """The comment a reader's stand-in refusal carries when the site answered 5xx."""
 
@@ -145,12 +149,17 @@ class RobotsUnreachable(Exception):
     RFC 9309 treats both as a full disallow, and nothing is fetched. It is not
     reported as the site refusing us, though: a host that does not resolve has
     refused nothing, and a 503 is a reason to try later, not a rule.
+
+    ``transient`` says whether asking again later may meet something else:
+    false when what failed would fail again, a name that does not exist
+    among them, which until 0.9.1 was asked again as if it might.
     """
 
-    def __init__(self, url: str, detail: str) -> None:
+    def __init__(self, url: str, detail: str, transient: bool = True) -> None:
         super().__init__(shown(f"could not read the robots.txt for {url}: {detail}"))
         self.url = shown(url)
         self.detail = shown(detail)
+        self.transient = transient
 
 
 def robots_url_for(url: str) -> str:
@@ -289,16 +298,19 @@ def _robots_text(
     if entry is None or now() - entry[0] >= ROBOTS_TTL_SECONDS:
         entry = (now(), read(robots_url_for(url)))
         first = entry[1].splitlines()[0] if entry[1] else ""
-        for marker, said, why in (
-            (UNREACHABLE, "", ""),
-            (UNAVAILABLE, "it answered ", _UNAVAILABLE_MEANS),
+        for marker, said, why, again in (
+            (UNREACHABLE, "", "", True),
+            (UNREACHABLE_AGAIN, "", "", False),
+            (UNAVAILABLE, "it answered ", _UNAVAILABLE_MEANS, True),
         ):
             if first.startswith(f"# {marker}: "):
                 # RFC 9309 puts a 5xx and a network error in one class, and
                 # neither is remembered: one bad minute must not keep a
                 # long-running server away from a site for a day.
                 store.pop(key, None)
-                raise RobotsUnreachable(url, said + first[len(marker) + 4 :] + why)
+                raise RobotsUnreachable(
+                    url, said + first[len(marker) + 4 :] + why, transient=again
+                )
     # Written back even when it was only read: that is what keeps a site in
     # use from being the one a bounded cache forgets.
     store[key] = entry

@@ -63,6 +63,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   and `batch`; an extractor missing a part names the part, not
   `KeyError('listing')`, on the command line and in MCP `run_extractor`; and
   `fetch()` of a path says it names no scheme, not "not no scheme".
+- A site whose name does not exist is not worth asking again: its robots.txt
+  failure says the name does not resolve and is `retryable` false, so a
+  crawl or a batch asks it once. It was marked retryable and asked three
+  times; a lookup that failed only for now is still retried.
 
 ## 0.9.0 - 2026-09-26
 

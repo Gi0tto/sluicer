@@ -718,7 +718,9 @@ class _Visitor:
         try:
             delay = self.polite.delay_for(task.url)
         except RobotsUnreachable as unreachable:
-            return failed("fetch_failed", str(unreachable), retryable=True)
+            return failed(
+                "fetch_failed", str(unreachable), retryable=unreachable.transient
+            )
         if delay > self.max_delay:
             return failed(
                 "crawl_delay_too_long",

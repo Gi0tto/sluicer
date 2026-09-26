@@ -1493,3 +1493,19 @@ def test_a_batchs_login_does_not_follow_a_redirect_into_another_sites_turn(
         False,
         False,
     ]
+
+
+def test_a_site_whose_name_does_not_exist_is_asked_once():
+    """Measured on 0.9.0 (inventory audit, B15): batch marked a host that
+    does not resolve retryable and asked it three times."""
+    import socket
+
+    pages = shop()
+    pages[f"{ROOT}/robots.txt"] = socket.gaierror(socket.EAI_NONAME, "no such name")
+    fake = FakeWeb(pages)
+
+    first = next(iter(run(fake)))
+
+    assert first.error.code == "fetch_failed"
+    assert first.error.retryable is False and first.retries == ()
+    assert "does not resolve" in first.error.message
