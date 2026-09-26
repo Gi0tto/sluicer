@@ -49,18 +49,18 @@ Measured with extruct 0.18.0 on Python 3.14, by `bench/extruct_compat.py`. A cel
 
 | syntax | WCXB, as served | Zyte's product pages | sluicer's test fixtures |
 |---|---|---|---|
-| JSON-LD | 356 / 360 | 140 / 140 | 20 / 20 |
-| microdata | 358 / 360 | 138 / 140 | 20 / 20 |
-| OpenGraph | 360 / 360 | 140 / 140 | 20 / 20 |
-| RDFa | 360 / 360 | 140 / 140 | 20 / 20 |
-| microformats | 360 / 360 | 140 / 140 | 20 / 20 |
-| Dublin Core | 47 / 360 | 6 / 140 | 19 / 20 |
-| uniform microdata | 358 / 360 | 138 / 140 | 20 / 20 |
-| uniform OpenGraph | 360 / 360 | 140 / 140 | 20 / 20 |
-| uniform microformats | 360 / 360 | 140 / 140 | 20 / 20 |
-| uniform Dublin Core | 47 / 360 | 6 / 140 | 19 / 20 |
+| JSON-LD | 356 / 360 | 140 / 140 | 30 / 30 |
+| microdata | 358 / 360 | 138 / 140 | 30 / 30 |
+| OpenGraph | 360 / 360 | 140 / 140 | 30 / 30 |
+| RDFa | 360 / 360 | 140 / 140 | 30 / 30 |
+| microformats | 360 / 360 | 140 / 140 | 30 / 30 |
+| Dublin Core | 47 / 360 | 6 / 140 | 25 / 30 |
+| uniform microdata | 358 / 360 | 138 / 140 | 30 / 30 |
+| uniform OpenGraph | 360 / 360 | 140 / 140 | 30 / 30 |
+| uniform microformats | 360 / 360 | 140 / 140 | 30 / 30 |
+| uniform Dublin Core | 47 / 360 | 6 / 140 | 25 / 30 |
 
-`extruct.extract(html, base_url=url)`, every argument else at its default, raises on 4 of the 520 pages; sluicer's raises on none. The same call over every page takes 27.0 s in extruct and 19.2 s in sluicer, the median of five passes measured as [speed and weight](speed.md) says.
+`extruct.extract(html, base_url=url)`, every argument else at its default, raises on 4 of the 530 pages; sluicer's raises on none. The same call over every page takes 36.6 s in extruct and 27.1 s in sluicer, the median of five passes measured as [speed and weight](speed.md) says.
 
 Every difference, by what explains it:
 
@@ -70,9 +70,9 @@ Every difference, by what explains it:
 | microdata | an address attribute that is absent | 1 | sluicer: the standard's value is `""`; extruct answers the page's own URL | inmotionhosting.com/support/edu/mediawiki/install-mediawiki-manually/ |
 | microdata | `<time>` without `datetime` | 1 | sluicer: extruct answers `""`; the standard's value is the text | taketinyaction.com/debt-free-my-4-year-journey-to-financial-freedom/ |
 | microdata | `itemref` | 2 | sluicer: extruct lists the item named as top-level and gives the property naming it `null`; the WHATWG standard nests it | pokupki.market.yandex.ru/product/luminarc-nabor-stakanov-octime-330-ml-6-sht-h9811/140212369 |
-| Dublin Core | not Dublin Core | 448 | sluicer: extruct files any name after its last dot, so `description`, `title` and `rel="license"` are Dublin Core to it | nytimes.com/wirecutter/reviews/best-laptop-under-500/ |
+| Dublin Core | not Dublin Core | 452 | sluicer: extruct files any name after its last dot, so `description`, `title` and `rel="license"` are Dublin Core to it | nytimes.com/wirecutter/reviews/best-laptop-under-500/ |
 
-extruct answers Dublin Core on 448 of the 520 pages; 2 of them write a name under a Dublin Core prefix.
+extruct answers Dublin Core on 452 of the 530 pages; 2 of them write a name under a Dublin Core prefix.
 Uniform mode differs on exactly the pages the syntax it reshapes differs on, for the same reasons.
 <!-- measured by bench/extruct_compat.py: end -->
 
