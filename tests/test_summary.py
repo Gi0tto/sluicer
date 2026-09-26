@@ -1215,3 +1215,33 @@ def test_of_one_instant_written_twice_the_publisher_s_own_offset_is_kept():
     first = {**utc, "datePublished": "2019-12-31T20:30:00-05:00"}
     zulu = '<meta property="article:published_time" content="2020-01-01T01:30:00Z">'
     assert _summary(_page(first, head=zulu))["published"][2] == "Article.datePublished"
+
+
+def test_an_author_itemprop_outside_any_item_is_read_last():
+    """Outside any item, microdata ignores it; it is still the page stating
+    who wrote it."""
+    html = (
+        '<html><body><p>By <span itemprop="author">Ann Smith</span></p></body></html>'
+    )
+    found = extract(html).summary["author"]
+    assert (found.value, found.source, found.key, found.where) == (
+        "Ann Smith",
+        "html",
+        "<span itemprop=author>",
+        "/html/body/p[1]/span[1]",
+    )
+    # Every other declaration first.
+    named = '<html><head><meta name="author" content="Bo Li"></head>' + html[6:]
+    assert _summary(named)["author"][0] == "Bo Li"
+    # Not an item's own property, a card, an address, a label or a paragraph.
+    for body in (
+        '<div itemscope><span itemprop="author">Ann Smith</span></div>',
+        '<div itemprop="author" itemscope><span>Ann Smith</span></div>',
+        '<a itemprop="author" href="/ann">Ann Smith</a>',
+        '<span itemprop="author">Staff</span>',
+        f'<p itemprop="author">{"Ann Smith wrote this. " * 10}</p>',
+    ):
+        assert "author" not in _summary(f"<html><body>{body}</body></html>")
+    # An element outside any item gives no date: measured, that invented one.
+    dated = '<html><body><time itemprop="datePublished">2020-05-01</time></body></html>'
+    assert "published" not in _summary(dated)

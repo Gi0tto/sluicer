@@ -357,6 +357,7 @@ def read_summary(
             _orphan_itemprop(doc, "author"),
             meta(dublincore, "dublincore", "creator", "dc."),
             _not_an_address(og("article:author")),
+            _orphan_itemprop(doc, "author", meta=False),
         ],
         "published": [
             own("datePublished"),
@@ -1435,8 +1436,15 @@ def _meta_names(doc: Document) -> dict[str, list[tuple[str, HtmlElement]]]:
     return found
 
 
-def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
-    """A ``<meta itemprop>`` outside any item, as templates put in the head.
+def _orphan_itemprop(
+    doc: Document, prop: str, meta: bool = True
+) -> SummaryField | None:
+    """An ``itemprop`` outside any item: a ``<meta itemprop>`` as templates put
+    in the head, or, with ``meta`` false, any other element's author, ``<span
+    itemprop="author">``, asked after every other declaration. A byline that
+    is only a label, "Staff", names nobody. (Other elements' dates were
+    measured and not kept: on WCXB's development split they added an
+    invention and no hit.)
 
     The microdata standard ignores it, having no item to give it to, so the
     microdata reader does too. It is still the page stating the value. The
@@ -1445,16 +1453,58 @@ def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
     orphans: list[HtmlElement] | None = doc.memo.get("summary.orphan_itemprops")
     if orphans is None:
         orphans = doc.memo["summary.orphan_itemprops"] = doc.tree.xpath(
-            "//meta[@itemprop][@content][not(ancestor::*[@itemscope])]"
+            "//*[@itemprop][not(ancestor::*[@itemscope])]"
         )
-    for meta in orphans:
-        if prop in (meta.get("itemprop") or "").split():
-            text = _clean(meta.get("content"))
-            if text:
+    for element in orphans:
+        if (element.tag == "meta") is not meta:
+            continue
+        if prop in (element.get("itemprop") or "").split():
+            if meta:
+                text = _clean(element.get("content"))
+                if not text:
+                    continue
                 return SummaryField(
-                    text, "html", f"<meta itemprop={prop}>", xpath_of(meta)
+                    text, "html", f"<meta itemprop={prop}>", xpath_of(element)
                 )
+            # An element that is an item itself holds a card, not a value.
+            if element.get("itemscope") is not None:
+                continue
+            text = _clean(_itemprop_value(element))
+            if not text or len(text) > _ORPHAN_MOST:
+                continue
+            text = _BYLINE.sub("", text)
+            if set(text.casefold().split()) <= _NOBODY_WORDS:
+                continue
+            key = f"<{element.tag} itemprop={prop}>"
+            return SummaryField(text, "html", key, xpath_of(element))
     return None
+
+
+# The words of a byline that name nobody: its label, not a person.
+_NOBODY_WORDS = frozenset({"by", "staff", "team", "editor", "editors", "writer"})
+# The longest text an element outside any item is read as a value: a name or
+# a date, not a paragraph that happens to carry an itemprop.
+_ORPHAN_MOST = 120
+
+
+def _itemprop_value(element: HtmlElement) -> str | None:
+    """An element's microdata value when it is a text, as the standard reads
+    it: a <time>'s datetime, a <data>'s value, else its text. An element whose
+    value is an address has none here."""
+    if element.tag in _AN_ADDRESS:
+        return None
+    attribute = {"time": "datetime", "data": "value", "meter": "value"}
+    value = element.get(attribute[element.tag]) if element.tag in attribute else None
+    if value is None and element.tag != "time" and element.tag in attribute:
+        return None
+    return str(value if value is not None else element.text_content())
+
+
+# The elements whose microdata value is an address, not a text.
+_AN_ADDRESS = frozenset(
+    {"a", "area", "link", "img", "audio", "video", "source", "track", "embed"}
+    | {"iframe", "object"}
+)
 
 
 def _without_site(found: SummaryField, site_names: set[str]) -> SummaryField | None:
