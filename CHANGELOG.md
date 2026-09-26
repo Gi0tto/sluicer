@@ -149,6 +149,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   tree alive through trafilatura's own parse of the page. A page over 1 MB is
   no longer kept, and a kept page is let go wherever no extraction follows;
   the same sixteen threads now hold 0.2 GB.
+- `--full` markdown wrote what a reader is not shown: a table's hidden cells,
+  rows, bodies and caption, anything hidden with `display:` and a tab or a
+  newline before `none`, and a `<script>` or `<style>` inside `<code>`. It
+  wrote `href="java&#9;script:..."` as a link, a `<pre
+  class="language-```x">` opened a fence the page never closed, and a page
+  600 `<div>`s deep failed with a RecursionError. None of these happens now:
+  past 100 levels the rest is written as plain text.
 - `sluicer doctor` and `sluicer install browser` ran Playwright with
   `python -m playwright`, which imports from the working directory first: a
   `playwright/__main__.py` in the folder they were run in, a cloned

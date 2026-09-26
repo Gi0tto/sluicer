@@ -17,12 +17,12 @@ The same element always gives the same markdown.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterator
 
 import lxml.etree
 import lxml.html
 
-from sluicer.document import join, trimmed
+from sluicer.document import clean_address, join, trimmed
 
 # Never shown to a reader, or not text: left out with everything inside.
 _UNSEEN = frozenset(
@@ -125,6 +125,16 @@ _UNDERSCORE = re.compile(r"(?<![0-9A-Za-z])_|_(?![0-9A-Za-z])")
 _LINE_MARK = re.compile(r"^(\s*)(#{1,6}(?=\s|$)|[>+=-])")
 _NUMBERED = re.compile(r"^(\s*\d{1,9})([.)])(?=\s|$)")
 _NOT_LINKS = ("javascript:", "vbscript:", "data:")
+_NO_SPACE = re.compile(r"\s+")
+# What a code block's language may be written with: an info string holding a
+# backtick is no fence at all, and one holding a space says more than the
+# language.
+_LANGUAGE = re.compile(r"[\w.+#-]+")
+# How many elements deep the writer follows a page, block within block or
+# span within span, before it writes what is further in as plain text: each
+# level costs two or three Python frames, and 600 nested <div>s raised
+# RecursionError, the whole page lost.
+_DEEPEST = 100
 
 
 def _escaped(text: str) -> str:
@@ -134,8 +144,26 @@ def _escaped(text: str) -> str:
 def _hidden(element: lxml.html.HtmlElement) -> bool:
     if element.get("hidden") is not None:
         return True
-    style = (element.get("style") or "").replace(" ", "").lower()
+    # Every white space out, as CSS reads it: "display:\tnone" hides too.
+    style = _NO_SPACE.sub("", element.get("style") or "").lower()
     return "display:none" in style or "visibility:hidden" in style
+
+
+def _veiled(element: lxml.html.HtmlElement, within: lxml.html.HtmlElement) -> bool:
+    """Whether ``element``, or anything between it and ``within``, is hidden
+    or never shown: a row of a hidden ``<tbody>`` is hidden with it."""
+    node: lxml.html.HtmlElement | None = element
+    while node is not None and node is not within:
+        tag = _tag(node)
+        if tag is None or tag in _UNSEEN or _hidden(node):
+            return True
+        node = node.getparent()
+    return False
+
+
+def _cells(row: lxml.html.HtmlElement) -> list[lxml.html.HtmlElement]:
+    """A row's cells a reader is shown."""
+    return [cell for cell in row if _tag(cell) in ("td", "th") and not _hidden(cell)]
 
 
 def _tag(element: object) -> str | None:
@@ -145,10 +173,13 @@ def _tag(element: object) -> str | None:
 
 
 class _Writer:
-    def __init__(self, base: str | None, images: bool, noscript: bool) -> None:
+    def __init__(
+        self, base: str | None, images: bool, noscript: bool, depth: int = 0
+    ) -> None:
         self.base = base
         self.images = images
         self.noscript = noscript
+        self.depth = depth
 
     def shown(self, element: lxml.html.HtmlElement, tag: str | None) -> bool:
         """Whether a reader is shown the element: a ``<noscript>`` only when
@@ -160,21 +191,27 @@ class _Writer:
         return tag not in _UNSEEN
 
     def without_images(self) -> _Writer:
-        return _Writer(self.base, False, self.noscript)
+        return _Writer(self.base, False, self.noscript, self.depth)
 
     # --- inline ---------------------------------------------------------------
 
     def inline(self, element: lxml.html.HtmlElement) -> str:
         """The element's content as one line of inline markdown, spaces not yet
         collapsed."""
-        parts: list[str] = []
-        if element.text:
-            parts.append(_escaped(element.text))
-        for child in element:
-            parts.append(self.inline_element(child))
-            if child.tail:
-                parts.append(_escaped(child.tail))
-        return "".join(parts)
+        if self.depth >= _DEEPEST:
+            return _escaped("".join(_seen_text(element, spaced=True)))
+        self.depth += 1
+        try:
+            parts: list[str] = []
+            if element.text:
+                parts.append(_escaped(element.text))
+            for child in element:
+                parts.append(self.inline_element(child))
+                if child.tail:
+                    parts.append(_escaped(child.tail))
+            return "".join(parts)
+        finally:
+            self.depth -= 1
 
     def inline_element(self, element: lxml.html.HtmlElement) -> str:
         tag = _tag(element)
@@ -189,7 +226,8 @@ class _Writer:
         if tag == "img":
             return self.image(element)
         if tag in _CODE:
-            return _code(element.text_content())
+            # What a reader is shown of it: a <script> inside is not.
+            return _code("".join(_seen_text(element)))
         inner = self.inline(element)
         if tag == "a":
             return self.link(element, inner)
@@ -210,7 +248,9 @@ class _Writer:
 
     def address(self, element: lxml.html.HtmlElement, attribute: str) -> str | None:
         value = trimmed(element.get(attribute))
-        if not value or value.lower().startswith(_NOT_LINKS):
+        # The scheme is judged as the address is read, tabs and newlines
+        # inside it dropped: "java&#9;script:" is a javascript: link.
+        if not value or clean_address(value).lower().startswith(_NOT_LINKS):
             return None
         resolved = join(self.base, value)
         if re.search(r"[\s()<>]", resolved):
@@ -239,6 +279,16 @@ class _Writer:
 
     def blocks(self, element: lxml.html.HtmlElement) -> list[str]:
         """The element's content as markdown blocks."""
+        if self.depth >= _DEEPEST:
+            text = _paragraph(_escaped("".join(_seen_text(element, spaced=True))))
+            return [text] if text else []
+        self.depth += 1
+        try:
+            return self._blocks(element)
+        finally:
+            self.depth -= 1
+
+    def _blocks(self, element: lxml.html.HtmlElement) -> list[str]:
         found: list[str] = []
         line: list[str] = []
 
@@ -322,7 +372,7 @@ class _Writer:
         rows = [
             row
             for row in element.iter("tr")
-            if _nearest_table(row) is element and not _hidden(row)
+            if _nearest_table(row) is element and not _veiled(row, element)
         ]
         if not rows or not _holds_data(element, rows):
             # A table that lays out the page, not one that holds data: its
@@ -330,16 +380,13 @@ class _Writer:
             return [
                 block
                 for row in rows
-                for cell in row
-                if _tag(cell) in ("td", "th")
+                for cell in _cells(row)
                 for block in self.blocks(cell)
             ] or self.blocks(element)
         grid: list[list[str]] = []
         for row in rows:
             cells: list[str] = []
-            for cell in row:
-                if _tag(cell) not in ("td", "th"):
-                    continue
+            for cell in _cells(row):
                 text = _one_line(self.inline(cell)).replace("|", "\\|")
                 cells.append(text)
                 try:
@@ -358,7 +405,8 @@ class _Writer:
         ]
         lines.insert(1, "|" + "---|" * width)
         caption = element.find("caption")
-        head = [_one_line(self.inline(caption))] if caption is not None else []
+        shown = caption is not None and not _hidden(caption)
+        head = [_one_line(self.inline(caption))] if shown else []
         return [text for text in head if text] + ["\n".join(lines)]
 
 
@@ -378,7 +426,7 @@ def _holds_data(
         return False
     widest = 0
     for row in rows:
-        cells = [cell for cell in row if _tag(cell) in ("td", "th")]
+        cells = _cells(row)
         widest = max(widest, len(cells))
         for cell in cells:
             for inner in cell.iterdescendants():
@@ -432,24 +480,53 @@ def _fenced(element: lxml.html.HtmlElement) -> list[str]:
                 break
         if language:
             break
+    if not _LANGUAGE.fullmatch(language):
+        # "language-```x" wrote a longer fence than the one that closes it,
+        # and the rest of the page became code.
+        language = ""
+    # Longer than any run of backticks in the code, which would close it.
     fence = "```"
     while fence in text:
         fence += "`"
     return [f"{fence}{language}\n{text}\n{fence}"]
 
 
-def _seen_text(element: lxml.html.HtmlElement) -> Iterable[str]:
-    """An element's text as written, spaces kept, without what is never seen."""
+def _seen_text(element: lxml.html.HtmlElement, spaced: bool = False) -> list[str]:
+    """An element's text as written, spaces kept, without what is never seen.
+
+    Walked with a stack of its own, not by recursion, so no page is too deep
+    for it. ``spaced`` sets each block apart with a space, for text whose
+    blocks are not written as blocks.
+    """
+    parts: list[str] = []
     if element.text:
-        yield element.text
-    for child in element:
+        parts.append(element.text)
+    # Each child's children still to walk, and between them the tail to write
+    # once a child's own content is written.
+    stack: list[Iterator[lxml.html.HtmlElement] | str] = [iter(element)]
+    while stack:
+        top = stack[-1]
+        if isinstance(top, str):
+            parts.append(top)
+            stack.pop()
+            continue
+        child = next(top, None)
+        if child is None:
+            stack.pop()
+            continue
         tag = _tag(child)
-        if tag == "br":
-            yield "\n"
-        elif tag is not None and tag not in _UNSEEN and not _hidden(child):
-            yield from _seen_text(child)
         if child.tail:
-            yield child.tail
+            stack.append(child.tail)
+        if tag == "br":
+            parts.append("\n")
+        elif tag is not None and tag not in _UNSEEN and not _hidden(child):
+            if spaced and tag in _BLOCKS:
+                parts.append(" ")
+                stack.append(" ")
+            if child.text:
+                parts.append(child.text)
+            stack.append(iter(child))
+    return parts
 
 
 def shown_words(
@@ -459,17 +536,33 @@ def shown_words(
     element whose own text holds it, in the page's order."""
     found: list[tuple[str, lxml.html.HtmlElement]] = []
 
-    def walk(node: lxml.html.HtmlElement) -> None:
-        if node.text:
-            found.extend((w, node) for w in _WORD.findall(node.text.lower()))
-        for child in node:
-            tag = _tag(child)
-            if tag is not None and tag not in _UNSEEN and not _hidden(child):
-                walk(child)
-            if child.tail:
-                found.extend((w, node) for w in _WORD.findall(child.tail.lower()))
+    def words(text: str | None, owner: lxml.html.HtmlElement) -> None:
+        if text:
+            found.extend((w, owner) for w in _WORD.findall(text.lower()))
 
-    walk(element)
+    words(element.text, element)
+    # Walked with a stack, as ``_seen_text`` is: (the parent, its children
+    # still to walk), and a child's tail written once its content is.
+    stack: list[tuple[lxml.html.HtmlElement, Iterator[lxml.html.HtmlElement]]] = [
+        (element, iter(element))
+    ]
+    tails: list[tuple[int, lxml.html.HtmlElement, str | None]] = []
+    while stack:
+        parent, children = stack[-1]
+        while tails and tails[-1][0] == len(stack):
+            _, owner, tail = tails.pop()
+            words(tail, owner)
+        child = next(children, None)
+        if child is None:
+            stack.pop()
+            continue
+        tag = _tag(child)
+        if tag is not None and tag not in _UNSEEN and not _hidden(child):
+            tails.append((len(stack), parent, child.tail))
+            words(child.text, child)
+            stack.append((child, iter(child)))
+        else:
+            words(child.tail, parent)
     return found
 
 

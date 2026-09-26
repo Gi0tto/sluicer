@@ -115,3 +115,85 @@ def test_shown_words_name_the_element_holding_each():
         ("words", "p"),
         ("three", "div"),
     ]
+
+
+# -- what the 0.10 review found the whole page leaked or broke on ----------------
+
+
+def _page(body: str) -> str:
+    return f"<html><body>{body}</body></html>"
+
+
+def test_a_hidden_cell_row_body_or_caption_of_a_table_is_left_out():
+    head = "<tr><th>Part</th><th>Price</th></tr>"
+    tables = [
+        f"<table>{head}<tr><td>Pads</td><td hidden>SECRET</td></tr></table>",
+        f'<table>{head}<tr style="display:none"><td>SECRET</td><td>1</td></tr></table>',
+        f"<table><thead>{head}</thead><tbody hidden><tr><td>SECRET</td><td>1</td>"
+        "</tr></tbody></table>",
+        f'<table><caption style="display: none">SECRET</caption>{head}'
+        "<tr><td>Pads</td><td>9</td></tr></table>",
+        # A table that lays the page out, its cells written as blocks.
+        "<table><tr><td><div>Pads</div></td><td hidden><div>SECRET</div></td></tr>"
+        "</table>",
+    ]
+    for table in tables:
+        written = _body(_page(table))
+        assert "SECRET" not in written, table
+        assert "Pads" in written or "Part" in written, table
+
+
+def test_display_none_hides_whatever_white_space_it_is_written_with():
+    for style in ("display:\tnone", "display:\nnone", "DISPLAY :  NONE"):
+        written = _body(_page(f'<div style="{style}">SECRET</div><p>Shown</p>'))
+        assert written == "Shown", style
+
+
+def test_a_script_inside_code_is_not_written():
+    written = _body(_page("<p>Run <code>make<script>SECRET()</script></code></p>"))
+
+    assert written == "Run `make`"
+
+
+def test_a_page_nested_deeper_than_python_recurses_is_still_written():
+    deep = "<div>" * 600 + "Deep <b>words</b>" + "</div>" * 600
+    spans = "<p>" + "<span>" * 600 + "Inner" + "</span>" * 600 + "</p>"
+
+    assert _body(_page(deep + "<p>After</p>")) == "Deep words\n\nAfter"
+    assert _body(_page(spans)) == "Inner"
+    assert _body(_page("<pre>" + "<span>" * 900 + "x = 1" + "</span>" * 900)) == (
+        "```\nx = 1\n```"
+    )
+
+
+def test_a_script_link_is_refused_however_its_scheme_is_split():
+    for href in (
+        "java&#9;script:alert(1)",
+        "java&#10;script:alert(1)",
+        " JavaScript:x",
+    ):
+        written = _body(_page(f'<p><a href="{href}">Click</a></p>'))
+        assert written == "Click", href
+
+
+def test_a_code_block_s_language_cannot_break_its_fence():
+    written = _body(
+        _page('<pre class="language-```x">code here</pre><p>After</p>'), url=None
+    )
+
+    assert written == "```\ncode here\n```\n\nAfter"
+    assert _body(_page('<pre><code class="language-c++">x++;</code></pre>')) == (
+        "```c++\nx++;\n```"
+    )
+    fenced = _body(_page("<pre>a\n````\nb</pre>"))
+    assert fenced.startswith("`````\n") and fenced.endswith("\n`````")
+
+
+def test_shown_words_walk_a_deep_page_in_order():
+    doc = load(_page("<p>One " + "<span>" * 1500 + "two" + "</span>" * 1500 + " three"))
+
+    assert [word for word, _ in shown_words(doc.tree.find("body"))] == [
+        "one",
+        "two",
+        "three",
+    ]
