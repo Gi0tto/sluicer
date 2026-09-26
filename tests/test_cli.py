@@ -1369,3 +1369,65 @@ def test_a_redirect_off_the_web_exits_two_with_a_message(monkeypatch, command, t
     assert result.exception is None or isinstance(result.exception, SystemExit)
     assert f"{target} is not fetched: only http and https" in result.stderr
     assert "Traceback" not in result.output
+
+
+# -- options read when the command line is -----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("args", "said"),
+    [
+        (["--at", "foo"], "Invalid value for '--at': 'foo' is not a date: write 2025"),
+        (["--at", "2025-13"], "'2025-13' is not a date: its month is not 1 to 12"),
+        (["--proxy", "foo"], "Invalid value for '--proxy': 'foo' is not a proxy"),
+    ],
+)
+@pytest.mark.parametrize("command", ["fetch", "extract", "markdown"])
+def test_a_date_or_a_proxy_that_is_not_one_is_refused_before_any_fetch(
+    monkeypatch, command, args, said
+):
+    """Measured on 0.9.0: --at foo and --proxy foo failed only at fetch time,
+    "Could not fetch https://example.com/: ValueError: 'foo' is not a date",
+    naming a Python class and blaming the fetch."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    asked = []
+    monkeypatch.setattr(
+        "sluicer.cli.source.fetch_url", lambda url, **kw: asked.append(url)
+    )
+    monkeypatch.setattr(
+        "sluicer.fetch.archive.fetch_archived", lambda url, at, **kw: asked.append(url)
+    )
+    monkeypatch.delenv("SLUICER_PROXY", raising=False)
+
+    result = CliRunner().invoke(main, [command, "https://example.com/", *args])
+
+    assert result.exit_code == 2, result.output
+    assert said in result.stderr
+    assert "ValueError" not in result.stderr and "UnusableProxy" not in result.stderr
+    assert asked == []
+
+
+def test_a_proxy_variable_that_is_not_one_is_named_without_a_class(monkeypatch):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    monkeypatch.setenv("SLUICER_PROXY", "foo")
+
+    result = CliRunner().invoke(main, ["extract", "https://example.com/"])
+
+    assert result.exit_code == 2
+    assert "SLUICER_PROXY: 'foo' is not a proxy" in result.stderr
+    assert "UnusableProxy" not in result.stderr
+
+
+@pytest.mark.parametrize("year", ["2000", "2100", "2000-06-01"])
+def test_a_year_that_ends_in_00_is_a_date(year):
+    """Measured on 0.9.0: --at 2000 was "'2000' is not a date": the year was
+    checked by its last two digits, 00, against 1 to 9999."""
+    from sluicer.fetch.archive import timestamp
+
+    assert timestamp(year) == year.replace("-", "")

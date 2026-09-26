@@ -33,6 +33,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer mcp` and `sluicer-mcp` without the `mcp` extra exit 2 with the
   line that installs it, as `sluicer serve` does without its own. They
   exited 1, the code for "read, and found nothing".
+- `--at` and `--proxy` are read with the command line: a date or a proxy that
+  is not one is a usage error, exit 2, before anything is fetched. They
+  failed at fetch time as "Could not fetch URL: ValueError: ..." or
+  "UnusableProxy: ...", and a `SLUICER_PROXY` that is not a proxy is now
+  named as the variable.
+- `--at 2000`, and any year ending in 00, is a date. The year was checked by
+  its last two digits against 1 to 9999, so `'2000' is not a date`.
 
 ## 0.9.0 - 2026-09-26
 

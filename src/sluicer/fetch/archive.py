@@ -53,16 +53,20 @@ def timestamp(at: str) -> str:
     if not re.fullmatch(r"\d{4}(\d{2}){0,5}", digits):
         raise ValueError(f"{at!r} is not a date: write 2025, 2025-06 or 2025-06-01")
     limits = [
-        (4, 1, 9999),
-        (6, 1, 12),
-        (8, 1, 31),
-        (10, 0, 23),
-        (12, 0, 59),
-        (14, 0, 59),
+        (4, 1, 9999, "year"),
+        (6, 1, 12, "month"),
+        (8, 1, 31, "day"),
+        (10, 0, 23, "hour"),
+        (12, 0, 59, "minute"),
+        (14, 0, 59, "second"),
     ]
-    for end, low, high in limits:
-        if len(digits) >= end and not low <= int(digits[end - 2 : end]) <= high:
-            raise ValueError(f"{at!r} is not a date")
+    for end, low, high, part in limits:
+        start = 0 if end == 4 else end - 2
+        if len(digits) >= end and not low <= int(digits[start:end]) <= high:
+            raise ValueError(
+                f"{at!r} is not a date: its {part} is not {low} to {high}; write "
+                "2025, 2025-06 or 2025-06-01"
+            )
     return digits
 
 

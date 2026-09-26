@@ -17,8 +17,10 @@ from sluicer.fetch import (
     RobotsRefused,
     fetch as fetch_url,
 )
+from sluicer.fetch.http_rung import PROXY_ENV
 from sluicer.fetch.result import Fetched, ResponseTooLarge
 from sluicer.fetch.rungs import FetchExtraMissing
+from sluicer.fetch.wire import UnusableProxy
 
 
 def _read_source(
@@ -153,6 +155,9 @@ def _read_page(
             _fail(str(failed), failed)
         except ResponseTooLarge as heavy:
             _fail(str(heavy), heavy)
+        except UnusableProxy as unusable:
+            # --proxy is read with the command line; this is the variable.
+            _fail(f"{PROXY_ENV}: {unusable}", unusable)
         except (OSError, ValueError) as failure:
             # An operational failure is a message and a bug is a traceback.
             # OSError covers down, unresolvable and timed out; ValueError is a
