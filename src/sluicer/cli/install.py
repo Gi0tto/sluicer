@@ -80,11 +80,9 @@ def install_command(what: str, with_deps: bool) -> None:
             err=True,
         )
         raise SystemExit(COULD_NOT_READ)
-    argv = [sys.executable, "-m", "playwright", "install"]
-    if with_deps:
-        argv.append("--with-deps")
-    argv.append("chromium")
-    shown = " ".join(["playwright", *argv[3:]])
+    arguments = ["install", *(["--with-deps"] if with_deps else []), "chromium"]
+    argv = installer.playwright_argv(*arguments)
+    shown = " ".join(["playwright", *arguments])
     click.echo(f"Installing Playwright's Chromium: {shown}", err=True)
     try:
         finished = _run(argv, check=False)

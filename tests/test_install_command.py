@@ -83,7 +83,13 @@ def test_install_browser_runs_playwright_with_this_python(cli, monkeypatch):
     result = cli("install", "browser")
 
     assert result.exit_code == 0, result.output
-    assert cli.ran.argv == [[sys.executable, "-m", "playwright", "install", "chromium"]]
+    (argv,) = cli.ran.argv
+    # Isolated, the installed Playwright's: never ``-m playwright``, which
+    # ran a playwright/__main__.py from the working directory.
+    assert argv[:3] == [sys.executable, "-I", "-c"]
+    assert "-m" not in argv
+    assert argv[-2:] == ["install", "chromium"]
+    assert "playwright install chromium" in result.stderr
     assert "Chromium is installed" in result.stderr
 
 

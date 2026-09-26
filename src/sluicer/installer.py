@@ -45,6 +45,7 @@ __all__ = [
     "current",
     "detect",
     "how_to_add",
+    "playwright_argv",
     "present",
 ]
 
@@ -292,6 +293,33 @@ def how_to_add(extra: str, *, then: str = "") -> str:
     return f"Install it with: {command}"
 
 
+# Playwright's command line, run the way ``sluicer.isolated`` runs its child:
+# with -I, so the working directory is not on the path and no PYTHON*
+# variable is read, and handed the parent's own path to import from, less the
+# working directory. ``python -m playwright`` put the working directory first:
+# a playwright/__main__.py in the folder ``sluicer doctor`` was run in -- a
+# cloned repository -- ran in Playwright's place.
+_PLAYWRIGHT = (
+    "import json, runpy, sys; sys.path[:] = json.loads(sys.argv.pop(1)); "
+    "runpy.run_module('playwright', run_name='__main__', alter_sys=True)"
+)
+
+
+def _trusted_path() -> list[str]:
+    """This process's import path without the working directory: the empty
+    entry ``-c`` and ``-m`` stand it in with, or its own spelling."""
+    here = Path.cwd()
+    return [entry for entry in sys.path if entry and not _same(Path(entry), here)]
+
+
+def playwright_argv(*arguments: str) -> list[str]:
+    """The command that runs the installed Playwright's command line with
+    ``arguments``, on this interpreter, importing nothing from the working
+    directory."""
+    path = json.dumps(_trusted_path())
+    return [sys.executable, "-I", "-c", _PLAYWRIGHT, path, *arguments]
+
+
 _LOCATION = re.compile(r"^\s*Install location:\s*(.+?)\s*$", re.MULTILINE)
 
 
@@ -311,7 +339,7 @@ def chromium_missing(
     run = run or subprocess.run
     try:
         answer = run(
-            [sys.executable, "-m", "playwright", "install", "--dry-run", "chromium"],
+            playwright_argv("install", "--dry-run", "chromium"),
             capture_output=True,
             # Playwright's driver is Node, which writes UTF-8 everywhere; a
             # path it prints may hold any letter of a user's name.

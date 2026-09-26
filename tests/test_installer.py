@@ -357,3 +357,46 @@ def test_chromium_is_unknown_when_playwright_cannot_say():
 
     assert installer.chromium_missing(failing) is None
     assert installer.chromium_missing(absent) is None
+
+
+def _package(folder: Path, main: str) -> None:
+    (folder / "playwright").mkdir(parents=True)
+    (folder / "playwright" / "__init__.py").write_text("", encoding="utf-8")
+    (folder / "playwright" / "__main__.py").write_text(main, encoding="utf-8")
+
+
+def test_a_playwright_in_the_working_directory_is_never_run(tmp_path, monkeypatch):
+    """``python -m playwright`` put the working directory first on the path:
+    a playwright/__main__.py planted in a cloned repository ran when
+    ``sluicer doctor`` was run there. Only the installed one runs now, even
+    when the working directory is on this process's own path, as it is under
+    ``python -m sluicer``."""
+    clone = tmp_path / "clone"
+    installed = tmp_path / "site"
+    planted = tmp_path / "PLANTED"
+    _package(
+        clone,
+        "import pathlib, sys\n"
+        f"pathlib.Path({str(planted)!r}).write_text(repr(sys.argv))\n",
+    )
+    location = tmp_path / "chromium-1243"
+    location.mkdir()
+    (location / "INSTALLATION_COMPLETE").write_text("", encoding="utf-8")
+    _package(
+        installed,
+        "import sys\n"
+        "assert sys.argv[1:] == ['install', '--dry-run', 'chromium'], sys.argv\n"
+        f"print('Browser\\n  Install location:    ' + {str(location)!r})\n",
+    )
+    monkeypatch.syspath_prepend(str(installed))
+    monkeypatch.syspath_prepend(str(clone))
+    monkeypatch.chdir(clone)
+    monkeypatch.setenv("PYTHONPATH", str(clone))
+
+    assert installer.chromium_missing() == []
+    assert not planted.exists()
+
+    argv = installer.playwright_argv("install", "chromium")
+    assert argv[:3] == [installer.sys.executable, "-I", "-c"]
+    assert "-m" not in argv
+    assert str(clone) not in json.loads(argv[4])

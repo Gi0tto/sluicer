@@ -133,6 +133,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A product whose SKU was declared only on its offer, `"offers": {"sku":
   ...}`, had no SKU in the summary. The offer's SKU is now the product's when
   the product declares none and its offers name one SKU.
+- `sluicer doctor` and `sluicer install browser` ran Playwright with
+  `python -m playwright`, which imports from the working directory first: a
+  `playwright/__main__.py` in the folder they were run in, a cloned
+  repository, ran in Playwright's place. Playwright now runs in an isolated
+  interpreter (`-I`) importing only from this Sluicer's own path.
 
 ## 0.9.1 - 2026-09-26
 
