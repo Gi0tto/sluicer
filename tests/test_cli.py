@@ -1446,3 +1446,35 @@ def test_sluicer_mcp_with_a_list_that_names_no_tool_is_an_error(monkeypatch, giv
     assert result.exit_code == 2, result.output
     assert "no tool named" in result.stderr and "crawl_site" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+# -- messages about the input, not about Python --------------------------------
+
+
+@pytest.mark.parametrize(
+    ("args", "said"),
+    [
+        (["run", "{missing}.json", "p.html"], "{missing}.json does not exist."),
+        (["warc", "{missing}.warc"], "{missing}.warc does not exist; 0 pages"),
+        (["batch", "{missing}.txt"], "{missing}.txt does not exist."),
+        (["run", "{bad}", "p.html"], "not a whole sluicer extractor: it has no"),
+    ],
+    ids=["run", "warc", "batch", "extractor"],
+)
+def test_a_file_that_cannot_be_read_is_said_of_the_file(tmp_path, args, said):
+    """Measured on 0.9.0 (inventory audit, B22): "[Errno 2] No such file or
+    directory: 'nothere.warc'", and "not a whole sluicer extractor:
+    KeyError('listing')"."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    bad = tmp_path / "bad.json"
+    bad.write_text('{"format": 1}', encoding="utf-8")
+    names = {"missing": str(tmp_path / "nothere"), "bad": str(bad)}
+
+    result = CliRunner().invoke(main, [a.format(**names) for a in args])
+
+    assert result.exit_code == 2, result.output
+    assert said.format(**names) in result.stderr
+    assert "Errno" not in result.stderr and "KeyError" not in result.stderr

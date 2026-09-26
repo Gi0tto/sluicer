@@ -1846,3 +1846,15 @@ def test_an_address_with_no_host_is_refused_before_its_robots_txt(url):
         fetch(url, rungs=[("x", rung)])
 
     assert asked == []
+
+
+def test_a_path_handed_to_fetch_is_said_to_name_no_scheme():
+    """Measured on 0.9.0 (inventory audit, B21): "only http and https are
+    fetched, not no scheme"."""
+    with pytest.raises(AddressRefused) as refused:
+        fetch("/etc/hosts", rungs=[("x", _rung("x"))])
+
+    assert str(refused.value) == (
+        "/etc/hosts is not fetched: it names no scheme, and only http and "
+        "https addresses are fetched"
+    )

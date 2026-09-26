@@ -58,6 +58,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   page is read. `--force` alone did nothing and said nothing.
 - `sluicer diff - -` is refused: standard input is one page. It read the page,
   then said standard input "contains no HTML".
+- A file that cannot be read is said of the file: "nothere.warc does not
+  exist", not "[Errno 2] No such file or directory", for `run`, `heal`, `warc`
+  and `batch`; an extractor missing a part names the part, not
+  `KeyError('listing')`, on the command line and in MCP `run_extractor`; and
+  `fetch()` of a path says it names no scheme, not "not no scheme".
 
 ## 0.9.0 - 2026-09-26
 

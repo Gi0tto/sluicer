@@ -308,8 +308,15 @@ class Extractor:
         try:
             body = json.loads(text)
             return _extractor_of(body)
-        except (KeyError, TypeError, IndexError, AttributeError) as broken:
-            raise ValueError(f"not a whole sluicer extractor: {broken!r}") from None
+        except KeyError as missing:
+            raise ValueError(
+                f"not a whole sluicer extractor: it has no {missing.args[0]!r}"
+            ) from None
+        except (TypeError, IndexError, AttributeError) as broken:
+            raise ValueError(
+                f"not a whole sluicer extractor: a part of it has the wrong "
+                f"shape ({broken})"
+            ) from None
 
 
 def _extractor_of(body: Any) -> Extractor:

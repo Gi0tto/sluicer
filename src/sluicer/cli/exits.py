@@ -39,3 +39,15 @@ def _fail(message: str, cause: BaseException | None = None) -> NoReturn:
     it names is written ``***``."""
     click.echo(shown(message), err=True)
     raise SystemExit(COULD_NOT_READ) from cause
+
+
+def _unreadable(path: str, failure: OSError) -> str:
+    """Why the file ``path`` could not be read, said of the file, without the
+    ``[Errno 2]`` and the repr Python writes."""
+    if isinstance(failure, FileNotFoundError):
+        return f"{path} does not exist"
+    if isinstance(failure, IsADirectoryError):
+        return f"{path} is not a file"
+    if isinstance(failure, PermissionError):
+        return f"{path} cannot be read: permission denied"
+    return f"{path} cannot be read: {failure.strerror or failure}"

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import click
 
-from sluicer.cli.exits import CONTRACT_BROKEN, NOTHING_FOUND, _fail
+from sluicer.cli.exits import CONTRACT_BROKEN, NOTHING_FOUND, _fail, _unreadable
 from sluicer.cli.options import _with_proxy
 from sluicer.cli.source import _read_pages
 from sluicer.extractor import (
@@ -30,8 +30,12 @@ from sluicer.selectors import SelectorError
 
 def _load_extractor(path: str) -> Extractor:
     try:
-        return Extractor.from_json(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as failure:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError as failure:
+        _fail(f"{_unreadable(path, failure)}.", failure)
+    try:
+        return Extractor.from_json(text)
+    except ValueError as failure:
         _fail(f"{path} is not an extractor: {failure}", failure)
 
 

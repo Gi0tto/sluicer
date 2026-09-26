@@ -93,8 +93,10 @@ def why_not_web(url: str) -> str | None:
         host = parts.hostname
     except ValueError:
         return "the address is not a valid URL"
+    if not scheme:
+        return "it names no scheme, and only http and https addresses are fetched"
     if scheme not in WEB_SCHEMES:
-        return f"only http and https are fetched, not {scheme or 'no scheme'}"
+        return f"only http and https are fetched, not {scheme}"
     if not host:
         return "the address names no host"
     return None

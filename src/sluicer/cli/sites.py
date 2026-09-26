@@ -17,7 +17,13 @@ from pathlib import Path
 
 import click
 
-from sluicer.cli.exits import COULD_NOT_READ, INTERRUPTED, NOTHING_FOUND, _fail
+from sluicer.cli.exits import (
+    COULD_NOT_READ,
+    INTERRUPTED,
+    NOTHING_FOUND,
+    _fail,
+    _unreadable,
+)
 from sluicer.cli.options import _sent, _with_fetch_options, _with_proxy
 from sluicer.cli.source import _read_source
 from sluicer.crawl import Crawl, crawl as crawl_site, extract_many
@@ -430,7 +436,10 @@ def warc_command(files: tuple[str, ...], induce: bool, microformats: bool) -> No
                 )
         except MicroformatsExtraMissing as missing:
             _fail(str(missing), missing)
-        except (OSError, WarcError) as failure:
+        except OSError as failure:
+            said = _unreadable(name, failure) if name != "-" else str(failure)
+            _fail(f"{said}; {count} pages were read before it.", failure)
+        except WarcError as failure:
             _fail(f"{failure}; {count} pages were read before it.", failure)
         read += count
         said = f"; skipped {skipped}" if skipped else ""
@@ -469,7 +478,9 @@ def batch_command(
             if urls_file == "-"
             else Path(urls_file).read_text(encoding="utf-8")
         )
-    except (OSError, UnicodeDecodeError) as failure:
+    except OSError as failure:
+        _fail(f"{_unreadable(urls_file, failure)}.", failure)
+    except UnicodeDecodeError as failure:
         _fail(f"Could not read {urls_file}: {failure}", failure)
     listed = [
         line.strip()
