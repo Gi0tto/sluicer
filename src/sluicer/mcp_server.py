@@ -1393,6 +1393,33 @@ TOOLS_ENV = "SLUICER_MCP_TOOLS"
 a command line; ``sluicer mcp --tools`` says the same."""
 
 
+SCRIPT_USAGE = (
+    "Usage: sluicer-mcp\n\n"
+    "  Run Sluicer's MCP server over stdio (needs sluicer[mcp]); it takes no\n"
+    "  arguments. SLUICER_MCP_TOOLS=extract_declared,page_markdown registers\n"
+    "  only those tools, as sluicer mcp --tools does."
+)
+
+
+def _refuse_script_arguments(argv: list[str]) -> None:
+    """``sluicer-mcp --help`` prints its usage and exits 0; any other argument
+    exits 2. Until 0.9.1 both started the server, which then sat waiting on
+    stdin. ``sluicer mcp`` reads its own arguments, and is left alone."""
+    if not argv or not os.path.basename(argv[0]).startswith("sluicer-mcp"):
+        return
+    given = argv[1:]
+    if not given:
+        return
+    if given in (["--help"], ["-h"]):
+        print(SCRIPT_USAGE)
+        raise SystemExit(0)
+    print(
+        f"sluicer-mcp takes no arguments, not {' '.join(given)!r}.\n\n" + SCRIPT_USAGE,
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+
+
 def main(tools: Iterable[str] | None = None) -> None:
     """Run the server over stdio, or explain a missing ``mcp`` extra in one line.
 
@@ -1405,6 +1432,7 @@ def main(tools: Iterable[str] | None = None) -> None:
     """
     from sluicer.fetch.browser import UnknownBrowser
 
+    _refuse_script_arguments(sys.argv)
     if tools is None and os.environ.get(TOOLS_ENV, "").strip():
         tools = [n.strip() for n in os.environ[TOOLS_ENV].split(",") if n.strip()]
     try:

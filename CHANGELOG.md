@@ -67,6 +67,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   failure says the name does not resolve and is `retryable` false, so a
   crawl or a batch asks it once. It was marked retryable and asked three
   times; a lookup that failed only for now is still retried.
+- `sluicer-mcp --help` prints its usage, and any other argument exits 2
+  saying it takes none. Both started the server, which then waited on stdin.
 
 ## 0.9.0 - 2026-09-26
 

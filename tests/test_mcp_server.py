@@ -2204,3 +2204,39 @@ def test_compile_extractor_refuses_select_beside_the_learnt_way(monkeypatch, lea
     assert answer["error"]["code"] == "bad_input"
     assert "one is chosen" in answer["error"]["message"]
     assert fetch.calls == []
+
+
+@pytest.mark.parametrize(
+    ("argv", "code", "stream"),
+    [
+        (["/venv/bin/sluicer-mcp", "--help"], 0, "out"),
+        (["/venv/bin/sluicer-mcp", "--tools", "x"], 2, "err"),
+    ],
+)
+def test_sluicer_mcp_with_arguments_answers_instead_of_serving(
+    monkeypatch, capsys, argv, code, stream
+):
+    """Measured on 0.9.0 (inventory audit, B32): sluicer-mcp --help started
+    the server, which sat waiting on stdin."""
+    registered = fake_mcp(monkeypatch)
+    import sluicer.mcp_server as server_module
+
+    served = []
+    monkeypatch.setattr(
+        server_module, "build_server", lambda **kw: served.append(kw) or registered
+    )
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit) as raised:
+        server_module.main()
+
+    assert raised.value.code == code
+    assert "Usage: sluicer-mcp" in getattr(capsys.readouterr(), stream)
+    assert served == []
+
+
+def test_sluicer_mcp_is_not_asked_about_sluicer_s_own_arguments(monkeypatch):
+    """`sluicer mcp --tools x` calls the same main: its argv is sluicer's."""
+    from sluicer.mcp_server import _refuse_script_arguments
+
+    _refuse_script_arguments(["/venv/bin/sluicer", "mcp", "--tools", "x"])
