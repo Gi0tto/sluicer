@@ -321,21 +321,3 @@ def test_a_by_line_linked_to_its_author_s_page_is_the_author() -> None:
     body = '<h1>Costs</h1><a href="/authors/scott"><div>By Scott Kasun</div></a>'
     guess = read_visible(_page(body), url="https://example.com/costs")["author"]
     assert (guess.value, guess.rule) == ("Scott Kasun", "by-line")
-
-
-def test_the_page_s_own_classes_do_not_hide_its_byline() -> None:
-    page = (
-        '<html><body class="single-post has-share-buttons"><h1>Tutoring</h1>'
-        '<span class="post-detail__meta-author">By Emily Norwood</span>'
-        "<p>Text.</p></body></html>"
-    )
-    assert read_visible(page)["author"].value == "Emily Norwood"
-
-
-def test_a_testimonial_s_signature_is_not_the_author() -> None:
-    body = (
-        "<h1>Pest Control Coupons</h1>"
-        '<div class="testimonial-card"><p>They came the next day.</p>'
-        '<div class="review-author">Rachel Moss</div></div>'
-    )
-    assert "author" not in read_visible(_page(body))

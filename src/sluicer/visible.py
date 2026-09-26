@@ -108,10 +108,9 @@ _UPDATED_WORD = re.compile(
 )
 # Boxes that hold the whole page, not a header.
 _PAGE_BOXES = frozenset({"html", "body", "main"})
-# The elements that are the whole page, and the boxes that hold all of an
-# article: none of them is a byline, whatever its classes say.
-_WHOLE_PAGE = frozenset({"html", "body"})
-_NO_BYLINE_BOX = frozenset({*_WHOLE_PAGE, "main", "article"})
+# The boxes that hold the whole page or all of an article: none of them is a
+# byline, whatever its classes say.
+_NO_BYLINE_BOX = frozenset({"html", "body", "main", "article"})
 # A class that says there is no byline: "no-byline", "hide-author".
 _NO_BYLINE = re.compile(r"\b(?:no|hide|hidden)-\S*")
 # The most different dates a page may show before it is taken for a listing,
@@ -157,7 +156,6 @@ class _Page:
         # chain of <time> nested 2,000 deep cost the square of its depth,
         # and 30 KB of it 1.3 s.
         self._aside: dict[HtmlElement, bool] = {}
-        self._byline_aside: dict[HtmlElement, bool] = {}
         self._hidden: dict[HtmlElement, bool] = {}
         self._linked: dict[HtmlElement, bool] = {}
         # Each element's text, read once: a "By" line or a date climbs to
@@ -202,12 +200,6 @@ class _Page:
         """Whether ``element`` sits in the page's chrome or another voice's
         box: `_own_aside` of it or of a box round it, each box asked once."""
         return _up(element, _own_aside, self._aside)
-
-    def byline_aside(self, element: HtmlElement) -> bool:
-        """``aside``, for a byline: the page's own ``<body>`` and ``<html>``
-        are not asked, whose classes say what kind of page it is --
-        WordPress writes "has-share-buttons" on the body of every post."""
-        return _up(element, _own_aside_below_the_page, self._byline_aside)
 
     def hidden(self, element: HtmlElement) -> bool:
         """Whether ``element`` or a box round it is hidden from a reader."""
@@ -315,18 +307,6 @@ def _own_aside(node: HtmlElement) -> bool:
     return bool(named.strip() and _ASIDE.search(named))
 
 
-def _own_aside_below_the_page(node: HtmlElement) -> bool:
-    """``_own_aside`` for a byline: not asked of the page's own ``<body>`` and
-    ``<html>``, and a customer's testimonial is another voice too, whose
-    signature is no byline."""
-    if node.tag in _WHOLE_PAGE or not isinstance(node.tag, str):
-        return False
-    if _own_aside(node):
-        return True
-    named = f"{node.get('class') or ''} {node.get('id') or ''}".lower()
-    return "testimonial" in named
-
-
 def _title(page: _Page) -> Guess | None:
     """The page's one ``h1`` outside its chrome: the heading a reader sees."""
     if page.heading is None:
@@ -394,7 +374,7 @@ def _author(page: _Page) -> Guess | None:
         for e in page.tree.xpath(
             "//a[contains(concat(' ', normalize-space(@rel), ' '), ' author ')]"
         )
-        if not page.byline_aside(e)
+        if not page.aside(e)
     ]
     if 0 < len(marked) <= _MOST_BYLINES and (name := _first_name(marked[0])):
         return Guess(name, _where(marked[0]), "rel-author")
@@ -403,7 +383,7 @@ def _author(page: _Page) -> Guess | None:
         for e, names in page.named
         if _BYLINE.search(_NO_BYLINE.sub("", names))
         and e.tag not in _NO_BYLINE_BOX
-        and not page.byline_aside(e)
+        and not page.aside(e)
     ]
     # The innermost of nested byline boxes, since the outer ones hold dates too.
     boxes = set(named)
@@ -530,9 +510,7 @@ def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | 
         text = page.short(element, 80)
         if text is None:
             return None
-        if element.tag in ("p", "span", "div", "address") and not page.byline_aside(
-            element
-        ):
+        if element.tag in ("p", "span", "div", "address") and not page.aside(element):
             before = (
                 text[: text.find(opening.strip())] if opening.strip() in text else ""
             )
