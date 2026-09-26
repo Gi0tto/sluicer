@@ -9,7 +9,7 @@ uvx --with "sluicer[mcp]" sluicer mcp
 
 It needs [uv](https://docs.astral.sh/uv/) on the `PATH`; `uvx` fetches Sluicer
 and its `mcp` extra, which brings fetching and markdown, the first time.
-`sluicer-mcp`, after `uv pip install "sluicer[mcp]"`, is the same server.
+`sluicer-mcp`, after `pip install "sluicer[mcp]"`, is the same server.
 
 Every one of its twelve tools only reads -- the page it is given, or the web --
 and says so in its MCP annotations (`readOnlyHint`, not `destructiveHint`), so

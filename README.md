@@ -56,16 +56,43 @@ from. No model reads any page, so the same page always gives the same answer.
 ## Quick start
 
 ```bash
-uv pip install sluicer
+uv tool install sluicer   # or: pipx install sluicer
 
-# Learn an extractor from three pages built on one template, given one value from the first.
-sluicer compile p1.html p2.html p3.html --want price=41.90 -o shop.json
+# Learn where a book's title and price sit, from two pages of one template.
+sluicer compile https://books.toscrape.com/catalogue/page-1.html \
+  https://books.toscrape.com/catalogue/page-2.html \
+  --want title="A Light in the Attic" --want price=51.77 -o books.json
 
-# Replay it on any page of that template: the values as JSON, or exit 3 if the page changed.
-sluicer run shop.json https://shop.example/p/7
+# Replay it on another page of that template: 20 rows of title and price, exit 0.
+sluicer run books.json https://books.toscrape.com/catalogue/page-3.html
 
-# After a redesign: see what moved, and write the healed extractor.
-sluicer heal shop.json https://shop.example/p/1 -o shop.json
+# A page it was not learnt for: exit 3, naming the check that failed.
+sluicer run books.json https://quotes.toscrape.com/
+```
+
+books.toscrape.com and quotes.toscrape.com are public sandboxes made for
+trying scrapers on. The last command prints `FAILED https://quotes.toscrape.com/:
+expected the listing at html>body>…>ol.row, got not found`, its path shortened
+here, and exits 3.
+
+After a redesign, `sluicer heal` looks on the new page for the values the
+extractor was learnt from, and proposes a new place for each field it finds
+them in. In a clone of this repository, `examples/shop/` holds a made-up shop
+before and after a redesign that renamed every class:
+
+```bash
+sluicer compile examples/shop/before-1.html examples/shop/before-2.html \
+  --want title="A Light in the Attic" --want price=51.77 -o shop.json
+sluicer run shop.json examples/shop/after.html   # exit 3: the listing is not found
+sluicer heal shop.json examples/shop/after.html -o shop-healed.json
+```
+
+```text
+container: html>body>div.page>ol.row -> html>body>main.content>div.page>section.grid
+member: li.product -> div.card
+moved: title -> h2.name>a (5 of 5 learnt values found there; the next best place had 0)
+moved: price -> div.cost (5 of 5 learnt values found there; the next best place had 0)
+Wrote shop-healed.json.
 ```
 
 Exit codes follow grep: 0 found -- a record or a summary answer, a `<title>`
@@ -80,7 +107,10 @@ on SWDE, 18% of the extractors' wrong answers were flagged.
 
 Reading what a page declares needs no example at all. The product page read
 here is
-[`examples/brake-pads.html`](https://github.com/Gi0tto/sluicer/blob/main/examples/brake-pads.html):
+[`examples/brake-pads.html`](https://github.com/Gi0tto/sluicer/blob/main/examples/brake-pads.html),
+in a clone of this repository; without one, fetch it first with
+`mkdir -p examples && curl -o examples/brake-pads.html https://raw.githubusercontent.com/Gi0tto/sluicer/main/examples/brake-pads.html`.
+The library is imported from the Python you ran `pip install sluicer` in:
 
 ```python
 >>> import sluicer
@@ -104,12 +134,15 @@ page.html` shows the same reading laid out for a person.
 ## Install
 
 ```bash
-uv pip install "sluicer[browser,markdown,mcp]"
+uv tool install sluicer   # the sluicer command, in an environment of its own
+uvx sluicer --version     # or run it once, installing nothing
+pip install sluicer       # the library, in your project's virtual environment
 ```
 
-`pip install` works the same way, and `uv tool install` gives you the command
-in an environment of its own. The base install, `uv pip install sluicer`, reads
-HTML you already have and fetches pages over plain HTTP, with `lxml`, `click`,
+`pipx install sluicer` works as `uv tool install` does, and `uv add sluicer`
+adds the library to a uv project. Extras go in brackets, as in
+`uv tool install "sluicer[browser,markdown,mcp]"`. The base install reads HTML
+you already have and fetches pages over plain HTTP, with `lxml`, `click`,
 `cssselect` (CSS selectors) and `protego` (robots.txt) alone, and `tomli` on
 Python 3.10 to read a
 [configuration file](https://gi0tto.github.io/sluicer/configuration/): the

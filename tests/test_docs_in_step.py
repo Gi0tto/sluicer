@@ -120,3 +120,53 @@ def test_the_javascript_page_says_what_the_npm_package_is():
     # What the package does not do is said, not left to be found out.
     assert "## What it does not do" in page
     assert "fetch" in page.split("## What it does not do", 1)[1]
+
+
+def _commands(block: str) -> list[tuple[list[str], int]]:
+    """Each ``sluicer`` command of a shell block, its line continuations
+    joined, with the exit code its comment names (0 when it names none)."""
+    import shlex
+
+    commands = []
+    for line in block.replace("\\\n", " ").splitlines():
+        if not line.startswith("sluicer "):
+            continue
+        command, _, comment = line.partition("#")
+        said = re.search(r"exit (\d)", comment)
+        commands.append((shlex.split(command)[1:], int(said.group(1)) if said else 0))
+    return commands
+
+
+def test_the_readme_s_heal_runs_as_written_and_prints_what_it_shows(
+    monkeypatch, tmp_path
+):
+    """The quick start's heal step, on the made-up shop in ``examples/shop``,
+    is run command by command: the quick start once opened ``p1.html``, a file
+    that exists nowhere, and healed ``https://shop.example/``."""
+    import shutil
+
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## Quick start", 1)[1].split("\n## ", 1)[0]
+    shell, shown = re.search(
+        r"```bash\n(sluicer compile examples/shop/.*?)```\n\n```text\n(.*?)```",
+        section,
+        re.DOTALL,
+    ).groups()
+    commands = _commands(shell)
+    assert [c[0][0] for c in commands] == ["compile", "run", "heal"]
+
+    shutil.copytree(ROOT / "examples" / "shop", tmp_path / "examples" / "shop")
+    monkeypatch.chdir(tmp_path)
+    for arguments, code in commands:
+        result = CliRunner().invoke(main, arguments)
+        assert result.exit_code == code, (arguments, result.stderr)
+    assert result.stderr == shown
+
+    healed = CliRunner().invoke(
+        main, ["run", "shop-healed.json", "examples/shop/after.html"]
+    )
+    assert healed.exit_code == 0, healed.stderr

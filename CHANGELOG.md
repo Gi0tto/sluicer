@@ -5,6 +5,15 @@ Dates are the day the work landed. Anything not listed here did not happen.
 ## Unreleased
 
 ### Fixed
+- The README's quick start opened `p1.html`, a file that exists nowhere, and
+  replayed and healed pages of `shop.example`. It now learns from and runs on
+  books.toscrape.com, a public scraping sandbox, and heals on a made-up shop
+  before and after a redesign, shipped in `examples/shop/`; a test runs the
+  heal step as written.
+- The install line was `uv pip install sluicer`, which fails where no virtual
+  environment is active. The README now gives `uv tool install sluicer` for
+  the command, `uvx sluicer` to run it once, and `pip install sluicer` for the
+  library, and says how to get `examples/brake-pads.html` without a clone.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.
