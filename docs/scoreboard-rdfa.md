@@ -8,7 +8,7 @@ Sluicer's two RDFa readers, and extruct's, on the RDFa test suite the W3C's RDFa
 
 What `extract()`'s reader leaves out on purpose -- links, `about`, typed literals, languages, the page as a subject -- is in [Known limits](known-limits.md); every test it fails is filed below under one of those, or listed as not explained.
 
-Regenerated on 2026-09-26 from commit `8a426a2` by `uv run bench/rdfa_conformance.py`, with Sluicer 0.9.1, extruct 0.18.0 and rdflib 7.6.0 on Python 3.14, against the suite at `b388107da890` of [`rdfa/rdfa.github.io`](https://github.com/rdfa/rdfa.github.io), which is distributed under both the W3C Test Suite License and the W3C 3-clause BSD License. A test passes when its query answers what the suite expects.
+Regenerated on 2026-09-26 from commit `5e97f6b` by `uv run bench/rdfa_conformance.py`, with Sluicer 0.10.0, extruct 0.18.0 and rdflib 7.6.0 on Python 3.14, against the suite at `b388107da890` of [`rdfa/rdfa.github.io`](https://github.com/rdfa/rdfa.github.io), which is distributed under both the W3C Test Suite License and the W3C 3-clause BSD License. A test passes when its query answers what the suite expects.
 
 | set | tests | Sluicer's reader | `sluicer.compat.extruct` | extruct 0.18.0 |
 |---|---|---|---|---|
