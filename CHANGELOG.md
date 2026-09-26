@@ -9,6 +9,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   a relative link against the site's root instead of the page, so `c.html` on
   `/a/b/page.html` became `/c.html` and `#part` lost the page. Links now
   resolve against the page's `<base href>` or its address.
+- `map` and the MCP `map_site` tool answered `truncated: false` when `--limit`
+  (or `limit`) cut the start page's links a site with no sitemap falls back
+  to. They now say the map was cut short.
 
 ## 0.9.0 - 2026-09-26
 

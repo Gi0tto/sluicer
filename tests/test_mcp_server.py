@@ -1414,6 +1414,20 @@ def test_map_site_lists_the_sites_addresses_within_its_bounds(monkeypatch):
     assert calls[0]["allow_private"] is False
 
 
+def test_map_site_cut_by_its_limit_in_the_start_pages_links_says_so(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    pages = _shop()
+    del pages["https://example.com/sitemap.xml"]
+    _fake_site_library(monkeypatch, pages)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    answer = registered["map_site"]("https://example.com/", limit=1)
+
+    assert answer["source"] == "links" and len(answer["urls"]) == 1
+    assert answer["truncated"] is True
+
+
 def test_a_map_or_a_crawl_asked_past_its_bounds_is_a_bad_input(monkeypatch):
     registered = fake_mcp(monkeypatch)
     fake, _ = _fake_site_library(monkeypatch)

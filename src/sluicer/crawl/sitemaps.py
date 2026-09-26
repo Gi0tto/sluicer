@@ -26,7 +26,7 @@ from urllib.parse import urlsplit
 import lxml.etree
 
 from sluicer.crawl.schedule import DEFAULT_DELAY_SECONDS, MAX_DELAY_SECONDS, Politeness
-from sluicer.crawl.urls import links_on, normalise, site_of
+from sluicer.crawl.urls import MAX_LINKS_PER_PAGE, links_on, normalise, site_of
 from sluicer.crawl.web import Web, default_web
 from sluicer.document import load
 from sluicer.extras import MissingExtra
@@ -107,7 +107,8 @@ class SiteMap:
     ``source`` is ``sitemaps`` when its sitemaps gave any address on the site,
     and ``links`` when they gave none and the start page's links stand in.
     ``truncated`` is true when a bound -- the limit, the number of sitemaps,
-    the time -- stopped the map before the site's sitemaps were read out.
+    the time -- stopped the map before the site's sitemaps were read out, or
+    left out some of the start page's links when those stand in.
     """
 
     url: str
@@ -419,10 +420,10 @@ def map_site(
 
     if kept:
         return SiteMap(start, "sitemaps", tuple(kept.values()), tuple(reads), truncated)
-    links = _links_of_start(
+    links, cut = _links_of_start(
         start, site, polite, web, limit, allow_private, resolve, max_bytes
     )
-    return SiteMap(start, "links", links, tuple(reads), truncated)
+    return SiteMap(start, "links", links, tuple(reads), truncated or cut)
 
 
 def _fetch_sitemap(
@@ -476,8 +477,10 @@ def _links_of_start(
     allow_private: bool,
     resolve: Callable[[str], Iterable[str]],
     max_bytes: int,
-) -> tuple[SiteUrl, ...]:
-    """The links on the start page that stay on the site, in document order."""
+) -> tuple[tuple[SiteUrl, ...], bool]:
+    """The links on the start page that stay on the site, in document order,
+    and whether a bound left some out: ``limit``, or the most links a page
+    gives. A map cut by ``--limit`` said it was whole."""
     try:
         delay = polite.delay_for(start)
     except RobotsUnreachable as unreachable:
@@ -495,4 +498,6 @@ def _links_of_start(
     finally:
         polite.ended(start)
     links = links_on(load(fetched.html, url=fetched.url), fetched.headers)
-    return tuple(SiteUrl(link) for link in links if site_of(link) == site)[:limit]
+    on_site = [SiteUrl(link) for link in links if site_of(link) == site]
+    cut = len(on_site) > limit or len(links) >= MAX_LINKS_PER_PAGE
+    return tuple(on_site[:limit]), cut

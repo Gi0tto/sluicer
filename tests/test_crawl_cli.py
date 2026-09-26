@@ -340,6 +340,16 @@ def test_map_without_a_sitemap_falls_back_and_says_so(fake):
     assert "it answered 404" in result.stderr
 
 
+def test_map_cut_by_its_limit_in_the_start_pages_links_says_so(fake):
+    result = invoke("map", f"{ROOT}/", "--limit", "1")
+
+    assert result.exit_code == 0, result.stderr
+    mapped = json.loads(result.stdout)
+    assert mapped["source"] == "links" and len(mapped["urls"]) == 1
+    assert mapped["truncated"] is True
+    assert "cut short by a bound" in result.stderr
+
+
 def test_map_of_a_site_that_lists_nothing_exits_one(fake):
     result = invoke("map", f"{ROOT}/b")
 
