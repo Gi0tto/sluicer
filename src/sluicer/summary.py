@@ -34,7 +34,7 @@ from sluicer.declared.located import Places, paid, place, xpath_of
 from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Overruled, Record
 from sluicer.declared.opengraph import NAMESPACES
 from sluicer.declared.rdfa import document_properties
-from sluicer.document import Document, base_url, join
+from sluicer.document import METAS, Document, base_url, carrying, join, scan
 from sluicer.normalise import (
     amount,
     currency as currency_of,
@@ -1403,7 +1403,7 @@ def _headline_or_name(
         text.casefold()
         for text in (
             opengraph.get("title"),
-            *(title.text_content() for title in doc.tree.xpath(_PAGE_TITLE)),
+            *(title.text_content() for title in scan(doc, _PAGE_TITLE)),
         )
         if text
     )
@@ -1413,7 +1413,7 @@ def _headline_or_name(
 
 
 def _element_text(doc: Document, path: str, key: str) -> SummaryField | None:
-    found = doc.tree.xpath(path)
+    found = scan(doc, path)
     text = _clean(found[0].text_content()) if found else None
     return SummaryField(text, "html", key, xpath_of(found[0])) if text else None
 
@@ -1466,7 +1466,9 @@ def _meta_names(doc: Document) -> dict[str, list[tuple[str, HtmlElement]]]:
     )
     if found is None:
         found = doc.memo["summary.meta_names"] = {}
-        for meta in doc.tree.xpath("//meta[@name][@content]"):
+        for meta in scan(doc, METAS):
+            if meta.get("name") is None or meta.get("content") is None:
+                continue
             text = _clean(meta.get("content"))
             if text:
                 name = (meta.get("name") or "").strip().lower()
@@ -1490,9 +1492,16 @@ def _orphan_itemprop(
     """
     orphans: list[HtmlElement] | None = doc.memo.get("summary.orphan_itemprops")
     if orphans is None:
-        orphans = doc.memo["summary.orphan_itemprops"] = doc.tree.xpath(
-            "//*[@itemprop][not(ancestor::*[@itemscope])]"
-        )
+        # Through the attribute axis, each element's ancestors asked in
+        # Python: the same elements as //*[@itemprop][not(ancestor::*
+        # [@itemscope])], without a predicate tested on every element.
+        orphans = doc.memo["summary.orphan_itemprops"] = [
+            element
+            for element in carrying(doc.tree, "//@itemprop")
+            if not any(
+                above.get("itemscope") is not None for above in element.iterancestors()
+            )
+        ]
     for element in orphans:
         if (element.tag == "meta") is not meta:
             continue
@@ -1605,7 +1614,7 @@ def _canonical(doc: Document, header: list[str]) -> SummaryField | None:
 
 
 def _language(doc: Document) -> SummaryField | None:
-    for element in doc.tree.xpath("//html[@lang]"):
+    for element in carrying(doc.tree, "//html/@lang"):
         lang = _clean(element.get("lang"))
         if lang:
             return SummaryField(lang, "html", "<html lang>", xpath_of(element))

@@ -5,6 +5,7 @@ from __future__ import annotations
 import codecs
 import functools
 import re
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -260,6 +261,50 @@ class Document:
     changed."""
 
 
+METAS = "//meta"
+"""Every ``<meta>``: the readers keyed on a meta tag's name each filter it."""
+RELATED = "//@rel"
+"""Every element with a ``rel``: the ``<link>``, ``<a>`` and ``<area>`` the
+link relations and the licences are read from, each reader keeping those
+with an ``href``."""
+
+
+def carrying(tree: lxml.html.HtmlElement, path: str) -> list[lxml.html.HtmlElement]:
+    """The elements carrying the attributes ``path`` selects -- ``//@itemscope``,
+    ``//meta/@name`` -- in document order.
+
+    The attribute axis finds them two to three times faster than a predicate
+    tested on every element (``//*[@itemscope]``); each element carries one
+    attribute of a name, so each comes once. The parent is taken here and not
+    in XPath: asked as ``//@itemscope/..``, libxml2 merges each parent into
+    the node-set with a duplicate check against all it holds, the square of
+    their number: 1.9 s for forty thousand items, 4.8 s for eighty.
+    """
+    return [attribute.getparent() for attribute in tree.xpath(path)]
+
+
+def scan(doc: Document, path: str) -> tuple[lxml.html.HtmlElement, ...]:
+    """The elements ``path`` finds in the whole page, in document order,
+    found once per page whichever reader asks first.
+
+    Five readers asked the page for its ``<meta>`` tags and two for its
+    elements with a ``rel``, each walking the whole tree for its own filter
+    of the same list; each now filters the one list, which comes out the same
+    elements in the same order. A tuple, so no reader can change another's.
+    A path whose last step is an attribute (``RELATED``) gives the elements
+    carrying it, as ``carrying`` finds them.
+    """
+    key = f"scan {path}"
+    found: tuple[lxml.html.HtmlElement, ...] | None = doc.memo.get(key)
+    if found is None:
+        found = doc.memo[key] = tuple(
+            carrying(doc.tree, path)
+            if "@" in path.rpartition("/")[2]
+            else doc.tree.xpath(path)
+        )
+    return found
+
+
 def load(
     html: str | bytes, url: str | None = None, charset: str | None = None
 ) -> Document:
@@ -294,6 +339,17 @@ def load(
         return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
     text = _newlines(html)
     try:
+        # As UTF-8 bytes: libxml2 builds the same tree from them as from the
+        # str, and faster than from a str lxml hands it as UCS-2 or UCS-4.
+        data = text.encode("utf-8")
+    except UnicodeEncodeError:
+        # A lone surrogate, which a str can hold and UTF-8 cannot: the str
+        # is parsed as it is, as it always was.
+        pass
+    else:
+        tree = _parse_utf8(data)
+        return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
+    try:
         tree = lxml.html.document_fromstring(text, parser=_TEXT_PARSER)
     except lxml.etree.LxmlError:
         # ParserError ("Document is empty"): nothing to read, not an error.
@@ -308,6 +364,63 @@ def load(
     return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
 
 
+# The page this thread parsed last to judge it, for the extraction that
+# follows to read: (the page, its address, its charset, the Document).
+_KEPT = threading.local()
+
+
+def load_and_keep(
+    html: str | bytes, url: str | None = None, charset: str | None = None
+) -> Document:
+    """``load``, keeping the Document as the page this thread parsed last.
+
+    A fetch parses the page it is handed to judge it, and its caller then
+    extracts the very same page: ``load_kept`` hands the kept Document to
+    that extraction instead of parsing the page a second time, which was a
+    third of what a fetched page cost. One page is kept per thread, until
+    it is taken or another replaces it.
+    """
+    doc = _kept(html, url, charset)
+    if doc is None:
+        doc = load(html, url=url, charset=charset)
+        _KEPT.page = (html, url, _charset_key(html, charset), doc)
+    return doc
+
+
+def load_kept(
+    html: str | bytes, url: str | None = None, charset: str | None = None
+) -> Document:
+    """``load``, or the Document ``load_and_keep`` kept for this very page.
+
+    The very page: the same object -- a fetch's ``html`` handed on as it
+    came -- from the same address, and for bytes with the same charset, so
+    the Document is the one ``load`` would give; it has only been read,
+    and a tree is never changed after ``load``. Whatever is kept is let go
+    here, so an extraction leaves nothing behind.
+    """
+    doc = _kept(html, url, charset)
+    _KEPT.page = None
+    return doc if doc is not None else load(html, url=url, charset=charset)
+
+
+def _kept(html: str | bytes, url: str | None, charset: str | None) -> Document | None:
+    kept = getattr(_KEPT, "page", None)
+    if (
+        kept is not None
+        and kept[0] is html
+        and kept[1] == url
+        and kept[2] == _charset_key(html, charset)
+    ):
+        document: Document = kept[3]
+        return document
+    return None
+
+
+def _charset_key(html: str | bytes, charset: str | None) -> str | None:
+    """The charset a Document depends on: only bytes are decoded by it."""
+    return charset if isinstance(html, bytes) else None
+
+
 def _parse_bytes(data: bytes, charset: str | None = None) -> lxml.html.HtmlElement:
     """Decode ``data`` the way a browser would, then parse it.
 
@@ -315,8 +428,23 @@ def _parse_bytes(data: bytes, charset: str | None = None) -> lxml.html.HtmlEleme
     non-ASCII byte it meets, so a curly quote in a ``<title>`` that precedes
     ``<meta charset="utf-8">`` turned every field on the page to mojibake.
     """
-    text = data.decode(sniff_encoding(data, charset), errors="replace")
+    encoding = sniff_encoding(data, charset)
+    if encoding == "utf-8" and (data.isascii() or _utf8(data)):
+        # Valid UTF-8 decodes and encodes back to itself, and a CR or an LF
+        # byte in it is only ever that character: its newlines are read on
+        # the bytes, which lxml is then handed as they are. The round trip
+        # through a str was a tenth of what loading a page cost, and twice
+        # the page in memory.
+        return _parse_utf8(_newline_bytes(data))
+    text = data.decode(encoding, errors="replace")
     return _parse_utf8(_newlines(text).encode("utf-8"))
+
+
+def _newline_bytes(data: bytes) -> bytes:
+    """``_newlines`` of UTF-8 bytes, on the bytes."""
+    if b"\r" not in data:
+        return data
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
 
 def _newlines(text: str) -> str:
@@ -369,7 +497,7 @@ def base_url(doc: Document) -> str | None:
 
 
 def _base_of(tree: lxml.html.HtmlElement, url: str | None) -> str | None:
-    for base in tree.xpath("//base[@href]"):
+    for base in carrying(tree, "//base/@href"):
         declared = trimmed(base.get("href"))
         if declared:
             return _join(url, declared) if url else declared

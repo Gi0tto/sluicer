@@ -36,7 +36,7 @@ from lxml.html import HtmlElement
 
 from sluicer.declared.located import Located, Place, placed
 from sluicer.declared.types import type_name
-from sluicer.document import Document, absolute, trimmed
+from sluicer.document import Document, absolute, carrying, trimmed
 
 # The address attributes RDFa reads a value from when an element carries no
 # `content` and no `resource`. `href` on the elements HTML gives it, `src` on
@@ -91,7 +91,7 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     left = [max(_PAGE_FLOOR, 10 * len(doc.html))]
     scopes = _Scopes()
     found: list[dict[str, Any]] = []
-    for subject in doc.tree.xpath("//*[@typeof]"):
+    for subject in carrying(doc.tree, "//@typeof"):
         if not left[0]:
             # The page's budget is spent: reading more subjects, each
             # walking its words, would cost what no answer can hold.
@@ -374,6 +374,18 @@ class _Scopes:
 _MOST_DOCUMENT_PROPERTIES = 200
 
 
+def _another_subject(element: HtmlElement) -> bool:
+    """Whether a subject other than the document is in force at ``element``:
+    a ``typeof``, ``about`` or ``resource`` on it or around it."""
+    if any(element.get(name) is not None for name in ("typeof", "about", "resource")):
+        return True
+    return any(
+        above.get(name) is not None
+        for above in element.iterancestors()
+        for name in ("typeof", "about", "resource")
+    )
+
+
 def document_properties(
     doc: Document,
 ) -> list[tuple[str, str, str, HtmlElement]]:
@@ -398,10 +410,13 @@ def document_properties(
         return found
     found = doc.memo["rdfa.document_properties"] = []
     scopes = _Scopes()
-    for element in doc.tree.xpath(
-        "//*[@property][not(ancestor-or-self::*[@typeof or @about])]"
-        "[not(ancestor::*[@resource])][not(@resource)]"
-    ):
+    # //*[@property][not(ancestor-or-self::*[@typeof or @about])]
+    # [not(ancestor::*[@resource])][not(@resource)], through the attribute
+    # axis and asked of each element's ancestors in Python: the same
+    # elements, without a predicate tested on every element of the page.
+    for element in carrying(doc.tree, "//@property"):
+        if _another_subject(element):
+            continue
         scope = scopes.at(element)
         for token in (element.get("property") or "").split():
             if ":" not in token and (scope is None or scope.vocab is None):

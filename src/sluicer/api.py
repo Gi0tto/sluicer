@@ -18,7 +18,7 @@ from sluicer.declared.merge import ABOUT_A_THING, Overruled, Record, merge
 from sluicer.declared.opengraph import read_opengraph
 from sluicer.declared.readers import READERS
 from sluicer.declared.rights import Rights, read_rights
-from sluicer.document import Document, an_address_alone, load
+from sluicer.document import Document, an_address_alone, load_kept
 from sluicer.normalise import normalised
 from sluicer.structure import induce as induce_records
 from sluicer.summary import Conflict, SummaryField, read_summary
@@ -148,7 +148,8 @@ def _extract(
     for as a page, and is one: ``fetch()`` and every command read it without
     telling the caller to fetch what it already fetched."""
     sent = lowered(headers)
-    doc = load(html, url=url, charset=charset(sent))
+    # The Document a fetch just parsed to judge this very page, if it did.
+    doc = load_kept(html, url=url, charset=charset(sent))
     return _extract_document(doc, sent, induce, microformats, visible)
 
 

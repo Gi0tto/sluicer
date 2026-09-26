@@ -48,7 +48,7 @@ from sluicer.crawl.urls import (
 )
 from sluicer.crawl.web import Parts, Web, default_web
 from sluicer.declared.tdmrep import WELL_KNOWN, TdmRule, read_tdmrep, reservation
-from sluicer.document import load
+from sluicer.document import load_and_keep
 from sluicer.fetch import (
     AddressRefused,
     Climb,
@@ -833,7 +833,7 @@ class _Visitor:
                 f"{task.url} landed on {landed}, which is not followed: {reason}",
                 target=landed,
             )
-        doc = load(fetched.html, url=fetched.url)
+        doc = load_and_keep(fetched.html, url=fetched.url)
         extraction = extract(
             fetched.html,
             url=fetched.url,

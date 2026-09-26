@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from hypothesis import given, strategies as st
 
 import sluicer
 from sluicer.cli import main
@@ -343,3 +345,59 @@ def test_sluicer_s_own_callers_guess_by_default_as_extract_does() -> None:
     from sluicer.api import _extract
 
     assert _extract(_SHOWN).visible == sluicer.extract(_SHOWN).visible != {}
+
+
+_TEXTS = st.text(alphabet=" \t\n\r\N{NO-BREAK SPACE}ab", max_size=6)
+
+
+@given(st.lists(_TEXTS, min_size=1, max_size=8))
+def test_the_texts_read_are_those_of_more_than_one_character(pieces):
+    """What XPath's string-length(normalize-space()) > 1 kept, and nothing
+    measured by rewriting each text node: that was a third of the time."""
+    from sluicer import visible
+    from sluicer.document import load
+
+    body = "".join(f"<p>{piece}<b>x</b>{piece}</p>" for piece in pieces)
+    page = visible._Page(load(f"<html><body>{body}</body></html>"))
+    spaces = re.compile(r"[ \t\n\r]+")
+    expected = [
+        text
+        for text in page.tree.xpath("//text()")
+        if len(spaces.sub(" ", text).strip(" ")) > 1
+    ]
+    assert page.texts == expected
+
+
+class _Counted:
+    def __init__(self, pattern):
+        self.pattern = pattern
+        self.asked = 0
+
+    def search(self, *args, **kwargs):
+        self.asked += 1
+        return self.pattern.search(*args, **kwargs)
+
+    def sub(self, *args, **kwargs):
+        self.asked += 1
+        return self.pattern.sub(*args, **kwargs)
+
+
+def test_each_element_s_names_are_asked_once_whether_they_are_a_byline_s(
+    monkeypatch,
+):
+    from sluicer import visible
+
+    counted = _Counted(visible._BYLINE)
+    monkeypatch.setattr(visible, "_BYLINE", counted)
+    rewritten = _Counted(re.compile(r"[ \t\n\r]+"))
+    monkeypatch.setattr(visible, "_XML_SPACES", rewritten, raising=False)
+    page = (
+        "<html><body><h1>Pads</h1>"
+        '<div class="byline"><span class="author">By Ann Lee</span></div>'
+        '<p class="intro">text</p><p id="x">more</p></body></html>'
+    )
+    read_visible(page)
+    # The four elements a class or an id names, once each, and the two it
+    # names as a byline's once more, their no-/hide- words left out.
+    assert counted.asked == 6
+    assert rewritten.asked == 0

@@ -76,8 +76,8 @@ _SCRIPT = re.compile(
 
 def why_climb(status: int, html: str, found_records: bool) -> str | None:
     """Return the reason to climb a rung, or None to stay where we are."""
-    text = strip_tags(html).strip()
-    marker = _challenge(html, text, found_records)
+    text = _text(html, found_records)
+    marker = _challenge(html, text)
     if marker is not None:
         # Before the status: "a page standing in front of the content" is the
         # more useful diagnosis, and says a browser will likely get through.
@@ -94,7 +94,7 @@ def why_climb(status: int, html: str, found_records: bool) -> str | None:
     # off once something was declared about a thing: strip_tags drops <script>
     # bodies, so a complete JSON-LD block counts as zero characters of text,
     # and climbing would buy a browser for a page already extracted.
-    if found_records or len(text) >= TEXT_FLOOR:
+    if text is None or len(text) >= TEXT_FLOOR:
         return None
     if len(html) > MARKUP_CEILING:
         return (
@@ -118,22 +118,30 @@ def challenge_marker(html: str, found_records: bool) -> str | None:
     ``why_climb``'s first rule, alone: whatever the status, a page that is
     this is the site standing in front of the content, never the content.
     """
-    return _challenge(html, strip_tags(html).strip(), found_records)
+    return _challenge(html, _text(html, found_records))
 
 
-def _challenge(html: str, text: str, found_records: bool) -> str | None:
+def _text(html: str, found_records: bool) -> str | None:
+    """The page's visible text, or None when something was declared about a
+    thing: no rule then asks how much text there is, and ``strip_tags`` is
+    the costliest thing done to a page that has already declared its data."""
+    return None if found_records else strip_tags(html).strip()
+
+
+def _challenge(html: str, text: str | None) -> str | None:
     """The marker that makes ``html`` a challenge page, or None when it is not.
 
     A title that is the challenge counts on any page. A marker anywhere else
-    counts only on a page that is not content: nothing declared about a thing,
-    and less visible text than ``CHALLENGE_TEXT_CEILING``.
+    counts only on a page that is not content: nothing declared about a thing
+    (``text`` is then None), and less visible text than
+    ``CHALLENGE_TEXT_CEILING``.
     """
     title = page_title(html)
     if title is not None:
         said = " ".join(unescape(title).split()).lower().rstrip(".\u2026 ")
         if said in _CHALLENGE_TITLES or said.startswith(_CHALLENGE_TITLE_PREFIXES):
             return said
-    if found_records or len(text) >= CHALLENGE_TEXT_CEILING:
+    if text is None or len(text) >= CHALLENGE_TEXT_CEILING:
         return None
     lowered = html.lower()
     for marker in _CHALLENGE_MARKERS:

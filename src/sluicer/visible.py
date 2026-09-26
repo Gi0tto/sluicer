@@ -224,6 +224,12 @@ class _Page:
         ]
 
     @cached_property
+    def named_bylines(self) -> list[tuple[HtmlElement, str]]:
+        """The elements a class or an id names as a byline's, with their
+        names, found once for the author and for the date in a byline's line."""
+        return [(e, names) for e, names in self.named if _BYLINE.search(names)]
+
+    @cached_property
     def named_dates(self) -> list[HtmlElement]:
         """The small elements a class or an id names as a date's."""
         return [e for e, names in self.named if _DATE.search(names) and _small(e)]
@@ -384,9 +390,8 @@ def _author(page: _Page) -> Guess | None:
         return Guess(name, _where(marked[0]), "rel-author")
     named = [
         e
-        for e, names in page.named
-        if _BYLINE.search(names)
-        and _BYLINE.search(_NO_BYLINE.sub("", names))
+        for e, names in page.named_bylines
+        if _BYLINE.search(_NO_BYLINE.sub("", names))
         and e.tag not in _NO_BYLINE_BOX
         and not page.aside(e)
     ]
@@ -604,7 +609,7 @@ def _date_in_a_line(page: _Page, updates: bool) -> Guess | None:
     an update's is ``modified``'s, and read only when ``updates``."""
     lines: list[HtmlElement] = []
     if not page.listing:
-        lines += [e for e, names in page.named if _BYLINE.search(names) and _small(e)]
+        lines += [e for e, _names in page.named_bylines if _small(e)]
         lines += page.named_dates
     lines += [e for e in page.near if _small(e)]
     seen: set[HtmlElement] = set()

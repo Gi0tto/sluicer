@@ -15,7 +15,7 @@ from lxml.html import HtmlElement
 
 from sluicer.declared.located import Located, Place, placed
 from sluicer.declared.types import type_name
-from sluicer.document import Document, absolute, trimmed
+from sluicer.document import Document, absolute, carrying, trimmed
 
 # The element whose value is an attribute rather than its text, and which one.
 # The standard's list, in full: a ``<video itemprop>`` is its URL, not the
@@ -55,15 +55,17 @@ def read_microdata(doc: Document) -> list[dict[str, Any]]:
     than as a record of its own. A property declared more than once is a list
     in document order; declared once, it is its value.
     """
-    scopes = doc.tree.xpath("//*[@itemscope]")
+    # Through the attribute axis: ``//*[@itemscope]`` tests a predicate on
+    # every element of the page, three times as long for the same elements.
+    scopes = carrying(doc.tree, "//@itemscope")
     if not scopes:
         # Most pages: no item, so no index of ids and no order of the elements,
         # which were a fifth of the time a page without microdata took.
         return []
-    referring = doc.tree.xpath("//*[@itemref]")
+    referring = carrying(doc.tree, "//@itemref")
     by_id: dict[str | None, HtmlElement] = {}
     if referring:
-        for element in doc.tree.xpath("//*[@id]"):
+        for element in carrying(doc.tree, "//@id"):
             # The standard's first element with an id, not the last.
             by_id.setdefault(element.get("id"), element)
     referenced = {
