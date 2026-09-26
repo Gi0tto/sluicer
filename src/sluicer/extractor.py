@@ -734,7 +734,13 @@ def compile_extractor(
         raise NothingToLearn("an extractor needs at least one page")
     if want is not None and (not want or any(not name.strip() for name in want)):
         raise ValueError("every example needs a name and a value: name=value")
-    return _compiled([load(html, url=url) for html, url in pages], listing, names, want)
+    return _compiled(
+        [load(html, url=url) for html, url in pages],
+        listing,
+        names,
+        want,
+        refuse_vacuous=True,
+    )
 
 
 def _compiled(
@@ -742,8 +748,12 @@ def _compiled(
     listing: bool | None,
     names: Sequence[str] | None,
     want: Mapping[str, str] | None,
+    refuse_vacuous: bool = False,
 ) -> Extractor:
-    """``compile_extractor`` of pages parsed once, for it and for ``heal``."""
+    """``compile_extractor`` of pages parsed once, for it and for ``heal``.
+
+    With ``refuse_vacuous``, as ``compile_extractor`` asks, an extractor that
+    would check only what every page has is refused (``_any_page``)."""
     results = [_extract_document(doc, {}) for doc in docs]
     summary = _learn_summary([r.summary for r in results], len(docs))
     types = _common(
@@ -795,6 +805,20 @@ def _compiled(
         raise NothingToLearn(
             "these pages declare nothing and repeat nothing an extractor could keep"
         )
+    if (
+        refuse_vacuous
+        and not types
+        and learnt is None
+        and not fields
+        and all(_any_page(q, r.summary[q]) for r in results for q in summary)
+    ):
+        # A run of it would pass example.com, and every page there is.
+        raise NothingToLearn(
+            "these pages declare nothing and repeat nothing an extractor could "
+            "check: only a title and a language, which every page has. Name "
+            "the values to read with want= (--want), or the fields with "
+            "select= (--select)"
+        )
     return Extractor(
         learnt_from=_learnt_from(docs, names),
         summary=summary,
@@ -803,6 +827,13 @@ def _compiled(
         notes=tuple(notes),
         fields=fields,
     )
+
+
+def _any_page(question: str, answer: Any) -> bool:
+    """Whether a summary answer is one any HTML page gives: its title or its
+    language, read from its own markup -- ``<title>``, ``<html lang>`` --
+    rather than declared of what the page is about."""
+    return question in ("title", "language") and answer.source == "html"
 
 
 def _a_subject(doc: Document, answer: Any) -> bool:

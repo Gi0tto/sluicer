@@ -189,6 +189,30 @@ def test_nothing_to_learn_is_an_error_that_says_so():
         compile_extractor([(b"<html><body><p>x</p></body></html>", None)])
 
 
+def test_pages_with_only_a_title_and_a_language_give_no_extractor():
+    """Learnt from them, it checked only what every page has, and a run of it
+    passed example.com (inventory.md, B8)."""
+    with pytest.raises(NothingToLearn, match="only a title and a language"):
+        compile_extractor([page("shop_empty.html")])
+    with pytest.raises(NothingToLearn, match="only a title and a language"):
+        compile_extractor([page("shop_empty.html")], listing=True)
+
+
+def test_compile_on_pages_with_only_a_title_writes_nothing(tmp_path):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    out = tmp_path / "e.json"
+    result = CliRunner().invoke(
+        main, ["compile", str(DRIFT / "shop_empty.html"), "-o", str(out)]
+    )
+
+    assert result.exit_code == 1
+    assert "only a title and a language" in result.stderr
+    assert not out.exists()
+
+
 def test_a_file_that_is_not_an_extractor_is_refused():
     with pytest.raises(ValueError):
         Extractor.from_json('{"format": 99}')
@@ -414,12 +438,15 @@ def test_the_classes_of_html_and_body_are_not_part_of_a_path():
 
 
 def test_a_free_text_answer_keeps_no_shape():
-    template = "<html><head><title>{t}</title></head></html>"
+    template = (
+        '<html><head><title>{t}</title><meta name="description" content="{t}">'
+        "</head></html>"
+    )
     extractor = compile_extractor(
         [(template.format(t="Books"), None), (template.format(t="More books"), None)]
     )
 
-    assert extractor.summary == {"title": None}
+    assert extractor.summary == {"title": None, "description": None}
 
 
 def test_a_moved_field_says_what_its_move_rests_on():

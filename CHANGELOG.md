@@ -11,6 +11,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   table is now no listing: the example is learnt as the page's own value, with
   a note that says why, `--listing` refuses it with the same reason, and a run
   of an extractor 0.9.0 learnt that way fails.
+- `compile` on pages that declare nothing but a title and a language wrote
+  an extractor that checked only those, and a run of it passed any page,
+  example.com included. It now learns nothing and says so, as for pages that
+  declare nothing at all, and names `--want` and `--select`.
 
 ## 0.9.0 - 2026-09-26
 
