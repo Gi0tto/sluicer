@@ -20,7 +20,9 @@ npm install sluicer
 It needs Node 18 or later, and is an ES module. It brings one dependency,
 `pyodide`, pinned to one version. The first `createSluicer()` on a machine
 downloads lxml, click and cssselect, 2.27 MB, from Pyodide's package repository on
-jsDelivr; later ones download nothing.
+jsDelivr; later ones download nothing. A package that does not load is
+downloaded once more, and one that still does not is a `SluicerError` of
+type `PackageNotLoaded` that names it and where it comes from.
 
 ```js
 import { readFile } from "node:fs/promises";

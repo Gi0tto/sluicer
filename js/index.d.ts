@@ -236,7 +236,11 @@ export interface CreateOptions {
 }
 
 export class SluicerError extends Error {
-  /** The Python exception's name: "NothingToLearn", "ValueError", ... */
+  /**
+   * The Python exception's name: "NothingToLearn", "ValueError", ... Or the
+   * package's own: "MarkdownExtraMissing", and "PackageNotLoaded" when
+   * createSluicer could not load a package Sluicer needs into Pyodide.
+   */
   readonly type: string;
   constructor(type: string, message: string);
 }

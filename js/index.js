@@ -11,8 +11,6 @@ import { readFile } from "node:fs/promises";
 import { loadPyodide } from "pyodide";
 
 const HERE = new URL("./", import.meta.url);
-// Pyodide reports every package it loads; a library should not print.
-const QUIET = { messageCallback() {}, errorCallback() {} };
 
 /** An error Sluicer raised, with the Python exception's name in `type`. */
 export class SluicerError extends Error {
@@ -41,7 +39,7 @@ export async function createSluicer(options) {
       stdout() {},
       stderr() {},
     }));
-  await pyodide.loadPackage(wheel.requires.map(nameOf), QUIET);
+  await loadRequirements(pyodide, wheel.requires.map(nameOf));
   const site = pyodide.runPython(
     "import sysconfig; sysconfig.get_paths()['purelib']",
   );
@@ -134,13 +132,74 @@ export async function createSluicer(options) {
   };
 }
 
+// Sluicer's requirements, from Pyodide's package repository. loadPackage does
+// not throw when a download fails, a network blip or another process writing
+// the same wheel into the cache: it logs, resolves, and the first import of
+// lxml fails much later, as "No module named 'lxml'". So each package is
+// imported here, a failed one is downloaded once more, and one that still
+// does not import is an error that says which, from where, and what to do.
+async function loadRequirements(pyodide, names) {
+  let missing = names;
+  let said = [];
+  for (let attempt = 0; attempt < 2 && missing.length > 0; attempt += 1) {
+    said = [];
+    // Pyodide reports every package it loads; a library should not print,
+    // and what went wrong is kept for the error.
+    await pyodide.loadPackage(missing, {
+      messageCallback() {},
+      errorCallback(message) {
+        said.push(message);
+      },
+    });
+    missing = unimportable(pyodide, names);
+  }
+  if (missing.length > 0) {
+    const where = `https://cdn.jsdelivr.net/pyodide/v${pyodide.version}/full/`;
+    throw new SluicerError(
+      "PackageNotLoaded",
+      `Sluicer could not load ${missing.join(", ")} into Pyodide, tried twice. ` +
+        `Pyodide downloads each package from its repository, ${where}, ` +
+        "the first time, and reads it from its cache after." +
+        (said.length > 0 ? ` Pyodide said: ${said.join(" ")}` : "") +
+        " Check that this machine can reach cdn.jsdelivr.net, through its" +
+        " proxy if it has one, and call createSluicer() again; or point" +
+        " packageCacheDir at a folder that already holds the wheels.",
+    );
+  }
+}
+
+// The packages of `names` that Python cannot import. A requirement's import
+// name is its project name, as for each of lxml, click and cssselect.
+function unimportable(pyodide, names) {
+  const globals = pyodide.toPy({ names });
+  try {
+    return JSON.parse(
+      pyodide.runPython(
+        `
+import importlib, json
+missing = []
+for name in names:
+    try:
+        importlib.import_module(name.lower().replace("-", "_"))
+    except ImportError:
+        missing.append(name)
+json.dumps(missing)
+`,
+        { globals },
+      ),
+    );
+  } finally {
+    globals.destroy();
+  }
+}
+
 // The markdown extra comes from PyPI through micropip: trafilatura and the
 // packages it needs are not in Pyodide's repository. lxml_html_clean is added
 // by name: justext asks for lxml[html_clean], and micropip does not install an
 // extra of a package Pyodide already ships, so without it trafilatura installs
 // and then cannot be imported.
 async function installMarkdown(pyodide, wheel) {
-  await pyodide.loadPackage("micropip", QUIET);
+  await loadRequirements(pyodide, ["micropip"]);
   const micropip = pyodide.pyimport("micropip");
   const wanted = pyodide.toPy([...(wheel.extras.markdown ?? []), "lxml_html_clean"]);
   try {
