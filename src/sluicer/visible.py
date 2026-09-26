@@ -217,11 +217,18 @@ class _Page:
 
     @cached_property
     def named(self) -> list[tuple[HtmlElement, str]]:
-        return [
-            (e, f"{e.get('class') or ''} {e.get('id') or ''}".lower())
-            for e in self.tree.xpath("//*[@class or @id]")
-            if e.tag not in _AWAY
-        ]
+        """The elements with a class or an id, in document order, with their
+        names lowercased. Tested in Python on each element: asked as
+        ``//*[@class or @id]``, libxml2 took the square of their number,
+        31 s for a 10 MB page of 60,000 rows."""
+        found = []
+        for e in self.tree.iter():
+            if not isinstance(e.tag, str) or e.tag in _AWAY:
+                continue
+            classes, key = e.get("class"), e.get("id")
+            if classes is not None or key is not None:
+                found.append((e, f"{classes or ''} {key or ''}".lower()))
+        return found
 
     @cached_property
     def named_bylines(self) -> list[tuple[HtmlElement, str]]:
@@ -409,7 +416,11 @@ def _author(page: _Page) -> Guess | None:
     # every container's whole text to find the short ones costs the most. A
     # page with more than three of them, each naming somebody else, is a
     # listing of other pages' cards.
-    lines: list[Guess] = []
+    # The names are counted as they come, and only the first line's place is
+    # written: counting them all again for each line, and writing each one's
+    # place, cost the square of their number, 2 s for 16,000 "By" lines.
+    first: tuple[str, HtmlElement] | None = None
+    names: set[str] = set()
     for opening in page.texts:
         if not _OPENS_BY.match(opening):
             continue
@@ -418,11 +429,12 @@ def _author(page: _Page) -> Guess | None:
             continue
         found = _by_line(page, opening, element)
         if found is not None:
-            lines.append(found)
-            if len({line.value for line in lines}) > _MOST_BYLINES:
+            first = first or found
+            names.add(found[0])
+            if len(names) > _MOST_BYLINES:
                 return None
-    if lines:
-        return lines[0]
+    if first is not None:
+        return Guess(first[0], _where(first[1]), "by-line")
     return _name_and_role(page)
 
 
@@ -456,22 +468,40 @@ def _a_role(part: str) -> bool:
 def _name_and_role(page: _Page) -> Guess | None:
     """A line right under the page's one heading written as "Name, role" or
     "Name, role, Organisation": the first text after the heading, short, its
-    first part a person's name and its second a role."""
+    first part a person's name and its second a role. One such line alone: a
+    list of them, "Jane Doe, CEO" then "John Roe, CTO", is a team's page,
+    not a byline."""
     if page.heading is None:
         return None
     # Only the first line: reading the first three added a wrong answer on
     # WCXB's development split, a "By" label's name whose role WCXB keeps.
-    for text in page.heading.xpath(
-        f"following::text()[position() <= {_AFTER_HEADING * 4}]"
-    ):
-        element = _box_of(text)
-        if text.strip() and element is not None and element.tag not in _AWAY:
-            return _person_and_role(page, element)
+    line = _line_after(page, page.heading)
+    if line is None:
+        return None
+    found = _person_and_role(page, line)
+    if found is None:
+        return None
+    name, box = found
+    following = _line_after(page, box)
+    if following is not None and _person_and_role(page, following) is not None:
+        return None
+    return Guess(name, _where(box), "name, role")
+
+
+def _line_after(page: _Page, element: HtmlElement) -> HtmlElement | None:
+    """The element holding the first text after ``element`` and outside it."""
+    for text in element.xpath(f"following::text()[position() <= {_AFTER_HEADING * 4}]"):
+        box = _box_of(text)
+        if text.strip() and box is not None and box.tag not in _AWAY:
+            return box
     return None
 
 
-def _person_and_role(page: _Page, element: HtmlElement) -> Guess | None:
-    """The name a "Name, role" line whose text is in ``element`` writes."""
+def _person_and_role(
+    page: _Page, element: HtmlElement
+) -> tuple[str, HtmlElement] | None:
+    """The name a "Name, role" line whose text is in ``element`` writes, and
+    the line's box."""
     # The line's box: the inline elements round the text climbed to the
     # block that holds them, "<p><em>Name, role</em></p>".
     while (
@@ -488,7 +518,7 @@ def _person_and_role(page: _Page, element: HtmlElement) -> Guess | None:
     parts = [part.strip() for part in line.split(",")]
     if not 2 <= len(parts) <= 4 or _SENTENCE_MARKS.search(parts[0]):
         return None
-    if not _a_role(parts[1]):
+    if not _a_role(parts[1]) or not _a_person(parts[0]):
         return None
     capitals = [word for word in parts[0].split() if word not in _PARTICLES]
     if not 2 <= len(capitals) <= 4 or any(not w[:1].isupper() for w in capitals):
@@ -496,7 +526,26 @@ def _person_and_role(page: _Page, element: HtmlElement) -> Guess | None:
     name = _name(parts[0])
     if name is None or name != parts[0]:
         return None
-    return Guess(name, _where(element), "name, role")
+    return name, element
+
+
+# Words that open an organisation's name or a title, not a person's.
+_NOT_A_FIRST_NAME = frozenset({"the", "a", "an"})
+
+
+def _a_person(part: str) -> bool:
+    """Whether ``part``, a line's first part, may be a person's name: no word
+    of it a role's ("Managing Editor"), not opened by an article ("The Daily
+    Planet"), and not written all in capitals as an organisation is
+    ("NASA JPL")."""
+    words = [word.strip(".'\u2019&") for word in part.split()]
+    lowered = [word.lower() for word in words]
+    if not words or lowered[0] in _NOT_A_FIRST_NAME:
+        return False
+    if _ROLE_WORDS.intersection(lowered):
+        return False
+    lettered = [word for word in words if sum(c.isalpha() for c in word) > 1]
+    return not (lettered and all(word.isupper() for word in lettered))
 
 
 # Elements that hold a line's words without being its box.
@@ -511,9 +560,12 @@ _NOT_THE_AUTHOR = re.compile(
 )
 
 
-def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | None:
-    """The author a "By X" line starting with ``opening`` names, climbing
-    from its element to the short box that holds the whole line."""
+def _by_line(
+    page: _Page, opening: str, element: HtmlElement | None
+) -> tuple[str, HtmlElement] | None:
+    """The author a "By X" line starting with ``opening`` names, and the
+    element it is read from, climbing from its element to the short box that
+    holds the whole line."""
     for _ in range(5):
         if element is None or not isinstance(element.tag, str):
             return None
@@ -527,10 +579,10 @@ def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | 
             if _NOT_THE_AUTHOR.search(before):
                 return None
             if _BY.match(text) and (name := _name(text)):
-                return Guess(name, _where(element), "by-line")
+                return name, element
             # "Written by" and the name in two texts, glued by text_content.
             if _LABEL_ONLY.match(opening) and (name := _name_after(element, opening)):
-                return Guess(name, _where(element), "by-line")
+                return name, element
         element = element.getparent()
     return None
 

@@ -34,6 +34,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
   text itself is trafilatura's extraction exactly as before.
 
 ### Changed
+- A page's summary can differ from 0.9.1's in three ways, by the fixes
+  below: `published` that is only a clock time ("10:52") is no answer, and
+  the next declaration is asked; `author` and `published` are answered where
+  0.9.1 had none, from an `itemprop` outside any item or an RDFa property of
+  the page; and `sku` where 0.9.1 had none, from the product's offer. No
+  other summary answer moves. Over the 4,976 cached benchmark pages 21
+  summaries differ from 0.9.1's: 3 clock-time dates gone, and answers added
+  on the rest. An extractor learnt on 0.9.1 checks the answers it learnt,
+  so on a page whose clock-time `published` went it fails `run` with exit 3
+  until it is learnt again with `sluicer heal --force` or `sluicer
+  compile`; an answer added where it had none does not fail it.
 - The guesses read off the visible page are on by default: `extract()` and
   `aextract()` take `visible=True` unless told `visible=False`, `sluicer
   extract`, `inspect`, `crawl`, `batch` and `warc` guess unless given
@@ -103,6 +114,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `str` holding a lone surrogate is parsed as before.
 
 ### Fixed
+- The guesses, on by default, found the elements with a class or an id in
+  the square of their number, and counted a page's "By" lines in the square
+  of theirs: a 10.8 MB page of 60,000 rows took 35 s to `extract`, and
+  `sluicer serve` answered 504. The same elements are now found in one walk
+  of the page and the same guesses made; that page takes 0.5 s.
 - `--visible` took a box whose class says there is no byline ("no-byline"), or
   the page's `<body>` itself, for a byline and read the first capitalised
   words in it as the author, and took the "By" line on another article's card,
@@ -114,25 +130,28 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `--visible` did not read a byline written as "Name, role" or "Name, role,
   Organisation" on the line right under the page's heading, as Framer's blog
   posts write it ("Diogo Almeida, founder, TypeSafe"). It now guesses the
-  name, naming its element and the rule `name, role`.
+  name, naming its element and the rule `name, role`, when that name holds
+  no role's word, opens with no "The" or "A" and is not all capitals, and
+  the next line is not another "Name, role": a team's list is no byline.
 - A publication date that was only a clock time ("10:52", "2:33 PM") was
   answered as the page's date. It is no date now, and the next declaration is
   asked.
-- A page declaring its publication instant twice, once in UTC and once in its
-  own time zone, was answered in UTC, which can fall on the next day. The
-  declaration in the publisher's own offset is now the answer.
 - An author written as `itemprop="author"` on an element outside any microdata
   item, `<span itemprop="author">Ann Smith</span>`, was not read; only a
   `<meta itemprop>` was. It is now the author when nothing else on the page
-  declares one.
+  declares one: the first text in it that reads as a person's name, never
+  one in a comment or an aside.
 - RDFa properties with no subject in force, which RDFa gives to the page
   itself (`<meta property="dc:date">`, `<span property="dcterms:creator">`),
   were not read, since the RDFa reader reads only the subjects a `typeof`
   names. Their schema.org and Dublin Core author and publication date now
-  answer the summary when nothing else on the page does.
+  answer the summary when nothing else on the page does. A property inside a
+  link, or inside a comment, a quotation, an aside, a footer or a menu, is
+  not the page's, and a date must read as one.
 - A product whose SKU was declared only on its offer, `"offers": {"sku":
   ...}`, had no SKU in the summary. The offer's SKU is now the product's when
-  the product declares none and its offers name one SKU.
+  the product declares neither a SKU nor a `productID` and its offers name
+  one SKU.
 
 ## 0.9.1 - 2026-09-26
 

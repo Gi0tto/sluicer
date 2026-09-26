@@ -372,7 +372,7 @@ def read_summary(
             meta(dublincore, "dublincore", "created", "dc."),
             _orphan_itemprop(doc, "datePublished"),
             _named(doc, _DATE_NAMES),
-            _of_the_document(doc, _RDFA_PUBLISHED),
+            _of_the_document(doc, _RDFA_PUBLISHED, dated=True),
         ],
         "modified": [
             own("dateModified"),
@@ -415,8 +415,8 @@ def read_summary(
         "brand": [own("brand", _names), og("brand"), og("product:brand")],
         "sku": [
             own("sku"),
-            _offers_sku(subject, variants),
             own("productID"),
+            _offers_sku(subject, variants),
             og("product:retailer_item_id"),
             og("sku"),
             og("product:sku"),
@@ -462,7 +462,6 @@ def read_summary(
         for answer in questions["published"]
         if answer and not _ONLY_A_TIME.match(answer.value)
     ]
-    questions["published"] = _in_own_offset(questions["published"])
     questions["title"] = [
         _without_site(answer, site_names)
         if answer and answer.source not in ABOUT_A_THING
@@ -966,34 +965,6 @@ def _same_moment(
     if one[1] is not None and other[1] is not None and one[1] == other[1]:
         return True
     return one[0] == other[0]
-
-
-def _in_own_offset(answers: list[Answer]) -> list[Answer]:
-    """``answers`` with the first moved behind a declaration of the same
-    instant in the publisher's own time zone, when it is written in UTC.
-
-    A page that says 2020-01-01T01:30Z in one tag and 2019-12-31T20:30-05:00
-    in another says one instant twice, and the day it was published where it
-    was published is the 31st: UTC is how a platform stores the instant, the
-    offset is the publisher's.
-    """
-    first = next((answer for answer in answers if answer), None)
-    moment = _moment(first.value) if first is not None else None
-    if first is None or moment is None or moment[1] is None:
-        return answers
-    if moment[1].utcoffset() != datetime.timedelta(0):
-        return answers
-    for answer in answers:
-        other = _moment(answer.value) if answer else None
-        if (
-            answer is not None
-            and other is not None
-            and other[1] is not None
-            and other[1] == moment[1]
-            and other[1].utcoffset() != datetime.timedelta(0)
-        ):
-            return [answer, *(a for a in answers if a is not answer)]
-    return answers
 
 
 def _same_text(one: object, other: object) -> bool:
@@ -1513,14 +1484,14 @@ def _orphan_itemprop(
                 return SummaryField(
                     text, "html", f"<meta itemprop={prop}>", xpath_of(element)
                 )
-            # An element that is an item itself holds a card, not a value.
-            if element.get("itemscope") is not None:
+            # An element that is an item itself holds a card, not a value;
+            # one in a comment or an aside is somebody else's.
+            if element.get("itemscope") is not None or _another_voice(element):
                 continue
-            text = _clean(_itemprop_value(element))
-            if not text or len(text) > _ORPHAN_MOST:
+            if _itemprop_value(element) is None:
                 continue
-            text = _BYLINE.sub("", text)
-            if set(text.casefold().split()) <= _NOBODY_WORDS:
+            text = _first_person(element)
+            if text is None:
                 continue
             key = f"<{element.tag} itemprop={prop}>"
             return SummaryField(text, "html", key, xpath_of(element))
@@ -1532,6 +1503,76 @@ _NOBODY_WORDS = frozenset({"by", "staff", "team", "editor", "editors", "writer"}
 # The longest text an element outside any item is read as a value: a name or
 # a date, not a paragraph that happens to carry an itemprop.
 _ORPHAN_MOST = 120
+
+
+# A label before a byline's name, "By", "Posted by", "Author:", alone or
+# opening the name's text.
+_BYLINE_LABEL = re.compile(
+    r"^\s*(?:(?:written|posted|authored|story|words)\s+)?"
+    r"(?:by|author)\s*:?(?:\s+|$)",
+    re.IGNORECASE,
+)
+# Where a byline's name ends: "John Smith on March 3", "Ann Lee | News",
+# "Bo Li - Reporter", "Ann Lee, 3 May".
+_NAME_ENDS = re.compile(r"\s+(?:on|in)\s+|\s*[|\u2022\u00b7]\s*|\s+-\s+|,\s*(?=\d)")
+# What a person's name never holds: a digit, an address, an ampersand.
+_NOT_A_PERSON = re.compile(r"\d|@|https?:|www\.|&")
+# The lowercase words a name may hold: its particles, as in Ludwig van
+# Beethoven, and the "and" between two names.
+_NAME_PARTICLES = frozenset(
+    "van von der den de del della da di du dos das la le bin ibn al el y and".split()  # noqa: SIM905
+)
+# The most words of a byline's name.
+_NAME_MOST_WORDS = 5
+# Boxes of other people's words: a comment, an aside.
+_ANOTHER_VOICE = re.compile(r"comment")
+
+
+def _another_voice(element: HtmlElement) -> bool:
+    """Whether ``element`` sits in an ``<aside>`` or a box a class or an id
+    names as a comment's: a commenter's name is not the page's author. The
+    page's own ``<html>`` and ``<body>`` classes say nothing of a box."""
+    for node in (element, *element.iterancestors()):
+        if node.tag in ("html", "body"):
+            break
+        if node.tag == "aside":
+            return True
+        named = f"{node.get('class') or ''} {node.get('id') or ''}".lower()
+        if _ANOTHER_VOICE.search(named):
+            return True
+    return False
+
+
+def _first_person(element: HtmlElement) -> str | None:
+    """The first of ``element``'s pieces of text that is a person's name:
+    pieces, since a byline's box runs "By", "Keith Barry" and "Senior Autos
+    Reporter" into one text, and "Posted by John Smith on March 3, 2020 in
+    News" names John Smith. A label alone, "By", only says the name comes
+    next; a date, a label word such as "Staff", a sentence, is nobody."""
+    for piece in element.itertext():
+        text = " ".join(piece.split())
+        text = _BYLINE_LABEL.sub("", text, count=1)
+        text = _NAME_ENDS.split(text, maxsplit=1)[0].strip(" ,;:")
+        if not text or len(text) > _ORPHAN_MOST:
+            continue
+        name = _a_person(text)
+        if name is not None:
+            return name
+    return None
+
+
+def _a_person(text: str) -> str | None:
+    """``text`` when it reads as a person's name, else None."""
+    words = text.split()
+    if not 1 <= len(words) <= _NAME_MOST_WORDS or _NOT_A_PERSON.search(text):
+        return None
+    if set(text.casefold().split()) <= _NOBODY_WORDS:
+        return None
+    if any(w[:1].islower() and w not in _NAME_PARTICLES for w in words):
+        return None
+    if not any(w[:1].isupper() for w in words):
+        return None
+    return text
 
 
 def _itemprop_value(element: HtmlElement) -> str | None:
@@ -1575,13 +1616,20 @@ _RDFA_PUBLISHED = (
 )
 
 
-def _of_the_document(doc: Document, iris: tuple[str, ...]) -> SummaryField | None:
+def _of_the_document(
+    doc: Document, iris: tuple[str, ...], dated: bool = False
+) -> SummaryField | None:
     """The first of ``iris`` an RDFa property of the document itself gives a
-    value for: one with no subject in force, which RDFa gives the page."""
+    value for: one with no subject in force, which RDFa gives the page. With
+    ``dated``, only a value that reads as a date: a link's address, ``<a
+    property="dcterms:date" href="/archive/2020/05">``, is the value RDFa
+    gives it, and no date."""
     found = document_properties(doc)
     for iri in iris:
         for said, term, value, element in found:
             text = _clean(value) if said == iri else None
+            if dated and text and iso_date(text) is None:
+                continue
             if text and len(text) <= _ORPHAN_MOST:
                 return SummaryField(text, "rdfa", f"property={term}", xpath_of(element))
     return None

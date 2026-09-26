@@ -283,6 +283,54 @@ process, and the per-page difference given as its median and 95th
 percentile. The scoreboards' speed tables stay as the section above fixes
 them.
 
+**Defects a review found after the reading.** A hostile review of 0.10 on
+2026-09-26 read answers on scoreboard pages, and two of the defects it
+found are rules' defects, fixed to each rule's own stated intent and not to
+a page's label:
+
+- The summary's `itemprop="author"` outside any item (`3d02ef8`), whose
+  commit says it reads a byline's name, took the element's whole text. The
+  review found it on WCXB's test page 4048, which the summary's rules are
+  not held out from (the first section) but which was read here as a
+  held-out page: "Keith Barry Senior Autos Reporter". It also took "Posted
+  by John Smith on March 3, 2020 in News" whole, a date inside the element,
+  and a commenter's name. The fix, made on synthetic cases, takes the first
+  of the element's texts that reads as a person's name and passes over one
+  in a comment or an `<aside>`; no rule was added and no threshold set by
+  that page. Over the 4,976 cached benchmark pages it changes three
+  answers, the same page three times (WCXB test and dev 4048, and its copy
+  as served), each to "Keith Barry".
+- `--visible`'s "Name, role" line under the heading (`d95510f`) read a
+  role or an organisation as the name ("Managing Editor, Senior Writer",
+  "The Daily Planet, Editor") and the first line of a team's list. The fix,
+  made on synthetic cases, asks that the first part hold no role's word,
+  open with no "The", "A" or "An" and not be all capitals, and that the next
+  line not be another such line. On the development split it keeps the
+  rule's one hit (author, `--visible` alone: 191 -> 192 hits, 7 wrong and
+  10 inventions both ways).
+
+**`d95510f`, measured once after, on 2026-09-26.** The rule was made after
+the reading above and never run on the four sets, which this section asks
+of every `--visible` rule. Read once, as numbers, the code without the rule
+against the rule as shipped and as fixed above, author hits / wrong /
+inventions of `--visible` alone and of declared then `--visible`: WCXB's
+test pages 51/6/9 and 122/12/50, as served 29/4/4 and 98/7/46, the news
+pages 89/13/0 and 217/14/4, trafilatura's set 129/17/12 and 297/51/104,
+the same with and without the rule in either form: it fires on none of
+their 1,985 pages. It adds no invention and is kept.
+
+**The publisher's own offset, measured and dropped.** `1af29f0` answered a
+publication instant declared twice, in UTC and in the publisher's own
+offset, with the own offset. Its commit measured it, in-sample, at one wrong
+date turned into a hit on the pages as served and one on trafilatura's set,
+and nothing else. The review of 0.10 found it moved answers 0.9.1 gave: on
+the 4,976 cached benchmark pages, twelve even after it was narrowed to
+ISO 8601 (`3fa304c`), and an extractor learnt on 0.9.1 failed `run` on
+each such page. A summary answer an extractor learnt staying put is the
+project's first promise, and two hits do not buy twelve broken extractors:
+the rule is taken out of 0.10 whole. The first declaration answers, as in
+0.9.1.
+
 ## Two more tools, beside the markdown and beside heal
 
 Fixed on 2026-09-25, before either was run on a scoreboard's pages. Neither is

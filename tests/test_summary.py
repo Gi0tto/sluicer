@@ -1195,26 +1195,24 @@ def test_a_published_date_that_is_only_a_time_is_no_date():
         assert _summary(page)["published"][0] == date
 
 
-def test_of_one_instant_written_twice_the_publisher_s_own_offset_is_kept():
-    """UTC is how a platform stores the instant; the day it was published
-    where it was published is the one its own offset writes."""
+def test_of_one_instant_written_twice_the_first_declaration_answers():
+    """The same instant in UTC and in the publisher's own offset: the first
+    declaration answers, as in 0.9.1, and they do not conflict. 0.10 tried
+    answering the own offset and dropped it, since extractors learnt on
+    0.9.1 failed `run` on the pages it moved (bench/PREREG.md)."""
     own = '<meta property="article:published_time" content="2019-12-31T20:30:00-05:00">'
     utc = {"@type": "Article", "headline": "H", "datePublished": "2020-01-01T01:30:00Z"}
-    found = extract(_page(utc, head=own)).summary
-    assert (found["published"].value, found["published"].key) == (
-        "2019-12-31T20:30:00-05:00",
-        "article:published_time",
+    found = extract(_page(utc, head=own))
+    assert (found.summary["published"].value, found.summary["published"].key) == (
+        "2020-01-01T01:30:00Z",
+        "Article.datePublished",
     )
-    assert not extract(_page(utc, head=own)).conflicts
+    assert not found.conflicts
     # Two instants are two answers: the first is kept, and they conflict.
     other = own.replace("20:30:00", "21:30:00")
     read = extract(_page(utc, head=other))
     assert read.summary["published"].value == "2020-01-01T01:30:00Z"
     assert [c.question for c in read.conflicts] == ["published"]
-    # Written in the publisher's offset first, it stays first.
-    first = {**utc, "datePublished": "2019-12-31T20:30:00-05:00"}
-    zulu = '<meta property="article:published_time" content="2020-01-01T01:30:00Z">'
-    assert _summary(_page(first, head=zulu))["published"][2] == "Article.datePublished"
 
 
 def test_an_author_itemprop_outside_any_item_is_read_last():
@@ -1296,3 +1294,77 @@ def test_an_offer_s_sku_is_the_product_s_when_the_product_has_none():
     assert _summary(_page({**product, "offers": same}))["sku"][2] == (
         "Product.offers[0].sku"
     )
+
+
+def test_a_product_id_answers_before_an_offer_s_sku():
+    """Found by the hostile review of 0.10: the offer's SKU was asked before
+    the product's own productID, so a page that declared one answered 0.10
+    with another SKU than 0.9.1's, and an extractor learnt on 0.9.1 failed
+    on it."""
+    offer = {"@type": "Offer", "price": "9.99", "sku": "BR-114"}
+    product = {"@type": "Product", "name": "Pads", "productID": "BP-9", "offers": offer}
+    assert _summary(_page(product))["sku"] == ("BP-9", "jsonld", "Product.productID")
+
+
+def test_rdfa_properties_of_another_subject_or_voice_are_not_the_document_s():
+    """Found by the hostile review of 0.10: the document's properties were
+    every property with no typeof, about or resource round it, so a related
+    article's card, a link with rel and href, a comment, a quotation, an
+    aside, a footer or a menu gave the page its author, and a date property
+    on a link answered its address."""
+    creator = '<span property="dc:creator">Ann Smith</span>'
+    for body in (
+        f'<a href="/other-article">{creator}</a>',
+        f'<a rel="dc:relation" href="/other-article"><b>{creator}</b></a>',
+        f'<div src="/x.html">{creator}</div>',
+        f'<div class="comment-body">{creator}</div>',
+        f'<li id="comment-12"><p>{creator}</p></li>',
+        f"<blockquote>{creator}</blockquote>",
+        f"<aside>{creator}</aside>",
+        f"<footer>{creator}</footer>",
+        f"<nav>{creator}</nav>",
+    ):
+        assert "author" not in _summary(f"<html><body>{body}</body></html>"), body
+    # A date property on a link is its address, and no date.
+    archive = '<a property="dcterms:date" href="/archive/2020/05">May 2020</a>'
+    html = f"<html><body>{archive}</body></html>"
+    assert "published" not in _summary(html, url="https://example.com/p")
+    # The page's own, beside them, still answers; the page's own classes say
+    # nothing of a box.
+    page = (
+        '<html class="comments-open"><body class="has-comments">'
+        f'<a href="/other">{creator.replace("Ann Smith", "Bo Li")}</a>'
+        f'<p>{creator}</p><span property="dc:date">2020-05-01</span>'
+        "</body></html>"
+    )
+    assert _summary(page)["author"][0] == "Ann Smith"
+    assert _summary(page)["published"][0] == "2020-05-01"
+
+
+def test_an_author_itemprop_outside_any_item_is_the_first_name_in_it():
+    """Found by the hostile review of 0.10: the element's whole text was the
+    author, so a byline box answered "Keith Barry Senior Autos Reporter" (on
+    one of WCXB's held-out pages), a byline line answered whole, a date
+    inside answered "Jan 1", and a commenter's name answered for the page."""
+
+    def author(body: str) -> str | None:
+        found = _summary(f"<html><body>{body}</body></html>").get("author")
+        return found[0] if found else None
+
+    box = (
+        '<span itemprop="author"><span>By</span> <span>Keith Barry</span>'
+        "<span>Senior Autos Reporter</span></span>"
+    )
+    assert author(box) == "Keith Barry"
+    line = '<p itemprop="author">Posted by John Smith on March 3, 2020 in News</p>'
+    assert author(line) == "John Smith"
+    assert author('<span itemprop="author"><time>Jan 1</time></span>') is None
+    assert author('<span itemprop="author">Read the whole story here</span>') is None
+    for box in ('<div class="comment-body">', '<li id="comment-7">', "<aside>"):
+        tag = box[1 : box.index(" ") if " " in box else -1]
+        commenter = f'{box}<span itemprop="author">Joe Bloggs</span></{tag}>'
+        assert author(commenter) is None, box
+    # A one-word name, and the page's own classes, are still the page's.
+    assert author('<li itemprop="author"> Kev </li>') == "Kev"
+    page = '<body class="comments-open"><span itemprop="author">Ann Lee</span></body>'
+    assert _summary(f"<html>{page}</html>")["author"][0] == "Ann Lee"
