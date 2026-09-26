@@ -131,7 +131,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - An author written as `itemprop="author"` on an element outside any microdata
   item, `<span itemprop="author">Ann Smith</span>`, was not read; only a
   `<meta itemprop>` was. It is now the author when nothing else on the page
-  declares one.
+  declares one: the first text in it that reads as a person's name, never
+  one in a comment or an aside.
 - RDFa properties with no subject in force, which RDFa gives to the page
   itself (`<meta property="dc:date">`, `<span property="dcterms:creator">`),
   were not read, since the RDFa reader reads only the subjects a `typeof`

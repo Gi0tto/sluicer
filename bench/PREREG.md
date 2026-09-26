@@ -283,6 +283,24 @@ process, and the per-page difference given as its median and 95th
 percentile. The scoreboards' speed tables stay as the section above fixes
 them.
 
+**Defects a review found after the reading.** A hostile review of 0.10 on
+2026-09-26 read answers on scoreboard pages, and two of the defects it
+found are rules' defects, fixed to each rule's own stated intent and not to
+a page's label:
+
+- The summary's `itemprop="author"` outside any item (`3d02ef8`), whose
+  commit says it reads a byline's name, took the element's whole text. The
+  review found it on WCXB's test page 4048, which the summary's rules are
+  not held out from (the first section) but which was read here as a
+  held-out page: "Keith Barry Senior Autos Reporter". It also took "Posted
+  by John Smith on March 3, 2020 in News" whole, a date inside the element,
+  and a commenter's name. The fix, made on synthetic cases, takes the first
+  of the element's texts that reads as a person's name and passes over one
+  in a comment or an `<aside>`; no rule was added and no threshold set by
+  that page. Over the 4,976 cached benchmark pages it changes three
+  answers, the same page three times (WCXB test and dev 4048, and its copy
+  as served), each to "Keith Barry".
+
 ## Two more tools, beside the markdown and beside heal
 
 Fixed on 2026-09-25, before either was run on a scoreboard's pages. Neither is

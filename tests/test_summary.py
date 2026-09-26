@@ -1359,3 +1359,32 @@ def test_rdfa_properties_of_another_subject_or_voice_are_not_the_document_s():
     )
     assert _summary(page)["author"][0] == "Ann Smith"
     assert _summary(page)["published"][0] == "2020-05-01"
+
+
+def test_an_author_itemprop_outside_any_item_is_the_first_name_in_it():
+    """Found by the hostile review of 0.10: the element's whole text was the
+    author, so a byline box answered "Keith Barry Senior Autos Reporter" (on
+    one of WCXB's held-out pages), a byline line answered whole, a date
+    inside answered "Jan 1", and a commenter's name answered for the page."""
+
+    def author(body: str) -> str | None:
+        found = _summary(f"<html><body>{body}</body></html>").get("author")
+        return found[0] if found else None
+
+    box = (
+        '<span itemprop="author"><span>By</span> <span>Keith Barry</span>'
+        "<span>Senior Autos Reporter</span></span>"
+    )
+    assert author(box) == "Keith Barry"
+    line = '<p itemprop="author">Posted by John Smith on March 3, 2020 in News</p>'
+    assert author(line) == "John Smith"
+    assert author('<span itemprop="author"><time>Jan 1</time></span>') is None
+    assert author('<span itemprop="author">Read the whole story here</span>') is None
+    for box in ('<div class="comment-body">', '<li id="comment-7">', "<aside>"):
+        tag = box[1 : box.index(" ") if " " in box else -1]
+        commenter = f'{box}<span itemprop="author">Joe Bloggs</span></{tag}>'
+        assert author(commenter) is None, box
+    # A one-word name, and the page's own classes, are still the page's.
+    assert author('<li itemprop="author"> Kev </li>') == "Kev"
+    page = '<body class="comments-open"><span itemprop="author">Ann Lee</span></body>'
+    assert _summary(f"<html>{page}</html>")["author"][0] == "Ann Lee"

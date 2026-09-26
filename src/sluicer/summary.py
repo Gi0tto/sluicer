@@ -1525,14 +1525,14 @@ def _orphan_itemprop(
                 return SummaryField(
                     text, "html", f"<meta itemprop={prop}>", xpath_of(element)
                 )
-            # An element that is an item itself holds a card, not a value.
-            if element.get("itemscope") is not None:
+            # An element that is an item itself holds a card, not a value;
+            # one in a comment or an aside is somebody else's.
+            if element.get("itemscope") is not None or _another_voice(element):
                 continue
-            text = _clean(_itemprop_value(element))
-            if not text or len(text) > _ORPHAN_MOST:
+            if _itemprop_value(element) is None:
                 continue
-            text = _BYLINE.sub("", text)
-            if set(text.casefold().split()) <= _NOBODY_WORDS:
+            text = _first_person(element)
+            if text is None:
                 continue
             key = f"<{element.tag} itemprop={prop}>"
             return SummaryField(text, "html", key, xpath_of(element))
@@ -1544,6 +1544,76 @@ _NOBODY_WORDS = frozenset({"by", "staff", "team", "editor", "editors", "writer"}
 # The longest text an element outside any item is read as a value: a name or
 # a date, not a paragraph that happens to carry an itemprop.
 _ORPHAN_MOST = 120
+
+
+# A label before a byline's name, "By", "Posted by", "Author:", alone or
+# opening the name's text.
+_BYLINE_LABEL = re.compile(
+    r"^\s*(?:(?:written|posted|authored|story|words)\s+)?"
+    r"(?:by|author)\s*:?(?:\s+|$)",
+    re.IGNORECASE,
+)
+# Where a byline's name ends: "John Smith on March 3", "Ann Lee | News",
+# "Bo Li - Reporter", "Ann Lee, 3 May".
+_NAME_ENDS = re.compile(r"\s+(?:on|in)\s+|\s*[|\u2022\u00b7]\s*|\s+-\s+|,\s*(?=\d)")
+# What a person's name never holds: a digit, an address, an ampersand.
+_NOT_A_PERSON = re.compile(r"\d|@|https?:|www\.|&")
+# The lowercase words a name may hold: its particles, as in Ludwig van
+# Beethoven, and the "and" between two names.
+_NAME_PARTICLES = frozenset(
+    "van von der den de del della da di du dos das la le bin ibn al el y and".split()  # noqa: SIM905
+)
+# The most words of a byline's name.
+_NAME_MOST_WORDS = 5
+# Boxes of other people's words: a comment, an aside.
+_ANOTHER_VOICE = re.compile(r"comment")
+
+
+def _another_voice(element: HtmlElement) -> bool:
+    """Whether ``element`` sits in an ``<aside>`` or a box a class or an id
+    names as a comment's: a commenter's name is not the page's author. The
+    page's own ``<html>`` and ``<body>`` classes say nothing of a box."""
+    for node in (element, *element.iterancestors()):
+        if node.tag in ("html", "body"):
+            break
+        if node.tag == "aside":
+            return True
+        named = f"{node.get('class') or ''} {node.get('id') or ''}".lower()
+        if _ANOTHER_VOICE.search(named):
+            return True
+    return False
+
+
+def _first_person(element: HtmlElement) -> str | None:
+    """The first of ``element``'s pieces of text that is a person's name:
+    pieces, since a byline's box runs "By", "Keith Barry" and "Senior Autos
+    Reporter" into one text, and "Posted by John Smith on March 3, 2020 in
+    News" names John Smith. A label alone, "By", only says the name comes
+    next; a date, a label word such as "Staff", a sentence, is nobody."""
+    for piece in element.itertext():
+        text = " ".join(piece.split())
+        text = _BYLINE_LABEL.sub("", text, count=1)
+        text = _NAME_ENDS.split(text, maxsplit=1)[0].strip(" ,;:")
+        if not text or len(text) > _ORPHAN_MOST:
+            continue
+        name = _a_person(text)
+        if name is not None:
+            return name
+    return None
+
+
+def _a_person(text: str) -> str | None:
+    """``text`` when it reads as a person's name, else None."""
+    words = text.split()
+    if not 1 <= len(words) <= _NAME_MOST_WORDS or _NOT_A_PERSON.search(text):
+        return None
+    if set(text.casefold().split()) <= _NOBODY_WORDS:
+        return None
+    if any(w[:1].islower() and w not in _NAME_PARTICLES for w in words):
+        return None
+    if not any(w[:1].isupper() for w in words):
+        return None
+    return text
 
 
 def _itemprop_value(element: HtmlElement) -> str | None:
