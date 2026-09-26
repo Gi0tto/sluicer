@@ -554,6 +554,18 @@ called better on both sets. The rules did not carry to trafilatura's set:
 they are not changed here, and the next rule for the text is to be made on
 the dev pages again, recorded here first.
 
+**Not shipped, 2026-09-26**, after the reading above. The owner keeps 0.10's
+main text as 0.9.1's: trafilatura's extraction, links resolved, and nothing
+else. The readability and recall rescues, the gaps put back, the declared
+article text first and the `<h1>` are measured and recorded here, and not
+shipped; their code is kept in `bench/markdown_rules.py`, so that
+`bench/markdown_dev.py` reproduces every number above. The `<h1>` alone
+(`h1-titled`) was not called worse, but its pages kept clean fell from 0.849
+to 0.847 on the dev pages (-0.001, -0.004 to 0.000): it let a menu's heading
+into the text of some page, so it cannot be shown to add none, and is left
+out. What 0.10 ships of this work changes no default output: `full`, and
+where the text came from (`read_markdown`, `text_from`, `sources.text`).
+
 And in `full`, `<noscript>` is kept, without the images in it: a reader that
 runs no script is shown it, and a forum written for such readers keeps its
 posts there. It is still chosen by nothing.
