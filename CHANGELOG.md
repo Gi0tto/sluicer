@@ -2,6 +2,138 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Added
+- A scoreboard of every tool on the same pages, `docs/scoreboard-tools.md`:
+  Sluicer, trafilatura, newspaper4k, markitdown, Scrapling's markdown and
+  metascraper, each in a pinned environment of its own, on WCXB's pages as
+  served, trafilatura's evaluation set and one page added by hand, scored for
+  title, author, date, main text, leaked menus and wrong answers given without
+  a warning. `bench/PREREG.md` fixed how before it was run; `uv run
+  bench/tools_compare.py` makes it again.
+- `sluicer[all]` installs every extra but `stealth`, which stays asked for by
+  name.
+- `sluicer install browser` downloads the Chromium the `browser` extra drives,
+  with Playwright's own installer and the Python Sluicer runs on, then checks
+  that every part of it is there; without the extra, it prints the command
+  that adds it and exits 2.
+- `sluicer doctor` says what is installed, what each missing piece is for, and
+  the command that adds it; it exits 2 when part of the base install is
+  missing.
+- `bench/golden.py`: a digest of every public reading of every cached
+  benchmark page, so a change meant only to be faster is shown to change no
+  byte of any answer, and a timer per page.
+- `sluicer markdown --full`, `to_markdown(full=True)` and `page_markdown`'s
+  `full` write the whole page as markdown, menus and footers included, scripts
+  and styles left out, links and images resolved against the page. It needs no
+  extra.
+- `sluicer.read_markdown` returns the text with where it came from
+  (`MainText`: `source`, `method`, `where`), `page_markdown` answers it as
+  `text_from`, and the front matter's `sources` gains a `text` line. The main
+  text itself is trafilatura's extraction exactly as before.
+
+### Changed
+- The guesses read off the visible page are on by default: `extract()` and
+  `aextract()` take `visible=True` unless told `visible=False`, `sluicer
+  extract`, `inspect`, `crawl`, `batch` and `warc` guess unless given
+  `--no-visible`, and the MCP tool `extract_declared`, the HTTP API and the
+  npm package's `extract` guess unless sent `visible: false`. The guesses stay
+  in their own `visible` field, each naming its element and rule, never in the
+  summary. `visible=True` and `--visible` still work and change nothing.
+  `crawl` and `batch` lines now carry `visible`, empty with `--no-visible`. A
+  page that declares nothing but shows a heading now exits 0 with its guess,
+  as it did with `--visible`; `--no-visible` keeps the old exit 1. On WCXB's
+  development pages the guesses add 2 to 3 ms to a page at the median and 8 to
+  10 ms at the 95th percentile, about four fifths more time.
+- A missing extra's message names the command that adds it for the way Sluicer
+  was installed: `pip install`, `uv tool install` or `pipx install --force`
+  with the extras already there, `uvx --from`, `uv add` in a uv project, or
+  `uv pip install` in an environment uv made. It said `uv pip install
+  "sluicer[x]"` to everyone, which uv refuses outside a virtual environment
+  and which misses a `uv tool` or pipx one.
+- `pip install sluicer` now turns a page into markdown: trafilatura is in the
+  base install, so the one install line covers every command but the
+  browser's. The `markdown` extra still installs, and brings nothing more;
+  `mcp` no longer needs it. Measured on Python 3.14, the base install grows
+  from 5 packages and 22 MB to 21 and 69 MB, and `import sluicer` takes as
+  long as before.
+- The Homebrew formula and the conda-forge recipe install trafilatura and its
+  tree with the base package; the npm package still loads it only with its
+  `markdown` option.
+- JSON-LD: a block that parses as written is no longer run through the comment
+  and trailing-comma repair first; the repair is made only when the text as
+  written fails. Same output, and the default `extract` is about 5% faster on
+  the timed pages.
+- The readers find the elements carrying an attribute through the attribute
+  axis (`//@itemscope`, each attribute's element taken in Python) instead of
+  testing a predicate on every element (`//*[@itemscope]`): the same elements
+  in the same order, and the default `extract` about 18% faster on the timed
+  pages. Taken in XPath (`//@itemscope/..`) the elements cost the square of
+  their number, so a page of eighty thousand items is still read in linear
+  time.
+- The `<meta>` tags and the elements with a `rel` are found once per page and
+  shared by the readers that filter them, and the canonical addresses are read
+  once for the links and the summary; the same answers, about 5% less time per
+  default `extract`.
+- A page that is valid UTF-8 is parsed from its own bytes, its newlines read
+  on the bytes, instead of being decoded and encoded back first: the same
+  tree, about 4% less time per `extract`, and one copy of the page less in
+  memory.
+- The fetch ladder and the page cache decide whether a page declared a thing
+  with the readers about things alone
+  (`sluicer.declared.merge.declares_a_thing`), instead of a whole `extract` of
+  it: the same verdict, and a fetch followed by an extraction takes about 13%
+  less CPU.
+- Judging a fetched page that declared a thing no longer strips its tags to
+  count its text, which no rule then reads: the same verdicts, and about 11%
+  less CPU per fetch and extraction.
+- A fetched page is parsed once: the Document the fetch ladder (or the cache,
+  the crawl, the MCP server's TDM check) parsed to judge the page is handed to
+  the `extract` of that very page that follows in the same thread, instead of
+  the page being parsed again. The same answers; a fetch followed by an
+  extraction takes about 30% less CPU. One parsed page is kept per thread
+  until it is extracted or replaced.
+- `visible=True`: a text node is measured by stripping its ends instead of
+  rewriting its white space with a regex, and the elements a class or an id
+  names as a byline are found once for the author and the date: the same
+  guesses, about 20% less time.
+- A page given as a `str` (a fetched page is one) is handed to the parser as
+  UTF-8 bytes, which libxml2 reads faster than a `str`, into the same tree; a
+  `str` holding a lone surrogate is parsed as before.
+
+### Fixed
+- `--visible` took a box whose class says there is no byline ("no-byline"), or
+  the page's `<body>` itself, for a byline and read the first capitalised
+  words in it as the author, and took the "By" line on another article's card,
+  inside its link, for the page's own. None of them is read as the author now.
+- `to_markdown` and `sluicer markdown` gave nothing but an error on a page
+  with a link holding a control character, such as a backspace in a share
+  link's text. The character is now percent-encoded, as the URL standard
+  encodes it, and the page is read.
+- `--visible` did not read a byline written as "Name, role" or "Name, role,
+  Organisation" on the line right under the page's heading, as Framer's blog
+  posts write it ("Diogo Almeida, founder, TypeSafe"). It now guesses the
+  name, naming its element and the rule `name, role`.
+- A publication date that was only a clock time ("10:52", "2:33 PM") was
+  answered as the page's date. It is no date now, and the next declaration is
+  asked.
+- A page declaring its publication instant twice, once in UTC and once in its
+  own time zone, was answered in UTC, which can fall on the next day. The
+  declaration in the publisher's own offset is now the answer.
+- An author written as `itemprop="author"` on an element outside any microdata
+  item, `<span itemprop="author">Ann Smith</span>`, was not read; only a
+  `<meta itemprop>` was. It is now the author when nothing else on the page
+  declares one.
+- RDFa properties with no subject in force, which RDFa gives to the page
+  itself (`<meta property="dc:date">`, `<span property="dcterms:creator">`),
+  were not read, since the RDFa reader reads only the subjects a `typeof`
+  names. Their schema.org and Dublin Core author and publication date now
+  answer the summary when nothing else on the page does.
+- A product whose SKU was declared only on its offer, `"offers": {"sku":
+  ...}`, had no SKU in the summary. The offer's SKU is now the product's when
+  the product declares none and its offers name one SKU.
+
 ## 0.9.1 - 2026-09-26
 
 ### Fixed
