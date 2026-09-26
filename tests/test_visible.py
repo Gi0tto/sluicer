@@ -289,3 +289,35 @@ def test_no_reader_or_guess_takes_a_date_from_a_comment() -> None:
     answers += [str(f.value) for r in read.records for f in r.fields.values()]
     assert not [a for a in answers if "2026" in str(a) or "Sep 26" in str(a)]
     assert read.summary["published"].value == "2025-03-04"
+
+
+def test_a_box_that_says_there_is_no_byline_is_none() -> None:
+    body = (
+        '<h1>Cybersecurity</h1><div class="post-meta-detail no-byline">'
+        "Home » Consulting Services</div>"
+    )
+    assert "author" not in read_visible(_page(body))
+
+
+@pytest.mark.parametrize("tag", ["main", "article"])
+def test_a_box_holding_the_whole_article_is_no_byline(tag: str) -> None:
+    body = f'<{tag} class="author-archive"><h1>Store Policies</h1><p>Read on.</p></{tag}>'
+    assert "author" not in read_visible(_page(body))
+
+
+def test_a_by_line_on_another_article_s_card_is_not_the_author() -> None:
+    body = (
+        "<h1>Tips from a first time visitor</h1>"
+        '<a href="/articles/sports"><div>8 places to go all-in on sports this year'
+        "</div><div>From baseball games in Tokyo to F1 races.</div>"
+        "<div>By Noah Cortez</div></a>"
+    )
+    assert "author" not in read_visible(
+        _page(body), url="https://example.com/topic/1"
+    )
+
+
+def test_a_by_line_linked_to_its_author_s_page_is_the_author() -> None:
+    body = '<h1>Costs</h1><a href="/authors/scott"><div>By Scott Kasun</div></a>'
+    guess = read_visible(_page(body), url="https://example.com/costs")["author"]
+    assert (guess.value, guess.rule) == ("Scott Kasun", "by-line")

@@ -108,6 +108,11 @@ _UPDATED_WORD = re.compile(
 )
 # Boxes that hold the whole page, not a header.
 _PAGE_BOXES = frozenset({"html", "body", "main"})
+# The boxes that hold the whole page or all of an article: none of them is a
+# byline, whatever its classes say.
+_NO_BYLINE_BOX = frozenset({"html", "body", "main", "article"})
+# A class that says there is no byline: "no-byline", "hide-author".
+_NO_BYLINE = re.compile(r"\b(?:no|hide|hidden)-\S*")
 # The most different dates a page may show before it is taken for a listing,
 # whose dates are its cards' and are read only next to its heading.
 _MOST_DATES = 3
@@ -374,7 +379,11 @@ def _author(page: _Page) -> Guess | None:
     if 0 < len(marked) <= _MOST_BYLINES and (name := _first_name(marked[0])):
         return Guess(name, _where(marked[0]), "rel-author")
     named = [
-        e for e, names in page.named if _BYLINE.search(names) and not page.aside(e)
+        e
+        for e, names in page.named
+        if _BYLINE.search(_NO_BYLINE.sub("", names))
+        and e.tag not in _NO_BYLINE_BOX
+        and not page.aside(e)
     ]
     # The innermost of nested byline boxes, since the outer ones hold dates too.
     boxes = set(named)
@@ -395,6 +404,8 @@ def _author(page: _Page) -> Guess | None:
         if not _OPENS_BY.match(opening):
             continue
         element = _box_of(opening)
+        if element is None or _in_a_card(page, element):
+            continue
         found = _by_line(page, opening, element)
         if found is not None:
             lines.append(found)
@@ -512,6 +523,26 @@ def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | 
                 return Guess(name, _where(element), "by-line")
         element = element.getparent()
     return None
+
+
+# The most text a link round a byline may hold beyond it and still be the
+# author's own link, not another article's card.
+_CARD_MOST = 40
+
+
+def _in_a_card(page: _Page, element: HtmlElement) -> bool:
+    """Whether ``element`` sits in a link to another page that holds more than
+    a byline: another article's card, its title and "By Noah Cortez"."""
+    if not page.linked(element):
+        return False
+    link = (
+        element
+        if element.tag == "a" and element.get("href")
+        else next((a for a in element.iterancestors("a") if a.get("href")), None)
+    )
+    if link is None:
+        return False
+    return page.short(link, len(page.text(element)) + _CARD_MOST) is None
 
 
 def _box_of(text: Any) -> HtmlElement | None:
