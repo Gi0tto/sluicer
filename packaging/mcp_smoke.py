@@ -1,6 +1,6 @@
 """Start an MCP server over stdio and check it lists the tools Sluicer has.
 
-    python3 packaging/mcp_smoke.py -- docker run -i --rm ghcr.io/gi0tto/sluicer:0.9.0
+    python3 packaging/mcp_smoke.py -- docker run -i --rm ghcr.io/gi0tto/sluicer:0.9.1
     python3 packaging/mcp_smoke.py -- uv run --directory bundle server.py
 
 The release workflow runs the image and the MCPB bundle this way before either

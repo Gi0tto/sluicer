@@ -6,7 +6,7 @@
       "command": "uvx",
       "args": [
         "--with",
-        "sluicer[mcp]==0.9.0",
+        "sluicer[mcp]==0.9.1",
         "sluicer",
         "mcp"
       ]

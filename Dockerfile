@@ -33,7 +33,7 @@ FROM python:3.13-slim
 ARG WITH_BROWSER=0
 # The version the labels state. The build stops if the wheel says another, and
 # a test holds this line to pyproject.toml.
-ARG SLUICER_VERSION=0.9.0
+ARG SLUICER_VERSION=0.9.1
 
 LABEL org.opencontainers.image.title="Sluicer" \
       org.opencontainers.image.description="The data a web page declares, with where each value came from. No model, no API key." \

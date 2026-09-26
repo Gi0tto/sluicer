@@ -21,7 +21,7 @@
   },
   "answer": {
     "format": 1,
-    "sluicer": "0.9.0",
+    "sluicer": "0.9.1",
     "learnt_from": [
       "first page",
       "second page"

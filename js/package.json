@@ -1,6 +1,6 @@
 {
   "name": "sluicer",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Turn a web page into structured data with no model in the loop: the Python package, run in Pyodide.",
   "keywords": [
     "scraping",
