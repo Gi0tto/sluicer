@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 from types import ModuleType
+from urllib.parse import quote
 
 from sluicer.document import _base_of, join, trimmed
 from sluicer.extras import MissingExtra, import_extra
@@ -96,8 +97,25 @@ def _with_links_resolved(
         # leaves it.
         if href is None or trimmed(href).startswith("{"):
             continue
-        anchor.set("href", join(base, href))
+        anchor.set("href", _xml_safe(join(base, href)))
     return tree
+
+
+# What an lxml attribute cannot hold: C0 controls, which the URL standard
+# percent-encodes in an address, DEL, which it encodes too, and the two
+# noncharacters XML refuses. A tab, a newline and a carriage return are never
+# left in an address (``sluicer.document.clean_address``).
+_NOT_XML = re.compile("[\x00-\x1f\x7f\ufffe\uffff]")
+
+
+def _xml_safe(address: str) -> str:
+    """``address`` with what an lxml attribute refuses percent-encoded.
+
+    A share link on a real page held a backspace from a comment's text, and
+    setting it raised "All strings must be XML compatible": the whole page
+    gave no markdown.
+    """
+    return _NOT_XML.sub(lambda m: quote(m.group().encode("utf-8"), safe=""), address)
 
 
 def _may_declare_a_base(html: str | bytes) -> bool:
