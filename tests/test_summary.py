@@ -1277,3 +1277,22 @@ def test_rdfa_properties_of_the_document_itself_answer_author_and_date():
         '<a property="dc:creator" href="https://example.com/ann">Ann Smith</a>',
     ):
         assert "author" not in _summary(f"<html><body>{body}</body></html>"), body
+
+
+def test_an_offer_s_sku_is_the_product_s_when_the_product_has_none():
+    """schema.org gives sku to an Offer as to a Product."""
+    offer = {"@type": "Offer", "price": "9.99", "sku": "BR-114"}
+    product = {"@type": "Product", "name": "Brake pad", "offers": offer}
+    assert _summary(_page(product))["sku"] == (
+        "BR-114",
+        "jsonld",
+        "Product.offers.sku",
+    )
+    # The product's own first; offers of two SKUs name no one SKU.
+    assert _summary(_page({**product, "sku": "P-1"}))["sku"][0] == "P-1"
+    two = [offer, {**offer, "sku": "BR-115"}]
+    assert "sku" not in _summary(_page({**product, "offers": two}))
+    same = [offer, {**offer, "price": "8.99"}]
+    assert _summary(_page({**product, "offers": same}))["sku"][2] == (
+        "Product.offers[0].sku"
+    )

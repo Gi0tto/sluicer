@@ -415,6 +415,7 @@ def read_summary(
         "brand": [own("brand", _names), og("brand"), og("product:brand")],
         "sku": [
             own("sku"),
+            _offers_sku(subject, variants),
             own("productID"),
             og("product:retailer_item_id"),
             og("sku"),
@@ -1184,6 +1185,40 @@ def _pricing(subject: Record, offers: JsonValue) -> _Pricing:
             None,
         )
     return _Pricing(price, regular, low, high, currency, availability)
+
+
+def _offers_sku(subject: Record | None, variants: list[Record]) -> Answer:
+    """The SKU the subject's offers declare, when the subject declares none:
+    schema.org gives ``sku`` to an ``Offer`` as to a ``Product``. Only when its
+    offers name one SKU, and every variant's the same: offers of several SKUs
+    are several things."""
+    found = _one_offer_sku(subject)
+    if found is None or subject is None:
+        return None
+    for variant in variants:
+        other = _one_offer_sku(variant)
+        if other is None or other.value != found.value:
+            return None
+    return found
+
+
+def _one_offer_sku(record: Record | None) -> SummaryField | None:
+    if record is None or "offers" not in record.fields:
+        return None
+    held = record.fields["offers"]
+    if held.source not in ABOUT_A_THING:
+        return None
+    skus = [
+        (text, path)
+        for offer, path in _offers_in(held.value, "offers")
+        if (text := _text(offer["sku"]) if "sku" in offer else None)
+    ]
+    if not skus or len({text for text, _ in skus}) > 1:
+        return None
+    text, path = skus[0]
+    name = record.type or "Thing"
+    key = f"{name}.{path}.sku"
+    return SummaryField(text, held.source, key, _inside(held, f"{path}.sku"))
 
 
 def _offers_in(value: JsonValue, path: str) -> list[tuple[dict[str, JsonValue], str]]:
