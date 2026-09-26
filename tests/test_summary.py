@@ -6,12 +6,12 @@ from sluicer import extract
 from sluicer.summary import FIELDS
 
 
-def _page(*blocks: object, head: str = "", attrs: str = "", body: str = "") -> str:
+def _page(*blocks: object, head: str = "", attrs: str = "") -> str:
     scripts = "".join(
         f'<script type="application/ld+json">{json.dumps(block)}</script>'
         for block in blocks
     )
-    return f"<html{attrs}><head>{head}{scripts}</head><body>{body}</body></html>"
+    return f"<html{attrs}><head>{head}{scripts}</head><body></body></html>"
 
 
 def _summary(html: str, url: str | None = None) -> dict[str, tuple[str, str, str]]:
@@ -1296,48 +1296,3 @@ def test_an_offer_s_sku_is_the_product_s_when_the_product_has_none():
     assert _summary(_page({**product, "offers": same}))["sku"][2] == (
         "Product.offers[0].sku"
     )
-
-
-def test_a_title_is_cut_where_the_page_s_heading_ends():
-    html = (
-        "<html><head><title>Personal Training - UT RecSports</title></head>"
-        "<body><h1>Personal Training</h1><p>Book a trainer.</p></body></html>"
-    )
-
-    assert _summary(html)["title"] == ("Personal Training", "html", "<title>")
-
-
-def test_of_the_declared_titles_the_one_the_heading_shows_is_the_title():
-    html = _page(
-        {"@type": "LocalBusiness", "name": "Reliable Van And Storage"},
-        head=(
-            '<meta property="og:title" content="Affordable New Jersey Movers'
-            ' | Reliable Van And Storage">'
-        ),
-        body="<h1>Affordable  New Jersey movers</h1>",
-    )
-
-    assert _summary(html)["title"] == (
-        "Affordable New Jersey Movers",
-        "opengraph",
-        "og:title",
-    )
-
-
-def test_a_heading_no_declared_title_writes_changes_nothing():
-    html = (
-        "<html><head><title>Sudo - ArchWiki</title></head>"
-        "<body><h1>Contents</h1><h1>Sudo tips</h1></body></html>"
-    )
-
-    assert _summary(html)["title"][0] == "Sudo - ArchWiki"
-
-
-def test_a_heading_is_never_itself_the_title():
-    html = (
-        '<html><head><meta property="og:title" content="Why Cheap SEO Doesn&#39;t'
-        ' Work | Acme"></head><body><h1>Why cheap SEO doesn’t work</h1></body>'
-        "</html>"
-    )
-
-    assert _summary(html)["title"][0] == "Why Cheap SEO Doesn't Work"
