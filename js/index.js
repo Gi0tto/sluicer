@@ -79,6 +79,7 @@ export async function createSluicer(options) {
         "visible",
         "headers",
       ]);
+      mapping("extract's headers", headers, "Object.fromEntries(response.headers)");
       return call(
         "extract",
         page(html),
@@ -109,6 +110,11 @@ export async function createSluicer(options) {
         throw new TypeError("compile takes an array of { html, url } pages");
       }
       pages.forEach((p, n) => known(`compile's page ${n}`, p, ["html", "url"], "a page"));
+      mapping("compile's want", want, "{ price: \"41.90\" }");
+      mapping("compile's select", select, "{ price: \"span.price::text\" }");
+      if (names != null && !Array.isArray(names)) {
+        throw new TypeError(`compile's names is an array of strings, not ${describe(names)}`);
+      }
       return call(
         "compile",
         pages.map((p) => page(p.html)),
@@ -233,6 +239,21 @@ function known(call, options, names, what = "options") {
     );
   }
   return options;
+}
+
+// An option that is an object of names to strings. A Map or a Headers is
+// not one: JSON writes either as {}, and what it held would be lost.
+function mapping(what, value, example) {
+  if (value == null) {
+    return;
+  }
+  const prototype = typeof value === "object" ? Object.getPrototypeOf(value) : undefined;
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError(
+      `${what} is a plain object of names to strings, such as ${example},` +
+        ` not ${value?.constructor?.name ? `a ${value.constructor.name}` : describe(value)}`,
+    );
+  }
 }
 
 function describe(value) {

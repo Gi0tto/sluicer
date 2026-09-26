@@ -101,6 +101,26 @@ test("an option a call does not know is refused, and named", () => {
   assert.throws(() => sluicer.compile([], null), TypeError);
 });
 
+test("headers, want and select that are not plain objects are refused, not emptied", () => {
+  // JSON writes a Headers or a Map as {}: the page's X-Robots-Tag was dropped
+  // and the answer said nothing of it.
+  const html = "<html><head><title>x</title></head></html>";
+  const headers = new Headers({ "X-Robots-Tag": "noai" });
+  assert.throws(
+    () => sluicer.extract(html, { headers }),
+    /extract's headers is a plain object of names to strings, such as Object\.fromEntries\(response\.headers\), not a Headers/,
+  );
+  assert.deepEqual(
+    sluicer.extract(html, { headers: Object.fromEntries(headers) }).rights.http,
+    { robots: ["noai"] },
+  );
+  const pages = [{ html }];
+  assert.throws(() => sluicer.compile(pages, { want: new Map([["a", "x"]]) }), /want is a plain object/);
+  assert.throws(() => sluicer.compile(pages, { select: new Map([["a", "h1"]]) }), /select is a plain object/);
+  assert.throws(() => sluicer.compile(pages, { select: "h1" }), /select is a plain object/);
+  assert.throws(() => sluicer.compile(pages, { names: "first" }), /names is an array/);
+});
+
 test("createSluicer refuses an option it does not know, before starting", async () => {
   await assert.rejects(
     createSluicer({ packageCachedir: "/tmp/x" }),
