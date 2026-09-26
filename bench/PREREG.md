@@ -504,6 +504,20 @@ items carry a line of text each, and sentences before or after the article
    last; a heading is added only when the block right after it is; and a list
    is judged item by item, each item by the same test as a paragraph.
 
+**Added on 2026-09-26, after `gap-W` was run on the dev pages and before
+any of these was run.** `gap-16` found 105 more snippets and lost none, and let
+14 boilerplate ones in, on 14 pages: headings of boxes, a forum's quoted post
+("Click to expand..."), a button's words repeated in a marquee, and sentences
+holding a button's words. Its pages kept clean were 0.009 below `baseline`'s
+and called worse. So:
+
+10. *Gaps, stricter* (`gap2-W`, W in 12 and 16): as `gap-W`, but a heading is
+    never added, nor a block quote, nor a block with fewer distinct words than
+    half its words.
+11. *With the cleaner extraction first*: `readability-0.7`, the one candidate
+    whose pages kept clean were called better, gives the extraction the gaps
+    are filled in (`read-gap2-W`), and `no-comments` does (`nc-gap2-W`).
+
 And in `full`, `<noscript>` is kept, without the images in it: a reader that
 runs no script is shown it, and a forum written for such readers keeps its
 posts there. It is still chosen by nothing.
