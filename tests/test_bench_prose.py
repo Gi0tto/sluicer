@@ -117,3 +117,22 @@ def test_the_table_of_verdicts_says_how_many_it_makes():
         "| trafilatura 1 | author | hit rate | -1.000 (-1.000 to -1.000) | worse |"
         in (table)
     )
+
+
+def test_the_scoreboard_does_not_say_the_guesses_wait_to_be_asked():
+    """0.10 guesses by default; the scoreboard's generator still wrote that
+    `--visible` guesses "when asked". The page is the generator's text: it
+    cannot be rendered again here (its timing is tied to a commit), so the
+    paragraph is compared as written."""
+    source = (BENCH / "run.py").read_text(encoding="utf-8")
+    page = (BENCH.parent / "docs" / "scoreboard.md").read_text(encoding="utf-8")
+    written = [
+        "the gap above is the cost. Since 0.10 `extract` also guesses them by",
+        "default, apart from the summary, which these columns score alone:",
+        "[what the guesses add](#what-visible-adds) is below.",
+    ]
+
+    for text in (source, page):
+        assert "guesses them when asked" not in text
+    assert all(f'"{line}"' in source for line in written)
+    assert "\n".join(written) in page
