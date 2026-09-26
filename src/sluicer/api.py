@@ -140,7 +140,7 @@ def _extract(
     induce: bool = False,
     microformats: bool = False,
     headers: Mapping[str, str] | None = None,
-    visible: bool = False,
+    visible: bool = True,
 ) -> Extraction:
     """``extract`` without its warning, for Sluicer's own callers.
 

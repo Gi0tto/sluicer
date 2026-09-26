@@ -337,3 +337,9 @@ def test_a_by_line_linked_to_its_author_s_page_is_the_author() -> None:
     body = '<h1>Costs</h1><a href="/authors/scott"><div>By Scott Kasun</div></a>'
     guess = read_visible(_page(body), url="https://example.com/costs")["author"]
     assert (guess.value, guess.rule) == ("Scott Kasun", "by-line")
+
+
+def test_sluicer_s_own_callers_guess_by_default_as_extract_does() -> None:
+    from sluicer.api import _extract
+
+    assert _extract(_SHOWN).visible == sluicer.extract(_SHOWN).visible != {}
