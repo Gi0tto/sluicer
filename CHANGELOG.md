@@ -45,6 +45,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The extruct page called the move from extruct "one line", but that line
   raises `MicroformatsExtraMissing` without the `microformats` extra. The
   page now installs the extra first, and gives the call that needs none.
+- The WARC page read standard input with `zcat`, which on macOS looks for a
+  `.Z` file and passes nothing on; it now uses `gzip -dc`. Its example line
+  now shows the `conflicts` and `visible` keys a real line has.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.

@@ -11,7 +11,7 @@ Sluicer reads it the way it reads a page it fetched itself, headers included.
 ```sh
 sluicer warc crawl.warc.gz                   # one JSON line per page
 sluicer warc a.warc.gz b.warc > pages.jsonl  # several files, in order
-zcat crawl.warc.gz | sluicer warc -          # standard input
+gzip -dc crawl.warc.gz | sluicer warc -     # standard input
 ```
 
 ```python
@@ -82,7 +82,9 @@ On python.org, `sluicer diff https://www.python.org/ https://www.python.org/
 ## Each line
 
 A line is what `sluicer extract` answers for one page, plus a `warc` object
-that says where in the archive the page came from:
+that says where in the archive the page came from, and `visible`, which is
+always there and always empty, `{}`: `sluicer warc` does not guess from the
+visible page.
 
 ```json
 {
@@ -96,10 +98,12 @@ that says where in the archive the page came from:
   },
   "summary": {},
   "normalised": {},
+  "conflicts": [],
   "records": [],
   "sources": [],
   "links": {},
-  "rights": {}
+  "rights": {},
+  "visible": {}
 }
 ```
 

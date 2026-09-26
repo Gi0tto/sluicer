@@ -507,3 +507,31 @@ def test_sluicer_warc_needs_the_microformats_extra_to_read_them(tmp_path, monkey
     path = warc(record("response", http()), tmp_path=tmp_path)
     result = CliRunner().invoke(main, ["warc", str(path), "--microformats"])
     assert result.exit_code == 2
+
+
+def test_the_warc_page_s_line_has_the_keys_a_real_line_has(tmp_path):
+    """docs/warc.md showed a line without `conflicts` and `visible`, and read
+    standard input through `zcat`, which on macOS looks for `crawl.warc.gz.Z`
+    and hands Sluicer nothing. The page's own pipe is run here, the file
+    decompressed as `gzip -dc` does, and its line held to the page's keys."""
+    import re
+    from pathlib import Path
+
+    doc = (Path(__file__).resolve().parent.parent / "docs" / "warc.md").read_text(
+        encoding="utf-8"
+    )
+    commands = re.search(r"```sh\n(.*?)```", doc, re.DOTALL).group(1)
+    piped = [line for line in commands.splitlines() if "| sluicer warc -" in line]
+    assert len(piped) == 1 and piped[0].startswith("gzip -dc crawl.warc.gz |")
+    shown = json.loads(
+        re.search(r"## Each line\n.*?```json\n(.*?)```", doc, re.DOTALL).group(1)
+    )
+
+    path = warc(record("response", http()), tmp_path=tmp_path, zipped=True)
+    result = CliRunner().invoke(
+        main, ["warc", "-"], input=gzip.decompress(path.read_bytes())
+    )
+    assert result.exit_code == 0, result.stderr
+    line = json.loads(result.stdout.splitlines()[0])
+    assert list(line) == list(shown)
+    assert list(line["warc"]) == list(shown["warc"])
