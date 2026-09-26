@@ -530,6 +530,18 @@ after which the best that passes is kept:
     extraction chosen when it has under 0.7 times the region's words
     (`read-region-gap2-12`); the gaps then filled as `gap2-12`.
 
+**Chosen on 2026-09-26**, by the test above: `read-recall-gap2-12` (F1
++0.017, called better; pages kept clean -0.004, inconclusive), the highest F1
+of those that pass. `declared-first-1.0` passed alone (+0.001, better; -0.001,
+inconclusive), and `h1-titled` was called worse on neither. Before either is
+run with the chosen rule: the code written into `sluicer.markdown` -- the
+declared text first where it has at least the chosen extraction's words, then
+the chosen rule, then the `<h1>` that is the declared title -- is measured on
+the dev pages as the candidate `sluicer`, and kept if it passes the same test
+against `baseline` and is called worse than `read-recall-gap2-12` on neither
+F1 nor pages kept clean; otherwise the declared text and the heading are left
+out of the default, and the code is `read-recall-gap2-12` alone.
+
 And in `full`, `<noscript>` is kept, without the images in it: a reader that
 runs no script is shown it, and a forum written for such readers keeps its
 posts there. It is still chosen by nothing.
