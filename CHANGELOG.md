@@ -30,6 +30,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer serve` on a port another server holds says so and exits 2 before
   it says it is serving. It printed "serving the tools" and then exited 3,
   the code for a broken contract.
+- `sluicer mcp` and `sluicer-mcp` without the `mcp` extra exit 2 with the
+  line that installs it, as `sluicer serve` does without its own. They
+  exited 1, the code for "read, and found nothing".
 
 ## 0.9.0 - 2026-09-26
 

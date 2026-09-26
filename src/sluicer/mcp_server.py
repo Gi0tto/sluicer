@@ -1382,8 +1382,10 @@ def main(tools: Iterable[str] | None = None) -> None:
 
     ``tools`` names the tools to register, or ``SLUICER_MCP_TOOLS`` does; all
     twelve when neither says. A name that is not a tool exits 2, as a wrong
-    option does, with the list of the twelve. A broken install, as opposed to a
-    missing one, keeps its traceback.
+    option does, with the list of the twelve. A missing ``mcp`` extra exits 2
+    too, with the line that installs it: until 0.9.1 it exited 1, which the
+    command line's codes keep for "read, and found nothing". A broken
+    install, as opposed to a missing one, keeps its traceback.
     """
     if tools is None and os.environ.get(TOOLS_ENV, "").strip():
         tools = [n.strip() for n in os.environ[TOOLS_ENV].split(",") if n.strip()]
@@ -1393,7 +1395,7 @@ def main(tools: Iterable[str] | None = None) -> None:
         # Flushed now: the exit that follows must not be what decides whether
         # the one line that says what to install is ever written.
         print(str(missing), file=sys.stderr, flush=True)
-        raise SystemExit(1) from missing
+        raise SystemExit(2) from missing
     except (UnknownTool, UnusableProxy) as unknown:
         print(str(unknown), file=sys.stderr, flush=True)
         raise SystemExit(2) from unknown

@@ -203,7 +203,8 @@ def test_running_without_the_extra_is_a_message_not_a_traceback(monkeypatch, cap
     with pytest.raises(SystemExit) as raised:
         server_module.main()
 
-    assert raised.value.code == 1
+    # 2, as for any command that could not start: 1 is "found nothing".
+    assert raised.value.code == 2
     captured = capsys.readouterr()
     assert "sluicer[mcp]" in captured.err
     assert "Traceback" not in captured.err
@@ -2149,3 +2150,19 @@ def test_a_page_of_html_with_no_markup_that_matters_is_still_read(monkeypatch):
     answer = registered["extract_declared"]("<p>example.com</p>")
 
     assert answer["ok"] is True
+
+
+def test_sluicer_mcp_without_the_extra_exits_2_with_the_install_line(monkeypatch):
+    """Measured on 0.9.0: exit 1, which means "read, and gave nothing";
+    sluicer serve without its extra already exited 2."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    absent(monkeypatch, "mcp")
+
+    result = CliRunner().invoke(main, ["mcp"])
+
+    assert result.exit_code == 2, result.output
+    assert 'uv pip install "sluicer[mcp]"' in result.stderr
+    assert "Traceback" not in result.output

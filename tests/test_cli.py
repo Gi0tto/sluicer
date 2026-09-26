@@ -1032,7 +1032,7 @@ def test_sluicer_mcp_without_the_extra_says_so_in_one_line(monkeypatch):
         monkeypatch.delitem(sys.modules, name, raising=False)
     monkeypatch.setattr(sys, "meta_path", [_NoMcp(), *sys.meta_path])
     result = CliRunner().invoke(main, ["mcp"])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "sluicer[mcp]" in result.stderr and "Traceback" not in result.stderr
 
 
