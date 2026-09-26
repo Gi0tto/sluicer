@@ -29,6 +29,7 @@ from typing import Annotated, Any, cast
 from sluicer import __version__, crawl as crawling, extractor as extractor_module
 from sluicer.api import _extract as extract
 from sluicer.audit import answered_with, audit
+from sluicer.document import let_go
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch import (
     AddressRefused,
@@ -199,6 +200,11 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
             return _error("bad_input", slow)
         except _Reserved as reserved:
             return _error("tdm_reserved", reserved, url=reserved.url)
+        finally:
+            # A page the call fetched and did not extract (page_markdown,
+            # fetch_page, a refusal) stayed parsed on this worker thread
+            # until its next call.
+            let_go()
 
     return guarded
 

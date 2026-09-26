@@ -368,6 +368,16 @@ def load(
 # follows to read: (the page, its address, its charset, the Document).
 _KEPT = threading.local()
 
+KEEP_AT_MOST = 1_000_000
+"""The largest page, in bytes or characters, ``load_and_keep`` keeps parsed.
+
+A parsed page weighs about ten times its HTML (a 10 MB page, about 100 MB),
+and a page is kept per thread until it is extracted: sixteen threads that
+fetched a 10 MB page each and extracted none held 1.4 to 1.9 GB, where 0.9.1
+held 0.25 to 0.3 GB. A larger page is parsed again by its extraction, which
+costs it the time the keeping saves and nothing more; 96% of WCXB's
+development pages are smaller."""
+
 
 def load_and_keep(
     html: str | bytes, url: str | None = None, charset: str | None = None
@@ -378,13 +388,25 @@ def load_and_keep(
     extracts the very same page: ``load_kept`` hands the kept Document to
     that extraction instead of parsing the page a second time, which was a
     third of what a fetched page cost. One page is kept per thread, until
-    it is taken or another replaces it.
+    it is taken, another replaces it or ``let_go`` is called; a page larger
+    than ``KEEP_AT_MOST`` is not kept, and lets go of the one before.
     """
     doc = _kept(html, url, charset)
     if doc is None:
         doc = load(html, url=url, charset=charset)
-        _KEPT.page = (html, url, _charset_key(html, charset), doc)
+        small = len(html) <= KEEP_AT_MOST
+        _KEPT.page = (html, url, _charset_key(html, charset), doc) if small else None
     return doc
+
+
+def let_go() -> None:
+    """Let go of the page this thread kept, if any.
+
+    Called where a fetched page is not extracted: an MCP tool's call ending,
+    a crawl's page read or dropped, a page turned into markdown. Kept past
+    them, a parsed page stayed in memory for as long as its thread lived.
+    """
+    _KEPT.page = None
 
 
 def load_kept(

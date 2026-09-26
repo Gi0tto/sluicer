@@ -46,6 +46,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   as it did with `--visible`; `--no-visible` keeps the old exit 1. On WCXB's
   development pages the guesses add 2 to 3 ms to a page at the median and 8 to
   10 ms at the 95th percentile, about four fifths more time.
+- The default `extract()` is slower than 0.9.1's default, because it now
+  makes the guesses 0.9.1 made only when asked: the 0.10 review measured it
+  1.2 to 1.6 ms slower a page at the median on WCXB's development pages, 1.55
+  to 1.62 times 0.9.1's default. Each mode on its own is faster than it was:
+  with `visible=False` about 7% less time in total than 0.9.1's default (the
+  median page about the same), and with the guesses about a quarter less at
+  the median than 0.9.1's `visible=True`. The speed-ups below are each
+  mode's, not the new default's against the old.
 - A missing extra's message names the command that adds it for the way Sluicer
   was installed: `pip install`, `uv tool install` or `pipx install --force`
   with the extras already there, `uvx --from`, `uv add` in a uv project, or
@@ -92,8 +100,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   the crawl, the MCP server's TDM check) parsed to judge the page is handed to
   the `extract` of that very page that follows in the same thread, instead of
   the page being parsed again. The same answers; a fetch followed by an
-  extraction takes about 30% less CPU. One parsed page is kept per thread
-  until it is extracted or replaced.
+  extraction takes about 30% less CPU. One parsed page of up to 1 MB is kept
+  per thread until it is extracted or replaced, and let go when an MCP or
+  HTTP API call ends, when a crawl is done with a page and when a page is
+  turned into markdown; `to_markdown(full=True)` reads the kept tree itself.
 - `visible=True`: a text node is measured by stripping its ends instead of
   rewriting its white space with a regex, and the elements a class or an id
   names as a byline are found once for the author and the date: the same
@@ -133,6 +143,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A product whose SKU was declared only on its offer, `"offers": {"sku":
   ...}`, had no SKU in the summary. The offer's SKU is now the product's when
   the product declares none and its offers name one SKU.
+- A page fetched and never extracted stayed parsed for as long as its thread
+  lived: sixteen threads that each fetched a 10 MB page without extracting it
+  held 1.4 GB where 0.9.1 held 0.3 GB, and `page_markdown` kept the fetched
+  tree alive through trafilatura's own parse of the page. A page over 1 MB is
+  no longer kept, and a kept page is let go wherever no extraction follows;
+  the same sixteen threads now hold 0.2 GB.
 - `sluicer doctor` and `sluicer install browser` ran Playwright with
   `python -m playwright`, which imports from the working directory first: a
   `playwright/__main__.py` in the folder they were run in, a cloned
