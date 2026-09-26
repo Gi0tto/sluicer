@@ -19,6 +19,7 @@ import importlib.util
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from sluicer.declared.headers import lowered
 from sluicer.extras import import_extra
 from sluicer.fetch.address import AddressRefused, _resolve
 from sluicer.fetch.browser import BROWSER_TIMEOUT_MS
@@ -121,7 +122,10 @@ def _as_fetched(response: Any, requested_url: str) -> Fetched:
         html=response.html_content,
         status=response.status,
         rung="stealth",
-        headers={str(k).lower(): str(v) for k, v in dict(declared).items()},
+        # Every pair the response holds, a repeated name's values joined, as
+        # Fetched.headers says: a dict comprehension kept the last value of a
+        # name given twice, in two cases or by a mapping that repeats names.
+        headers=lowered(declared),
     )
 
 

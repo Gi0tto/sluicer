@@ -46,6 +46,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `fetch()`. Any other value was Chromium in silence.
 - One site's robots.txt is remembered once however its address is written:
   `http://A.com:80/` and `http://a.com/` were two entries, each asked for.
+- The stealth rung joins the values of a header given twice, as every other
+  rung does, instead of keeping the last. scrapling 0.4.15 already joins
+  them, so this guards a contract the rung relied on scrapling to keep.
 
 ## 0.9.0 - 2026-09-26
 
