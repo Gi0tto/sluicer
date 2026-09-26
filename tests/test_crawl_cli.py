@@ -578,3 +578,59 @@ def test_an_error_page_is_a_failed_line_and_exits_two(fake, command, status):
     assert f"answered status {status}" in line["error"]["message"]
     assert line["error"]["retryable"] is (status == 503)
     assert "summary" not in line
+
+
+@pytest.mark.parametrize("command", ["crawl", "batch"])
+def test_an_error_pages_line_keeps_where_it_landed_and_its_fetch(fake, command):
+    """The hostile review of 0.9.1: an error page's line lost the ``landed``
+    and ``fetch`` 0.9.0 printed, so its status was only inside the English
+    message. They are back beside ``ok`` false and the error."""
+    fake.pages[f"{ROOT}/gone"] = (404, page("404 Not Found"), {})
+    args = [f"{ROOT}/gone"] if command == "crawl" else ["-"]
+    stdin = None if command == "crawl" else f"{ROOT}/gone\n"
+
+    result = invoke(command, *args, "--retries", "0", stdin=stdin)
+
+    [line] = lines(result.stdout)
+    assert line["ok"] is False
+    assert line["error"]["code"] == "fetch_failed"
+    assert line["landed"] == f"{ROOT}/gone"
+    assert line["fetch"]["status"] == 404
+    assert line["fetch"]["rung"] == "http"
+    assert isinstance(line["fetch"]["seconds"], float)
+    assert line["fetch"]["climbs"] == []
+    assert "summary" not in line
+    assert "links" not in line
+
+
+@pytest.mark.parametrize("command", ["crawl", "batch"])
+def test_an_error_pages_row_fills_its_status_landed_and_rung(fake, command):
+    fake.pages[f"{ROOT}/gone"] = (503, page("503"), {})
+    args = [f"{ROOT}/gone"] if command == "crawl" else ["-"]
+    stdin = None if command == "crawl" else f"{ROOT}/gone\n"
+
+    result = invoke(
+        command, *args, "--retries", "0", "--format", "csv", stdin=stdin
+    )
+
+    [row] = rows(result.stdout)
+    assert row["ok"] == "false"
+    assert row["error"] == "fetch_failed"
+    assert row["status"] == "503"
+    assert row["landed"] == f"{ROOT}/gone"
+    assert row["rung"] == "http"
+    assert row["seconds"] != ""
+    assert row["climbs"] == "0"
+    assert row["records"] == ""
+    assert row["links"] == ""
+
+
+def test_a_line_that_was_never_answered_has_no_fetch(fake):
+    fake.pages[f"{ROOT}/robots.txt"] = (200, "User-agent: *\nDisallow: /no\n", {})
+
+    result = invoke("batch", "-", "--retries", "0", stdin=f"{ROOT}/no\n")
+
+    [line] = lines(result.stdout)
+    assert line["error"]["code"] == "refused_by_robots"
+    assert "fetch" not in line
+    assert "landed" not in line

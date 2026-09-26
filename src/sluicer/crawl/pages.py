@@ -118,10 +118,12 @@ class Page:
     rel=canonical>``, and ``links`` every address it lets a crawl follow, in
     document order. A page the site answered with 4xx or 5xx is an
     ``error``, ``fetch_failed``, whose message names the status -- retryable
-    for a 429 or a 5xx -- and ``status`` keeps it; its error page's
-    declarations, links and canonical are not the page's. ``extraction`` is
-    ``sluicer.extract``'s reading, as for one fetch; it and the other fetch
-    fields are None exactly when ``error`` is not. ``retries`` is every time
+    for a 429 or a 5xx -- and keeps ``landed``, ``rung``, ``status``,
+    ``seconds`` and ``climbs``, as its line keeps ``landed`` and ``fetch``;
+    its error page's declarations, links and canonical are not the page's.
+    ``extraction`` is ``sluicer.extract``'s reading, as for one fetch; it is
+    None exactly when ``error`` is not, and so are the fetch fields but for
+    such a page. ``retries`` is every time
     the page was asked again after a request that may succeed later, oldest
     first; what the page is, is what its last request came to.
     """
@@ -169,25 +171,32 @@ class Page:
             error = asdict(self.error)
             if error["target"] is None:
                 del error["target"]
+            if self.status is not None:
+                # The site answered, with its error: where and how is kept, as
+                # 0.9.0 printed it, and only its page is left out.
+                line |= {"landed": self.landed, "fetch": self._fetch()}
             return {**line, "error": error}
         read = asdict(self.extraction) if self.extraction is not None else {}
         return {
             **line,
             "landed": self.landed,
-            "fetch": {
-                "rung": self.rung,
-                "status": self.status,
-                "seconds": round(self.seconds, 3),
-                "climbs": [
-                    {**asdict(climb), "seconds": round(climb.seconds, 3)}
-                    for climb in self.climbs
-                ],
-            },
+            "fetch": self._fetch(),
             "canonical": self.canonical,
             "summary": read.get("summary", {}),
             "records": read.get("records", []),
             "sources": read.get("sources", []),
             "links": list(self.links),
+        }
+
+    def _fetch(self) -> dict[str, Any]:
+        return {
+            "rung": self.rung,
+            "status": self.status,
+            "seconds": round(self.seconds, 3),
+            "climbs": [
+                {**asdict(climb), "seconds": round(climb.seconds, 3)}
+                for climb in self.climbs
+            ],
         }
 
 
@@ -830,7 +839,15 @@ class _Visitor:
                 retryable=again,
             )
             return Page(
-                task.url, task.depth, task.found_on, status=fetched.status, error=error
+                task.url,
+                task.depth,
+                task.found_on,
+                landed=landed,
+                rung=fetched.rung,
+                status=fetched.status,
+                seconds=fetched.seconds,
+                climbs=tuple(fetched.climbs),
+                error=error,
             )
         answered = fetched.status < 400
         return Page(

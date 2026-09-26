@@ -1342,7 +1342,7 @@ def _crawled(page: crawling.Page, records: bool = False) -> dict[str, Any]:
     line = page.to_json()
     if not page.ok:
         error = {**line["error"], "url": page.url}
-        kept = ("ok", "url", "depth", "retries")
+        kept = ("ok", "url", "depth", "retries", "landed", "fetch")
         return {key: line[key] for key in kept if key in line} | {"error": error}
     read = line["records"] if records else line.pop("records")
     line["types"] = sorted({kind for record in read for kind in record["types"]})

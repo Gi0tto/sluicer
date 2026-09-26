@@ -2279,3 +2279,24 @@ def test_sluicer_mcp_is_not_asked_about_sluicer_s_own_arguments(monkeypatch):
     from sluicer.mcp_server import _refuse_script_arguments
 
     _refuse_script_arguments(["/venv/bin/sluicer", "mcp", "--tools", "x"])
+
+
+def test_an_error_page_of_extract_many_keeps_where_it_landed_and_its_fetch(
+    monkeypatch,
+):
+    """As a crawl's line does since the hostile review of 0.9.1: 0.9.0 gave
+    them, and the first 0.9.1 left the status only in the message."""
+    registered = fake_mcp(monkeypatch)
+    pages = _shop()
+    pages["https://example.com/gone"] = (404, "<title>404 Not Found</title>", {})
+    _fake_site_library(monkeypatch, pages)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    answer = registered["extract_many"](["https://example.com/gone"])
+
+    [page] = answer["pages"]
+    assert page["ok"] is False and page["error"]["code"] == "fetch_failed"
+    assert page["landed"] == "https://example.com/gone"
+    assert page["fetch"]["status"] == 404
+    assert "summary" not in page

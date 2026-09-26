@@ -108,7 +108,7 @@ def page_row(line: Mapping[str, Any]) -> dict[str, str]:
         "status": fetched.get("status"),
         "rung": fetched.get("rung"),
         "seconds": fetched.get("seconds"),
-        "climbs": len(fetched.get("climbs") or ()) if ok else None,
+        "climbs": len(fetched.get("climbs") or ()) if fetched else None,
         "retries": len(line.get("retries") or ()),
         "error": error.get("code"),
         "message": error.get("message"),

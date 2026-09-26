@@ -322,7 +322,9 @@ Each page is one line of JSON, written the moment its turn comes:
 ```
 
 `summary`, `records` and `sources` are what `sluicer extract` gives for the
-page. `links` is every address it lets a crawl follow, whether or not the
+page. A page the site answered with its error, a 4xx or a 5xx, is `ok` false
+with `fetch_failed` naming its status, and keeps `landed` and `fetch`; its
+error page's summary, records, canonical and links are left out. `links` is every address it lets a crawl follow, whether or not the
 crawl took it, so the file is also the site's link graph.
 
 Handed the same file with `--resume` (`state=` in Python), a crawl replays its
