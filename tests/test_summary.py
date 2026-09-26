@@ -1245,3 +1245,35 @@ def test_an_author_itemprop_outside_any_item_is_read_last():
     # An element outside any item gives no date: measured, that invented one.
     dated = '<html><body><time itemprop="datePublished">2020-05-01</time></body></html>'
     assert "published" not in _summary(dated)
+
+
+def test_rdfa_properties_of_the_document_itself_answer_author_and_date():
+    """With no subject in force, RDFa gives a property to the page."""
+    html = (
+        '<html><head><meta property="dc:date" content="2020-05-01"></head><body>'
+        '<p>By <span property="dcterms:creator">Ann Smith</span></p></body></html>'
+    )
+    summary = _summary(html)
+    assert summary["published"] == ("2020-05-01", "rdfa", "property=dc:date")
+    assert summary["author"] == ("Ann Smith", "rdfa", "property=dcterms:creator")
+    # schema.org's terms under its vocab, and its datePublished before DC's.
+    vocab = (
+        '<html><body vocab="http://schema.org/"><span property="author">Bo Li</span>'
+        '<span property="dc:created">2019-01-01</span>'
+        '<time property="datePublished" datetime="2020-02-02">2 Feb</time>'
+        "</body></html>"
+    )
+    assert _summary(vocab)["author"][0] == "Bo Li"
+    assert _summary(vocab)["published"][0] == "2020-02-02"
+    # Not another subject's, not a prefix the page redefined, not a bare term
+    # under no vocab, and not an address.
+    for body in (
+        '<div typeof="Person"><span property="dc:creator">Ann Smith</span></div>',
+        '<div about="/other"><span property="dc:creator">Ann Smith</span></div>',
+        '<div resource="/other"><span property="dc:creator">Ann Smith</span></div>',
+        '<div prefix="dc: http://example.org/">'
+        '<span property="dc:creator">Ann Smith</span></div>',
+        '<span property="author">Ann Smith</span>',
+        '<a property="dc:creator" href="https://example.com/ann">Ann Smith</a>',
+    ):
+        assert "author" not in _summary(f"<html><body>{body}</body></html>"), body

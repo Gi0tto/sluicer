@@ -366,3 +366,50 @@ class _Scopes:
                 scope = _Scope(node, scope)
             self.found[node] = scope
         return self.found[element]
+
+
+# The most document-level properties one page's reading looks at: a page's
+# own date and author are in its first few, and a hostile page writes
+# thousands.
+_MOST_DOCUMENT_PROPERTIES = 200
+
+
+def document_properties(
+    doc: Document,
+) -> list[tuple[str, str, str, HtmlElement]]:
+    """The RDFa properties whose subject is the document itself, as
+    ``(iri, term, value, element)`` in page order, ``term`` as written: those
+    on an element with no ``typeof``, ``about`` or ``resource`` of its own or
+    around it, so no other subject is in force. Each term is resolved as
+    ``read_rdfa`` resolves it, through the page's ``vocab`` and ``prefix`` and
+    RDFa's initial context; a bare term under no ``vocab`` and an OpenGraph
+    term are left out.
+
+    ``read_rdfa`` reads subjects a ``typeof`` names, so it never sees these:
+    ``<meta property="dc:date" content="2020-05-01">`` or ``<span
+    property="dcterms:creator">Ann Smith</span>`` say a date and an author of
+    the page, the subject RDFa gives a property with none in force. Read once
+    per page.
+    """
+    found: list[tuple[str, str, str, HtmlElement]] | None = doc.memo.get(
+        "rdfa.document_properties"
+    )
+    if found is not None:
+        return found
+    found = doc.memo["rdfa.document_properties"] = []
+    scopes = _Scopes()
+    for element in doc.tree.xpath(
+        "//*[@property][not(ancestor-or-self::*[@typeof or @about])]"
+        "[not(ancestor::*[@resource])][not(@resource)]"
+    ):
+        scope = scopes.at(element)
+        for token in (element.get("property") or "").split():
+            if ":" not in token and (scope is None or scope.vocab is None):
+                continue
+            iri = _resolve(token, scope)
+            if iri is None or iri.startswith(_OPENGRAPH):
+                continue
+            found.append((iri, token, _value(doc, element), element))
+        if len(found) >= _MOST_DOCUMENT_PROPERTIES:
+            break
+    return found

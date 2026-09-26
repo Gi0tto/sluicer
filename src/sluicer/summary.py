@@ -33,6 +33,7 @@ from sluicer.declared.links import canonicals
 from sluicer.declared.located import Places, paid, place, xpath_of
 from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Overruled, Record
 from sluicer.declared.opengraph import NAMESPACES
+from sluicer.declared.rdfa import document_properties
 from sluicer.document import Document, base_url, join
 from sluicer.normalise import (
     amount,
@@ -358,6 +359,7 @@ def read_summary(
             meta(dublincore, "dublincore", "creator", "dc."),
             _not_an_address(og("article:author")),
             _orphan_itemprop(doc, "author", meta=False),
+            _not_an_address(_of_the_document(doc, _RDFA_AUTHOR)),
         ],
         "published": [
             own("datePublished"),
@@ -370,6 +372,7 @@ def read_summary(
             meta(dublincore, "dublincore", "created", "dc."),
             _orphan_itemprop(doc, "datePublished"),
             _named(doc, _DATE_NAMES),
+            _of_the_document(doc, _RDFA_PUBLISHED),
         ],
         "modified": [
             own("dateModified"),
@@ -1505,6 +1508,39 @@ _AN_ADDRESS = frozenset(
     {"a", "area", "link", "img", "audio", "video", "source", "track", "embed"}
     | {"iframe", "object"}
 )
+
+
+# RDFa properties of the document itself that name its author and its
+# publication date, most specific first: schema.org's, and Dublin Core's, which
+# RDFa's initial context gives the prefixes dc: and dcterms:.
+_DCTERMS, _DC11 = "http://purl.org/dc/terms/", "http://purl.org/dc/elements/1.1/"
+_SCHEMA = ("http://schema.org/", "https://schema.org/")
+_RDFA_AUTHOR = (
+    *(f"{s}author" for s in _SCHEMA),
+    f"{_DCTERMS}creator",
+    f"{_DC11}creator",
+    *(f"{s}creator" for s in _SCHEMA),
+)
+_RDFA_PUBLISHED = (
+    *(f"{s}datePublished" for s in _SCHEMA),
+    f"{_DCTERMS}issued",
+    f"{_DCTERMS}date",
+    f"{_DC11}date",
+    f"{_DCTERMS}created",
+    *(f"{s}dateCreated" for s in _SCHEMA),
+)
+
+
+def _of_the_document(doc: Document, iris: tuple[str, ...]) -> SummaryField | None:
+    """The first of ``iris`` an RDFa property of the document itself gives a
+    value for: one with no subject in force, which RDFa gives the page."""
+    found = document_properties(doc)
+    for iri in iris:
+        for said, term, value, element in found:
+            text = _clean(value) if said == iri else None
+            if text and len(text) <= _ORPHAN_MOST:
+                return SummaryField(text, "rdfa", f"property={term}", xpath_of(element))
+    return None
 
 
 def _without_site(found: SummaryField, site_names: set[str]) -> SummaryField | None:
