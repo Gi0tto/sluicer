@@ -374,16 +374,74 @@ class _Scopes:
 _MOST_DOCUMENT_PROPERTIES = 200
 
 
-def _another_subject(element: HtmlElement) -> bool:
-    """Whether a subject other than the document is in force at ``element``:
-    a ``typeof``, ``about`` or ``resource`` on it or around it."""
-    if any(element.get(name) is not None for name in ("typeof", "about", "resource")):
-        return True
+# Attributes that make an element's subject another than the document's: on
+# the element itself, or on a box round it.
+_A_SUBJECT = ("typeof", "about", "resource")
+# Round a property, a link's address is a subject too: a related article's
+# card, <a href="/other"><span property="dc:date">, is about that article
+# (RDFa 1.0's rule, and RDFa 1.1's with a rel beside the href).
+_AN_ADDRESS_ROUND = (*_A_SUBJECT, "href", "src")
+# The boxes of other voices and of the site's chrome: a quotation, an aside,
+# a footer, a menu. A property in one is not the page's own.
+_NOT_THE_PAGE_S = frozenset({"blockquote", "aside", "footer", "nav"})
+
+
+class _Subjects:
+    """Whether a box round an element starts another subject than the
+    document or holds other voices' words, each box asked once: asked of
+    every property's ancestors, a page of thousands of properties deep in
+    one box would read that box's chain for each."""
+
+    def __init__(self) -> None:
+        self.found: dict[HtmlElement, bool] = {}
+
+    def within(self, element: HtmlElement) -> bool:
+        """Whether ``element`` or a box round it is a subject of its own
+        (``_AN_ADDRESS_ROUND``) or another voice's box."""
+        chain: list[HtmlElement] = []
+        node: HtmlElement | None = element
+        found = False
+        while node is not None:
+            if node in self.found:
+                found = self.found[node]
+                break
+            chain.append(node)
+            if _another_box(node):
+                found = True
+                break
+            node = node.getparent()
+        for seen in chain:
+            self.found[seen] = found
+        return found
+
+    def another_subject(self, element: HtmlElement) -> bool:
+        """Whether a subject other than the document is in force at
+        ``element``, or it sits in another voice's box: a ``typeof``,
+        ``about`` or ``resource`` on it; one of them, an ``href`` or a
+        ``src`` on a box round it; or a comment, a quotation, an aside, a
+        footer or a menu round it. Its own ``href`` is its value."""
+        if any(element.get(name) is not None for name in _A_SUBJECT):
+            return True
+        if _other_voices(element):
+            return True
+        parent = element.getparent()
+        return parent is not None and self.within(parent)
+
+
+def _another_box(node: HtmlElement) -> bool:
     return any(
-        above.get(name) is not None
-        for above in element.iterancestors()
-        for name in ("typeof", "about", "resource")
-    )
+        node.get(name) is not None for name in _AN_ADDRESS_ROUND
+    ) or _other_voices(node)
+
+
+def _other_voices(node: HtmlElement) -> bool:
+    if node.tag in _NOT_THE_PAGE_S:
+        return True
+    if node.tag in ("html", "head", "body"):
+        # The page's own classes, "comments-open", say nothing of a box.
+        return False
+    named = f"{node.get('class') or ''} {node.get('id') or ''}".lower()
+    return "comment" in named
 
 
 def document_properties(
@@ -410,12 +468,13 @@ def document_properties(
         return found
     found = doc.memo["rdfa.document_properties"] = []
     scopes = _Scopes()
+    subjects = _Subjects()
     # //*[@property][not(ancestor-or-self::*[@typeof or @about])]
     # [not(ancestor::*[@resource])][not(@resource)], through the attribute
     # axis and asked of each element's ancestors in Python: the same
     # elements, without a predicate tested on every element of the page.
     for element in carrying(doc.tree, "//@property"):
-        if _another_subject(element):
+        if subjects.another_subject(element):
             continue
         scope = scopes.at(element)
         for token in (element.get("property") or "").split():

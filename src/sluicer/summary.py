@@ -372,7 +372,7 @@ def read_summary(
             meta(dublincore, "dublincore", "created", "dc."),
             _orphan_itemprop(doc, "datePublished"),
             _named(doc, _DATE_NAMES),
-            _of_the_document(doc, _RDFA_PUBLISHED),
+            _of_the_document(doc, _RDFA_PUBLISHED, dated=True),
         ],
         "modified": [
             own("dateModified"),
@@ -1587,13 +1587,20 @@ _RDFA_PUBLISHED = (
 )
 
 
-def _of_the_document(doc: Document, iris: tuple[str, ...]) -> SummaryField | None:
+def _of_the_document(
+    doc: Document, iris: tuple[str, ...], dated: bool = False
+) -> SummaryField | None:
     """The first of ``iris`` an RDFa property of the document itself gives a
-    value for: one with no subject in force, which RDFa gives the page."""
+    value for: one with no subject in force, which RDFa gives the page. With
+    ``dated``, only a value that reads as a date: a link's address, ``<a
+    property="dcterms:date" href="/archive/2020/05">``, is the value RDFa
+    gives it, and no date."""
     found = document_properties(doc)
     for iri in iris:
         for said, term, value, element in found:
             text = _clean(value) if said == iri else None
+            if dated and text and iso_date(text) is None:
+                continue
             if text and len(text) <= _ORPHAN_MOST:
                 return SummaryField(text, "rdfa", f"property={term}", xpath_of(element))
     return None

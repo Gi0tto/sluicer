@@ -1324,3 +1324,38 @@ def test_the_own_offset_is_moved_to_only_when_written_in_iso_8601():
     for written in ("2018-02-20T01:00:00+01:00", "2018-02-20T01:00:00.000+01:00"):
         own = f'<meta property="article:published_time" content="{written}">'
         assert _summary(_page(utc, head=own))["published"][0] == written
+
+
+def test_rdfa_properties_of_another_subject_or_voice_are_not_the_document_s():
+    """Found by the hostile review of 0.10: the document's properties were
+    every property with no typeof, about or resource round it, so a related
+    article's card, a link with rel and href, a comment, a quotation, an
+    aside, a footer or a menu gave the page its author, and a date property
+    on a link answered its address."""
+    creator = '<span property="dc:creator">Ann Smith</span>'
+    for body in (
+        f'<a href="/other-article">{creator}</a>',
+        f'<a rel="dc:relation" href="/other-article"><b>{creator}</b></a>',
+        f'<div src="/x.html">{creator}</div>',
+        f'<div class="comment-body">{creator}</div>',
+        f'<li id="comment-12"><p>{creator}</p></li>',
+        f"<blockquote>{creator}</blockquote>",
+        f"<aside>{creator}</aside>",
+        f"<footer>{creator}</footer>",
+        f"<nav>{creator}</nav>",
+    ):
+        assert "author" not in _summary(f"<html><body>{body}</body></html>"), body
+    # A date property on a link is its address, and no date.
+    archive = '<a property="dcterms:date" href="/archive/2020/05">May 2020</a>'
+    html = f"<html><body>{archive}</body></html>"
+    assert "published" not in _summary(html, url="https://example.com/p")
+    # The page's own, beside them, still answers; the page's own classes say
+    # nothing of a box.
+    page = (
+        '<html class="comments-open"><body class="has-comments">'
+        f'<a href="/other">{creator.replace("Ann Smith", "Bo Li")}</a>'
+        f'<p>{creator}</p><span property="dc:date">2020-05-01</span>'
+        "</body></html>"
+    )
+    assert _summary(page)["author"][0] == "Ann Smith"
+    assert _summary(page)["published"][0] == "2020-05-01"
