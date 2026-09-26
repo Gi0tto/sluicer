@@ -339,3 +339,18 @@ def test_a_testimonial_s_signature_is_not_the_author() -> None:
         '<div class="review-author">Rachel Moss</div></div>'
     )
     assert "author" not in read_visible(_page(body))
+
+
+def test_an_article_s_own_footer_holds_its_byline() -> None:
+    article = (
+        "<article><h1>What tutoring is</h1><p>Text.</p>"
+        '<footer class="entry-footer"><div class="author">'
+        '<a rel="author" href="/halina">Halina Goetz</a></div></footer></article>'
+    )
+    assert read_visible(_page(article))["author"].value == "Halina Goetz"
+    page_footer = (
+        "<article><h1>What tutoring is</h1><p>Text.</p></article>"
+        '<footer><div class="author"><a rel="author" href="/h">Halina Goetz</a>'
+        "</div></footer>"
+    )
+    assert "author" not in read_visible(_page(page_footer))
