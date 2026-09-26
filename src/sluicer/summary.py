@@ -1179,17 +1179,58 @@ def _one_offer_sku(record: Record | None) -> SummaryField | None:
     held = record.fields["offers"]
     if held.source not in ABOUT_A_THING:
         return None
-    skus = [
-        (text, path)
-        for offer, path in _offers_in(held.value, "offers")
-        if (text := _text(offer["sku"]) if "sku" in offer else None)
-    ]
+    # An offer of another thing, and every offer inside it, sells that
+    # thing: a bundle's offer of its accessory holds the accessory's SKU.
+    own_name = record.fields.get("name")
+    name_of = (_text(own_name.value) or "").casefold() if own_name else ""
+    elsewhere: list[str] = []
+    skus = []
+    for offer, path in _offers_in(held.value, "offers"):
+        if any(path.startswith(f"{away}.") for away in elsewhere):
+            continue
+        if not _offers_the_subject(offer, name_of):
+            elsewhere.append(path)
+            continue
+        # An AggregateOffer's own SKU is a listing's, not the product's: it
+        # sums the sellers' offers, each of which may say its own.
+        if _aggregate(offer):
+            continue
+        text = _text(offer["sku"]) if "sku" in offer else None
+        if text:
+            skus.append((text, path))
     if not skus or len({text for text, _ in skus}) > 1:
         return None
     text, path = skus[0]
     name = record.type or "Thing"
     key = f"{name}.{path}.sku"
     return SummaryField(text, held.source, key, _inside(held, f"{path}.sku"))
+
+
+def _offers_the_subject(offer: dict[str, JsonValue], name: str) -> bool:
+    """Whether ``offer`` sells the subject itself: it names no
+    ``itemOffered``, or names one by the subject's own name, whole or as the
+    part of it after a title's separator ("Log in · Casio FX-991ES" offers
+    "Casio FX-991ES")."""
+    offered = offer.get("itemOffered")
+    if offered is None:
+        return True
+    said = _text(offered)
+    if not name or not said:
+        return False
+    said = said.casefold()
+    return name == said or any(
+        name.endswith(separator + said) for separator in _TITLE_SEPARATORS
+    )
+
+
+def _aggregate(offer: dict[str, JsonValue]) -> bool:
+    """Whether ``offer`` declares itself an ``AggregateOffer``, under any of
+    the ways a type is written: ``AggregateOffer``, ``schema:AggregateOffer``,
+    ``https://schema.org/AggregateOffer``."""
+    return any(
+        isinstance(kind, str) and re.split(r"[/:#]", kind)[-1] == "AggregateOffer"
+        for kind in _listed(offer.get("@type"))
+    )
 
 
 def _offers_in(value: JsonValue, path: str) -> list[tuple[dict[str, JsonValue], str]]:

@@ -172,7 +172,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A product whose SKU was declared only on its offer, `"offers": {"sku":
   ...}`, had no SKU in the summary. The offer's SKU is now the product's when
   the product declares neither a SKU nor a `productID` and its offers name
-  one SKU.
+  one SKU. Only an offer of the product itself counts: not one whose
+  `itemOffered` is another thing, such as a bundle's accessory, nor any
+  offer inside it, and not an `AggregateOffer`'s own `sku`, which is a
+  listing's; the sellers' offers inside an `AggregateOffer` still count.
 - A page fetched and never extracted stayed parsed for as long as its thread
   lived: sixteen threads that each fetched a 10 MB page without extracting it
   held 1.4 GB where 0.9.1 held 0.3 GB, and `page_markdown` kept the fetched
