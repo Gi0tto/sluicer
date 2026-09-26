@@ -1,0 +1,359 @@
+"""The install line a message gives is the one for the way Sluicer was installed.
+
+Every missing extra's message said ``uv pip install "sluicer[x]"``. Outside a
+virtual environment uv refuses that line, and in a ``uv tool`` or pipx
+environment it would install somewhere else. Each installer leaves a mark in
+the environment it makes, laid out here in a temporary directory as the real
+one leaves it (the marks were read from uv 0.11.32 and pipx 1.x on
+2026-09-26). Playwright is faked, never asked to download anything.
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import re
+import shlex
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from sluicer import installer
+from sluicer.installer import Installation, detect
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def _declared_extras() -> set[str]:
+    """The extras pyproject.toml declares, read with a pattern (no tomllib on
+    3.10)."""
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    section = pyproject.split("[project.optional-dependencies]", 1)[1]
+    section = section.split("\n[", 1)[0]
+    return set(re.findall(r"^([a-z][\w-]*) = \[", section, re.MULTILINE))
+
+
+def _venv(prefix: Path, *, uv: bool) -> Path:
+    prefix.mkdir(parents=True)
+    lines = ["home = /usr/bin", "include-system-site-packages = false"]
+    if uv:
+        lines.append("uv = 0.11.32")
+    (prefix / "pyvenv.cfg").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return prefix
+
+
+def _no_pip(_: str) -> None:
+    return None
+
+
+# -- which installer -------------------------------------------------------
+
+
+def test_a_uv_tool_keeps_the_extras_its_receipt_asked_for(tmp_path):
+    """uv tool install with other extras replaces the tool's requirements:
+    measured, sluicer[mcp] over sluicer[microformats] removed mf2py. So the
+    line names the extras the receipt records beside the new one."""
+    prefix = _venv(tmp_path / "tools" / "sluicer", uv=True)
+    (prefix / "uv-receipt.toml").write_text(
+        "[tool]\n"
+        'requirements = [{ name = "sluicer", extras = ["microformats"] }]\n'
+        "entrypoints = [\n"
+        '    { name = "sluicer", install-path = "/x/sluicer", from = "sluicer" },\n'
+        "]\n",
+        encoding="utf-8",
+    )
+
+    found = detect(prefix, str(prefix / "bin" / "python"), {}, _no_pip)
+
+    assert found.kind == "uv tool"
+    assert found.asked == {"microformats"}
+    assert found.command(["browser"], found.kept()) == (
+        'uv tool install "sluicer[browser,microformats]"'
+    )
+
+
+def test_a_bare_uv_tool_install_asks_for_only_the_new_extra(tmp_path):
+    prefix = _venv(tmp_path / "sluicer", uv=True)
+    (prefix / "uv-receipt.toml").write_text(
+        '[tool]\nrequirements = [{ name = "sluicer" }]\n', encoding="utf-8"
+    )
+
+    found = detect(prefix, "python", {}, _no_pip)
+
+    assert found.asked == frozenset()
+    assert found.command(["mcp"], found.kept()) == 'uv tool install "sluicer[mcp]"'
+
+
+def test_pipx_installs_over_its_environment_only_with_force(tmp_path):
+    """pipx install without --force leaves an installed package alone:
+    "Pass '--force' to force installation" (measured)."""
+    prefix = _venv(tmp_path / "pipx" / "venvs" / "sluicer", uv=False)
+    (prefix / "pipx_metadata.json").write_text(
+        json.dumps(
+            {
+                "main_package": {"package_or_url": "sluicer[mcp]", "pip_args": []},
+                "pipx_metadata_version": "0.5",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    found = detect(prefix, "python", {}, _no_pip)
+
+    assert found.kind == "pipx"
+    assert found.command(["browser"], found.kept()) == (
+        'pipx install --force "sluicer[browser,mcp]"'
+    )
+
+
+def test_uvx_is_told_to_run_again_with_the_extra(tmp_path):
+    """uvx installs nothing to keep: its environment is one in uv's cache,
+    made for one set of requirements, so the fix is the next run's line."""
+    prefix = _venv(tmp_path / "cache" / "uv" / "archive-v0" / "I25t_oXOG3dX", uv=True)
+
+    found = detect(prefix, "python", {"UV": "/bin/uv"}, _no_pip)
+
+    assert found.kind == "uvx"
+    assert found.command(["browser"], set(), then="install browser") == (
+        'uvx --from "sluicer[browser]" sluicer install browser'
+    )
+
+
+def test_a_uv_project_adds_the_extra_to_the_project(tmp_path, monkeypatch):
+    """What uv pip install puts in a project's .venv the next uv sync takes
+    away; uv add keeps it, and names the extras the project already has."""
+    project = tmp_path / "shop"
+    prefix = _venv(project / ".venv", uv=True)
+    (project / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    (project / "pyproject.toml").write_text(
+        '[project]\nname = "shop"\ndependencies = ["sluicer[mcp]>=0.9"]\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project)
+
+    found = detect(prefix, "python", {}, _no_pip)
+
+    assert found.kind == "uv project"
+    assert found.command(["browser"], {"mcp"}) == 'uv add "sluicer[browser,mcp]"'
+    monkeypatch.chdir(tmp_path)
+    assert found.command(["browser"], {"mcp"}) == (
+        f'uv add --project {project} "sluicer[browser,mcp]"'
+    )
+
+
+def test_sluicer_s_own_checkout_is_not_a_project_that_depends_on_it(tmp_path):
+    project = tmp_path / "sluicer"
+    prefix = _venv(project / ".venv", uv=True)
+    (project / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    (project / "pyproject.toml").write_text(
+        '[project]\nname = "sluicer"\n'
+        '[project.optional-dependencies]\nfetch = ["sluicer[browser]"]\n',
+        encoding="utf-8",
+    )
+
+    assert detect(prefix, "python", {}, _no_pip).kind == "uv venv"
+
+
+def test_a_venv_uv_made_has_no_pip_and_takes_uv_pip(tmp_path):
+    """Active, uv pip install finds it; not active, the line names its Python,
+    since uv would otherwise look for .venv in the working directory."""
+    prefix = _venv(tmp_path / "env", uv=True)
+    python = str(prefix / "bin" / "python")
+
+    active = detect(prefix, python, {"VIRTUAL_ENV": str(prefix)}, _no_pip)
+    elsewhere = detect(prefix, python, {}, _no_pip)
+
+    assert active.command(["browser"]) == 'uv pip install "sluicer[browser]"'
+    assert elsewhere.command(["browser"]) == (
+        f'uv pip install --python {python} "sluicer[browser]"'
+    )
+
+
+def test_pip_by_name_only_when_the_path_leads_to_this_environment(tmp_path):
+    """The line given outside a virtual environment used to be uv pip
+    install, which uv refuses there: "No virtual environment found"."""
+    prefix = _venv(tmp_path / "env", uv=False)
+    (prefix / "bin").mkdir()
+    python = str(prefix / "bin" / "python")
+
+    here = detect(prefix, python, {}, lambda _: str(prefix / "bin" / "pip"))
+    other = detect(prefix, python, {}, lambda _: "/usr/local/bin/pip")
+    system = detect("/usr", "/usr/bin/python3", {}, lambda _: "/usr/bin/pip")
+
+    assert here.command(["api"]) == 'pip install "sluicer[api]"'
+    assert other.command(["api"]) == f'{python} -m pip install "sluicer[api]"'
+    assert system.command(["mcp"]) == 'pip install "sluicer[mcp]"'
+    assert "uv pip" not in system.command(["mcp"])
+
+
+def test_a_python_whose_path_has_a_space_is_quoted(tmp_path):
+    python = "C:\\Program Files\\Python314\\python.exe"
+
+    found = Installation("pip", python, short=False)
+
+    assert found.command(["mcp"]) == (f'"{python}" -m pip install "sluicer[mcp]"')
+
+
+def test_an_extra_is_not_named_beside_one_that_brings_it():
+    tool = Installation("uv tool", "python")
+
+    assert tool.command(["mcp"], {"api"}) == 'uv tool install "sluicer[api]"'
+    assert tool.command(["all"], {"api", "stealth", "microformats"}) == (
+        'uv tool install "sluicer[all,stealth]"'
+    )
+    # markdown is the base install's: kept silently, named when asked for.
+    assert tool.command(["mcp"], {"markdown"}) == 'uv tool install "sluicer[mcp]"'
+    assert tool.command(["markdown"], set()) == 'uv tool install "sluicer[markdown]"'
+
+
+def test_an_unreadable_record_falls_back_to_what_is_installed(tmp_path, monkeypatch):
+    prefix = _venv(tmp_path / "sluicer", uv=False)
+    (prefix / "pipx_metadata.json").write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(installer, "present", lambda: {"microformats"})
+
+    found = detect(prefix, "python", {}, _no_pip)
+
+    assert found.asked is None
+    assert found.kept() == {"microformats"}
+
+
+def test_present_reads_the_packages_without_importing_them(absent):
+    absent("mf2py", "playwright")
+
+    have = installer.present()
+
+    assert "microformats" not in have
+    assert "browser" not in have
+    assert "markdown" in have
+
+
+# -- every message names a working command --------------------------------
+
+
+def _import_extra_calls() -> list[tuple[str, str]]:
+    """(file, extra) for every import_extra call in the package."""
+    found = []
+    for path in (ROOT / "src" / "sluicer").rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "import_extra"
+            ):
+                extra = node.args[1]
+                assert isinstance(extra, ast.Constant), path
+                found.append((path.name, extra.value))
+    return found
+
+
+def test_every_extra_a_message_can_name_is_one_pyproject_declares():
+    calls = _import_extra_calls()
+    declared = _declared_extras()
+
+    assert {extra for _, extra in calls} >= {
+        "browser",
+        "stealth",
+        "markdown",
+        "microformats",
+        "mcp",
+        "api",
+    }
+    for where, extra in calls:
+        assert extra in declared, (where, extra)
+    assert set(installer.EXTRAS) <= declared
+
+
+def _programs(line: str) -> list[str]:
+    return shlex.split(line)
+
+
+_PROGRAM = {
+    ("uv tool", True): ("uv", "tool", "install"),
+    ("pipx", True): ("pipx", "install", "--force"),
+    ("uvx", True): ("uvx", "--from"),
+    ("uv project", True): ("uv", "add"),
+    ("uv venv", False): ("uv", "pip", "install", "--python", "/env/bin/python"),
+    ("uv venv", True): ("uv", "pip", "install"),
+    ("pip", False): ("/env/bin/python", "-m", "pip", "install"),
+    ("pip", True): ("pip", "install"),
+}
+"""The command each installer takes, as a shell splits it."""
+
+
+@pytest.mark.parametrize(
+    "found",
+    [
+        Installation("uv tool", "python", asked=frozenset({"microformats"})),
+        Installation("pipx", "python", asked=frozenset()),
+        Installation("uvx", "python"),
+        Installation("uv project", "python", project=Path.cwd()),
+        Installation("uv venv", "/env/bin/python", short=False),
+        Installation("uv venv", "/env/bin/python"),
+        Installation("pip", "/env/bin/python", short=False),
+        Installation("pip", "python"),
+    ],
+    ids=lambda found: f"{found.kind}-{'short' if found.short else 'long'}",
+)
+def test_every_missing_extra_message_names_a_command_that_parses(
+    found, monkeypatch, absent
+):
+    """For each installer and each extra, the message's command is one line a
+    shell reads as: a known program, then exactly one requirement, sluicer
+    with extras pyproject declares, the one asked for among them."""
+    from sluicer.extras import MissingExtra, import_extra
+
+    monkeypatch.setattr(installer, "current", lambda: found)
+    monkeypatch.setattr(installer, "present", lambda: {"microformats"})
+    absent("pretend_package")
+    declared = _declared_extras()
+    for extra in installer.EXTRAS:
+        with pytest.raises(MissingExtra) as raised:
+            import_extra("pretend_package", extra, doing="Doing it")
+        message = str(raised.value)
+        lead = "Run it with: " if found.kind == "uvx" else "Install it with: "
+        assert lead in message, message
+        words = _programs(message.split(lead, 1)[1])
+        assert words[: len(_PROGRAM[found.kind, found.short])] == list(
+            _PROGRAM[found.kind, found.short]
+        ), words
+        specs = [word for word in words if word.startswith("sluicer[")]
+        assert len(specs) == 1, words
+        named = set(specs[0][len("sluicer[") : -1].split(","))
+        assert named <= declared
+        assert extra in named or (extra == "mcp" and "api" in named)
+
+
+# -- where Playwright's Chromium is -----------------------------------------
+
+
+def test_chromium_is_ready_when_playwright_marked_every_part_complete(tmp_path):
+    parts = [tmp_path / "chromium-1243", tmp_path / "ffmpeg-1011"]
+    listing = "".join(
+        f"Browser {n}\n  Install location:    {part}\n  Download url: x\n\n"
+        for n, part in enumerate(parts)
+    )
+
+    def dry_run(argv, **kwargs):
+        assert argv[-3:] == ["install", "--dry-run", "chromium"]
+        return subprocess.CompletedProcess(argv, 0, listing, "")
+
+    for part in parts:
+        part.mkdir()
+    (parts[0] / "INSTALLATION_COMPLETE").write_text("", encoding="utf-8")
+
+    assert installer.chromium_missing(dry_run) == [str(parts[1])]
+    (parts[1] / "INSTALLATION_COMPLETE").write_text("", encoding="utf-8")
+    assert installer.chromium_missing(dry_run) == []
+
+
+def test_chromium_is_unknown_when_playwright_cannot_say():
+    def failing(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 1, "", "boom")
+
+    def absent(argv, **kwargs):
+        raise FileNotFoundError(argv[0])
+
+    assert installer.chromium_missing(failing) is None
+    assert installer.chromium_missing(absent) is None

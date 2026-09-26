@@ -179,7 +179,7 @@ def test_a_crawl_without_an_extra_it_needs_says_how_to_install_it(monkeypatch):
     def missing(*args, **kwargs):
         raise FetchExtraMissing(
             "Loading a page in a browser needs playwright, which is not installed. "
-            'Install it with: uv pip install "sluicer[browser]"'
+            'Install it with: pip install "sluicer[browser]"'
         )
 
     monkeypatch.setattr("sluicer.cli.sites.crawl_site", missing)
@@ -369,7 +369,7 @@ def test_a_batch_without_an_extra_it_needs_says_how_to_install_it(monkeypatch):
     from sluicer.fetch.rungs import FetchExtraMissing
 
     def missing(*args, **kwargs):
-        raise FetchExtraMissing('Install it with: uv pip install "sluicer[browser]"')
+        raise FetchExtraMissing('Install it with: pip install "sluicer[browser]"')
 
     monkeypatch.setattr("sluicer.cli.sites.extract_many", missing)
 

@@ -42,7 +42,7 @@ def test_an_absent_package_becomes_a_missing_extra_naming_the_extra(monkeypatch)
         import_extra("pretend_package.inner", "fetch", doing="Doing the thing")
 
     assert raised.value.extra == "fetch"
-    assert 'uv pip install "sluicer[fetch]"' in str(raised.value)
+    assert 'Install it with: pip install "sluicer[fetch]"' in str(raised.value)
     assert "Doing the thing needs pretend_package" in str(raised.value)
 
 
@@ -101,7 +101,7 @@ def test_the_package_shown_in_the_message_can_be_spelled_for_a_human(monkeypatch
 
     assert str(raised.value) == (
         "Running the MCP server needs the mcp package, which is not installed. "
-        'Install it with: uv pip install "sluicer[mcp]"'
+        'Install it with: pip install "sluicer[mcp]"'
     )
 
 

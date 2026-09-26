@@ -510,7 +510,9 @@ def test_page_markdown_without_the_markdown_extra_reports_it_as_an_error(monkeyp
 
     result = registered["page_markdown"]("<html><body>hi</body></html>")
 
-    assert 'uv pip install "sluicer[markdown]"' in result["error"]["message"]
+    assert (
+        'Install it with: pip install "sluicer[markdown]"' in result["error"]["message"]
+    )
     assert result["error"] | {"message": ""} == {
         "code": "missing_extra",
         "message": "",
@@ -603,7 +605,9 @@ def test_a_missing_extra_is_never_mistakable_for_content(monkeypatch):
     for name, result in results.items():
         assert isinstance(result, Mapping), f"{name} returned {type(result).__name__}"
         assert "error" in result, f"{name} carries no error key: {result!r}"
-        assert 'uv pip install "sluicer[' in result["error"]["message"], name
+        assert 'Install it with: pip install "sluicer[' in result["error"]["message"], (
+            name
+        )
 
 
 def test_the_fetch_fake_matches_the_real_fetch_signature(monkeypatch):
@@ -2203,7 +2207,7 @@ def test_sluicer_mcp_without_the_extra_exits_2_with_the_install_line(monkeypatch
     result = CliRunner().invoke(main, ["mcp"])
 
     assert result.exit_code == 2, result.output
-    assert 'uv pip install "sluicer[mcp]"' in result.stderr
+    assert 'Install it with: pip install "sluicer[mcp]"' in result.stderr
     assert "Traceback" not in result.output
 
 

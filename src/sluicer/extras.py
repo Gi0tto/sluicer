@@ -11,7 +11,7 @@ dotted component of the module imported.
 Everything else is re-raised untouched. A ``ModuleNotFoundError`` naming a
 submodule (``scrapling.fetchers``, ``mcp.server.mcpserver``), or an
 ``ImportError`` raised while a working package runs, is a broken install;
-telling it to "uv pip install ..." would send the reader to install what they
+telling it to "pip install ..." would send the reader to install what they
 have and hide the real error.
 """
 
@@ -37,11 +37,12 @@ class MissingExtra(ImportError):
 def _sentence(doing: str, package: str, extra: str) -> str:
     """The one message an absent extra produces, install line included: at a
     command line or in a tool result, the command that fixes it is the next
-    useful thing."""
-    return (
-        f"{doing} needs {package}, which is not installed. "
-        f'Install it with: uv pip install "sluicer[{extra}]"'
-    )
+    useful thing. It is the command for the way this Sluicer was installed
+    (``sluicer.installer``): ``uv pip install``, said to everyone, fails
+    outside a virtual environment and misses a ``uv tool`` or pipx one."""
+    from sluicer.installer import how_to_add
+
+    return f"{doing} needs {package}, which is not installed. {how_to_add(extra)}"
 
 
 def import_extra(

@@ -77,7 +77,7 @@ def test_a_missing_browser_is_a_climb_that_failed_and_says_how_to_install_it(
         ("http", "browser"),
         ("browser", "http"),
     ]
-    assert 'uv pip install "sluicer[browser]"' in page.climbs[1].reason
+    assert 'Install it with: pip install "sluicer[browser]"' in page.climbs[1].reason
 
 
 def test_the_browser_says_who_it_is_and_nothing_more(monkeypatch):

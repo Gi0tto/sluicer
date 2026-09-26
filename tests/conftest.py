@@ -159,3 +159,20 @@ def absent(monkeypatch):
         monkeypatch.setattr(sys, "meta_path", [Finder(), *sys.meta_path])
 
     return make_absent
+
+
+@pytest.fixture(autouse=True)
+def _installed_with_pip(monkeypatch):
+    """Read every missing extra's install line as a plain pip environment's.
+
+    The line names the command for the way Sluicer was installed
+    (``sluicer.installer``), which differs between a developer's virtual
+    environment made by uv, a ``uv tool`` and CI; pinned here, a message reads
+    the same wherever the suite runs. ``tests/test_installer.py`` tests the
+    detection itself, with each installer's marks in a temporary directory.
+    """
+    from sluicer import installer
+
+    monkeypatch.setattr(
+        installer, "current", lambda: installer.Installation("pip", "python")
+    )

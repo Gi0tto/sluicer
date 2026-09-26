@@ -162,7 +162,7 @@ def test_a_url_whose_rung_needs_a_missing_extra_explains_itself(monkeypatch):
     def fake_fetch(url, rungs=None, **kwargs):
         raise FetchExtraMissing(
             "The stealth rung needs scrapling, which is not installed. "
-            'Install it with: uv pip install "sluicer[stealth]"'
+            'Install it with: pip install "sluicer[stealth]"'
         )
 
     monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
@@ -170,7 +170,7 @@ def test_a_url_whose_rung_needs_a_missing_extra_explains_itself(monkeypatch):
     result = CliRunner().invoke(main, ["extract", "https://example.com/p", "--stealth"])
 
     assert result.exit_code == 2
-    assert 'uv pip install "sluicer[stealth]"' in result.stderr
+    assert 'pip install "sluicer[stealth]"' in result.stderr
     assert isinstance(result.exception, SystemExit)
 
 
@@ -328,7 +328,7 @@ def test_markdown_without_the_extra_explains_itself(monkeypatch, tmp_path):
     def refuse(html, url=None):
         raise MarkdownExtraMissing(
             "Turning a page into markdown needs trafilatura, which is not installed. "
-            'Install it with: uv pip install "sluicer[markdown]"'
+            'Install it with: pip install "sluicer[markdown]"'
         )
 
     monkeypatch.setattr("sluicer.cli.page.to_markdown", refuse)
@@ -453,7 +453,7 @@ def test_a_missing_protego_at_the_command_line_is_a_broken_install(monkeypatch, 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
     assert type(result.exception) is ModuleNotFoundError
-    assert "uv pip install" not in result.stderr
+    assert "pip install" not in result.stderr
 
 
 def test_standard_input_is_a_source():
