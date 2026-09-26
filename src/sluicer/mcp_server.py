@@ -719,8 +719,12 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             raise _BadInput("compile_extractor needs at least one page")
         if select is not None or rows is not None:
             try:
-                # Every selector read before any page is fetched.
-                extractor_module.compile_extractor([], select=select, rows=rows)
+                # Every selector read before any page is fetched, and want or
+                # listing beside select refused as the library refuses them:
+                # until 0.9.1 they were dropped here, and want ignored.
+                extractor_module.compile_extractor(
+                    [], select=select, rows=rows, want=want, listing=listing
+                )
             except ValueError as unread:
                 raise _BadInput(str(unread)) from unread
         read = [_html_of(one)[:2] for one in pages]

@@ -2181,3 +2181,26 @@ def test_the_server_refuses_to_start_with_a_browser_it_does_not_drive(
 
     assert raised.value.code == 2
     assert "SLUICER_BROWSER='firefox'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "learnt", [{"want": {"price": "41.90"}}, {"listing": True}, {"listing": False}]
+)
+def test_compile_extractor_refuses_select_beside_the_learnt_way(monkeypatch, learnt):
+    """Measured on 0.9.0 (inventory audit, B7): want and select together
+    answered ok true, want silently ignored; the command line refuses the
+    pair, and so does the library."""
+    registered = fake_mcp(monkeypatch)
+    fetch = fake_fetch(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered["compile_extractor"](
+        ["https://example.com/p"], select={"title": "h1"}, **learnt
+    )
+
+    assert answer["ok"] is False
+    assert answer["error"]["code"] == "bad_input"
+    assert "one is chosen" in answer["error"]["message"]
+    assert fetch.calls == []

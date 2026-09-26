@@ -49,6 +49,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - The stealth rung joins the values of a header given twice, as every other
   rung does, instead of keeping the last. scrapling 0.4.15 already joins
   them, so this guards a contract the rung relied on scrapling to keep.
+- MCP `compile_extractor` refuses `select` beside `want` or `listing`, as the
+  command line and the library do, before any page is fetched. It answered
+  `ok` true and ignored `want`.
 
 ## 0.9.0 - 2026-09-26
 
