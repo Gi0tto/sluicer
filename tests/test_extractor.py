@@ -670,6 +670,12 @@ def test_heal_says_why_its_words_differ_from_the_run(tmp_path):
     assert "listing-lost" not in result.stderr
     assert "vanished: title" in result.stderr
     assert "The listing is where it was" in result.stderr
+    # Said of fields heal did not find: they are looked for, not found again.
+    assert "found again" not in result.stderr
+    assert (
+        "title is looked for by the values learnt, and no place in it holds "
+        "them on these pages" in result.stderr
+    )
 
 
 def test_a_chosen_listing_is_kept_through_its_file_and_an_old_file_is_not_one():

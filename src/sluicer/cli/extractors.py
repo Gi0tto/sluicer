@@ -329,7 +329,7 @@ def heal_command(
         # vanished. Both are so, and this says why the words differ.
         click.echo(
             f"The listing is where it was; {', '.join(map(str, gone))} "
-            f"{'is' if len(gone) == 1 else 'are'} found again by the values "
+            f"{'is' if len(gone) == 1 else 'are'} looked for by the values "
             "learnt, and no place in it holds them on these pages. Heal with a "
             "page that lists some of the same items to find where they went, "
             "or compile again.",
