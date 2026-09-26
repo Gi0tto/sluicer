@@ -247,3 +247,33 @@ def test_a_link_holding_a_control_character_does_not_stop_the_page():
 
     assert "A paragraph long enough" in out
     assert "\x08" not in out
+
+
+def test_the_whole_page_encodes_a_link_s_controls_as_the_main_text_does():
+    """Found by the hostile review of 0.10: `--full` wrote a link's raw
+    backspace into its target, `[bs](https://a.example/x\\x08y)`. It is now
+    percent-encoded, as the main text's markdown writes it and the URL
+    standard encodes it."""
+    pytest.importorskip("trafilatura")
+    from sluicer.markdown import to_markdown
+
+    links = (
+        "<a href='/x&#8;y'>bs</a> <a href='/a&#31;b&#127;c'>ctl</a> "
+        "<img src='/i&#8;.png' alt='i'>"
+    )
+    words = " ".join(
+        f"Step {n} of fitting the controls page's brakes." for n in range(40)
+    )
+    page = (
+        "<html><body><article><h1>Controls in links</h1>"
+        f"<p>{words} Read {links} before you start.</p></article></body></html>"
+    )
+    url = "https://a.example/p/q"
+    whole = to_markdown(page, url=url, full=True)
+    main = to_markdown(page, url=url)
+
+    for out in (whole, main):
+        assert "[bs](https://a.example/x%08y)" in out
+        assert "[ctl](https://a.example/a%1Fb%7Fc)" in out
+    assert "![i](https://a.example/i%08.png)" in whole
+    assert not any((ord(c) < 32 and c != "\n") or c == "\x7f" for c in whole)

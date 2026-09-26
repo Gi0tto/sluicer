@@ -1296,6 +1296,51 @@ def test_an_offer_s_sku_is_the_product_s_when_the_product_has_none():
     )
 
 
+def test_an_offer_of_another_thing_or_an_aggregate_s_sku_is_not_the_product_s():
+    """Found by the hostile review of 0.10: the offer's SKU was read from an
+    offer whose itemOffered is another product, a bundle's accessory, and
+    from an AggregateOffer's own sku, a marketplace's listing id."""
+    accessory = {"@type": "Product", "name": "Accessory"}
+    other = {"@type": "Offer", "price": "10", "sku": "ACC-1", "itemOffered": accessory}
+    bundle = {"@type": "Product", "name": "Bundle", "offers": other}
+    assert "sku" not in _summary(_page(bundle))
+    # Nor any offer inside an offer of another thing.
+    inside = {
+        "@type": "Offer",
+        "itemOffered": accessory,
+        "offers": {"@type": "Offer", "sku": "ACC-2"},
+    }
+    assert "sku" not in _summary(_page({**bundle, "offers": inside}))
+    listing = {
+        "@type": "AggregateOffer",
+        "lowPrice": "5",
+        "highPrice": "9",
+        "offerCount": 3,
+        "sku": "SELLER-LISTING-7",
+    }
+    shoe = {"@type": "Product", "name": "Shoe", "offers": listing}
+    assert "sku" not in _summary(_page(shoe))
+    written = {**listing, "@type": "https://schema.org/AggregateOffer"}
+    assert "sku" not in _summary(_page({**shoe, "offers": written}))
+    # The sellers' offers inside it, and an offer of the product itself by
+    # its own name, are still the product's.
+    sellers = {**listing, "offers": [{"@type": "Offer", "sku": "SH-1"}]}
+    assert _summary(_page({**shoe, "offers": sellers}))["sku"] == (
+        "SH-1",
+        "jsonld",
+        "Product.offers.offers[0].sku",
+    )
+    itself = {**other, "itemOffered": {"@type": "Product", "name": "bundle"}}
+    assert _summary(_page({**bundle, "offers": itself}))["sku"][0] == "ACC-1"
+    # A classified's name carries the site's words before a separator, and
+    # its offer names the item as text.
+    ad = {"@type": "Product", "name": "Log In needed $15 · Casio FX-991ES"}
+    text = {"@type": "Offer", "sku": "36029524", "itemOffered": "Casio FX-991ES"}
+    assert _summary(_page({**ad, "offers": text}))["sku"][0] == "36029524"
+    elsewhere = {**text, "itemOffered": "Battery"}
+    assert "sku" not in _summary(_page({**ad, "offers": elsewhere}))
+
+
 def test_a_product_id_answers_before_an_offer_s_sku():
     """Found by the hostile review of 0.10: the offer's SKU was asked before
     the product's own productID, so a page that declared one answered 0.10
@@ -1304,6 +1349,26 @@ def test_a_product_id_answers_before_an_offer_s_sku():
     offer = {"@type": "Offer", "price": "9.99", "sku": "BR-114"}
     product = {"@type": "Product", "name": "Pads", "productID": "BP-9", "offers": offer}
     assert _summary(_page(product))["sku"] == ("BP-9", "jsonld", "Product.productID")
+
+
+def test_an_rdfa_byline_s_label_is_left_out_and_a_placeholder_names_nobody():
+    """Found by the hostile review of 0.10: <div property="dc:creator"><p>
+    Written by our staff</p></div> answered "Written by our staff". The
+    document's RDFa author is read as the orphan itemprop one is."""
+
+    def author(body: str) -> str | None:
+        found = _summary(f"<html><body>{body}</body></html>").get("author")
+        return found[0] if found else None
+
+    for text in ("Written by our staff", "By Staff Reporter", "The Editors"):
+        assert author(f'<div property="dc:creator"><p>{text}</p></div>') is None
+    assert author('<span property="dc:creator">By Ann Smith</span>') == "Ann Smith"
+    # A placeholder does not hide a name the page gives after it.
+    both = (
+        '<span property="dc:creator">Our Team</span>'
+        '<span property="dc:creator">Bo Li</span>'
+    )
+    assert author(both) == "Bo Li"
 
 
 def test_rdfa_properties_of_another_subject_or_voice_are_not_the_document_s():
@@ -1368,3 +1433,22 @@ def test_an_author_itemprop_outside_any_item_is_the_first_name_in_it():
     assert author('<li itemprop="author"> Kev </li>') == "Kev"
     page = '<body class="comments-open"><span itemprop="author">Ann Lee</span></body>'
     assert _summary(f"<html>{page}</html>")["author"][0] == "Ann Lee"
+
+
+def test_an_author_itemprop_that_is_a_role_or_another_property_s_is_nobody():
+    """Found by the hostile review of 0.10: a byline's placeholder, "Staff
+    Reporter", answered as the author, and so did a reviewer's name inside
+    <div itemprop="review">, which is the review's author, not the page's."""
+
+    def author(body: str) -> str | None:
+        found = _summary(f"<html><body>{body}</body></html>").get("author")
+        return found[0] if found else None
+
+    for role in ("Staff Reporter", "Senior Correspondent", "News Desk", "Guest"):
+        assert author(f'<span itemprop="author">{role}</span>') is None, role
+    for held in ("review", "comment", "citation"):
+        box = f'<div itemprop="{held}"><span itemprop="author">Rick Roe</span></div>'
+        assert author(box) is None, held
+    # The article's own text is the page's: an author box may close it.
+    body = '<div itemprop="articleBody"><p>By <span itemprop="author">Ann Lee</span>'
+    assert author(body + "</p></div>") == "Ann Lee"

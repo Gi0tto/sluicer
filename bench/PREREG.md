@@ -319,6 +319,47 @@ pages 89/13/0 and 217/14/4, trafilatura's set 129/17/12 and 297/51/104,
 the same with and without the rule in either form: it fires on none of
 their 1,985 pages. It adds no invention and is kept.
 
+**`d95510f`, dropped after a second review.** The same day a second pass
+of the hostile review wrote synthetic lines the fix above still read as a
+byline: an organisation ("Acme Widgets, Chief Executive Officer office"),
+decks ("Apple Inc, CEO Tim Cook said", "Prime Minister, President meet in
+Paris"), a job's department ("Product Engineering, Senior Engineer,
+Remote") and a board's list ("Jane Doe, Chair, John Roe, Treasurer").
+Each word-list patch leaves the next one open, and "Product Engineering,
+Senior Engineer, Remote" is written exactly as "Jane Doe, Senior Engineer,
+Acme": nothing in a line with no byline mark tells them apart. The rule is
+taken out whole; a line marked as a byline is still read by the byline
+rules. What it costs, measured on WCXB's development split and the 4,976
+cached benchmark pages, never on the four sets: the rule fired on two
+pages, WCXB development page 0056, whose declared author is the same
+name (author, `--visible` alone: 0.285 -> 0.284 hit rate, 10 inventions
+both ways; declared then `--visible` unchanged), and the TypeSafe page it
+was written for, which is silent again, as it was in 0.9 and is for every
+tool on `docs/scoreboard-tools.md`.
+
+**A byline's role cut at its comma, measured on the development split
+only.** A second-pass finding of the same review: a byline answered "Jane
+Doe, Senior" and "Sean Peek, Senior Analyst" (as 0.9.1 did). The name now
+ends at a comma when what follows, six words at most, holds a role's or a
+byline label's word; the word list is the one the dropped "Name, role"
+rule used, made on synthetic cases. WCXB's development split, author:
+
+| | exact | hit | wrong | invention | silent |
+|---|---|---|---|---|---|
+| `--visible` alone, before | 181 | 191 | 7 | 10 | 475 |
+| `--visible` alone, after | 182 | 192 | 8 | 10 | 473 |
+| declared then `--visible`, before | 455 | 473 | 26 | 56 | 174 |
+| declared then `--visible`, after | 454 | 474 | 27 | 56 | 172 |
+
+No invention is added. The one exact match lost (page 0096, "Tracy Parker")
+and the one wrong answer added (page 0372, "Mayank Gupta") come from labels
+that include the role, "Tracy Parker, Dietitian" and "Mayank Gupta, CEO of
+CaseBasix": the answer is the person, and the rule is not tuned to them.
+Of the split's 673 author labels, 34 hold a comma and 14 a credential.
+Over the 4,976 cached benchmark pages it changes nine guesses: six names
+lose their role, two silent pages gain a name (0372 above, and 4178, a
+hit), and one loses a trailing comma.
+
 **The publisher's own offset, measured and dropped.** `1af29f0` answered a
 publication instant declared twice, in UTC and in the publisher's own
 offset, with the own offset. Its commit measured it, in-sample, at one wrong

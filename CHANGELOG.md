@@ -27,8 +27,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   byte of any answer, and a timer per page.
 - `sluicer markdown --full`, `to_markdown(full=True)` and `page_markdown`'s
   `full` write the whole page as markdown, menus and footers included, scripts
-  and styles left out, links and images resolved against the page. It needs no
-  extra.
+  and styles left out, links and images resolved against the page, a control
+  character in a link's address percent-encoded as the main text's markdown
+  writes it. It needs no extra.
 - `sluicer.read_markdown` returns the text with where it came from
   (`MainText`: `source`, `method`, `where`), `page_markdown` answers it as
   `text_from`, and the front matter's `sources` gains a `text` line. The main
@@ -148,12 +149,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   with a link holding a control character, such as a backspace in a share
   link's text. The character is now percent-encoded, as the URL standard
   encodes it, and the page is read.
-- `--visible` did not read a byline written as "Name, role" or "Name, role,
-  Organisation" on the line right under the page's heading, as Framer's blog
-  posts write it ("Diogo Almeida, founder, TypeSafe"). It now guesses the
-  name, naming its element and the rule `name, role`, when that name holds
-  no role's word, opens with no "The" or "A" and is not all capitals, and
-  the next line is not another "Name, role": a team's list is no byline.
+- `--visible` answered a byline's name with its role glued on, "Jane Doe,
+  Senior" for "Jane Doe, Senior Writer", "Sean Peek, Senior Analyst" for the
+  same (0.9.1 did too; 0.10 guesses by default). The name now ends at a comma
+  a role follows; a credential, a place or another name after it ("Jane Doe,
+  PhD") is kept as before.
 - A publication date that was only a clock time ("10:52", "2:33 PM") was
   answered as the page's date. It is no date now, and the next declaration is
   asked.
@@ -161,18 +161,27 @@ Dates are the day the work landed. Anything not listed here did not happen.
   item, `<span itemprop="author">Ann Smith</span>`, was not read; only a
   `<meta itemprop>` was. It is now the author when nothing else on the page
   declares one: the first text in it that reads as a person's name, never
-  one in a comment or an aside.
+  one in a comment or an aside, nor one inside another property, such as a
+  `<div itemprop="review">`, whose author is the review's (the article's own
+  `articleBody` excepted), and never a role alone, "Staff Reporter" or "News
+  Desk". A name must open with a capital, so a name in lowercase, or in a
+  script without capitals such as `山田太郎`, is not read here.
 - RDFa properties with no subject in force, which RDFa gives to the page
   itself (`<meta property="dc:date">`, `<span property="dcterms:creator">`),
   were not read, since the RDFa reader reads only the subjects a `typeof`
   names. Their schema.org and Dublin Core author and publication date now
   answer the summary when nothing else on the page does. A property inside a
   link, or inside a comment, a quotation, an aside, a footer or a menu, is
-  not the page's, and a date must read as one.
+  not the page's, and a date must read as one. An author's "By" or "Written
+  by" is left out, and one that is only a placeholder, "Written by our
+  staff", names nobody.
 - A product whose SKU was declared only on its offer, `"offers": {"sku":
   ...}`, had no SKU in the summary. The offer's SKU is now the product's when
   the product declares neither a SKU nor a `productID` and its offers name
-  one SKU.
+  one SKU. Only an offer of the product itself counts: not one whose
+  `itemOffered` is another thing, such as a bundle's accessory, nor any
+  offer inside it, and not an `AggregateOffer`'s own `sku`, which is a
+  listing's; the sellers' offers inside an `AggregateOffer` still count.
 - A page fetched and never extracted stayed parsed for as long as its thread
   lived: sixteen threads that each fetched a 10 MB page without extracting it
   held 1.4 GB where 0.9.1 held 0.3 GB, and `page_markdown` kept the fetched
@@ -195,6 +204,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   sluicer the `PATH` found, and now names the project's own Python.
   `SLUICER_BROWSER=chrome sluicer doctor` said "ok browser" while every
   fetch refused the value; it is now reported invalid, and doctor exits 2.
+  Homebrew's own Python, or any a package manager marks
+  `EXTERNALLY-MANAGED`, was told `python -m ensurepip` (pip into Homebrew's
+  Cellar) or `python -m pip install`, which it refuses; it is now told to
+  make a virtual environment first, `python -m venv .venv`. An extra pipx
+  recorded in capitals, `Sluicer[MCP]`, is named in lowercase, as pip names
+  it, not twice.
 - The scoreboard still said `--visible` guesses bylines and dates "when
   asked"; 0.10 guesses by default, and its generator and page now say so.
 - `sluicer doctor` and `sluicer install browser` ran Playwright with

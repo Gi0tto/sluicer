@@ -359,7 +359,7 @@ def read_summary(
             meta(dublincore, "dublincore", "creator", "dc."),
             _not_an_address(og("article:author")),
             _orphan_itemprop(doc, "author", meta=False),
-            _not_an_address(_of_the_document(doc, _RDFA_AUTHOR)),
+            _not_an_address(_of_the_document(doc, _RDFA_AUTHOR, named=True)),
         ],
         "published": [
             own("datePublished"),
@@ -1179,17 +1179,58 @@ def _one_offer_sku(record: Record | None) -> SummaryField | None:
     held = record.fields["offers"]
     if held.source not in ABOUT_A_THING:
         return None
-    skus = [
-        (text, path)
-        for offer, path in _offers_in(held.value, "offers")
-        if (text := _text(offer["sku"]) if "sku" in offer else None)
-    ]
+    # An offer of another thing, and every offer inside it, sells that
+    # thing: a bundle's offer of its accessory holds the accessory's SKU.
+    own_name = record.fields.get("name")
+    name_of = (_text(own_name.value) or "").casefold() if own_name else ""
+    elsewhere: list[str] = []
+    skus = []
+    for offer, path in _offers_in(held.value, "offers"):
+        if any(path.startswith(f"{away}.") for away in elsewhere):
+            continue
+        if not _offers_the_subject(offer, name_of):
+            elsewhere.append(path)
+            continue
+        # An AggregateOffer's own SKU is a listing's, not the product's: it
+        # sums the sellers' offers, each of which may say its own.
+        if _aggregate(offer):
+            continue
+        text = _text(offer["sku"]) if "sku" in offer else None
+        if text:
+            skus.append((text, path))
     if not skus or len({text for text, _ in skus}) > 1:
         return None
     text, path = skus[0]
     name = record.type or "Thing"
     key = f"{name}.{path}.sku"
     return SummaryField(text, held.source, key, _inside(held, f"{path}.sku"))
+
+
+def _offers_the_subject(offer: dict[str, JsonValue], name: str) -> bool:
+    """Whether ``offer`` sells the subject itself: it names no
+    ``itemOffered``, or names one by the subject's own name, whole or as the
+    part of it after a title's separator ("Log in · Casio FX-991ES" offers
+    "Casio FX-991ES")."""
+    offered = offer.get("itemOffered")
+    if offered is None:
+        return True
+    said = _text(offered)
+    if not name or not said:
+        return False
+    said = said.casefold()
+    return name == said or any(
+        name.endswith(separator + said) for separator in _TITLE_SEPARATORS
+    )
+
+
+def _aggregate(offer: dict[str, JsonValue]) -> bool:
+    """Whether ``offer`` declares itself an ``AggregateOffer``, under any of
+    the ways a type is written: ``AggregateOffer``, ``schema:AggregateOffer``,
+    ``https://schema.org/AggregateOffer``."""
+    return any(
+        isinstance(kind, str) and re.split(r"[/:#]", kind)[-1] == "AggregateOffer"
+        for kind in _listed(offer.get("@type"))
+    )
 
 
 def _offers_in(value: JsonValue, path: str) -> list[tuple[dict[str, JsonValue], str]]:
@@ -1485,8 +1526,19 @@ def _orphan_itemprop(
                     text, "html", f"<meta itemprop={prop}>", xpath_of(element)
                 )
             # An element that is an item itself holds a card, not a value;
-            # one in a comment or an aside is somebody else's.
-            if element.get("itemscope") is not None or _another_voice(element):
+            # one in a comment or an aside is somebody else's, and one inside
+            # another property, <div itemprop="review">, is that property's:
+            # a review's author is not the page's. The article's own text,
+            # articleBody, is the page's, and an author box may close it.
+            if (
+                element.get("itemscope") is not None
+                or _another_voice(element)
+                or any(
+                    set(held.split()) - _THE_PAGE_S_TEXT
+                    for above in element.iterancestors()
+                    if (held := above.get("itemprop")) is not None
+                )
+            ):
                 continue
             if _itemprop_value(element) is None:
                 continue
@@ -1498,8 +1550,20 @@ def _orphan_itemprop(
     return None
 
 
-# The words of a byline that name nobody: its label, not a person.
-_NOBODY_WORDS = frozenset({"by", "staff", "team", "editor", "editors", "writer"})
+# The properties that hold the page's own text, inside which an author is
+# still the page's.
+_THE_PAGE_S_TEXT = frozenset({"articleBody", "text"})
+# The words of a byline that name nobody: its label or a role, not a person.
+# A byline of these words alone, "Staff Reporter", "News Desk", "Guest
+# Contributor", is a placeholder where no name was written.
+_NOBODY_WORDS = frozenset(
+    (  # noqa: SIM905 -- read as a line of words
+        "by staff team editor editors writer writers reporter reporters "
+        "correspondent correspondents contributor contributors columnist "
+        "journalist author authors desk news newsroom admin guest senior chief "
+        "special our the"
+    ).split()
+)
 # The longest text an element outside any item is read as a value: a name or
 # a date, not a paragraph that happens to carry an itemprop.
 _ORPHAN_MOST = 120
@@ -1617,19 +1681,25 @@ _RDFA_PUBLISHED = (
 
 
 def _of_the_document(
-    doc: Document, iris: tuple[str, ...], dated: bool = False
+    doc: Document, iris: tuple[str, ...], dated: bool = False, named: bool = False
 ) -> SummaryField | None:
     """The first of ``iris`` an RDFa property of the document itself gives a
     value for: one with no subject in force, which RDFa gives the page. With
     ``dated``, only a value that reads as a date: a link's address, ``<a
     property="dcterms:date" href="/archive/2020/05">``, is the value RDFa
-    gives it, and no date."""
+    gives it, and no date. With ``named``, a byline's text read as the
+    ``itemprop`` one is: its "By" or "Written by" left out, and one of label
+    and role words alone, "Written by our staff", naming nobody."""
     found = document_properties(doc)
     for iri in iris:
         for said, term, value, element in found:
             text = _clean(value) if said == iri else None
             if dated and text and iso_date(text) is None:
                 continue
+            if named and text:
+                text = _BYLINE_LABEL.sub("", text, count=1).strip()
+                if set(text.casefold().split()) <= _NOBODY_WORDS:
+                    continue
             if text and len(text) <= _ORPHAN_MOST:
                 return SummaryField(text, "rdfa", f"property={term}", xpath_of(element))
     return None

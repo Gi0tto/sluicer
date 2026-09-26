@@ -126,6 +126,59 @@ def test_a_pinned_pipx_requirement_keeps_its_extras(tmp_path):
         )
 
 
+def test_an_extra_asked_for_in_capitals_is_named_as_pip_names_it(tmp_path):
+    """Found by the hostile review of 0.10: pipx recorded "Sluicer[MCP]" as
+    asked, and the line given kept "MCP" beside the "mcp" it adds. Extras
+    are named as PEP 685 normalises them: lowercased."""
+    prefix = _venv(tmp_path / "pipx" / "venvs" / "sluicer", uv=False)
+    (prefix / "pipx_metadata.json").write_text(
+        json.dumps({"main_package": {"package_or_url": "Sluicer[MCP,Micro_Formats]"}}),
+        encoding="utf-8",
+    )
+
+    found = detect(prefix, "python", {}, _no_pip)
+
+    assert found.asked == {"mcp", "micro-formats"}
+    assert found.command(["mcp"], found.kept()) == (
+        'pipx install --force "sluicer[mcp,micro-formats]"'
+    )
+
+
+def test_homebrew_s_own_python_is_told_to_make_a_virtual_environment(
+    tmp_path, monkeypatch
+):
+    """Found by the hostile review of 0.10: Homebrew's Python with no pip
+    was told "python -m ensurepip", which puts pip into Homebrew's Cellar,
+    and one with pip "python -m pip install", which it refuses (PEP 668). An
+    interpreter no virtual environment wraps, in a Cellar or marked
+    EXTERNALLY-MANAGED, is told to make one first."""
+    cellar = tmp_path / "homebrew" / "Cellar" / "python@3.13" / "3.13.7" / "Frameworks"
+    cellar.mkdir(parents=True)
+    marked = tmp_path / "usr"
+    (marked / "lib" / "python3.13").mkdir(parents=True)
+    (marked / "lib" / "python3.13" / "EXTERNALLY-MANAGED").write_text(
+        "[x]\n", encoding="utf-8"
+    )
+    for prefix in (cellar, marked):
+        python = str(prefix / "bin" / "python3")
+        for has_pip in (True, False):
+            monkeypatch.setattr(installer.sys, "prefix", str(prefix))
+            monkeypatch.setattr(installer, "_importable", lambda m, h=has_pip: h)
+
+            found = detect(prefix, python, {}, _no_pip)
+
+            venv = Path(".venv") / ("Scripts" if installer.os.name == "nt" else "bin")
+            assert found.managed, prefix
+            assert found.command(["mcp"]) == (
+                f"{python} -m venv .venv, then: "
+                f'{venv / "python"} -m pip install "sluicer[mcp]"'
+            )
+    # A virtual environment made from it is its own, and takes pip.
+    venv = _venv(tmp_path / "homebrew" / "Cellar" / "env", uv=False)
+    monkeypatch.setattr(installer, "_importable", lambda module: True)
+    assert not detect(venv, "python", {}, _no_pip).managed
+
+
 def test_an_environment_without_pip_is_not_told_to_run_pip(tmp_path, monkeypatch):
     """A venv made --without-pip was told "python -m pip install", which
     fails there: "No module named pip"."""

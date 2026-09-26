@@ -22,6 +22,11 @@ the running Python lives in, and each leaves a mark there:
   ``uv pip install``; the rest take pip, and one with no pip in it takes
   ``uv pip install --python`` when uv is on the ``PATH``, or else
   ``python -m ensurepip`` first.
+* an interpreter no virtual environment wraps, which Homebrew installed (its
+  prefix in a ``Cellar``) or which says another package manager owns it (a
+  PEP 668 ``EXTERNALLY-MANAGED`` file), takes a virtual environment made
+  first: pip refuses to install into it, and ``ensurepip`` would have put
+  pip into Homebrew's own tree.
 
 Which extras are installed is read from the packages they bring, found without
 importing them, so the answer is the same whichever way Sluicer was installed.
@@ -95,6 +100,10 @@ class Installation:
     uv: bool = False
     """Whether ``uv`` is on the ``PATH``, to install into an environment
     that has no pip."""
+    managed: bool = False
+    """For ``pip``: whether the interpreter is no virtual environment's and
+    another package manager owns it, Homebrew or the system's: nothing is
+    installed into it, a virtual environment is made first."""
 
     def kept(self) -> set[str]:
         """The extras a command that replaces the requirement must name again:
@@ -145,6 +154,12 @@ class Installation:
             python = "" if self.short else f" --python {_quoted(self.python)}"
             return f"uv pip install{python} {spec}"
         python = _quoted(self.python)
+        if self.managed:
+            venv = str(Path(".venv") / ("Scripts" if os.name == "nt" else "bin"))
+            return (
+                f"{python} -m venv .venv, then: "
+                f"{_quoted(str(Path(venv) / 'python'))} -m pip install {spec}"
+            )
         if not self.pip:
             if self.uv:
                 return f"uv pip install --python {python} {spec}"
@@ -237,8 +252,29 @@ def detect(
     short = found is not None and _same(Path(found).parent, Path(python).parent)
     pip = _has_pip(root)
     return Installation(
-        "pip", python, short=short and pip, pip=pip, uv=which("uv") is not None
+        "pip",
+        python,
+        short=short and pip,
+        pip=pip,
+        uv=which("uv") is not None,
+        managed=_managed(root),
     )
+
+
+def _managed(prefix: Path) -> bool:
+    """Whether the interpreter at ``prefix`` is no virtual environment's and
+    another package manager owns it: Homebrew, whose prefixes resolve into
+    its ``Cellar``, or any that marks its standard library
+    ``EXTERNALLY-MANAGED`` (PEP 668), as Homebrew's and Debian's do."""
+    if (prefix / "pyvenv.cfg").is_file():
+        return False
+    try:
+        if "Cellar" in prefix.resolve().parts:
+            return True
+    except OSError:
+        return False
+    marked = [*prefix.glob("lib/python3*/EXTERNALLY-MANAGED")]
+    return bool(marked) or (prefix / "Lib" / "EXTERNALLY-MANAGED").is_file()
 
 
 def _has_pip(prefix: Path) -> bool:
@@ -271,7 +307,8 @@ def _asked(record: Path) -> frozenset[str] | None:
     if found is None:
         return frozenset()
     words = (word.strip().strip("\"'") for word in found[1].split(","))
-    return frozenset(word for word in words if word)
+    # Named as PEP 685 normalises an extra: "Sluicer[MCP]" asked for mcp.
+    return frozenset(re.sub(r"[-_.]+", "-", word).lower() for word in words if word)
 
 
 def _same(one: Path, other: Path) -> bool:
