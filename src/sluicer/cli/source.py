@@ -11,7 +11,12 @@ from pathlib import Path
 
 from sluicer.cli.exits import _fail
 from sluicer.cli.options import _Sending, _sent
-from sluicer.fetch import FetchFailed, RobotsRefused, fetch as fetch_url
+from sluicer.fetch import (
+    AddressRefused,
+    FetchFailed,
+    RobotsRefused,
+    fetch as fetch_url,
+)
 from sluicer.fetch.result import Fetched, ResponseTooLarge
 from sluicer.fetch.rungs import FetchExtraMissing
 
@@ -123,6 +128,10 @@ def _read_page(
             _fail(str(missing), missing)
         except RobotsRefused as refused:
             # The site told us no: an answer, not a malfunction.
+            _fail(str(refused), refused)
+        except AddressRefused as refused:
+            # Not on the web: an address, or where a redirect pointed, that is
+            # not http or https. Until 0.9.1 it was a traceback and exit 1.
             _fail(str(refused), refused)
         except FetchFailed as failed:
             # Every rung failed, whatever library it was built on: a browser's

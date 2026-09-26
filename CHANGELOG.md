@@ -2,6 +2,13 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- A page that redirects to an address off the web, `ftp:` or `file:`, ends
+  every page command with its reason and exit 2. It crashed them with a
+  traceback and exit 1, which means "read, and gave nothing".
+
 ## 0.9.0 - 2026-09-26
 
 ### Added

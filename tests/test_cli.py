@@ -1270,3 +1270,40 @@ def test_extract_of_an_empty_error_page_names_the_status(monkeypatch, status):
     assert result.exit_code == 1
     assert f"the site answered status {status}" in result.stderr
     assert "compile" not in result.stderr
+
+
+# -- an address that is not on the web --------------------------------------
+
+
+@pytest.mark.parametrize("command", ["extract", "fetch", "select", "markdown"])
+@pytest.mark.parametrize(
+    "target", ["ftp://example.invalid/x", "file:///etc/passwd"], ids=["ftp", "file"]
+)
+def test_a_redirect_off_the_web_exits_two_with_a_message(monkeypatch, command, target):
+    """Measured on 0.9.0: a page redirecting to ftp: or file: crashed every
+    page command with a traceback and exit 1, which means "read, and gave
+    nothing"; the MCP server and a crawl already refused it."""
+    import socket
+
+    from click.testing import CliRunner
+
+    from fake_wire import fake_http
+    from sluicer.cli import main
+
+    monkeypatch.setenv("SLUICER_BROWSER", "none")
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.215.14", 0))
+        ],
+    )
+    fake_http(monkeypatch, [(404, b"", {}), (302, b"", {"Location": target})])
+    args = [command, "https://example.com/p", *(["h1"] if command == "select" else [])]
+
+    result = CliRunner().invoke(main, args)
+
+    assert result.exit_code == 2, result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert f"{target} is not fetched: only http and https" in result.stderr
+    assert "Traceback" not in result.output
