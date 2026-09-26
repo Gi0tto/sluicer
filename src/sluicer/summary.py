@@ -359,7 +359,7 @@ def read_summary(
             meta(dublincore, "dublincore", "creator", "dc."),
             _not_an_address(og("article:author")),
             _orphan_itemprop(doc, "author", meta=False),
-            _not_an_address(_of_the_document(doc, _RDFA_AUTHOR)),
+            _not_an_address(_of_the_document(doc, _RDFA_AUTHOR, named=True)),
         ],
         "published": [
             own("datePublished"),
@@ -1560,7 +1560,8 @@ _NOBODY_WORDS = frozenset(
     (  # noqa: SIM905 -- read as a line of words
         "by staff team editor editors writer writers reporter reporters "
         "correspondent correspondents contributor contributors columnist "
-        "journalist author authors desk news newsroom admin guest senior chief special"
+        "journalist author authors desk news newsroom admin guest senior chief "
+        "special our the"
     ).split()
 )
 # The longest text an element outside any item is read as a value: a name or
@@ -1680,19 +1681,25 @@ _RDFA_PUBLISHED = (
 
 
 def _of_the_document(
-    doc: Document, iris: tuple[str, ...], dated: bool = False
+    doc: Document, iris: tuple[str, ...], dated: bool = False, named: bool = False
 ) -> SummaryField | None:
     """The first of ``iris`` an RDFa property of the document itself gives a
     value for: one with no subject in force, which RDFa gives the page. With
     ``dated``, only a value that reads as a date: a link's address, ``<a
     property="dcterms:date" href="/archive/2020/05">``, is the value RDFa
-    gives it, and no date."""
+    gives it, and no date. With ``named``, a byline's text read as the
+    ``itemprop`` one is: its "By" or "Written by" left out, and one of label
+    and role words alone, "Written by our staff", naming nobody."""
     found = document_properties(doc)
     for iri in iris:
         for said, term, value, element in found:
             text = _clean(value) if said == iri else None
             if dated and text and iso_date(text) is None:
                 continue
+            if named and text:
+                text = _BYLINE_LABEL.sub("", text, count=1).strip()
+                if set(text.casefold().split()) <= _NOBODY_WORDS:
+                    continue
             if text and len(text) <= _ORPHAN_MOST:
                 return SummaryField(text, "rdfa", f"property={term}", xpath_of(element))
     return None

@@ -1351,6 +1351,26 @@ def test_a_product_id_answers_before_an_offer_s_sku():
     assert _summary(_page(product))["sku"] == ("BP-9", "jsonld", "Product.productID")
 
 
+def test_an_rdfa_byline_s_label_is_left_out_and_a_placeholder_names_nobody():
+    """Found by the hostile review of 0.10: <div property="dc:creator"><p>
+    Written by our staff</p></div> answered "Written by our staff". The
+    document's RDFa author is read as the orphan itemprop one is."""
+
+    def author(body: str) -> str | None:
+        found = _summary(f"<html><body>{body}</body></html>").get("author")
+        return found[0] if found else None
+
+    for text in ("Written by our staff", "By Staff Reporter", "The Editors"):
+        assert author(f'<div property="dc:creator"><p>{text}</p></div>') is None
+    assert author('<span property="dc:creator">By Ann Smith</span>') == "Ann Smith"
+    # A placeholder does not hide a name the page gives after it.
+    both = (
+        '<span property="dc:creator">Our Team</span>'
+        '<span property="dc:creator">Bo Li</span>'
+    )
+    assert author(both) == "Bo Li"
+
+
 def test_rdfa_properties_of_another_subject_or_voice_are_not_the_document_s():
     """Found by the hostile review of 0.10: the document's properties were
     every property with no typeof, about or resource round it, so a related

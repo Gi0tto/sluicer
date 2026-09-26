@@ -167,7 +167,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   names. Their schema.org and Dublin Core author and publication date now
   answer the summary when nothing else on the page does. A property inside a
   link, or inside a comment, a quotation, an aside, a footer or a menu, is
-  not the page's, and a date must read as one.
+  not the page's, and a date must read as one. An author's "By" or "Written
+  by" is left out, and one that is only a placeholder, "Written by our
+  staff", names nobody.
 - A product whose SKU was declared only on its offer, `"offers": {"sku":
   ...}`, had no SKU in the summary. The offer's SKU is now the product's when
   the product declares neither a SKU nor a `productID` and its offers name
