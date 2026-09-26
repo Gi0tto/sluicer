@@ -7,7 +7,7 @@ scorer, on the same pages as their servers sent them, scripts intact,
 fetched from web archives. Every page is scored twice, once as served
 and once as WCXB kept it, so the difference between the two columns is
 the difference the scripts make, and nothing else.
-Regenerated on 2026-09-26 from commit `8a426a2` by
+Regenerated on 2026-09-26 from commit `5e97f6b` by
 `uv run bench/realweb.py`, from the captures pinned in
 [`bench/realweb-manifest.json`](https://github.com/Gi0tto/sluicer/blob/main/bench/realweb-manifest.json).
 
@@ -67,9 +67,9 @@ The same 360 pages, stripped (WCXB's copy) and served (the archive's):
 
 | tool | field | labelled pages | hit rate, stripped | hit rate, served | right when answering, stripped | right when answering, served | wrong, stripped | wrong, served | inventions, stripped | inventions, served |
 |---|---|---|---|---|---|---|---|---|---|---|
-| sluicer 0.9.1 | title | 360 | 0.714 (0.66–0.76) | **0.708 (0.65–0.76)** | 0.714 (0.66–0.76) | **0.708 (0.65–0.76)** | 103 | 105 | 0 | 0 |
-| sluicer 0.9.1 | author | 129 | 0.450 (0.36–0.54) | **0.690 (0.60–0.77)** | 0.644 (0.54–0.74) | **0.636 (0.55–0.72)** | 9 | 7 | 23 | 44 |
-| sluicer 0.9.1 | date | 159 | 0.585 (0.50–0.66) | **0.780 (0.70–0.84)** | 0.939 (0.87–0.98) | **0.734 (0.66–0.80)** | 1 | 9 | 5 | 36 |
+| sluicer 0.10.0 | title | 360 | 0.714 (0.66–0.76) | **0.708 (0.65–0.76)** | 0.714 (0.66–0.76) | **0.708 (0.65–0.76)** | 103 | 105 | 0 | 0 |
+| sluicer 0.10.0 | author | 129 | 0.457 (0.37–0.55) | **0.698 (0.61–0.78)** | 0.648 (0.54–0.74) | **0.638 (0.55–0.72)** | 9 | 7 | 23 | 44 |
+| sluicer 0.10.0 | date | 159 | 0.585 (0.50–0.66) | **0.780 (0.70–0.84)** | 0.939 (0.87–0.98) | **0.734 (0.66–0.80)** | 1 | 9 | 5 | 36 |
 | trafilatura 2.2.0 | title | 360 | 0.756 (0.70–0.80) | **0.756 (0.70–0.80)** | 0.756 (0.70–0.80) | **0.756 (0.70–0.80)** | 88 | 88 | 0 | 0 |
 | trafilatura 2.2.0 | author | 129 | 0.736 (0.65–0.81) | **0.860 (0.79–0.91)** | 0.583 (0.50–0.66) | **0.575 (0.50–0.65)** | 13 | 11 | 55 | 71 |
 | trafilatura 2.2.0 | date | 159 | 0.849 (0.78–0.90) | **0.855 (0.79–0.91)** | 0.403 (0.35–0.46) | **0.393 (0.34–0.45)** | 23 | 23 | 177 | 187 |
@@ -85,7 +85,7 @@ outwards to two places. In plain words, as served, with every
 difference called by the paired comparisons below:
 
 - **Title.** Hit rate served 0.708, against 0.714 on the WCXB copy of the same pages (inconclusive); Sluicer behind newspaper4k and not told apart from trafilatura and metascraper. Right when answering: newspaper4k 0.767, trafilatura 0.756, sluicer 0.708, metascraper 0.667; Sluicer behind newspaper4k and not told apart from trafilatura and metascraper. Inventions: newspaper4k 0, trafilatura 0, sluicer 0, metascraper 0.
-- **Author.** Hit rate served 0.690, against 0.450 on the WCXB copy of the same pages (better); Sluicer behind trafilatura and metascraper and not told apart from newspaper4k. Right when answering: sluicer 0.636, trafilatura 0.575, newspaper4k 0.569, metascraper 0.482; Sluicer ahead of trafilatura, metascraper and newspaper4k. Inventions: sluicer 44, trafilatura 71, newspaper4k 57, metascraper 101.
+- **Author.** Hit rate served 0.698, against 0.457 on the WCXB copy of the same pages (better); Sluicer behind trafilatura and metascraper and not told apart from newspaper4k. Right when answering: sluicer 0.638, trafilatura 0.575, newspaper4k 0.569, metascraper 0.482; Sluicer ahead of trafilatura, metascraper and newspaper4k. Inventions: sluicer 44, trafilatura 71, newspaper4k 57, metascraper 101.
 - **Date.** Hit rate served 0.780, against 0.585 on the WCXB copy of the same pages (better); Sluicer behind trafilatura and not told apart from metascraper and newspaper4k. Right when answering: sluicer 0.734, newspaper4k 0.658, metascraper 0.573, trafilatura 0.393; Sluicer ahead of trafilatura, metascraper and newspaper4k. Inventions: sluicer 36, newspaper4k 54, metascraper 80, trafilatura 187.
 
 One caution about inventions on served pages. WCXB's annotators labelled
@@ -121,7 +121,7 @@ Out of 360 pages, as Sluicer's readers see them.
 | title | microdata | 16 | 12 | 4 | 0 |
 | title | twitter | 2 | 1 | 1 | 0 |
 | author | jsonld | 115 | 74 | 7 | 34 |
-| author | html | 16 | 13 | 0 | 3 |
+| author | html | 17 | 14 | 0 | 3 |
 | author | microdata | 7 | 2 | 0 | 5 |
 | author | opengraph | 2 | 0 | 0 | 2 |
 | date | jsonld | 143 | 103 | 7 | 33 |
@@ -137,20 +137,20 @@ Sluicer against each other tool, on the pages as served:
 |---|---|---|---|---|
 | trafilatura 2.2.0 | title | hit rate | -0.047 (-0.095 to +0.003) | inconclusive |
 | trafilatura 2.2.0 | title | right when answering | -0.047 (-0.095 to +0.003) | inconclusive |
-| trafilatura 2.2.0 | author | hit rate | -0.171 (-0.241 to -0.103) | worse |
-| trafilatura 2.2.0 | author | right when answering | +0.061 (+0.005 to +0.117) | better |
+| trafilatura 2.2.0 | author | hit rate | -0.163 (-0.232 to -0.097) | worse |
+| trafilatura 2.2.0 | author | right when answering | +0.063 (+0.008 to +0.119) | better |
 | trafilatura 2.2.0 | date | hit rate | -0.075 (-0.140 to -0.012) | worse |
 | trafilatura 2.2.0 | date | right when answering | +0.341 (+0.283 to +0.399) | better |
 | metascraper 5.58.1 | title | hit rate | +0.042 (0.000 to +0.084) | inconclusive |
 | metascraper 5.58.1 | title | right when answering | +0.042 (0.000 to +0.084) | inconclusive |
-| metascraper 5.58.1 | author | hit rate | -0.155 (-0.227 to -0.087) | worse |
-| metascraper 5.58.1 | author | right when answering | +0.153 (+0.101 to +0.210) | better |
+| metascraper 5.58.1 | author | hit rate | -0.147 (-0.221 to -0.076) | worse |
+| metascraper 5.58.1 | author | right when answering | +0.156 (+0.103 to +0.213) | better |
 | metascraper 5.58.1 | date | hit rate | -0.031 (-0.080 to +0.014) | inconclusive |
 | metascraper 5.58.1 | date | right when answering | +0.160 (+0.113 to +0.211) | better |
 | newspaper4k 0.9.6 | title | hit rate | -0.058 (-0.109 to -0.008) | worse |
 | newspaper4k 0.9.6 | title | right when answering | -0.058 (-0.109 to -0.008) | worse |
-| newspaper4k 0.9.6 | author | hit rate | -0.016 (-0.055 to +0.023) | inconclusive |
-| newspaper4k 0.9.6 | author | right when answering | +0.067 (+0.025 to +0.112) | better |
+| newspaper4k 0.9.6 | author | hit rate | -0.008 (-0.050 to +0.033) | inconclusive |
+| newspaper4k 0.9.6 | author | right when answering | +0.070 (+0.026 to +0.116) | better |
 | newspaper4k 0.9.6 | date | hit rate | -0.006 (-0.040 to +0.026) | inconclusive |
 | newspaper4k 0.9.6 | date | right when answering | +0.076 (+0.039 to +0.116) | better |
 
@@ -168,12 +168,12 @@ them, the served rate minus the stripped one:
 
 | tool | field | rate | served minus stripped (95% interval) | verdict |
 |---|---|---|---|---|
-| sluicer 0.9.1 | title | hit rate | -0.006 (-0.045 to +0.034) | inconclusive |
-| sluicer 0.9.1 | title | right when answering | -0.006 (-0.045 to +0.034) | inconclusive |
-| sluicer 0.9.1 | author | hit rate | +0.240 (+0.168 to +0.317) | better |
-| sluicer 0.9.1 | author | right when answering | -0.009 (-0.080 to +0.064) | inconclusive |
-| sluicer 0.9.1 | date | hit rate | +0.195 (+0.125 to +0.268) | better |
-| sluicer 0.9.1 | date | right when answering | -0.206 (-0.273 to -0.142) | worse |
+| sluicer 0.10.0 | title | hit rate | -0.006 (-0.045 to +0.034) | inconclusive |
+| sluicer 0.10.0 | title | right when answering | -0.006 (-0.045 to +0.034) | inconclusive |
+| sluicer 0.10.0 | author | hit rate | +0.240 (+0.168 to +0.317) | better |
+| sluicer 0.10.0 | author | right when answering | -0.010 (-0.081 to +0.061) | inconclusive |
+| sluicer 0.10.0 | date | hit rate | +0.195 (+0.125 to +0.268) | better |
+| sluicer 0.10.0 | date | right when answering | -0.206 (-0.273 to -0.142) | worse |
 | trafilatura 2.2.0 | title | hit rate | 0.000 (-0.012 to +0.012) | inconclusive |
 | trafilatura 2.2.0 | title | right when answering | 0.000 (-0.012 to +0.012) | inconclusive |
 | trafilatura 2.2.0 | author | hit rate | +0.124 (+0.065 to +0.187) | better |
@@ -215,35 +215,35 @@ answer and with the guess where it has none, never in its place.
 | field | hit rate, declared | hit rate, declared then `--visible` | right when answering, declared | right when answering, declared then `--visible` | inventions, declared | silent miss made a hit | silent miss made wrong | inventions `--visible` added |
 |---|---|---|---|---|---|---|---|---|
 | title | 0.708 (0.65–0.76) | 0.708 (0.65–0.76) | 0.708 (0.65–0.76) | 0.708 (0.65–0.76) | 0 | 0 | 0 | 0 |
-| author | 0.690 (0.60–0.77) | 0.752 (0.67–0.82) | 0.636 (0.55–0.72) | 0.642 (0.56–0.72) | 44 | 8 | 1 | 2 |
+| author | 0.698 (0.61–0.78) | 0.760 (0.67–0.83) | 0.638 (0.55–0.72) | 0.649 (0.57–0.73) | 44 | 8 | 0 | 2 |
 | date | 0.780 (0.70–0.84) | 0.855 (0.79–0.91) | 0.734 (0.66–0.80) | 0.701 (0.63–0.77) | 36 | 12 | 0 | 13 |
 
-`--visible` answered 36 questions the summary left unanswered: 20 right and 1 wrong where the page carries a label, and 15 invented where it carries none. Each rate carries its 95% Wilson score interval. Declared then `--visible` against the declared answers alone and against each other tool:
+`--visible` answered 35 questions the summary left unanswered: 20 right and 0 wrong where the page carries a label, and 15 invented where it carries none. Each rate carries its 95% Wilson score interval. Declared then `--visible` against the declared answers alone and against each other tool:
 
 | declared then `--visible`, against | field | rate | difference (95% interval) | verdict |
 |---|---|---|---|---|
-| sluicer 0.9.1, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.9.1, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.9.1, declared | author | hit rate | +0.062 (+0.023 to +0.109) | better |
-| sluicer 0.9.1, declared | author | right when answering | +0.007 (-0.015 to +0.028) | inconclusive |
-| sluicer 0.9.1, declared | date | hit rate | +0.075 (+0.037 to +0.119) | better |
-| sluicer 0.9.1, declared | date | right when answering | -0.033 (-0.063 to -0.004) | worse |
+| sluicer 0.10.0, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.10.0, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.10.0, declared | author | hit rate | +0.062 (+0.023 to +0.109) | better |
+| sluicer 0.10.0, declared | author | right when answering | +0.011 (-0.008 to +0.030) | inconclusive |
+| sluicer 0.10.0, declared | date | hit rate | +0.075 (+0.037 to +0.119) | better |
+| sluicer 0.10.0, declared | date | right when answering | -0.033 (-0.063 to -0.004) | worse |
 | trafilatura 2.2.0 | title | hit rate | -0.047 (-0.095 to +0.003) | inconclusive |
 | trafilatura 2.2.0 | title | right when answering | -0.047 (-0.095 to +0.003) | inconclusive |
-| trafilatura 2.2.0 | author | hit rate | -0.109 (-0.172 to -0.048) | worse |
-| trafilatura 2.2.0 | author | right when answering | +0.067 (+0.014 to +0.121) | better |
+| trafilatura 2.2.0 | author | hit rate | -0.101 (-0.163 to -0.042) | worse |
+| trafilatura 2.2.0 | author | right when answering | +0.074 (+0.022 to +0.126) | better |
 | trafilatura 2.2.0 | date | hit rate | 0.000 (-0.060 to +0.062) | inconclusive |
 | trafilatura 2.2.0 | date | right when answering | +0.308 (+0.256 to +0.362) | better |
 | metascraper 5.58.1 | title | hit rate | +0.042 (0.000 to +0.084) | inconclusive |
 | metascraper 5.58.1 | title | right when answering | +0.042 (0.000 to +0.084) | inconclusive |
-| metascraper 5.58.1 | author | hit rate | -0.093 (-0.160 to -0.025) | worse |
-| metascraper 5.58.1 | author | right when answering | +0.160 (+0.111 to +0.214) | better |
+| metascraper 5.58.1 | author | hit rate | -0.085 (-0.153 to -0.016) | worse |
+| metascraper 5.58.1 | author | right when answering | +0.167 (+0.117 to +0.223) | better |
 | metascraper 5.58.1 | date | hit rate | +0.044 (-0.013 to +0.100) | inconclusive |
 | metascraper 5.58.1 | date | right when answering | +0.128 (+0.083 to +0.175) | better |
 | newspaper4k 0.9.6 | title | hit rate | -0.058 (-0.109 to -0.008) | worse |
 | newspaper4k 0.9.6 | title | right when answering | -0.058 (-0.109 to -0.008) | worse |
-| newspaper4k 0.9.6 | author | hit rate | +0.047 (+0.007 to +0.091) | better |
-| newspaper4k 0.9.6 | author | right when answering | +0.074 (+0.031 to +0.118) | better |
+| newspaper4k 0.9.6 | author | hit rate | +0.054 (+0.013 to +0.102) | better |
+| newspaper4k 0.9.6 | author | right when answering | +0.080 (+0.036 to +0.127) | better |
 | newspaper4k 0.9.6 | date | hit rate | +0.069 (+0.028 to +0.114) | better |
 | newspaper4k 0.9.6 | date | right when answering | +0.043 (+0.011 to +0.077) | better |
 
@@ -258,7 +258,7 @@ better or worse, so read the verdicts as a table, not one at a time.
 
 ## Where Sluicer loses, as served
 
-- **Author.** Sluicer misses 40 labelled pages, and on 27 of them another tool finds the author.
+- **Author.** Sluicer misses 39 labelled pages, and on 26 of them another tool finds the author.
 - **Date.** Sluicer misses 35 labelled pages, and on 23 of them another tool finds the date.
 - **Title.** Of 105 wrong titles, 43 contain the label whole: the page declares a longer title than the heading the labels use.
 
@@ -268,9 +268,9 @@ The 360 pages as served:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.9.1 | title | 255 | 105 | 0 | 0 | 0 | 0.708 (0.65–0.76) | 0.708 (0.65–0.76) |
-| sluicer 0.9.1 | author | 89 | 7 | 33 | 187 | 44 | 0.690 (0.60–0.77) | 0.636 (0.55–0.72) |
-| sluicer 0.9.1 | date | 124 | 9 | 26 | 165 | 36 | 0.780 (0.70–0.84) | 0.734 (0.66–0.80) |
+| sluicer 0.10.0 | title | 255 | 105 | 0 | 0 | 0 | 0.708 (0.65–0.76) | 0.708 (0.65–0.76) |
+| sluicer 0.10.0 | author | 90 | 7 | 32 | 187 | 44 | 0.698 (0.61–0.78) | 0.638 (0.55–0.72) |
+| sluicer 0.10.0 | date | 124 | 9 | 26 | 165 | 36 | 0.780 (0.70–0.84) | 0.734 (0.66–0.80) |
 | trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 (0.70–0.80) | 0.756 (0.70–0.80) |
 | trafilatura 2.2.0 | author | 111 | 11 | 7 | 160 | 71 | 0.860 (0.79–0.91) | 0.575 (0.50–0.65) |
 | trafilatura 2.2.0 | date | 136 | 23 | 0 | 14 | 187 | 0.855 (0.79–0.91) | 0.393 (0.34–0.45) |
@@ -285,9 +285,9 @@ The same 360 pages as WCXB kept them:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.9.1 | title | 257 | 103 | 0 | 0 | 0 | 0.714 (0.66–0.76) | 0.714 (0.66–0.76) |
-| sluicer 0.9.1 | author | 58 | 9 | 62 | 208 | 23 | 0.450 (0.36–0.54) | 0.644 (0.54–0.74) |
-| sluicer 0.9.1 | date | 93 | 1 | 65 | 196 | 5 | 0.585 (0.50–0.66) | 0.939 (0.87–0.98) |
+| sluicer 0.10.0 | title | 257 | 103 | 0 | 0 | 0 | 0.714 (0.66–0.76) | 0.714 (0.66–0.76) |
+| sluicer 0.10.0 | author | 59 | 9 | 61 | 208 | 23 | 0.457 (0.37–0.55) | 0.648 (0.54–0.74) |
+| sluicer 0.10.0 | date | 93 | 1 | 65 | 196 | 5 | 0.585 (0.50–0.66) | 0.939 (0.87–0.98) |
 | trafilatura 2.2.0 | title | 272 | 88 | 0 | 0 | 0 | 0.756 (0.70–0.80) | 0.756 (0.70–0.80) |
 | trafilatura 2.2.0 | author | 95 | 13 | 21 | 176 | 55 | 0.736 (0.65–0.81) | 0.583 (0.50–0.66) |
 | trafilatura 2.2.0 | date | 135 | 23 | 1 | 24 | 177 | 0.849 (0.78–0.90) | 0.403 (0.35–0.46) |
