@@ -9,8 +9,10 @@ carry it.
 from __future__ import annotations
 
 import json
+import re
 from types import ModuleType
 
+from sluicer.document import _base_of, join, trimmed
 from sluicer.extras import MissingExtra, import_extra
 
 
@@ -50,10 +52,11 @@ def to_markdown(
     Raises:
         MarkdownExtraMissing: trafilatura is not installed.
     """
+    trafilatura = _trafilatura()
     # trafilatura is imported by name, so what it returns is untyped; the
     # annotation states what its ``extract`` documents.
-    produced: str | None = _trafilatura().extract(
-        html,
+    produced: str | None = trafilatura.extract(
+        _with_links_resolved(trafilatura, html, url),
         output_format="markdown",
         include_links=True,
         include_tables=True,
@@ -62,6 +65,46 @@ def to_markdown(
     if not produced or not front_matter:
         return produced or ""
     return declared_front_matter(html, url) + produced
+
+
+def _with_links_resolved(
+    trafilatura: ModuleType, html: str | bytes, url: str | None
+) -> object:
+    """The page with every link resolved against the page, for trafilatura.
+
+    trafilatura resolves a relative link against the site's root, not the
+    page: on ``https://site/a/b/page.html``, ``c.html`` became
+    ``https://site/c.html`` and ``#part`` ``https://site#part``, so every
+    relative link in the markdown led somewhere else. The page is loaded the
+    way trafilatura loads it (its own ``load_html``, so the encoding is still
+    worked out from the bytes), and each ``<a href>`` is resolved against the
+    page's ``<base href>`` or its address first; an absolute link is one
+    trafilatura leaves alone. With neither to resolve against, the page goes
+    over as given and its links stay as the page wrote them.
+    """
+    if url is None and not _may_declare_a_base(html):
+        return html
+    tree = trafilatura.load_html(html)
+    if tree is None:
+        return html
+    base = _base_of(tree, url)
+    if not base:
+        return html
+    for anchor in tree.iter("a"):
+        href = anchor.get("href")
+        # A template's ``{placeholder}`` is left as written, as trafilatura
+        # leaves it.
+        if href is None or trimmed(href).startswith("{"):
+            continue
+        anchor.set("href", join(base, href))
+    return tree
+
+
+def _may_declare_a_base(html: str | bytes) -> bool:
+    """Whether the page has a ``<base`` tag in it anywhere, cheaply."""
+    if isinstance(html, bytes):
+        return re.search(rb"<base\b", html, re.IGNORECASE) is not None
+    return re.search(r"<base\b", html, re.IGNORECASE) is not None
 
 
 def declared_front_matter(html: str | bytes, url: str | None = None) -> str:

@@ -340,6 +340,16 @@ def test_map_without_a_sitemap_falls_back_and_says_so(fake):
     assert "it answered 404" in result.stderr
 
 
+def test_map_cut_by_its_limit_in_the_start_pages_links_says_so(fake):
+    result = invoke("map", f"{ROOT}/", "--limit", "1")
+
+    assert result.exit_code == 0, result.stderr
+    mapped = json.loads(result.stdout)
+    assert mapped["source"] == "links" and len(mapped["urls"]) == 1
+    assert mapped["truncated"] is True
+    assert "cut short by a bound" in result.stderr
+
+
 def test_map_of_a_site_that_lists_nothing_exits_one(fake):
     result = invoke("map", f"{ROOT}/b")
 
@@ -459,6 +469,42 @@ def test_a_sitemap_template_reads_what_the_sitemaps_list(fake):
 
     assert result.exit_code == 0, result.stderr
     assert [line["url"] for line in lines(result.stdout)] == [f"{ROOT}/a", f"{ROOT}/b"]
+
+
+def test_a_sitemap_template_on_a_site_without_one_says_what_it_read_instead(fake):
+    """It read the start page's links and said only "the page budget left
+    links unfollowed", so the pages looked like the ones the site lists."""
+    result = invoke("crawl", f"{ROOT}/", "--template", "sitemap")
+
+    assert result.exit_code == 0, result.stderr
+    assert [line["url"] for line in lines(result.stdout)] == [f"{ROOT}/a", f"{ROOT}/b"]
+    said = result.stderr.splitlines()
+    assert said[0] == (
+        "Note: no sitemap listed an address on the site, so the start page's "
+        "links are read instead."
+    )
+    assert said[-1].endswith(
+        "; no sitemap listed an address on the site, so the start page's links "
+        "are read instead."
+    )
+
+
+def test_a_sitemap_template_that_read_a_sitemap_has_no_such_note(fake):
+    fake.pages[f"{ROOT}/sitemap.xml"] = SITEMAP
+
+    result = invoke("crawl", f"{ROOT}/", "--template", "sitemap")
+
+    assert "Note:" not in result.stderr
+    assert "start page's links" not in result.stderr
+
+
+def test_a_crawl_stopped_by_its_depth_says_so_in_its_last_line(fake):
+    result = invoke("crawl", f"{ROOT}/", "--max-depth", "0")
+
+    assert result.exit_code == 0, result.stderr
+    assert result.stderr.splitlines()[-1] == (
+        "1 pages: 1 read; 2 links deeper than max_depth 0 were not followed."
+    )
 
 
 def test_a_shopify_template_writes_a_product_a_line(fake):

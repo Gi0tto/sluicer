@@ -105,8 +105,8 @@ def sitemap_pages(
     ``exclude`` is, and the first ``max_pages`` read as ``extract_many``
     reads a list. ``stopped`` is ``max_pages`` when the sitemaps listed more.
     A site with no sitemap gives the links of the page at ``url``, as a map
-    does. The other arguments are ``crawl``'s; the time budget covers the
-    sitemaps and the pages both.
+    does, and the ``Crawl``'s ``notice`` says so. The other arguments are
+    ``crawl``'s; the time budget covers the sitemaps and the pages both.
 
     Raises:
         ValueError: a pattern is not a regular expression.
@@ -166,7 +166,16 @@ def sitemap_pages(
         cut = len(chosen) > max_pages or found.truncated
         run.stopped = "max_pages" if cut and inner.stopped == "done" else inner.stopped
 
-    return Crawl(pages, resumed=inner.resumed)
+    run = Crawl(pages, resumed=inner.resumed)
+    if found.source == "links":
+        # Said, not silent: the pages a sitemap crawl reads are the ones the
+        # site lists, and a site that lists none gets its start page's links,
+        # which is a different thing to have asked for.
+        run.notice = (
+            "no sitemap listed an address on the site, so the start page's "
+            "links are read instead"
+        )
+    return run
 
 
 def shopify_products(

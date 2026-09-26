@@ -81,7 +81,7 @@ def map_command(
     delay, and stderr says what became of each one.
     """
     if plain and output_format != "json":
-        raise click.UsageError("--plain is one address a line; --format is another")
+        plain = _plain_wins_over_format()
     try:
         found = map_site(url, limit=limit, time_budget=time_budget, **_sent())
     except (
@@ -109,6 +109,26 @@ def map_command(
         click.echo(json.dumps(asdict(found), indent=2, ensure_ascii=False))
     if not found.urls:
         raise SystemExit(NOTHING_FOUND)
+
+
+def _plain_wins_over_format() -> bool:
+    """Whether ``--plain`` or ``--format`` is the one to obey, when both are set.
+
+    The command line wins over a configuration file: ``plain = true`` in the
+    file and ``--format csv`` typed was refused as if both had been typed.
+    Set the same way -- both typed, or both in the file -- the two cannot be
+    told apart, and are refused.
+    """
+    context = click.get_current_context()
+
+    def typed(name: str) -> bool:
+        source = context.get_parameter_source(name)
+        return source is not None and source.name not in ("DEFAULT", "DEFAULT_MAP")
+
+    plain_typed, format_typed = typed("plain"), typed("output_format")
+    if plain_typed == format_typed:
+        raise click.UsageError("--plain is one address a line; --format is another")
+    return plain_typed
 
 
 _many_options = [
@@ -300,6 +320,8 @@ def crawl_command(
         ResponseTooLarge,
     ) as failure:
         _fail(str(failure), failure)
+    if pages.notice is not None:
+        click.echo(f"Note: {pages.notice}.", err=True)
     _report(pages, out, table, total=total, label=label)
 
 
@@ -614,6 +636,10 @@ def _report(
         "max_pages": "; the page budget left links unfollowed",
         "time_budget": "; the time ran out",
     }.get(pages.stopped or "", "")
+    if pages.notice is not None:
+        # In the verdict, whenever it was known: a note said before the first
+        # page has scrolled away by the end of a long crawl.
+        why += f"; {pages.notice}"
     click.echo(f"{tally}{why}." + (f" Wrote {out}." if out else ""), err=True)
     if not tally.read:
         raise SystemExit(COULD_NOT_READ)

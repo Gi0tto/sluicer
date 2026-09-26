@@ -211,6 +211,20 @@ def test_depth_zero_takes_the_start_alone():
     assert len(list(run(FakeWeb(shop()), max_depth=1))) == 4
 
 
+def test_a_crawl_stopped_by_its_depth_says_how_many_links_it_left():
+    """A ten-page listing crawled three deep ended "done" with not a word of
+    the pages past the fourth."""
+    shallow = run(FakeWeb(shop()), max_depth=1)
+    taken = urls(shallow)
+    whole = run(FakeWeb(shop()))
+    list(whole)
+
+    assert len(taken) == 4
+    assert shallow.stopped == "done"
+    assert shallow.notice == "3 links deeper than max_depth 1 were not followed"
+    assert whole.notice is None
+
+
 def test_leaving_the_site_is_allowed_when_asked_for():
     pages = list(run(FakeWeb(shop()), same_site=False, max_depth=1))
 

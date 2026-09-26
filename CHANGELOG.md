@@ -55,6 +55,40 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - npm package: npmjs.com showed no README. The package now carries
   `js/README.md`: what it is, how to install it, a five-line example whose
   printed output a test runs and compares, and what it does not do.
+- `markdown`, the MCP `page_markdown` tool and `sluicer.to_markdown` resolved
+  a relative link against the site's root instead of the page, so `c.html` on
+  `/a/b/page.html` became `/c.html` and `#part` lost the page. Links now
+  resolve against the page's `<base href>` or its address.
+- `map` and the MCP `map_site` tool answered `truncated: false` when `--limit`
+  (or `limit`) cut the start page's links a site with no sitemap falls back
+  to. They now say the map was cut short.
+- `inspect` listed a reader as silent when it had answered the summary without
+  giving a record field, such as html's `<title>`. It now lists that reader
+  with the summary answers it gave.
+- `crawl --template sitemap` on a site whose sitemaps list nothing read the
+  start page's links without a word. It now says so on stderr, before the
+  first page and in the closing line, and `sitemap_pages()`'s `Crawl` carries
+  the same sentence as `notice`.
+- `plain = true` in a configuration file and `--format csv` on the command
+  line (or `format` in the file and `--plain` typed) was refused as if both
+  had been typed. The command line now wins, as the configuration page says;
+  both typed are still refused.
+- `sluicer --help` cut each command's description to one line with "...",
+  often just before the words that tell two commands apart (`map`'s "start
+  page's links"). Each description is now its whole first sentence, wrapped.
+- `max-age` in a configuration file with no cache in use stopped every command
+  that reads a page, a local file included, with "--max-age ... needs
+  --cache". A file's `max-age` now applies only to runs that use a cache; a
+  typed `--max-age` without `--cache` is still refused.
+- A selector that was neither CSS nor XPath was refused with "an XPath begins
+  with /, ./ or (", leaving out the `../` and `@` that are read as XPath too.
+  The message now names all five. `select PAGE @href`, which reads the
+  `<html>` element's attribute and so gives nothing, now says so and names
+  `//@href`.
+- A crawl that left links unfollowed because they were deeper than
+  `--max-depth` ended "done" without a word, so a paginated listing looked
+  shorter than it is. The closing line now says how many links the depth left
+  out, and `crawl()`'s `Crawl` carries the same sentence as `notice`.
 
 ## 0.9.0 - 2026-09-26
 

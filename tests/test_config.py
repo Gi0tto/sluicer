@@ -721,3 +721,79 @@ def test_an_access_list_that_only_denies_is_no_reason_to_refuse(here, crawled):
     _run("crawl", URL)
 
     assert crawled[0]["min_delay"] == 4
+
+
+@pytest.fixture
+def mapped(monkeypatch):
+    """``sluicer map`` answering one address, asking nobody."""
+    from sluicer.crawl.sitemaps import SiteMap, SiteUrl
+
+    def recorder(url, **kwargs):
+        return SiteMap(url, "sitemaps", (SiteUrl("https://example.com/a"),), ())
+
+    monkeypatch.setattr("sluicer.cli.sites.map_site", recorder)
+
+
+def test_format_on_the_command_line_wins_over_plain_in_the_file(here, mapped):
+    """``plain = true`` in the file and ``--format csv`` typed was refused with
+    "--plain is one address a line; --format is another"."""
+    named = _write(here / "s.toml", "[map]\nplain = true\n")
+
+    result = _run("--config", str(named), "map", URL, "--format", "csv")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines()[0] == "url,lastmod,sitemap"
+
+
+def test_plain_on_the_command_line_wins_over_format_in_the_file(here, mapped):
+    named = _write(here / "s.toml", '[map]\nformat = "csv"\n')
+
+    result = _run("--config", str(named), "map", URL, "--plain")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "https://example.com/a\n"
+
+
+def test_plain_and_format_both_typed_are_still_refused(here, mapped):
+    result = CliRunner().invoke(
+        cli.main, ["--no-config", "map", URL, "--plain", "--format", "csv"]
+    )
+
+    assert result.exit_code == 2
+    assert "--plain is one address a line" in result.stderr
+
+
+def test_a_files_max_age_without_a_cache_stops_nothing(here, monkeypatch):
+    """``max-age = 5`` in a file stopped every command, a local file's too,
+    with "--max-age ... needs --cache": a flag nobody typed."""
+    page = _write(here / "p.html", "<title>t</title>")
+    _write(here / "sluicer.toml", "max-age = 5\n")
+
+    result = _run("extract", str(page))
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["summary"]["title"]["value"] == "t"
+
+
+def test_a_files_max_age_is_the_one_a_typed_cache_uses(here, monkeypatch):
+    kept: list[float | None] = []
+
+    def cached(url, cache, **kwargs):
+        kept.append(cache.max_age)
+        return Fetched(url=url, html="<title>t</title>", status=200, rung="http")
+
+    monkeypatch.setattr("sluicer.fetch.cache.fetch_cached", cached)
+    _write(here / "sluicer.toml", "max-age = 5\n")
+
+    _run("extract", URL, "--cache", str(here / "kept"))
+
+    assert kept == [5.0]
+
+
+def test_a_typed_max_age_without_a_cache_is_still_refused(here):
+    page = _write(here / "p.html", "<title>t</title>")
+
+    result = _run("extract", str(page), "--max-age", "5")
+
+    assert result.exit_code == 2
+    assert "needs --cache" in result.stderr

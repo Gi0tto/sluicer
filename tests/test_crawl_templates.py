@@ -305,6 +305,16 @@ def test_a_sitemap_crawl_reads_every_address_its_sitemaps_list():
     assert fake.gaps("shop.example") == [1.0] * 5
 
 
+def test_a_sitemap_crawl_of_a_site_without_one_says_the_links_stood_in():
+    fake = FakeWeb({f"{SHOP}/": page("Home", "/p/1"), f"{SHOP}/p/1": page("Pad 1")})
+
+    run = sitemaps(fake)
+
+    assert [p.url for p in run] == [f"{SHOP}/p/1"]
+    assert run.notice is not None and "start page's links" in run.notice
+    assert sitemaps(FakeWeb(sitemap_site())).notice is None
+
+
 def test_a_sitemap_crawl_keeps_what_include_and_exclude_choose_up_to_its_budget():
     fake = FakeWeb(sitemap_site())
 

@@ -582,6 +582,20 @@ def test_inspect_shows_each_field_and_answer_with_where_it_came_from():
     assert any("not read: microformats" in line for line in lines)
 
 
+def test_inspect_does_not_call_a_reader_silent_that_answered_the_summary():
+    """plain.html's title comes from html's <title>, which is no record field:
+    the readers line said "none said anything / silent: ..., html" right above
+    "title  Plain page  [html <title>]"."""
+    result = CliRunner().invoke(main, ["inspect", str(FIXTURES / "plain.html")])
+
+    lines = result.stdout.splitlines()
+    readers = next(line for line in lines if line.startswith("readers"))
+    silent = next(line for line in lines if "silent:" in line)
+    assert readers == "readers   html (1 summary answer)"
+    assert "html" not in silent.split(":", 1)[1].replace(",", " ").split()
+    assert any(line.split()[:3] == ["title", "Plain", "page"] for line in lines)
+
+
 def test_inspect_is_the_same_report_every_time():
     page = str(FIXTURES / "drift" / "product.html")
 
@@ -1091,9 +1105,31 @@ def test_the_help_groups_the_commands_by_what_they_are_for():
     assert starts == sorted(starts) and "Commands:" not in said
     for (title, names), start in zip(sections.items(), starts, strict=True):
         block = said[start:].split("\n\n")[0].splitlines()[1:]
-        assert [line.split()[0] for line in block] == names, title
+        # A description too long for its line goes on under itself, indented.
+        named = [line for line in block if not line.startswith("   ")]
+        assert [line.split()[0] for line in named] == names, title
     placed = [name for names in sections.values() for name in names]
     assert sorted(placed) == sorted(main.commands)
+
+
+def test_the_help_gives_each_command_its_whole_first_sentence():
+    """Cut to fit one line, the list stopped where commands differ: "map  List
+    a site's addresses, from its sitemaps or its start..." hid "page's links",
+    the words that tell map from crawl."""
+    import inspect as source
+
+    said = CliRunner().invoke(main, ["--help"], terminal_width=80).stdout
+    listed = said[said.index("Read a page:") :]
+
+    assert "..." not in listed and "\u2026" not in listed
+    flowing = " ".join(said.split())
+    for name, command in main.commands.items():
+        if command.hidden:
+            continue
+        first = source.cleandoc(command.help or "").split("\n\n")[0]
+        sentence = " ".join(first.split()).split(". ")[0].rstrip(".") + "."
+        assert f"{name} {sentence}" in flowing, name
+    assert "its start page's links." in flowing
 
 
 # -- the caller's headers and cookies --------------------------------------------
@@ -1270,3 +1306,21 @@ def test_extract_of_an_empty_error_page_names_the_status(monkeypatch, status):
     assert result.exit_code == 1
     assert f"the site answered status {status}" in result.stderr
     assert "compile" not in result.stderr
+
+
+def test_select_of_an_attribute_of_the_page_that_gives_nothing_says_where_it_read(
+    tmp_path,
+):
+    """'@href' is read from the <html> element and gave nothing without a word
+    of why; //@href is what reads every href."""
+    page = tmp_path / "p.html"
+    page.write_text(
+        '<html lang="en"><body><a href="/x">x</a></body></html>', encoding="utf-8"
+    )
+
+    nothing = CliRunner().invoke(main, ["select", str(page), "@href"])
+    lang = CliRunner().invoke(main, ["select", str(page), "@lang"])
+
+    assert nothing.exit_code == 1
+    assert "reads the <html> element's attribute; //@href reads it" in (nothing.stderr)
+    assert lang.exit_code == 0 and lang.stdout.startswith("en\t/html")

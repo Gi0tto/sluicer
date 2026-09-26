@@ -338,6 +338,21 @@ def test_with_no_sitemap_the_start_pages_links_on_the_site_stand_in():
     assert all(u.sitemap is None and u.lastmod is None for u in result.urls)
 
 
+def test_a_limit_that_cuts_the_start_pages_links_marks_the_map_cut_short():
+    """``map --limit 5`` on a site of 73 links answered ``truncated: false``."""
+    fake = site({"https://example.com/": page("Home", "/a", "/b", "/c")})
+
+    cut = mapped(fake, limit=2)
+    whole = mapped(site(fake.pages), limit=3)
+
+    assert [u.url for u in cut.urls] == [
+        "https://example.com/a",
+        "https://example.com/b",
+    ]
+    assert cut.source == "links" and cut.truncated is True
+    assert len(whole.urls) == 3 and whole.truncated is False
+
+
 def test_every_request_waits_the_sites_delay_after_the_last_one_ended():
     fake = site(
         {

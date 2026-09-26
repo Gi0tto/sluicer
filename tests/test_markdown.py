@@ -1,7 +1,9 @@
 import json
 import sys
 import types
+from pathlib import Path
 
+import lxml.html
 import pytest
 
 
@@ -15,6 +17,8 @@ def fake_trafilatura(monkeypatch, output="# Brake pad set\n\nReal content."):
 
     module = types.ModuleType("trafilatura")
     module.extract = extract
+    # trafilatura's own loader, which to_markdown uses to resolve the links.
+    module.load_html = lxml.html.fromstring
     monkeypatch.setitem(sys.modules, "trafilatura", module)
     return seen
 
@@ -136,3 +140,90 @@ def test_a_page_that_declares_nothing_gets_no_front_matter(monkeypatch):
     from sluicer.markdown import to_markdown
 
     assert to_markdown("<p>plain</p>", front_matter=True) == "The article."
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _hrefs(given):
+    return [a.get("href") for a in given.iter("a")]
+
+
+def test_relative_links_go_to_trafilatura_resolved_against_the_page(monkeypatch):
+    """trafilatura resolves against the site's root, so the page does it first.
+
+    ``c.html`` on ``/a/b/page.html`` became ``https://example.com/c.html`` and
+    ``#frag`` ``https://example.com#frag``: every relative link was broken.
+    """
+    seen = fake_trafilatura(monkeypatch)
+    from sluicer.markdown import to_markdown
+
+    page = (
+        '<html><body><a href="c.html">c</a><a href="#frag">f</a>'
+        '<a href="../up.html">u</a><a href="/root.html">r</a>'
+        '<a href="https://other.example/x">o</a><a href="{slot}">t</a>'
+        "</body></html>"
+    )
+    to_markdown(page, url="https://example.com/a/b/page.html")
+
+    given, passed = seen["called_with"]
+    assert _hrefs(given) == [
+        "https://example.com/a/b/c.html",
+        "https://example.com/a/b/page.html#frag",
+        "https://example.com/a/up.html",
+        "https://example.com/root.html",
+        "https://other.example/x",
+        "{slot}",
+    ]
+    assert passed["url"] == "https://example.com/a/b/page.html"
+
+
+def test_a_base_href_is_what_links_resolve_against(monkeypatch):
+    seen = fake_trafilatura(monkeypatch)
+    from sluicer.markdown import to_markdown
+
+    page = (
+        '<html><head><base href="https://cdn.example/docs/"></head>'
+        '<body><a href="c.html">c</a></body></html>'
+    )
+    to_markdown(page)
+
+    assert _hrefs(seen["called_with"][0]) == ["https://cdn.example/docs/c.html"]
+
+
+def test_markdown_links_lead_where_the_page_links(monkeypatch):
+    """The real trafilatura, on a page whose address has a path."""
+    pytest.importorskip("trafilatura")
+    monkeypatch.delitem(sys.modules, "trafilatura", raising=False)
+    from sluicer.markdown import to_markdown
+
+    page = (FIXTURES / "article_relative_links.html").read_bytes()
+    out = to_markdown(page, url="https://example.com/guide/brakes/fitting.html")
+
+    assert "(https://example.com/guide/brakes/next.html)" in out
+    assert "(https://example.com/guide/brakes/fitting.html#intro)" in out
+    assert "(https://example.com/guide/overview.html)" in out
+    assert "(https://example.com/index.html)" in out
+    assert "(https://other.example/x)" in out
+
+
+def test_the_markdown_command_resolves_links_against_the_page():
+    pytest.importorskip("trafilatura")
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "--no-config",
+            "markdown",
+            str(FIXTURES / "article_relative_links.html"),
+            "--url",
+            "https://example.com/guide/brakes/fitting.html",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "(https://example.com/guide/brakes/next.html)" in result.output
+    assert "(https://example.com/guide/brakes/fitting.html#intro)" in result.output

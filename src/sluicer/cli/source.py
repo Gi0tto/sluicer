@@ -9,6 +9,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import click
+from click.core import ParameterSource
+
 from sluicer.cli.exits import _fail
 from sluicer.cli.options import _Sending, _sent
 from sluicer.fetch import FetchFailed, RobotsRefused, fetch as fetch_url
@@ -29,7 +32,13 @@ def _read_source(
     """``_read_page``, then refused when ``respect`` names a reservation the
     page makes: its text and data mining rights, for ``tdm``."""
     if max_age is not None and cache_dir is None:
-        _fail("--max-age says how long a kept page is good for; it needs --cache.")
+        if _from_a_file("max_age"):
+            # A file's max-age is a default for the runs that keep pages, and
+            # this one keeps none: set at the top of a file, it stopped every
+            # command, a local file's included, naming a flag nobody typed.
+            max_age = None
+        else:
+            _fail("--max-age says how long a kept page is good for; it needs --cache.")
     if cache_dir is not None and at is not None:
         _fail("--cache keeps live pages; a capture read with --at never changes.")
     html, url, fetched = _read_page(
@@ -38,6 +47,13 @@ def _read_source(
     if "tdm" in respect:
         _refuse_reserved(html, url, fetched, obey_robots=not no_robots)
     return html, url, fetched
+
+
+def _from_a_file(name: str) -> bool:
+    """Whether the running command's ``name`` came from a configuration file."""
+    context = click.get_current_context(silent=True)
+    source = context.get_parameter_source(name) if context is not None else None
+    return source is ParameterSource.DEFAULT_MAP
 
 
 def _refuse_reserved(
