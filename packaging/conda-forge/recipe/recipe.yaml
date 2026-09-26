@@ -15,9 +15,7 @@ package:
 
 source:
   url: https://pypi.org/packages/source/s/sluicer/sluicer-${{ version }}.tar.gz
-  # PLACEHOLDER: sluicer 0.9.1 has no sdist yet. Run
-  # packaging/recipes.py again once it is on PyPI.
-  sha256: 0000000000000000000000000000000000000000000000000000000000000000
+  sha256: 90bc8c1ad6a1df80129f0229eadaf9f506de17d4f220cbce99d40720764daa8d
 
 build:
   noarch: python
