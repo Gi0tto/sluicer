@@ -2,6 +2,14 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- `markdown`, the MCP `page_markdown` tool and `sluicer.to_markdown` resolved
+  a relative link against the site's root instead of the page, so `c.html` on
+  `/a/b/page.html` became `/c.html` and `#part` lost the page. Links now
+  resolve against the page's `<base href>` or its address.
+
 ## 0.9.0 - 2026-09-26
 
 ### Added
