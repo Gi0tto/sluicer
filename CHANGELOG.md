@@ -103,6 +103,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `str` holding a lone surrogate is parsed as before.
 
 ### Fixed
+- The guesses, on by default, found the elements with a class or an id in
+  the square of their number, and counted a page's "By" lines in the square
+  of theirs: a 10.8 MB page of 60,000 rows took 35 s to `extract`, and
+  `sluicer serve` answered 504. The same elements are now found in one walk
+  of the page and the same guesses made; that page takes 0.5 s.
 - `--visible` took a box whose class says there is no byline ("no-byline"), or
   the page's `<body>` itself, for a byline and read the first capitalised
   words in it as the author, and took the "By" line on another article's card,

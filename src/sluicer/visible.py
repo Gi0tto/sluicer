@@ -217,11 +217,18 @@ class _Page:
 
     @cached_property
     def named(self) -> list[tuple[HtmlElement, str]]:
-        return [
-            (e, f"{e.get('class') or ''} {e.get('id') or ''}".lower())
-            for e in self.tree.xpath("//*[@class or @id]")
-            if e.tag not in _AWAY
-        ]
+        """The elements with a class or an id, in document order, with their
+        names lowercased. Tested in Python on each element: asked as
+        ``//*[@class or @id]``, libxml2 took the square of their number,
+        31 s for a 10 MB page of 60,000 rows."""
+        found = []
+        for e in self.tree.iter():
+            if not isinstance(e.tag, str) or e.tag in _AWAY:
+                continue
+            classes, key = e.get("class"), e.get("id")
+            if classes is not None or key is not None:
+                found.append((e, f"{classes or ''} {key or ''}".lower()))
+        return found
 
     @cached_property
     def named_bylines(self) -> list[tuple[HtmlElement, str]]:
@@ -409,7 +416,11 @@ def _author(page: _Page) -> Guess | None:
     # every container's whole text to find the short ones costs the most. A
     # page with more than three of them, each naming somebody else, is a
     # listing of other pages' cards.
-    lines: list[Guess] = []
+    # The names are counted as they come, and only the first line's place is
+    # written: counting them all again for each line, and writing each one's
+    # place, cost the square of their number, 2 s for 16,000 "By" lines.
+    first: tuple[str, HtmlElement] | None = None
+    names: set[str] = set()
     for opening in page.texts:
         if not _OPENS_BY.match(opening):
             continue
@@ -418,11 +429,12 @@ def _author(page: _Page) -> Guess | None:
             continue
         found = _by_line(page, opening, element)
         if found is not None:
-            lines.append(found)
-            if len({line.value for line in lines}) > _MOST_BYLINES:
+            first = first or found
+            names.add(found[0])
+            if len(names) > _MOST_BYLINES:
                 return None
-    if lines:
-        return lines[0]
+    if first is not None:
+        return Guess(first[0], _where(first[1]), "by-line")
     return _name_and_role(page)
 
 
@@ -511,9 +523,12 @@ _NOT_THE_AUTHOR = re.compile(
 )
 
 
-def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | None:
-    """The author a "By X" line starting with ``opening`` names, climbing
-    from its element to the short box that holds the whole line."""
+def _by_line(
+    page: _Page, opening: str, element: HtmlElement | None
+) -> tuple[str, HtmlElement] | None:
+    """The author a "By X" line starting with ``opening`` names, and the
+    element it is read from, climbing from its element to the short box that
+    holds the whole line."""
     for _ in range(5):
         if element is None or not isinstance(element.tag, str):
             return None
@@ -527,10 +542,10 @@ def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | 
             if _NOT_THE_AUTHOR.search(before):
                 return None
             if _BY.match(text) and (name := _name(text)):
-                return Guess(name, _where(element), "by-line")
+                return name, element
             # "Written by" and the name in two texts, glued by text_content.
             if _LABEL_ONLY.match(opening) and (name := _name_after(element, opening)):
-                return Guess(name, _where(element), "by-line")
+                return name, element
         element = element.getparent()
     return None
 
