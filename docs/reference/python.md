@@ -307,6 +307,7 @@ to_markdown(
     html: str | bytes,
     url: str | None = None,
     front_matter: bool = False,
+    full: bool = False,
 ) -> str
 ```
 
@@ -316,11 +317,48 @@ Return the page's main content as markdown, or ``""`` when it has none.
 
 - `html`: the page, passed to trafilatura as given. Prefer bytes: it detects the encoding from them, including a ``<meta charset>``.
 - `url`: the address the page came from, used to resolve its links.
-- `front_matter`: open the markdown with a YAML block of what the page declares about itself -- title, author, dates, url, and the rest of the summary -- and where each answer came from, the way static-site generators and retrieval pipelines read a document's metadata. The text itself is still trafilatura's.
+- `front_matter`: open the markdown with a YAML block of what the page declares about itself -- title, author, dates, url, and the rest of the summary -- and where each answer came from, the way static-site generators and retrieval pipelines read a document's metadata; ``sources`` also says where the text came from (``text``), as ``read_markdown`` does.
+- `full`: the whole page, not its main content: every heading, paragraph, list, table, link and image a reader is shown, menus and footers included, scripts and styles left out, links resolved. It needs no extra.
 
 **Raises**
 
-- `MarkdownExtraMissing`: trafilatura is not installed.
+- `MarkdownExtraMissing`: trafilatura is not installed (not for ``full``).
+
+### `sluicer.read_markdown`
+
+```python
+read_markdown(
+    html: str | bytes,
+    url: str | None = None,
+    full: bool = False,
+) -> MainText
+```
+
+The page's main content as markdown, and where it came from.
+
+As ``to_markdown``, with the text's source beside it (``MainText``).
+
+**Raises**
+
+- `MarkdownExtraMissing`: trafilatura is not installed (not for ``full``).
+
+### `sluicer.MainText`
+
+```python
+class MainText:
+    markdown: str
+    source: str
+    method: str
+    where: str | None
+```
+
+A page's text as markdown, and where it came from.
+
+``source`` is ``"extracted"`` for the main content, found in the page by
+``method`` (``"trafilatura"``); ``"page"`` for the whole page (``full``),
+with no method; ``""`` when there is no text. ``where`` is the place on the
+page the text was declared, for a source that names one; neither of these
+does, so it is None.
 
 ## What a value means
 

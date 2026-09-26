@@ -3,7 +3,7 @@
 from sluicer.api import Extraction, aextract, extract
 from sluicer.declared.merge import Field, Record
 from sluicer.declared.microformats import MicroformatsExtraMissing
-from sluicer.markdown import MarkdownExtraMissing, to_markdown
+from sluicer.markdown import MainText, MarkdownExtraMissing, read_markdown, to_markdown
 from sluicer.selectors import Page, Selected, Selection, SelectorError, parse
 from sluicer.structure import induce
 from sluicer.summary import SummaryField
@@ -13,6 +13,7 @@ __all__ = [
     "Extraction",
     "Field",
     "Guess",
+    "MainText",
     "MarkdownExtraMissing",
     "MicroformatsExtraMissing",
     "Page",
@@ -26,6 +27,7 @@ __all__ = [
     "extract",
     "induce",
     "parse",
+    "read_markdown",
     "read_visible",
     "to_markdown",
 ]

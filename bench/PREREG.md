@@ -447,6 +447,211 @@ is added, if at all, in a release's own commit.
 first section), and the page says so. No rule of Sluicer's is changed on
 reading this page's numbers in the commit that first publishes it.
 
+## The main text: made on WCXB's development split, measured on the scoreboards once
+
+Fixed on 2026-09-26, before any rule below was written or run on a page. The
+every-tool scoreboard found Sluicer's text level with trafilatura's, whose
+extraction it is: on the served pages snippet F1 0.859 and pages kept clean
+0.897, but recall 0.782, against 0.90 for markitdown and Scrapling, which keep
+the menus (0.006 and 0.017 of pages clean). What follows says how
+`sluicer.markdown.to_markdown`, the `markdown` command and the MCP
+`page_markdown` may change to find more of the text without taking the menus
+with it, on which pages that is decided, and how the result is read.
+
+**The pages rules are made on**: WCXB's `dev` split, the 1,358 pages
+`metadata.json` marks `dev`, in the archive already pinned at `c039d5e`, with
+their labels (`with`, `without`, `main_content`) and every candidate's output
+on them. They are WCXB's own copies, which lost many of their `<script>`s, so a
+rule reading JSON-LD is measured only on the dev pages whose JSON-LD survived,
+and the numbers say how many those are. No page of a scoreboard -- WCXB's test
+split, its pages as served, trafilatura's set, the page added by hand, the news
+fixtures -- is read while the rules are made, nor any tool's answer on one.
+
+**The measure** (`bench/markdown_dev.py`, run from the checkout's
+environment): each candidate's markdown on each dev page is written as plain
+text by `bench/tools_compare.py`'s `plain`, the six first `with` and `without`
+snippets of each page are counted by `bench/tools/snippets.py`'s `counted`, as
+the served set is; printed are snippet precision, recall and F1 over the
+summed counts, each with its interval bootstrapped over pages, the pages kept
+clean with their Wilson interval, WCXB's mean word precision, recall and F1,
+and the pages silently empty. Each candidate is compared with the 0.9.1 call
+(`baseline`: trafilatura's markdown with links and tables, links resolved
+against the page), paired by page, as the section on differences below fixes.
+
+**The candidates**, measured one by one against `baseline`:
+
+1. *Declared text.* The page's one record of type `Article` or a schema.org
+   subtype of it (`NewsArticle`, `BlogPosting`, `Report`, `ScholarlyArticle`,
+   `TechArticle`, `SocialMediaPosting` and theirs), from JSON-LD or microdata,
+   carrying `articleBody` (or `text`). It is the page's main entity when it is
+   the only such record carrying a body, and, when it names a `url` or
+   `mainEntityOfPage` and the page's address is known, that address is the
+   page's (scheme, a trailing slash and a fragment aside). It is written as
+   markdown: a microdata body by converting its element, a JSON-LD body by
+   converting it when it holds HTML markup, else as its paragraphs. Used first
+   (`declared-first-R`) when it has at least R times the words of the
+   extraction, R in 0.5, 0.8 and 1.0, else the extraction; used as a rescue
+   (`declared-rescue`) only when the extraction has under half its words. A
+   body ending in an ellipsis is truncated and never used.
+2. *Recall.* trafilatura's `favor_recall=True` always (`recall`); only when
+   the extraction has under X times the words of the recall extraction
+   (`recall-if-short-X`, X in 0.5 and 0.7); or only when it has under X times
+   the words of the page's main region's visible text (`region-X`, X in 0.5
+   and 0.7): the first `<main>`, else the first `[role=main]`, else the page's
+   one `<article>`, else `<body>`, without `script`, `style`, `noscript`,
+   `template`, `nav`, `header`, `footer`, `aside`, `form` and `[hidden]`.
+3. *A second extractor, as a rescue*: under the same trigger as `region-X`,
+   the longer of the extraction and the text of trafilatura's own copy of
+   readability or of jusText (both ship with trafilatura, so nothing is added
+   to the install), written as markdown by Sluicer's converter
+   (`readability-X`, `justext-X`).
+4. *Precision*: `include_comments=False` (`no-comments`), and
+   `favor_precision=True` (`precision`), for reference.
+5. *The heading*: `# ` and the page's `<h1>`, the only one, before the text
+   when the text does not already hold it (`h1`), on top of `baseline`.
+
+**What is kept.** A candidate replaces `baseline` when on the dev pages its
+snippet F1 is called better by the paired comparison, and its pages kept clean
+are not called worse and are not more than 0.010 below `baseline`'s. Of several
+that pass, the one with the highest F1. Combinations of passing candidates, and
+any rule added after reading the dev pages' outputs, are recorded here before
+they are measured, and pass the same test against `baseline`. The `h1` rule is
+kept unless it is called worse on F1 or on pages kept clean: it is about the
+markdown being right, not about the score.
+
+**Added on 2026-09-26, after the first run of the candidates above on the
+dev pages and before any of these was run.** That run found every candidate's
+gain at most 0.011 of F1, and, reading the dev pages' misses only, that of the
+6,044 `with` snippets 781 are in the page's own text and left out by the
+extraction, on 378 pages, often a few paragraphs, a nested list or a card of
+a region whose rest was kept. So:
+
+6. *The extraction's own region* (`container-K`, K in 1.25, 1.5 and 2.0): the
+   blocks of the extraction of six words or more are found in the page, by
+   their first words, in the text of its elements; the deepest element that
+   holds four in five of those found, when it is not `<body>` or `<html>`, is
+   written as markdown by Sluicer's converter, without images and without
+   `nav`, `aside`, `footer`, `form`, the ARIA roles `navigation`, `banner`,
+   `contentinfo`, `complementary` and `search`, and elements whose class or id
+   names a share, social, related, comment, newsletter, subscribe, cookie,
+   breadcrumb, sidebar, advert, promo, sponsor, popup or modal box. It
+   replaces the extraction when it holds at least the extraction's words and
+   at most K times them; otherwise the extraction stands.
+7. *The heading, when it is the title* (`h1-titled`): as `h1`, only when the
+   `<h1>` and the title the page declares (the summary's) are one, the shorter
+   within the longer, compared as `bench/score.py` compares titles.
+
+**Added on 2026-09-26, after `container-K` was run on the dev pages and
+before any of these was run.** Written whole, the region brought back 242 of
+the missing snippets and let 159 boilerplate ones in, nearly all of them short
+(a button, a menu item, a forum's "Member" or "Reply with quote") or an author's
+biography. So:
+
+8. *The extraction, with the region's long paragraphs* (`merge-W`, W in 8, 12
+   and 16): the region is found as in `container-K`, and author, bio and byline
+   boxes are left out of it too; its blocks are taken in order, each kept when
+   the extraction already holds its text, or when it has W words or more of
+   which under half are the text of links; then every block of the extraction
+   the kept blocks do not hold is added after them, in its order. With no
+   region, or a region of `<body>`, the extraction stands.
+
+**Added on 2026-09-26, after `merge-W` was run on the dev pages and before
+any of these was run.** `merge-8` found 282 more snippets and let 41 more
+boilerplate ones in: headings of calls to action, menus written as lists whose
+items carry a line of text each, and sentences before or after the article
+(a sign-up line, a disclosure, a review). So:
+
+9. *Only the gaps* (`gap-W`, W in 8, 12 and 16): as `merge-W`, but a block
+   the extraction does not hold is added only when it lies between two blocks
+   it does hold, in the region's order, never before the first or after the
+   last; a heading is added only when the block right after it is; and a list
+   is judged item by item, each item by the same test as a paragraph.
+
+**Added on 2026-09-26, after `gap-W` was run on the dev pages and before
+any of these was run.** `gap-16` found 105 more snippets and lost none, and let
+14 boilerplate ones in, on 14 pages: headings of boxes, a forum's quoted post
+("Click to expand..."), a button's words repeated in a marquee, and sentences
+holding a button's words. Its pages kept clean were 0.009 below `baseline`'s
+and called worse. So:
+
+10. *Gaps, stricter* (`gap2-W`, W in 12 and 16): as `gap-W`, but a heading is
+    never added, nor a block quote, nor a block with fewer distinct words than
+    half its words.
+11. *With the cleaner extraction first*: `readability-0.7`, the one candidate
+    whose pages kept clean were called better, gives the extraction the gaps
+    are filled in (`read-gap2-W`), and `no-comments` does (`nc-gap2-W`).
+
+**Added on 2026-09-26, after `gap2-W`, `read-gap2-W` and `nc-gap2-W` were
+run on the dev pages, and before these were run.** `read-gap2-12` passed the
+test above (F1 +0.013, called better; pages kept clean -0.002, inconclusive),
+the first to find more without being called less clean. The last round,
+after which the best that passes is kept:
+
+12. *Every passing rescue, then the gaps*: `readability-0.7`'s extraction,
+    then, where it has under 0.7 times the words of trafilatura's recall
+    extraction, that one (`read-recall-gap2-12`); or the same with the recall
+    extraction chosen when it has under 0.7 times the region's words
+    (`read-region-gap2-12`); the gaps then filled as `gap2-12`.
+
+**Chosen on 2026-09-26**, by the test above: `read-recall-gap2-12` (F1
++0.017, called better; pages kept clean -0.004, inconclusive), the highest F1
+of those that pass. `declared-first-1.0` passed alone (+0.001, better; -0.001,
+inconclusive), and `h1-titled` was called worse on neither. Before either is
+run with the chosen rule: the code written into `sluicer.markdown` -- the
+declared text first where it has at least the chosen extraction's words, then
+the chosen rule, then the `<h1>` that is the declared title -- is measured on
+the dev pages as the candidate `sluicer`, and kept if it passes the same test
+against `baseline` and is called worse than `read-recall-gap2-12` on neither
+F1 nor pages kept clean; otherwise the declared text and the heading are left
+out of the default, and the code is `read-recall-gap2-12` alone.
+
+**Read once on 2026-09-26**, at `cd6fba5`, as fixed above, and not changed
+on reading it. Sluicer's text against trafilatura's, paired by page: on the
+served pages snippet F1 0.869 against 0.862 (+0.007, -0.003 to +0.017,
+inconclusive), recall 0.802 against 0.786 (inconclusive), pages kept clean
+0.891 against 0.900 (inconclusive); on trafilatura's set F1 0.907 against
+0.915 (-0.008, called worse), precision called worse, pages kept clean 0.719
+against 0.758 (called worse); on the page added by hand six of six found,
+none leaked, as before. Against newspaper4k, markitdown and Scrapling, F1 is
+called better on both sets. The rules did not carry to trafilatura's set:
+they are not changed here, and the next rule for the text is to be made on
+the dev pages again, recorded here first.
+
+**Not shipped, 2026-09-26**, after the reading above. The owner keeps 0.10's
+main text as 0.9.1's: trafilatura's extraction, links resolved, and nothing
+else. The readability and recall rescues, the gaps put back, the declared
+article text first and the `<h1>` are measured and recorded here, and not
+shipped; their code is kept in `bench/markdown_rules.py`, so that
+`bench/markdown_dev.py` reproduces every number above. The `<h1>` alone
+(`h1-titled`) was not called worse, but its pages kept clean fell from 0.849
+to 0.847 on the dev pages (-0.001, -0.004 to 0.000): it let a menu's heading
+into the text of some page, so it cannot be shown to add none, and is left
+out. What 0.10 ships of this work changes no default output: `full`, and
+where the text came from (`read_markdown`, `text_from`, `sources.text`).
+
+And in `full`, `<noscript>` is kept, without the images in it: a reader that
+runs no script is shown it, and a forum written for such readers keeps its
+posts there. It is still chosen by nothing.
+
+**`full`**, the whole page as markdown -- the body with `script`, `style`,
+`noscript`, `template`, `svg`, `iframe` and `[hidden]` taken out, links and
+images resolved against the page -- is an option, not a candidate for the
+default: it is measured on the dev pages to be described, and chosen by
+nothing.
+
+**The scoreboards, once, at the end.** With the code chosen above committed,
+`bench/tools/compare_sluicer.py` is run on the served pages, trafilatura's set
+and the page added by hand, from the checkout's own environment, whose
+trafilatura and its dependencies are exactly the pins of
+`bench/requirements/trafilatura.txt`, since `uv run` is not used on this
+branch. The other tools' results are those of v010-bench's run (`ed3b378`),
+reused as they are. Scored by `bench/tools_compare.py`'s functions: snippet
+precision, recall, F1, pages kept clean and word F1, each with its interval,
+and Sluicer's paired comparisons with trafilatura, newspaper4k, markitdown and
+Scrapling on them. The numbers are reported whatever they are, and no rule is
+changed on reading them; if they are read more than once, the reason is written
+here.
+
 ## How sure a number is, and how a difference is called
 
 Fixed on 2026-09-24, before any interval or verdict was computed on a

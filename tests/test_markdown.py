@@ -227,3 +227,23 @@ def test_the_markdown_command_resolves_links_against_the_page():
     assert result.exit_code == 0, result.output
     assert "(https://example.com/guide/brakes/next.html)" in result.output
     assert "(https://example.com/guide/brakes/fitting.html#intro)" in result.output
+
+
+def test_a_link_holding_a_control_character_does_not_stop_the_page():
+    """A share link on a real page (WCXB dev 0121) held a backspace, from a
+    comment's text: resolving the links raised lxml's "All strings must be
+    XML compatible", and the page gave no markdown at all. The character is
+    percent-encoded, as the URL standard encodes a C0 control."""
+    pytest.importorskip("trafilatura")
+    from sluicer.markdown import to_markdown
+
+    page = (
+        "<html><body><article><h1>Fix it</h1>"
+        + "<p>A paragraph long enough to be the main text of the page. " * 8
+        + "</p><p><a href='https://share.example/?text=18&#8;...'>Share</a></p>"
+        "</article></body></html>"
+    )
+    out = to_markdown(page, url="https://example.com/a/p")
+
+    assert "A paragraph long enough" in out
+    assert "\x08" not in out

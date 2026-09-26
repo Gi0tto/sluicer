@@ -517,12 +517,19 @@ def diff_command(
 @click.option(
     "--front-matter",
     is_flag=True,
-    help="Open with a YAML block of what the page declares, and where from.",
+    help="Open with a YAML block of what the page declares, and where the "
+    "text and each answer came from.",
+)
+@click.option(
+    "--full",
+    is_flag=True,
+    help="The whole page, menus and footers included, not its main content.",
 )
 @_with_fetch_options
 def markdown(
     source: str,
     front_matter: bool,
+    full: bool,
     stealth: bool,
     no_robots: bool,
     base_url: str | None,
@@ -531,20 +538,29 @@ def markdown(
     max_age: float | None,
     at: str | None,
 ) -> None:
-    """Print the main content of a URL, a file or stdin as markdown."""
+    """Print the main content of a URL, a file or stdin as markdown.
+
+    The main content is trafilatura's extraction; --full prints the whole
+    page instead, menus and footers included.
+    """
     html, url, _fetched = _read_source(
         source, stealth, no_robots, base_url, at, respect, cache_dir, max_age
     )
     # MarkdownExtraMissing: trafilatura is not installed; the message says how.
+    # Only the options asked for are passed, as the command always called it.
+    asked = {
+        name: True
+        for name, on in (("front_matter", front_matter), ("full", full))
+        if on
+    }
     try:
-        content = (
-            to_markdown(html, url=url, front_matter=True)
-            if front_matter
-            else to_markdown(html, url=url)
-        )
+        content = to_markdown(html, url=url, **asked)
     except MarkdownExtraMissing as missing:
         _fail(str(missing), missing)
     if not content:
-        click.echo("This page has no main content.", err=True)
+        click.echo(
+            "This page shows no text." if full else "This page has no main content.",
+            err=True,
+        )
         raise SystemExit(NOTHING_FOUND)
     click.echo(content)

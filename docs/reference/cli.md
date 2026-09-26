@@ -543,10 +543,15 @@ Usage: sluicer markdown [OPTIONS] SOURCE
 
   Print the main content of a URL, a file or stdin as markdown.
 
+  The main content is trafilatura's extraction; --full prints the whole page instead,
+  menus and footers included.
+
 Options:
   --front-matter / --no-front-matter
                                   Open with a YAML block of what the page declares, and
-                                  where from.
+                                  where the text and each answer came from.
+  --full                          The whole page, menus and footers included, not its
+                                  main content.
   --proxy URL                     Fetch through this proxy (http://host:port,
                                   socks5h://host:port); the environment's HTTPS_PROXY is
                                   never used. Same as SLUICER_PROXY.

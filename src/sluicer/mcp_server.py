@@ -43,7 +43,7 @@ from sluicer.fetch.http_rung import PROXY_ENV, chosen_proxy
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
 from sluicer.fetch.wire import Proxy, UnusableProxy
 from sluicer.isolated import TookTooLong, isolated
-from sluicer.markdown import to_markdown
+from sluicer.markdown import declared_front_matter, read_markdown
 from sluicer.selectors import (
     SelectorError,
     parse as parse_page,
@@ -601,6 +601,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
     def page_markdown(
         html_or_url: str,
         front_matter: bool = False,
+        full: bool = False,
         at: str | None = None,
         respect_tdm: bool = False,
         offset: int = 0,
@@ -612,6 +613,8 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         front_matter: open the markdown with a YAML block of what the page
         declares about itself (title, author, dates, url...) and each
         answer's source.
+        full: the whole page, menus and footers included, not its main
+        content.
         at: a date: read the URL as the Wayback Machine captured it then.
         respect_tdm: answer tdm_reserved when the site reserves its text and
         data mining rights (TDMRep).
@@ -621,20 +624,31 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         fewer when more would weigh over 75,000 bytes, as 60,000 characters
         of Chinese do.
 
-        Returns {"ok", "markdown", "url", "length", "next_offset"}, and
-        "fetch" for a URL: markdown is one slice, length the whole markdown's,
-        next_offset where the next slice starts or null at the end. The
+        Returns {"ok", "markdown", "text_from", "url", "length",
+        "next_offset"}, and "fetch" for a URL: markdown is one slice, length
+        the whole markdown's, next_offset where the next slice starts or null
+        at the end. text_from says where the text came from: source
+        "extracted" (the main content, method naming the extractor) or
+        "page" (full), and "" with no text. The
         markdown is always the page's own content: a failure is ok false with
         "error", never text that could be mistaken for the page.
         """
         html, url, fetched, headers = _page_of(html_or_url, at)
         if respect_tdm:
             _respect_tdm(html, url, fetched, headers)
-        whole = to_markdown(html, url=url, front_matter=front_matter)
+        found = read_markdown(html, url=url, full=full)
+        whole = found.markdown
+        if whole and front_matter:
+            whole = declared_front_matter(html, url, text=found) + whole
         part, following = _slice(whole, offset, max_chars)
         result: dict[str, Any] = {
             "ok": True,
             "markdown": part,
+            "text_from": {
+                "source": found.source,
+                "method": found.method,
+                "where": found.where,
+            },
             "url": url,
             "length": len(whole),
             "next_offset": following,
