@@ -35,6 +35,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   The message now names all five. `select PAGE @href`, which reads the
   `<html>` element's attribute and so gives nothing, now says so and names
   `//@href`.
+- A crawl that left links unfollowed because they were deeper than
+  `--max-depth` ended "done" without a word, so a paginated listing looked
+  shorter than it is. The closing line now says how many links the depth left
+  out, and `crawl()`'s `Crawl` carries the same sentence as `notice`.
 
 ## 0.9.0 - 2026-09-26
 

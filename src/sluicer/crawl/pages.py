@@ -196,9 +196,10 @@ class Crawl:
     to take, ``max_pages`` when the budget left links unfollowed, and
     ``time_budget`` when the time ran out first. ``resumed`` is how many pages
     the state file already held; they are not handed back again. ``notice``
-    is a sentence to pass on when the pages come from somewhere other than
-    asked -- a sitemap crawl of a site whose sitemaps listed nothing reads the
-    start page's links -- and None otherwise.
+    is a sentence to pass on, or None: when the pages come from somewhere
+    other than asked -- a sitemap crawl of a site whose sitemaps listed nothing
+    reads the start page's links -- or, once a crawl has ended, when links
+    deeper than its ``max_depth`` were left unfollowed.
     """
 
     def __init__(
@@ -348,6 +349,14 @@ def crawl(
             if frontier.cut
             else "done"
         )
+        # Links reached and then taken after all are no longer left out.
+        deeper = len(frontier.too_deep - frontier.seen)
+        if deeper:
+            run.notice = (
+                f"{deeper} link{'s' if deeper != 1 else ''} deeper than "
+                f"max_depth {max_depth} {'were' if deeper != 1 else 'was'} "
+                "not followed"
+            )
 
     return Crawl(pages, resumed=len(replayed))
 
@@ -594,17 +603,24 @@ class _Frontier:
         self.queue = Queue()
         self.seen: set[str] = {start}
         self.cut = False
+        # Links a crawl would have taken but for max_depth, each once.
+        self.too_deep: set[str] = set()
         if max_pages > 0:
             self.queue.add(start)
 
     def admit(self, url: str | None, depth: int, found_on: str) -> None:
-        if url is None or url in self.seen or depth > self.max_depth:
+        if url is None or url in self.seen:
             return
         if self.same_site and site_of(url) != self.site:
             return
         if self.include and not any(p.search(url) for p in self.include):
             return
         if any(p.search(url) for p in self.exclude) or names_a_file(url):
+            return
+        if depth > self.max_depth:
+            # Counted, not dropped without a word: a paginated listing ten
+            # pages deep stopped at the fourth, and the crawl said it was done.
+            self.too_deep.add(url)
             return
         # Last, so that "cut" means a link that would otherwise have been taken.
         if self.queue.added >= self.max_pages:

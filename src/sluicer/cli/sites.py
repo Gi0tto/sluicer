@@ -637,9 +637,9 @@ def _report(
         "time_budget": "; the time ran out",
     }.get(pages.stopped or "", "")
     if pages.notice is not None:
-        # Said again in the verdict: the note before the first page has
-        # scrolled away by the end of a long crawl.
-        why += "; the start page's links stood in for the sitemaps"
+        # In the verdict, whenever it was known: a note said before the first
+        # page has scrolled away by the end of a long crawl.
+        why += f"; {pages.notice}"
     click.echo(f"{tally}{why}." + (f" Wrote {out}." if out else ""), err=True)
     if not tally.read:
         raise SystemExit(COULD_NOT_READ)

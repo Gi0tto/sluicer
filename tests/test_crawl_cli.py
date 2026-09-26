@@ -483,7 +483,10 @@ def test_a_sitemap_template_on_a_site_without_one_says_what_it_read_instead(fake
         "Note: no sitemap listed an address on the site, so the start page's "
         "links are read instead."
     )
-    assert said[-1].endswith("; the start page's links stood in for the sitemaps.")
+    assert said[-1].endswith(
+        "; no sitemap listed an address on the site, so the start page's links "
+        "are read instead."
+    )
 
 
 def test_a_sitemap_template_that_read_a_sitemap_has_no_such_note(fake):
@@ -492,7 +495,16 @@ def test_a_sitemap_template_that_read_a_sitemap_has_no_such_note(fake):
     result = invoke("crawl", f"{ROOT}/", "--template", "sitemap")
 
     assert "Note:" not in result.stderr
-    assert "stood in" not in result.stderr
+    assert "start page's links" not in result.stderr
+
+
+def test_a_crawl_stopped_by_its_depth_says_so_in_its_last_line(fake):
+    result = invoke("crawl", f"{ROOT}/", "--max-depth", "0")
+
+    assert result.exit_code == 0, result.stderr
+    assert result.stderr.splitlines()[-1] == (
+        "1 pages: 1 read; 2 links deeper than max_depth 0 were not followed."
+    )
 
 
 def test_a_shopify_template_writes_a_product_a_line(fake):
