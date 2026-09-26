@@ -609,9 +609,7 @@ def test_an_error_pages_row_fills_its_status_landed_and_rung(fake, command):
     args = [f"{ROOT}/gone"] if command == "crawl" else ["-"]
     stdin = None if command == "crawl" else f"{ROOT}/gone\n"
 
-    result = invoke(
-        command, *args, "--retries", "0", "--format", "csv", stdin=stdin
-    )
+    result = invoke(command, *args, "--retries", "0", "--format", "csv", stdin=stdin)
 
     [row] = rows(result.stdout)
     assert row["ok"] == "false"

@@ -485,8 +485,7 @@ def test_an_unknown_browser_is_no_matter_for_a_command_that_fetches_nothing(
 
     page = tmp_path / "E.html"
     page.write_text(
-        "<html><head><title>Kettle</title></head><body><h1>Kettle</h1>"
-        "</body></html>",
+        "<html><head><title>Kettle</title></head><body><h1>Kettle</h1></body></html>",
         encoding="utf-8",
     )
     monkeypatch.setenv("SLUICER_BROWSER", "firefox")

@@ -76,14 +76,13 @@ def test_the_markdown_and_feed_commands_on_such_a_file_do_not_warn(
 
     for command in (["markdown", "--front-matter"], ["feed"]):
         result = CliRunner().invoke(main, [*command, str(page)])
-        assert result.exception is None or isinstance(
-            result.exception, SystemExit
-        ), (command, result.exception)
+        assert result.exception is None or isinstance(result.exception, SystemExit), (
+            command,
+            result.exception,
+        )
 
 
-def test_the_mcp_tools_on_a_fetched_address_body_do_not_warn(
-    monkeypatch, no_warning
-):
+def test_the_mcp_tools_on_a_fetched_address_body_do_not_warn(monkeypatch, no_warning):
     from test_mcp_server import fake_fetch, fake_mcp
 
     registered = fake_mcp(monkeypatch)
