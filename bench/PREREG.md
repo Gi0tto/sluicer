@@ -257,6 +257,133 @@ its dependencies in `bench/requirements/`.
   any stored one. The page says where anansi healed -- the selector matched
   nothing on B -- and that it does not tell its caller when it does.
 
+## Every tool on the same pages: title, author, date and the main text
+
+Fixed on 2026-09-26, before any of the tools below was run on a page of the
+sets below, and before `bench/tools_compare.py` was written. It makes one
+page, `docs/scoreboard-tools.md`, that puts every tool people reach for to
+turn a web page into its title, author, date and text on the same pages, as
+served with their scripts, scored one way. What prompted it: on one blog post
+built with Framer, one tool answered the date the site was last built, which
+the page writes in an HTML comment, one kept the site's menu in its text, and
+Sluicer missed the byline. One page is an anecdote; this is the count.
+
+**The tools, each in an environment of its own**, pinned with its
+dependencies in `bench/requirements/` (or the lockfile), on Python 3.12, given
+the page's bytes and its address and nothing else:
+
+| tool | version | what it is asked | install line printed |
+|---|---|---|---|
+| Sluicer | this checkout, editable, with trafilatura 2.2.0 for its `markdown` extra | `extract(html, url=...).summary`'s `title`, `author`, `published`; `sluicer.markdown.to_markdown(html, url=...)` | `pip install "sluicer[markdown]"` |
+| Sluicer, declared then `--visible` | the same | the summary's answer, and where it has none the guess of `extract(..., visible=True)`, as every other scoreboard scores it; the text is Sluicer's | the same |
+| trafilatura | 2.2.0 (`requirements/trafilatura.txt`) | `extract_metadata(html, default_url=...)`; `extract(html, url=..., output_format="markdown")` | `pip install trafilatura==2.2.0` |
+| newspaper4k | 0.9.6 (`requirements/newspaper4k.txt`), network taken away, images off | `download(input_html=...)`, `parse()`: `title`, `authors`, `publish_date`, `text` (plain text: it writes no markdown) | `pip install newspaper4k==0.9.6` |
+| markitdown | 0.1.8 from PyPI, base install (`requirements/markitdown.txt`) | `MarkItDown().convert_stream(bytes, stream_info=StreamInfo(extension=".html", mimetype="text/html", url=...))`: `.title` and `.markdown`; it answers no author or date | `pip install markitdown==0.1.8` |
+| Scrapling | 0.4.15 with its `rag` extra (`requirements/scrapling-markdown.txt`), which its markdown needs | a `Response` of the bytes, status 200, and `.markdown(main_content_only=True)`, as its own site-to-markdown spider calls it; the title as that spider reads it, `<title>`'s text; it answers no author or date | `pip install "scrapling[rag]==0.4.15"` |
+| metascraper | the lockfile in `bench/metascraper/` | its `title`, `author` and `date` rules, as the other scoreboards call them; it answers no text | `npm install metascraper@5.58.1 metascraper-title@5.56.2 metascraper-author@5.56.2 metascraper-date@5.56.2` |
+
+Left out, and said so on the page: **Firecrawl**, whose service needs an
+account and a key, and whose self-hosted form is a Docker Compose of several
+services, not a package to pin in an environment like the others; **Scrapy**,
+which has no reading of its own for a title, a date or a text, only the
+selectors someone writes (the drift and SWDE benchmarks measure selectors);
+**html-to-markdown**, a converter of whole pages already beside the markdown
+on trafilatura's scoreboard.
+
+Added while the harness was written, before it was run on any page:
+Scrapling's fetchers build a `Response` with the charset the server sent, and
+given bytes alone it reads them as UTF-8; so each page is handed to it as
+text, decoded by the rule html-to-markdown is given above (`snippets.as_text`),
+before the clock starts, as newspaper4k's page is decoded before it.
+
+A tool that raises on a page answered nothing on it, and the raise is counted
+apart. A question a tool does not answer (markitdown's and Scrapling's author
+and date, metascraper's text) is not scored for it: the page prints a dash,
+never a zero.
+
+**The pages.** Only corpora already pinned here, whose labels were checked by
+people, and scored with the scripts intact:
+
+1. **As served**, the 360 WCXB test pages whose captures `realweb-manifest.json`
+   pins, with WCXB's labels: title, author, date, and the main text, both whole
+   (`main_content`) and as snippets it must hold (`with`) and boilerplate
+   snippets it must not (`without`: navigation, footers, cookie banners). WCXB's
+   labels were drafted with a language model and then reviewed by people in
+   several passes, as its README says.
+2. **trafilatura's evaluation set**, its 990 pages at the commit pinned in
+   `bench/evaldata.py`, each with hand-written `with` and `without` snippets,
+   and 851 with their title, author and date.
+3. **One page added by hand**: the Framer blog post that prompted this
+   comparison, `https://typesafe.ai/blog/introducing-system-one-models-and-jev`,
+   as the Wayback Machine captured it at `20260922123749`, pinned by the
+   SHA-256 of its bytes in `bench/tools-added.json`, where its labels are
+   written by hand from the page a reader sees: its title, the byline's
+   author, the date shown above the title (15 September 2026), six `with` and
+   six `without` snippets. It is fetched into `bench/cache/`, never committed,
+   and the run stops if its bytes no longer hash to the pin. One page carries
+   no rate: it is printed apart, answer by answer, and pooled into nothing.
+
+Not used: **WCXB's own copies** of the test pages, from which every `<script>`
+was removed, so they are not pages as any server sends them (the served set
+is the same pages whole); and **the news set**, whose labels are what fundus's
+parsers read, not labels a person checked page by page. No new page is added
+beyond the one above, and no label of the corpora is changed.
+
+**The questions, and how an answer counts.**
+
+- **Title, author, date**: `bench/score.py`, unchanged -- hit, wrong, silent
+  miss with a label; correct silence or invention without one. Hit rate over
+  the labelled pages and share right when answering over the answers given,
+  inventions included, each with its Wilson interval.
+- **Silent wrong**: an answer that is wrong or invented, given with nothing
+  in the tool's own output to warn of it. The one warning any of these tools
+  gives is Sluicer's `conflicts`: an answer to a question the page answers two
+  ways that mean different things is flagged, and counted apart. A source or a
+  provenance is not a warning. A guess of `--visible` is kept apart from the
+  summary, but is counted like any other answer: it carries no warning. The
+  page prints each tool's silent wrong answers per question, over the answers
+  it gave, with their Wilson interval, and lists the first three per tool and
+  question, by page id, with the label and the answer.
+- **The main text**: every tool's text is first written as plain text by one
+  function, the same for all -- a link or an image becomes its text, emphasis,
+  heading and list marks, setext underlines, table bars and backslash escapes
+  are taken out, spaces collapsed -- so that markdown is not scored against
+  plain text for its syntax. Then:
+  - **Snippets**, as trafilatura's evaluation counts them
+    (`bench/tools/snippets.py`): a `with` snippet the text holds is found, a
+    `without` snippet it holds has leaked, at most six of each per page.
+    Precision, recall and F1 over the summed counts, each with a 95% interval
+    bootstrapped over pages, on both sets.
+  - **Boilerplate**: the share of pages kept clean, where no `without`
+    snippet leaked, over the pages that have one, with its Wilson interval.
+  - **Silent empty**: pages where the tool raised nothing and gave no text,
+    or only spaces, though the page has `with` snippets. Counted per tool.
+  - **The whole text** (the served set only, where WCXB writes it): word-level
+    precision, recall and F1 against `main_content`, as WCXB's README computes
+    them (lowercased `\w+` words, counted as a multiset), averaged over the
+    pages, each with a 95% interval bootstrapped over pages. A page a tool gave
+    no text for scores 0.
+- **Paired comparisons**, as the section below fixes them: Sluicer, and
+  Sluicer declared then `--visible`, against every other tool on every rate
+  both answer (title, author, date by hit rate and by share right when
+  answering; the text's snippet precision, recall and F1, the share of pages
+  kept clean and the mean word F1), on the pages both scored, per set. No
+  correction for making many; the page says how many it makes.
+- **Seconds per page**: `bench/timing.py`, as fixed below, in one run of every
+  tool on the 360 served pages, the timed call being everything the tool is
+  asked above for one page (for Sluicer, `extract` and `to_markdown`; its
+  `--visible` guesses untimed). Printed with each tool's install line, its
+  packages and its install size.
+
+**Not floored.** `bench/gate.py` is not given this page: its title, author
+and date for Sluicer are already floored on the same pages by the served and
+trafilatura scoreboards, and its main text is trafilatura's by design. A floor
+is added, if at all, in a release's own commit.
+
+**Sluicer's rules** were made while the pages of both sets were read (the
+first section), and the page says so. No rule of Sluicer's is changed on
+reading this page's numbers in the commit that first publishes it.
+
 ## How sure a number is, and how a difference is called
 
 Fixed on 2026-09-24, before any interval or verdict was computed on a

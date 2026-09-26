@@ -51,6 +51,7 @@ nav:
       - Python: reference/python.md
   - Measured:
       - Scoreboard: scoreboard.md
+      - Every tool, same pages: scoreboard-tools.md
       - As served: scoreboard-served.md
       - Products: scoreboard-products.md
       - News in many languages: scoreboard-news.md
