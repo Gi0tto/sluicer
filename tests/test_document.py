@@ -552,3 +552,46 @@ def test_the_bytes_parsed_are_what_the_round_trip_gave(pieces, charset):
         document._parse_utf8 = original
     assert handed == [_round_trip(data, charset)]
     assert etree.tostring(tree) == etree.tostring(parse(_round_trip(data, charset)))
+
+
+def test_a_kept_page_is_handed_on_only_as_the_very_same_page():
+    from sluicer import document
+    from sluicer.document import load_and_keep, load_kept
+
+    page = "<html><head><title>Pads</title></head></html>"
+    kept = load_and_keep(page, url="https://a.example/p")
+    assert load_and_keep(page, url="https://a.example/p") is kept
+    # Another address resolves the page's links otherwise.
+    assert load_kept(page, url="https://b.example/p") is not kept
+    # Anything kept is let go by the extraction that asks, whatever it is.
+    assert getattr(document._KEPT, "page", None) is None
+    kept = load_and_keep(page, url="https://a.example/p")
+    # An equal page is not the same page: it is parsed, never trusted.
+    copy = page[:-1] + page[-1:]
+    assert copy == page
+    assert copy is not page
+    assert load_kept(copy, url="https://a.example/p") is not kept
+    kept = load_and_keep(page, url="https://a.example/p")
+    assert load_kept(page, url="https://a.example/p") is kept
+    assert load_kept(page, url="https://a.example/p") is not kept
+    # Bytes depend on the charset they are decoded with, a str does not.
+    data = page.encode()
+    kept = load_and_keep(data, url=None, charset=None)
+    assert load_kept(data, url=None, charset="windows-1252") is not kept
+    kept = load_and_keep(page, url=None, charset=None)
+    assert load_kept(page, url=None, charset="windows-1252") is kept
+
+
+def test_a_page_kept_in_one_thread_is_not_handed_to_another():
+    import threading
+
+    from sluicer.document import load_and_keep, load_kept
+
+    page = "<html><head><title>Pads</title></head></html>"
+    kept = load_and_keep(page)
+    found = []
+    other = threading.Thread(target=lambda: found.append(load_kept(page)))
+    other.start()
+    other.join()
+    assert found[0] is not kept
+    assert load_kept(page) is kept

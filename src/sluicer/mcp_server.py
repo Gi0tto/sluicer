@@ -263,11 +263,11 @@ def _respect_tdm(
     from sluicer.declared.headers import lowered, read_header_rights
     from sluicer.declared.rights import read_rights
     from sluicer.declared.tdmrep import read_tdmrep, reservation
-    from sluicer.document import load
+    from sluicer.document import load_and_keep
 
     sent = lowered(headers) if headers else {}
     rights = read_rights(
-        load(html, url=url), read_header_rights(sent) if sent else None
+        load_and_keep(html, url=url), read_header_rights(sent) if sent else None
     )
     rules = []
     if fetched is not None and "archived" not in fetched and url:

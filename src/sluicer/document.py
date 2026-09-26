@@ -5,6 +5,7 @@ from __future__ import annotations
 import codecs
 import functools
 import re
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -329,6 +330,63 @@ def load(
         # cannot, and this function promises never to raise.
         tree = _parse_utf8(text.encode("utf-8", "replace"))
     return Document(html=html, tree=tree, url=url, base=_base_of(tree, url))
+
+
+# The page this thread parsed last to judge it, for the extraction that
+# follows to read: (the page, its address, its charset, the Document).
+_KEPT = threading.local()
+
+
+def load_and_keep(
+    html: str | bytes, url: str | None = None, charset: str | None = None
+) -> Document:
+    """``load``, keeping the Document as the page this thread parsed last.
+
+    A fetch parses the page it is handed to judge it, and its caller then
+    extracts the very same page: ``load_kept`` hands the kept Document to
+    that extraction instead of parsing the page a second time, which was a
+    third of what a fetched page cost. One page is kept per thread, until
+    it is taken or another replaces it.
+    """
+    doc = _kept(html, url, charset)
+    if doc is None:
+        doc = load(html, url=url, charset=charset)
+        _KEPT.page = (html, url, _charset_key(html, charset), doc)
+    return doc
+
+
+def load_kept(
+    html: str | bytes, url: str | None = None, charset: str | None = None
+) -> Document:
+    """``load``, or the Document ``load_and_keep`` kept for this very page.
+
+    The very page: the same object -- a fetch's ``html`` handed on as it
+    came -- from the same address, and for bytes with the same charset, so
+    the Document is the one ``load`` would give; it has only been read,
+    and a tree is never changed after ``load``. Whatever is kept is let go
+    here, so an extraction leaves nothing behind.
+    """
+    doc = _kept(html, url, charset)
+    _KEPT.page = None
+    return doc if doc is not None else load(html, url=url, charset=charset)
+
+
+def _kept(html: str | bytes, url: str | None, charset: str | None) -> Document | None:
+    kept = getattr(_KEPT, "page", None)
+    if (
+        kept is not None
+        and kept[0] is html
+        and kept[1] == url
+        and kept[2] == _charset_key(html, charset)
+    ):
+        document: Document = kept[3]
+        return document
+    return None
+
+
+def _charset_key(html: str | bytes, charset: str | None) -> str | None:
+    """The charset a Document depends on: only bytes are decoded by it."""
+    return charset if isinstance(html, bytes) else None
 
 
 def _parse_bytes(data: bytes, charset: str | None = None) -> lxml.html.HtmlElement:

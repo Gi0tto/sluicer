@@ -1212,3 +1212,30 @@ def test_a_field_about_a_thing_is_what_counts(page, declares):
     html = f"<html><head></head><body>{page}</body></html>"
     assert _declared_about_its_things(extract(html).records) is declares
     assert declares_a_thing(load(html)) is declares
+
+
+def test_a_fetched_page_is_parsed_once_for_the_ladder_and_the_extraction(
+    monkeypatch,
+):
+    import lxml.html
+
+    from sluicer import extract
+
+    parses = []
+    parse = lxml.html.document_fromstring
+
+    def counted(*args, **kwargs):
+        parses.append(1)
+        return parse(*args, **kwargs)
+
+    monkeypatch.setattr(lxml.html, "document_fromstring", counted)
+    fetched = fetch(
+        "https://example.com/p", rungs=[("http", rung("http", RICH))], obey_robots=False
+    )
+    assert len(parses) == 1
+    shared = extract(fetched.html, url=fetched.url, headers=fetched.headers)
+    assert len(parses) == 1
+    again = extract(fetched.html, url=fetched.url, headers=fetched.headers)
+    assert len(parses) == 2
+    assert shared == again
+    assert shared.summary["title"].value == "Brake pad set"

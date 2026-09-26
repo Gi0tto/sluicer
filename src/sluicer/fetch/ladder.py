@@ -35,7 +35,7 @@ from dataclasses import dataclass, replace
 from urllib.parse import urlsplit
 
 from sluicer.declared.merge import declares_a_thing
-from sluicer.document import load
+from sluicer.document import load, load_and_keep
 from sluicer.fetch.address import (
     AddressRefused,
     _resolve,
@@ -592,7 +592,7 @@ def _climb(
         # What counts as having delivered is a field about a thing, the rule
         # induction uses: a theme-color in the head of an empty React shell is
         # not the page's data.
-        found = declares_a_thing(load(result.html, url=result.url))
+        found = declares_a_thing(load_and_keep(result.html, url=result.url))
         reason = why_climb(result.status, result.html, found_records=found)
         if reason is None:
             checked = _checked(result, url, allow_private, resolve, obey_robots, read)

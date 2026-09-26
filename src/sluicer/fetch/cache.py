@@ -35,7 +35,7 @@ from typing import Any
 
 from sluicer.declared.headers import charset
 from sluicer.declared.merge import declares_a_thing
-from sluicer.document import load, sniff_encoding
+from sluicer.document import load_and_keep, sniff_encoding
 from sluicer.fetch.address import _resolve, shown
 from sluicer.fetch.gate import GATE, after, ungated
 from sluicer.fetch.http_rung import Response
@@ -392,7 +392,7 @@ def _challenge(fetched: Fetched) -> bool:
 
 def _found(fetched: Fetched) -> bool:
     """Whether the page declares something about a thing, as the ladder asks."""
-    return declares_a_thing(load(fetched.html, url=fetched.url))
+    return declares_a_thing(load_and_keep(fetched.html, url=fetched.url))
 
 
 def _html(fetched: Fetched) -> str:
