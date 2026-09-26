@@ -7,7 +7,7 @@
   },
   "answer": {
     "format": 3,
-    "sluicer": "0.9.1",
+    "sluicer": "0.10.0",
     "learnt_from": [],
     "summary": {},
     "types": [],

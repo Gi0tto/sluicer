@@ -10,7 +10,7 @@ license:
   - MIT
   - CC-BY-SA-3.0
   - Unicode-3.0
-version: 0.9.1
+version: 0.10.0
 date-released: "2026-09-26"
 abstract: >-
   Sluicer reads the structured data a web page already declares, in JSON-LD,

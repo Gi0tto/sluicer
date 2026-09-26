@@ -161,8 +161,9 @@ and errors only. The held-out half is scored, and read only as numbers:
 | 2026-09-25 | 0.8.0 at `d5e8c10` | the documentation review, checking the README's numbers against the scoreboard |
 | 2026-09-25 | 0.9.0 | the release's scoreboard |
 | 2026-09-26 | 0.9.1 | the release's scoreboard |
+| 2026-09-26 | 0.10.0 | the release's scoreboard |
 
-The next reading is the release after 0.9.1. All ten camera sites were read
+The next reading is the release after 0.10.0. All ten camera sites were read
 while the benchmark was built, before the split, so the held-out camera sites
 are not a clean test; the scoreboard says so.
 

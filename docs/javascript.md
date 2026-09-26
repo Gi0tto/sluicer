@@ -126,8 +126,8 @@ It runs in Node. The package reads its wheel from its own folder with
 
 ## Versions
 
-The npm package's version is the Python package's: `sluicer@0.9.1` on npm
-is the wheel of `sluicer==0.9.1`, built from the same commit. The build
+The npm package's version is the Python package's: `sluicer@0.10.0` on npm
+is the wheel of `sluicer==0.10.0`, built from the same commit. The build
 refuses to run when `js/package.json` and `pyproject.toml` differ, and a
 test on each side, Python's and Node's, holds them equal. CI
 (`.github/workflows/js.yml`) runs the Node tests on Node 18, 22 and 24, writes
