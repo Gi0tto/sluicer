@@ -3,7 +3,7 @@
     .venv/bin/python bench/golden.py record OUT.json   # every page's digests
     .venv/bin/python bench/golden.py check OUT.json    # 0 differences, or exit 1
     .venv/bin/python bench/golden.py time              # ms per page, this tree
-    .venv/bin/python bench/golden.py time --src ../other/src   # another tree
+    .venv/bin/python bench/golden.py time --src A/src --src B/src   # turn about
 
 A speed change is only worth having when nothing a caller can see moves. This
 reads every page the benchmarks keep under ``bench/cache/`` -- never writing
@@ -26,8 +26,10 @@ there -- and a digest of what each public reading of it gives:
 ``record`` writes the digests; ``check`` reads them again and names every
 page and reading that changed. ``time`` times the three extractions and the
 fetch path, one page at a time, the best of a few rounds each, and prints the
-median and the 95th percentile; ``--src`` times another checkout's ``src`` in
-a process of its own, so two trees can be timed turn about on a busy machine.
+median and the 95th percentile. Each ``--src`` tree runs in a worker process
+of its own, and the workers are asked turn about, page by page, so a machine
+that slows down -- another job, a slower core -- slows every tree alike; with
+two, the median of the per-page ratios is printed too.
 """
 
 from __future__ import annotations
@@ -399,30 +401,67 @@ def _fetched_or_refused(page: Page) -> object:
         return error
 
 
-def _time_here(rounds: int, modes: list[str] | None) -> dict[str, list[float]]:
+def _calls() -> dict[str, Callable[[Page], object]]:
     from sluicer.api import extract
 
-    pages = _timed_pages()
-    calls: dict[str, Callable[[Page], object]] = {
+    return {
         "extract": lambda p: extract(p.body, url=p.url),
         "visible": lambda p: extract(p.body, url=p.url, visible=True),
         "induce": lambda p: extract(p.body, url=p.url, induce=True),
         "fetch+extract": _fetched_or_refused,
     }
-    times: dict[str, list[float]] = {}
-    for mode, call in calls.items():
-        if modes and mode not in modes:
-            continue
+
+
+def _worker(modes: list[str]) -> None:
+    """Time one call at a time, as the driver asks: ``mode index`` in, the
+    seconds it took out. The driver asks each tree's worker in turn, page by
+    page, so a machine that slows down slows every tree alike."""
+    calls = _calls()
+    pages = _timed_pages()
+    for mode in modes:
         for page in pages[:20]:  # warm-up
-            call(page)
-        best = [float("inf")] * len(pages)
+            calls[mode](page)
+    print(len(pages), flush=True)
+    for line in sys.stdin:
+        mode, index = line.split()
+        page = pages[int(index)]
+        started = time.perf_counter()
+        calls[mode](page)
+        print(time.perf_counter() - started, flush=True)
+
+
+def _time(
+    trees: list[Path], modes: list[str], rounds: int
+) -> list[dict[str, list[float]]]:
+    """Each tree's best time per page and mode, in ms, the trees asked turn
+    about page by page, the order turned by one place every page."""
+    workers = [
+        subprocess.Popen(
+            [sys.executable, __file__, "worker", "--modes", ",".join(modes)],
+            env={**os.environ, "PYTHONPATH": str(tree.resolve())},
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        for tree in trees
+    ]
+    counts = {int(worker.stdout.readline()) for worker in workers}  # type: ignore[union-attr]
+    (count,) = counts
+    best = [{mode: [float("inf")] * count for mode in modes} for _ in trees]
+    for mode in modes:
         for _ in range(rounds):
-            for n, page in enumerate(pages):
-                started = time.perf_counter()
-                call(page)
-                best[n] = min(best[n], time.perf_counter() - started)
-        times[mode] = [t * 1000 for t in best]
-    return times
+            for index in range(count):
+                for turn in range(len(workers)):
+                    which = (index + turn) % len(workers)
+                    worker = workers[which]
+                    worker.stdin.write(f"{mode} {index}\n")  # type: ignore[union-attr]
+                    worker.stdin.flush()  # type: ignore[union-attr]
+                    took = float(worker.stdout.readline()) * 1000  # type: ignore[union-attr]
+                    best[which][mode][index] = min(best[which][mode][index], took)
+    for worker in workers:
+        worker.stdin.close()  # type: ignore[union-attr]
+        worker.wait()
+    return best
 
 
 def _summary(times: dict[str, list[float]]) -> dict[str, dict[str, float]]:
@@ -438,6 +477,24 @@ def _summary(times: dict[str, list[float]]) -> dict[str, dict[str, float]]:
     return out
 
 
+def _report(trees: list[Path], times: list[dict[str, list[float]]]) -> str:
+    lines = []
+    for tree, found in zip(trees, times, strict=True):
+        lines.append(f"{tree}")
+        for mode, row in _summary(found).items():
+            line = (
+                f"  {mode:14} median {row['median']:7.3f} ms  "
+                f"p95 {row['p95']:7.3f} ms  total {row['total_s']:7.3f} s"
+            )
+            if found is not times[0]:
+                ratios = [
+                    b / a for a, b in zip(times[0][mode], found[mode], strict=True)
+                ]
+                line += f"  per page vs the first: {statistics.median(ratios):.3f}x"
+            lines.append(line)
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -446,33 +503,32 @@ def main() -> None:
         one.add_argument("path", type=Path)
         one.add_argument("--workers", type=int, default=os.cpu_count() or 4)
     timing = sub.add_parser("time")
-    timing.add_argument("--src", type=Path, default=ROOT / "src")
+    timing.add_argument(
+        "--src", type=Path, action="append", help="a tree's src; several, turn about"
+    )
     timing.add_argument("--rounds", type=int, default=3)
     timing.add_argument(
-        "--modes", help="comma-separated: extract,visible,induce,fetch+extract"
+        "--modes",
+        default="extract,visible,induce,fetch+extract",
+        help="comma-separated: extract,visible,induce,fetch+extract",
     )
-    timing.add_argument("--json", action="store_true")
-    timing.add_argument("--here", action="store_true", help=argparse.SUPPRESS)
+    timing.add_argument("--json", type=Path, help="also write the times here")
+    worker = sub.add_parser("worker")
+    worker.add_argument("--modes", required=True)
     args = parser.parse_args()
-    if args.command == "time" and not args.here:
-        # Its own process, with its own tree's code first on the path.
-        env = {**os.environ, "PYTHONPATH": str(args.src.resolve())}
-        command = [sys.executable, __file__, "time", "--here", "--json"]
-        command += ["--rounds", str(args.rounds)]
-        command += ["--modes", args.modes] if args.modes else []
-        answer = subprocess.run(
-            command, env=env, check=True, stdout=subprocess.PIPE, text=True
-        )
-        result = json.loads(answer.stdout)
-        print(json.dumps(result, indent=1) if args.json else _table(result))
+    if args.command == "worker":
+        _worker(args.modes.split(","))
         return
     if args.command == "time":
-        import sluicer
-
-        modes = args.modes.split(",") if args.modes else None
-        summary = _summary(_time_here(args.rounds, modes))
-        summary["src"] = {"path": str(Path(sluicer.__file__).parent)}  # type: ignore[dict-item]
-        print(json.dumps(summary))
+        trees = args.src or [ROOT / "src"]
+        times = _time(trees, args.modes.split(","), args.rounds)
+        print(_report(trees, times))
+        if args.json:
+            args.json.write_text(
+                json.dumps(
+                    {str(t): _summary(f) for t, f in zip(trees, times, strict=True)}
+                )
+            )
         return
     started = time.monotonic()
     found = digests(args.workers)
@@ -491,16 +547,6 @@ def main() -> None:
         f"{seconds:.0f} s)"
     )
     raise SystemExit(1 if changed else 0)
-
-
-def _table(result: dict[str, Any]) -> str:
-    lines = [f"src: {result.pop('src')['path']}"]
-    for mode, row in result.items():
-        lines.append(
-            f"{mode:14} median {row['median']:7.3f} ms  p95 {row['p95']:7.3f} ms  "
-            f"total {row['total_s']:7.3f} s  ({row['pages']} pages)"
-        )
-    return "\n".join(lines)
 
 
 if __name__ == "__main__":
