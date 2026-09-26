@@ -15,6 +15,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   package imports, downloads a missing one once more, and otherwise rejects
   with a `PackageNotLoaded` error naming the package, where it comes from and
   what to do.
+- npm package: npmjs.com showed no README. The package now carries
+  `js/README.md`: what it is, how to install it, a five-line example whose
+  printed output a test runs and compares, and what it does not do.
 
 ## 0.9.0 - 2026-09-26
 
