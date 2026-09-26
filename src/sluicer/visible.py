@@ -218,6 +218,12 @@ class _Page:
         ]
 
     @cached_property
+    def named_bylines(self) -> list[HtmlElement]:
+        """The elements a class or an id names as a byline's, found once for
+        the author and for the date in a byline's line."""
+        return [e for e, names in self.named if _BYLINE.search(names)]
+
+    @cached_property
     def named_dates(self) -> list[HtmlElement]:
         """The small elements a class or an id names as a date's."""
         return [e for e, names in self.named if _DATE.search(names) and _small(e)]
@@ -228,11 +234,16 @@ class _Page:
         knowing its element: where a "By" or a "Published" line opens."""
         # The XPath predicate string-length(normalize-space()) > 1 cost libxml2
         # the square of a page's tail texts: 16,000 took 2.2 s, a 3.6 MB page
-        # held a server's workers past their budget. The same test, in Python.
+        # held a server's workers past their budget. The same test, in Python:
+        # with its ends stripped, a text begins and ends with what is not a
+        # space, so collapsing the runs between them cannot bring it under
+        # two characters, and they are not collapsed -- that was a regex
+        # substitution for each of the page's text nodes, a third of the time
+        # the visible reading took.
         return [
             text
             for text in self.tree.xpath("//text()")
-            if len(_XML_SPACES.sub(" ", text).strip(" ")) > 1
+            if len(text.strip(_XML_SPACE_CHARACTERS)) > 1
         ]
 
     @cached_property
@@ -281,7 +292,7 @@ class _Page:
 
 # What XPath's normalize-space() collapses: XML's four white-space characters,
 # not a no-break space.
-_XML_SPACES = re.compile(r"[ \t\n\r]+")
+_XML_SPACE_CHARACTERS = " \t\n\r"
 
 
 def _text(element: HtmlElement) -> str:
@@ -366,15 +377,14 @@ def _author(page: _Page) -> Guess | None:
     marked = [
         e
         for e in page.tree.xpath(
-            "//a[contains(concat(' ', normalize-space(@rel), ' '), ' author ')]"
+            "//a/@rel/parent::*[contains(concat(' ', normalize-space(@rel), ' '), "
+            "' author ')]"
         )
         if not page.aside(e)
     ]
     if 0 < len(marked) <= _MOST_BYLINES and (name := _first_name(marked[0])):
         return Guess(name, _where(marked[0]), "rel-author")
-    named = [
-        e for e, names in page.named if _BYLINE.search(names) and not page.aside(e)
-    ]
+    named = [e for e in page.named_bylines if not page.aside(e)]
     # The innermost of nested byline boxes, since the outer ones hold dates too.
     boxes = set(named)
     leaves = [e for e in named if not any(c in boxes for c in e.iterdescendants())]
@@ -488,7 +498,7 @@ def _date_in_a_line(page: _Page, updates: bool) -> Guess | None:
     an update's is ``modified``'s, and read only when ``updates``."""
     lines: list[HtmlElement] = []
     if not page.listing:
-        lines += [e for e, names in page.named if _BYLINE.search(names) and _small(e)]
+        lines += [e for e in page.named_bylines if _small(e)]
         lines += page.named_dates
     lines += [e for e in page.near if _small(e)]
     seen: set[HtmlElement] = set()
