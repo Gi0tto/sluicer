@@ -25,6 +25,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   now finds the listing at its place, reports each field it cannot find by
   its old values as vanished, keeps the listing as it was when none is left,
   and says why a page that lists some of the same items is needed.
+- `sluicer.induce` took only a parsed `Document`, which nothing public makes:
+  given a page's HTML, or a page `sluicer.parse` made, it raised
+  `AttributeError`. It now takes HTML as `str` or `bytes`, with `url=` as
+  `extract` does, or a parsed page, and a `Document` as before.
 
 ## 0.9.0 - 2026-09-26
 
