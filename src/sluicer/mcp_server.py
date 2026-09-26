@@ -289,7 +289,10 @@ def _allow_private() -> bool:
 
 
 def _html_of(
-    html_or_url: str, at: str | None = None, error_page: bool = False
+    html_or_url: str,
+    at: str | None = None,
+    error_page: bool = False,
+    expect_html: bool = True,
 ) -> tuple[str, str | None, dict[str, Any] | None]:
     """Return the page's HTML, the URL to attribute it to, and the fetch record.
 
@@ -297,7 +300,7 @@ def _html_of(
     page's relative links resolve against; for literal HTML it is None. Literal
     HTML is held to the bound a fetched page is.
     """
-    html, url, record, _headers = _page_of(html_or_url, at, error_page)
+    html, url, record, _headers = _page_of(html_or_url, at, error_page, expect_html)
     return html, url, record
 
 
@@ -320,7 +323,10 @@ def _check_address(url: str) -> None:
 
 
 def _page_of(
-    html_or_url: str, at: str | None = None, error_page: bool = False
+    html_or_url: str,
+    at: str | None = None,
+    error_page: bool = False,
+    expect_html: bool = True,
 ) -> tuple[str, str | None, dict[str, Any] | None, dict[str, str] | None]:
     """``_html_of``, and the response's headers for a URL.
 
@@ -334,7 +340,10 @@ def _page_of(
     site's error, not the page, and until 0.9.1 ``extract_declared`` said
     ``ok`` true with "404 Not Found" as its title. ``error_page`` keeps it,
     for the tools whose answer is about whatever the site sent:
-    ``fetch_page`` and ``audit_page``.
+    ``fetch_page`` and ``audit_page``. Text that is neither a URL nor HTML,
+    with no ``<`` in it -- ``example.com``, an empty string -- is
+    ``bad_input`` unless ``expect_html`` is false, for a feed, whose JSON
+    has none.
     """
     is_url = html_or_url.strip().lower().startswith(("http://", "https://"))
     if at is not None and not is_url:
@@ -384,7 +393,23 @@ def _page_of(
         )
     if len(html_or_url) > MAX_RESPONSE_BYTES:
         raise ResponseTooLarge("the HTML handed in", MAX_RESPONSE_BYTES)
+    if expect_html and "<" not in html_or_url:
+        raise _BadInput(_neither_url_nor_html(html_or_url))
     return html_or_url, None, None, None
+
+
+def _neither_url_nor_html(text: str) -> str:
+    """What to say of text that is neither an http(s) URL nor HTML: until
+    0.9.1, extract_declared("example.com") answered ok true with nothing in
+    it, a page whose whole text was "example.com"."""
+    given = text.strip()
+    shown_given = repr(given[:80] + ("..." if len(given) > 80 else ""))
+    said = f"{shown_given} is neither an http(s) URL nor HTML"
+    if not given:
+        return "html_or_url is empty: give an http(s) URL or the HTML itself"
+    if re.fullmatch(r"(?:www\.)?[\w-]+(?:\.[\w-]+)+(?:[/?#]\S*)?", given):
+        return f"{said}: an address needs its scheme, as https://{given}"
+    return f"{said}: give an http(s) URL to fetch, or the page's HTML"
 
 
 def build_server(tools: Iterable[str] | None = None) -> Any:
@@ -846,7 +871,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         from sluicer.feeds import read_feed as read
 
         _within("limit", limit, 1, FEED_ITEMS)
-        html, url, fetched = _html_of(url_or_text)
+        html, url, fetched = _html_of(url_or_text, expect_html=False)
         feed = read(html, url=url)
         if feed is None and url is not None:
             declared = read_links(load(html, url=url)).get("feeds", [])

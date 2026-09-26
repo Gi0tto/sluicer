@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -17,7 +18,7 @@ from sluicer.declared.merge import ABOUT_A_THING, Record, merge
 from sluicer.declared.opengraph import read_opengraph
 from sluicer.declared.readers import READERS
 from sluicer.declared.rights import Rights, read_rights
-from sluicer.document import Document, load
+from sluicer.document import Document, an_address_alone, load
 from sluicer.normalise import normalised
 from sluicer.structure import induce as induce_records
 from sluicer.summary import Conflict, SummaryField, read_summary
@@ -104,9 +105,41 @@ def extract(
         MicroformatsExtraMissing: ``microformats=True`` without the extra.
         Nothing else: any input, however broken, is read or reported empty.
 
+    ``html`` that is an http(s) address and nothing else is read as a
+    page's text, which declares nothing, with a ``UserWarning`` saying so:
+    nothing is fetched here, so fetch it first, with ``sluicer.fetch.fetch``.
+
     Why the order is what it is, and when induction runs, is in
     ``docs/design-notes.md``.
     """
+    _warn_if_an_address(html, "extract")
+    return _extract(html, url, induce, microformats, headers, visible)
+
+
+def _warn_if_an_address(html: str | bytes, name: str) -> None:
+    """Warn, at the caller's line, when ``html`` is an address alone: until
+    0.9.1 ``extract("https://...")`` answered an empty ``Extraction`` and
+    said nothing."""
+    address = an_address_alone(html)
+    if address is not None:
+        warnings.warn(
+            f"sluicer.{name}() reads a page's HTML and fetches nothing: "
+            f"{address!r} was read as a page's text, which declares nothing. "
+            "Fetch it first: from sluicer.fetch import fetch; page = fetch(url); "
+            f"then sluicer.{name}(page.html, url=page.url, headers=page.headers).",
+            UserWarning,
+            stacklevel=3,
+        )
+
+
+def _extract(
+    html: str | bytes,
+    url: str | None,
+    induce: bool,
+    microformats: bool,
+    headers: Mapping[str, str] | None,
+    visible: bool,
+) -> Extraction:
     sent = lowered(headers)
     doc = load(html, url=url, charset=charset(sent))
     return _extract_document(doc, sent, induce, microformats, visible)
@@ -124,14 +157,16 @@ async def aextract(
     read on a worker thread of the loop's default executor so that a large
     page does not hold the event loop while it is parsed.
 
-    Nothing is fetched: ``html`` is the page, as for ``extract``. To fetch
-    one from a coroutine, ``await sluicer.fetch.afetch(url)`` and hand its
-    ``html`` and ``headers`` here.
+    Nothing is fetched: ``html`` is the page, as for ``extract``, which
+    warns the same way when it is an address alone. To fetch one from a
+    coroutine, ``await sluicer.fetch.afetch(url)`` and hand its ``html`` and
+    ``headers`` here.
     """
     import asyncio
 
+    _warn_if_an_address(html, "aextract")
     return await asyncio.to_thread(
-        extract, html, url, induce, microformats, headers, visible
+        _extract, html, url, induce, microformats, headers, visible
     )
 
 

@@ -2100,3 +2100,52 @@ def test_fetch_page_and_audit_page_still_answer_about_an_error_page(monkeypatch,
 
     assert answer["ok"] is True
     assert answer["fetch"]["status"] == 404
+
+
+@pytest.mark.parametrize(
+    ("given", "said"),
+    [
+        ("example.com", "an address needs its scheme, as https://example.com"),
+        ("www.example.com/p/1", "as https://www.example.com/p/1"),
+        ("not html and not url", "give an http(s) URL to fetch, or the page's HTML"),
+        ("", "html_or_url is empty"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("extract_declared", {}),
+        ("page_markdown", {}),
+        ("select_values", {"selector": "h1"}),
+        ("audit_page", {}),
+    ],
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_text_that_is_neither_a_url_nor_html_is_bad_input(
+    monkeypatch, tool, arguments, given, said
+):
+    """Measured on 0.9.0: extract_declared("example.com") answered ok true
+    with everything empty, the page read being the text "example.com"."""
+    registered = fake_mcp(monkeypatch)
+    fetch = fake_fetch(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered[tool](html_or_url=given, **arguments)
+
+    assert answer["ok"] is False, answer
+    assert answer["error"]["code"] == "bad_input"
+    assert said in answer["error"]["message"]
+    assert fetch.calls == []
+
+
+def test_a_page_of_html_with_no_markup_that_matters_is_still_read(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+
+    answer = registered["extract_declared"]("<p>example.com</p>")
+
+    assert answer["ok"] is True

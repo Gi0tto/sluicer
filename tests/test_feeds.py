@@ -422,3 +422,13 @@ def test_a_feed_in_every_encoding_libxml2_reads_is_read(encode):
     )
     feed = read_feed(encode(text))
     assert feed is not None and feed.title == "Brake notes é"
+
+
+def test_read_feed_of_an_address_alone_warns_that_it_fetches_nothing():
+    """Measured on 0.9.0: read_feed("https://peps.python.org/peps.rss")
+    returned None, the answer for a document that is not a feed."""
+    with pytest.warns(UserWarning, match="fetches nothing") as caught:
+        assert read_feed("https://example.com/feed.xml") is None
+
+    assert "from sluicer.fetch import fetch" in str(caught[0].message)
+    assert caught[0].filename == __file__

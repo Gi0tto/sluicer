@@ -19,6 +19,14 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `fetch_failed`, retryable for a 429 or a 5xx; the MCP tools and the HTTP
   API answer `fetch_failed` (502). `fetch`, `fetch_page`, `audit` and
   `audit_page` still answer about the error page as it is, as documented.
+- Text that is neither an http(s) URL nor HTML, such as `example.com`, is
+  `bad_input` for the MCP tools that take a page, with the address written
+  with its scheme when it looks like one. It was read as a page and answered
+  `ok` true with nothing in it.
+- `sluicer.extract()`, `aextract()` and `sluicer.feeds.read_feed()` handed an
+  address alone warn (`UserWarning`) that they fetch nothing and say how to
+  fetch it first. They returned an empty result, or None, in silence; the
+  answer is the same, since both are documented never to raise.
 
 ## 0.9.0 - 2026-09-26
 

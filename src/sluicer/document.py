@@ -344,6 +344,19 @@ def _parse_utf8(data: bytes) -> lxml.html.HtmlElement:
     return tree
 
 
+_ADDRESS_ALONE = re.compile(rb"\s*https?://\S+\s*", re.IGNORECASE)
+
+
+def an_address_alone(data: str | bytes) -> str | None:
+    """The address ``data`` is, when it is an http(s) URL and nothing else,
+    or None: what a caller who meant to fetch a page hands a function that
+    reads one. Read as a page, it is a text that declares nothing."""
+    raw = data.encode("utf-8", "replace") if isinstance(data, str) else data
+    if len(raw) > 8192 or not _ADDRESS_ALONE.fullmatch(raw):
+        return None
+    return raw.strip().decode("utf-8", "replace")
+
+
 def base_url(doc: Document) -> str | None:
     """The address relative links on the page resolve against, or None.
 
