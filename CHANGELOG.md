@@ -23,6 +23,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   line (or `format` in the file and `--plain` typed) was refused as if both
   had been typed. The command line now wins, as the configuration page says;
   both typed are still refused.
+- `sluicer --help` cut each command's description to one line with "...",
+  often just before the words that tell two commands apart (`map`'s "start
+  page's links"). Each description is now its whole first sentence, wrapped.
 
 ## 0.9.0 - 2026-09-26
 

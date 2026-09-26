@@ -87,6 +87,10 @@ SECTIONS: dict[str, tuple[str, ...]] = {
 """The sections ``sluicer --help`` lists the commands in, each in this order."""
 
 
+_WHOLE = 10_000
+"""A short help this long is never cut: click then stops at the first sentence."""
+
+
 class _Sectioned(ConfiguredGroup):
     """A group whose help lists its commands by what they are for.
 
@@ -107,7 +111,6 @@ class _Sectioned(ConfiguredGroup):
         if not shown:
             return
         widest = max(len(name) for name in shown)
-        limit = formatter.width - 6 - widest
         placed = {name for names in SECTIONS.values() for name in names}
         groups = [
             *SECTIONS.items(),
@@ -116,8 +119,12 @@ class _Sectioned(ConfiguredGroup):
         for title, names in groups:
             # Padded to the longest name, so every section's help starts in
             # one column: write_dl aligns only the rows it is given.
+            # Each command's whole first sentence, wrapped under itself when
+            # it is long: cut to fit one line, "map ... from its sitemaps or
+            # its start..." lost "page's links", the words that tell map from
+            # crawl, and inspect, diff, audit and the rest lost theirs.
             rows = [
-                (name.ljust(widest), shown[name].get_short_help_str(limit))
+                (name.ljust(widest), shown[name].get_short_help_str(_WHOLE))
                 for name in names
                 if name in shown
             ]

@@ -1105,9 +1105,31 @@ def test_the_help_groups_the_commands_by_what_they_are_for():
     assert starts == sorted(starts) and "Commands:" not in said
     for (title, names), start in zip(sections.items(), starts, strict=True):
         block = said[start:].split("\n\n")[0].splitlines()[1:]
-        assert [line.split()[0] for line in block] == names, title
+        # A description too long for its line goes on under itself, indented.
+        named = [line for line in block if not line.startswith("   ")]
+        assert [line.split()[0] for line in named] == names, title
     placed = [name for names in sections.values() for name in names]
     assert sorted(placed) == sorted(main.commands)
+
+
+def test_the_help_gives_each_command_its_whole_first_sentence():
+    """Cut to fit one line, the list stopped where commands differ: "map  List
+    a site's addresses, from its sitemaps or its start..." hid "page's links",
+    the words that tell map from crawl."""
+    import inspect as source
+
+    said = CliRunner().invoke(main, ["--help"], terminal_width=80).stdout
+    listed = said[said.index("Read a page:") :]
+
+    assert "..." not in listed and "\u2026" not in listed
+    flowing = " ".join(said.split())
+    for name, command in main.commands.items():
+        if command.hidden:
+            continue
+        first = source.cleandoc(command.help or "").split("\n\n")[0]
+        sentence = " ".join(first.split()).split(". ")[0].rstrip(".") + "."
+        assert f"{name} {sentence}" in flowing, name
+    assert "its start page's links." in flowing
 
 
 # -- the caller's headers and cookies --------------------------------------------
