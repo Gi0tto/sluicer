@@ -492,6 +492,18 @@ biography. So:
    the kept blocks do not hold is added after them, in its order. With no
    region, or a region of `<body>`, the extraction stands.
 
+**Added on 2026-09-26, after `merge-W` was run on the dev pages and before
+any of these was run.** `merge-8` found 282 more snippets and let 41 more
+boilerplate ones in: headings of calls to action, menus written as lists whose
+items carry a line of text each, and sentences before or after the article
+(a sign-up line, a disclosure, a review). So:
+
+9. *Only the gaps* (`gap-W`, W in 8, 12 and 16): as `merge-W`, but a block
+   the extraction does not hold is added only when it lies between two blocks
+   it does hold, in the region's order, never before the first or after the
+   last; a heading is added only when the block right after it is; and a list
+   is judged item by item, each item by the same test as a paragraph.
+
 And in `full`, `<noscript>` is kept, without the images in it: a reader that
 runs no script is shown it, and a forum written for such readers keeps its
 posts there. It is still chosen by nothing.
