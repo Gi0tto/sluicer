@@ -224,10 +224,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   and `batch`; an extractor missing a part names the part, not
   `KeyError('listing')`, on the command line and in MCP `run_extractor`; and
   `fetch()` of a path says it names no scheme, not "not no scheme".
-- A site whose name does not exist is not worth asking again: its robots.txt
-  failure says the name does not resolve and is `retryable` false, so a
-  crawl or a batch asks it once. It was marked retryable and asked three
-  times; a lookup that failed only for now is still retried.
+- On Linux, a site whose name does not exist is not worth asking again: its
+  robots.txt failure says the name does not resolve and is `retryable`
+  false, so a crawl or a batch asks it once. It was marked retryable and
+  asked three times. A lookup that failed only for now is still retried, and
+  so, on macOS and Windows, is a name the resolver says does not exist: an
+  offline machine gets that same answer there.
 - `sluicer-mcp --help` prints its usage, and any other argument exits 2
   saying it takes none. Both started the server, which then waited on stdin.
 

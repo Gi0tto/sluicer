@@ -1509,10 +1509,13 @@ def test_a_batchs_login_does_not_follow_a_redirect_into_another_sites_turn(
     ]
 
 
-def test_a_site_whose_name_does_not_exist_is_asked_once():
+def test_a_site_whose_name_does_not_exist_is_asked_once(monkeypatch):
     """Measured on 0.9.0 (inventory audit, B15): batch marked a host that
-    does not resolve retryable and asked it three times."""
+    does not resolve retryable and asked it three times. On Linux, whose
+    resolver says so only when the name does not exist."""
     import socket
+
+    monkeypatch.setattr("sluicer.fetch.wire._NO_ADDRESS_IS_FINAL", True)
 
     pages = shop()
     pages[f"{ROOT}/robots.txt"] = socket.gaierror(socket.EAI_NONAME, "no such name")

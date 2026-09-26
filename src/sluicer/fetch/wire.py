@@ -32,6 +32,7 @@ import io
 import ipaddress
 import socket
 import ssl
+import sys
 import threading
 import time
 import zlib
@@ -98,10 +99,34 @@ def passing(error: BaseException) -> bool:
     return isinstance(error, OSError) and error.errno in _NETWORK_DOWN
 
 
+# The resolver's answers that a name has no address: it does not exist
+# (EAI_NONAME), or exists with none (EAI_NODATA, where the platform has it).
+_NO_ADDRESS = frozenset(
+    getattr(socket, name)
+    for name in ("EAI_NONAME", "EAI_NODATA")
+    if hasattr(socket, name)
+)
+
+# Whether this platform's resolver gives those only when they hold. On Linux
+# (glibc, musl) a lookup that could not reach a name server is EAI_AGAIN,
+# "temporary failure". macOS gives EAI_NONAME to an offline machine, the
+# answer a name that does not exist gets, and Windows its WSAHOST_NOT_FOUND
+# to both: there the two cannot be told apart, and a lookup is taken to have
+# failed for now, as 0.9.0 took every one.
+_NO_ADDRESS_IS_FINAL = sys.platform.startswith("linux")
+
+
 def unknown_name(error: BaseException) -> bool:
     """Whether ``error`` is a name lookup that failed for good: the resolver
-    said the name does not exist, not that it could not look it up now."""
-    return isinstance(error, socket.gaierror) and not passing(error)
+    said the name does not exist, or has no address, where it says so only
+    when that holds -- on Linux. Not a lookup that could not be made now,
+    nor one that failed some other way (EAI_FAIL), nor, on macOS or Windows,
+    one an offline machine answers the same way."""
+    return (
+        _NO_ADDRESS_IS_FINAL
+        and isinstance(error, socket.gaierror)
+        and error.errno in _NO_ADDRESS
+    )
 
 
 class UnreadableEncoding(ValueError):
