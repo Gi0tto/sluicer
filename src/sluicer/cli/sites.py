@@ -300,6 +300,8 @@ def crawl_command(
         ResponseTooLarge,
     ) as failure:
         _fail(str(failure), failure)
+    if pages.notice is not None:
+        click.echo(f"Note: {pages.notice}.", err=True)
     _report(pages, out, table, total=total, label=label)
 
 
@@ -614,6 +616,10 @@ def _report(
         "max_pages": "; the page budget left links unfollowed",
         "time_budget": "; the time ran out",
     }.get(pages.stopped or "", "")
+    if pages.notice is not None:
+        # Said again in the verdict: the note before the first page has
+        # scrolled away by the end of a long crawl.
+        why += "; the start page's links stood in for the sitemaps"
     click.echo(f"{tally}{why}." + (f" Wrote {out}." if out else ""), err=True)
     if not tally.read:
         raise SystemExit(COULD_NOT_READ)

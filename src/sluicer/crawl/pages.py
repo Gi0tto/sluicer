@@ -195,7 +195,10 @@ class Crawl:
     ``stopped`` says why it ended, once it has: ``done`` when nothing was left
     to take, ``max_pages`` when the budget left links unfollowed, and
     ``time_budget`` when the time ran out first. ``resumed`` is how many pages
-    the state file already held; they are not handed back again.
+    the state file already held; they are not handed back again. ``notice``
+    is a sentence to pass on when the pages come from somewhere other than
+    asked -- a sitemap crawl of a site whose sitemaps listed nothing reads the
+    start page's links -- and None otherwise.
     """
 
     def __init__(
@@ -203,6 +206,7 @@ class Crawl:
     ) -> None:
         self.stopped: str | None = None
         self.resumed = resumed
+        self.notice: str | None = None
         self._pages = pages(self)
 
     def __iter__(self) -> Iterator[Page]:
