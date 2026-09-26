@@ -26,6 +26,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `sluicer --help` cut each command's description to one line with "...",
   often just before the words that tell two commands apart (`map`'s "start
   page's links"). Each description is now its whole first sentence, wrapped.
+- `max-age` in a configuration file with no cache in use stopped every command
+  that reads a page, a local file included, with "--max-age ... needs
+  --cache". A file's `max-age` now applies only to runs that use a cache; a
+  typed `--max-age` without `--cache` is still refused.
 
 ## 0.9.0 - 2026-09-26
 

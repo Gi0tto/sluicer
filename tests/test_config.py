@@ -761,3 +761,39 @@ def test_plain_and_format_both_typed_are_still_refused(here, mapped):
 
     assert result.exit_code == 2
     assert "--plain is one address a line" in result.stderr
+
+
+def test_a_files_max_age_without_a_cache_stops_nothing(here, monkeypatch):
+    """``max-age = 5`` in a file stopped every command, a local file's too,
+    with "--max-age ... needs --cache": a flag nobody typed."""
+    page = _write(here / "p.html", "<title>t</title>")
+    _write(here / "sluicer.toml", "max-age = 5\n")
+
+    result = _run("extract", str(page))
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["summary"]["title"]["value"] == "t"
+
+
+def test_a_files_max_age_is_the_one_a_typed_cache_uses(here, monkeypatch):
+    kept: list[float | None] = []
+
+    def cached(url, cache, **kwargs):
+        kept.append(cache.max_age)
+        return Fetched(url=url, html="<title>t</title>", status=200, rung="http")
+
+    monkeypatch.setattr("sluicer.fetch.cache.fetch_cached", cached)
+    _write(here / "sluicer.toml", "max-age = 5\n")
+
+    _run("extract", URL, "--cache", str(here / "kept"))
+
+    assert kept == [5.0]
+
+
+def test_a_typed_max_age_without_a_cache_is_still_refused(here):
+    page = _write(here / "p.html", "<title>t</title>")
+
+    result = _run("extract", str(page), "--max-age", "5")
+
+    assert result.exit_code == 2
+    assert "needs --cache" in result.stderr
