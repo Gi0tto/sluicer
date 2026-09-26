@@ -8,7 +8,7 @@ by a rule fixed before any was downloaded. Each is read as
 `sluicer.extract` reads a page, with its provenance, and the conflicts
 between what one page declares twice are counted with the rest.
 
-Counted on 2026-09-26 by `bench/declared_report.py`, with Sluicer 0.9.1 at the last commit to `src/`, `8a426a2` (lxml 6.1.3, libxml2 2.14.6, mf2py 2.0.2). Every number below is written by the script from its counts, `bench/declared-counts.json`,
+Counted on 2026-09-26 by `bench/declared_report.py`, with Sluicer 0.10.0 at the last commit to `src/`, `5e97f6b` (lxml 6.1.3, libxml2 2.14.6, mf2py 2.0.2). Every number below is written by the script from its counts, `bench/declared-counts.json`,
 except Web Data Commons', which are cited where they stand.
 
 !!! warning "A few WARC files are not the web"
@@ -281,7 +281,7 @@ Of the 86,029 pages, 364 (0.4% (0.4-0.5)) declare at least one conflict.
 |---|---|---|---|---|
 | price | 8,051 | 125 | 1.6% (1.3-1.8) | JSON-LD / OpenGraph (92), microdata / OpenGraph (29), JSON-LD / microdata (3) |
 | currency | 8,714 | 22 | 0.3% (0.2-0.4) | JSON-LD / OpenGraph (22) |
-| published | 23,361 | 113 | 0.5% (0.4-0.6) | JSON-LD / OpenGraph (87), microdata / OpenGraph (15), JSON-LD / Dublin Core (5) |
+| published | 23,066 | 113 | 0.5% (0.4-0.6) | JSON-LD / OpenGraph (87), microdata / OpenGraph (15), JSON-LD / Dublin Core (5) |
 | modified | 21,403 | 147 | 0.7% (0.6-0.8) | JSON-LD / OpenGraph (117), microdata / OpenGraph (13), OpenGraph / OpenGraph (4) |
 
 A title is not compared: a page's `<title>` adds the site's name, its
@@ -322,7 +322,7 @@ check digit is right -- only where the text leaves no doubt:
 
 | question | pages answering it | read | share read |
 |---|---|---|---|
-| published | 23,361 | 22,039 | 94.3% (94.0-94.6) |
+| published | 23,066 | 22,083 | 95.7% (95.5-96.0) |
 | modified | 21,403 | 21,024 | 98.2% (98.0-98.4) |
 | price | 8,051 | 8,010 | 99.5% (99.3-99.6) |
 | price_regular | 167 | 167 | 100.0% (97.8-100.0) |
@@ -342,15 +342,15 @@ a), the ten commonest:
 | shape | answers |
 |---|---|
 | `9999` | 258 |
-| `9:99 aa` | 135 |
-| `99:99` | 120 |
 | `9999/99/99` | 90 |
-| `99:99 aa` | 64 |
 | `-9999-99-99a99:99:99+99:99` | 59 |
 | `999 aaaa aaa` | 52 |
 | `99/99/9999` | 49 |
 | `9999999999` | 48 |
 | `9999-99-99aaa99:99:99+99:99` | 40 |
+| `99 aaaa aaa` | 32 |
+| `99.99.9999` | 29 |
+| `9999-99-99 99:99:99` | 27 |
 
 The prices not read, by shape (every digit written 9, every letter
 a), the ten commonest:
