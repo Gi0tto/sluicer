@@ -125,6 +125,11 @@ _UNDERSCORE = re.compile(r"(?<![0-9A-Za-z])_|_(?![0-9A-Za-z])")
 _LINE_MARK = re.compile(r"^(\s*)(#{1,6}(?=\s|$)|[>+=-])")
 _NUMBERED = re.compile(r"^(\s*\d{1,9})([.)])(?=\s|$)")
 _NOT_LINKS = ("javascript:", "vbscript:", "data:")
+# The controls an address may still hold once its tabs and newlines are gone,
+# a backspace from a share link's text, and DEL: percent-encoded, as the URL
+# standard encodes them and as the main text's markdown writes them, never
+# left raw in a link's target.
+_ADDRESS_CONTROLS = re.compile("[\x00-\x1f\x7f]")
 _NO_SPACE = re.compile(r"\s+")
 # What a code block's language may be written with: an info string holding a
 # backtick is no fence at all, and one holding a space says more than the
@@ -252,7 +257,9 @@ class _Writer:
         # inside it dropped: "java&#9;script:" is a javascript: link.
         if not value or clean_address(value).lower().startswith(_NOT_LINKS):
             return None
-        resolved = join(self.base, value)
+        resolved = _ADDRESS_CONTROLS.sub(
+            lambda found: f"%{ord(found.group()):02X}", join(self.base, value)
+        )
         if re.search(r"[\s()<>]", resolved):
             return f"<{resolved.replace('>', '%3E').replace('<', '%3C')}>"
         return resolved

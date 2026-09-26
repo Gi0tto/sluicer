@@ -27,8 +27,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
   byte of any answer, and a timer per page.
 - `sluicer markdown --full`, `to_markdown(full=True)` and `page_markdown`'s
   `full` write the whole page as markdown, menus and footers included, scripts
-  and styles left out, links and images resolved against the page. It needs no
-  extra.
+  and styles left out, links and images resolved against the page, a control
+  character in a link's address percent-encoded as the main text's markdown
+  writes it. It needs no extra.
 - `sluicer.read_markdown` returns the text with where it came from
   (`MainText`: `source`, `method`, `where`), `page_markdown` answers it as
   `text_from`, and the front matter's `sources` gains a `text` line. The main
