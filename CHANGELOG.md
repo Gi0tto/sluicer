@@ -2,6 +2,13 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- The command line reference said `batch` and `crawl` never retry "a 4xx";
+  the commands say "never another 4xx" (a 429 is retried). The page is
+  regenerated, and a test now holds every option's help to it.
+
 ## 0.9.0 - 2026-09-26
 
 ### Added

@@ -58,3 +58,22 @@ def test_every_tool_is_in_the_mcp_reference(monkeypatch):
         assert f"## `{tool.name}`" in written, tool.name
         first = inspect.cleandoc(tool.description or "").splitlines()[0]
         assert first in written, (tool.name, first)
+
+
+def test_every_option_s_help_is_in_the_command_line_reference():
+    """Each option's own help is on its command's section of the page, words
+    as the code says them, whatever the width click wraps them at: the page
+    said `--retries` retried "never a 4xx" for a release after the code
+    said "never another 4xx"."""
+    from sluicer.cli import main
+
+    def words(text: str) -> str:
+        return " ".join(text.split())
+
+    written = (PAGES / "cli.md").read_text(encoding="utf-8")
+    for name, command in main.commands.items():
+        section = written.split(f"## `sluicer {name}`", 1)[1].split("\n## ", 1)[0]
+        for param in command.params:
+            help_text = getattr(param, "help", None)
+            if help_text:
+                assert words(help_text) in words(section), (name, param.name)
