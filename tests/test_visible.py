@@ -354,19 +354,3 @@ def test_an_article_s_own_footer_holds_its_byline() -> None:
         "</div></footer>"
     )
     assert "author" not in read_visible(_page(page_footer))
-
-
-@pytest.mark.parametrize(
-    ("link", "handle"),
-    [("By MixmasterFred", "MixmasterFred"), ("b.scherer", "b.scherer")],
-)
-def test_one_word_marked_rel_author_is_its_handle(link: str, handle: str) -> None:
-    body = f'<h1>How to make furniture</h1><a rel="author" href="/u">{link}</a>'
-    guess = read_visible(_page(body))["author"]
-    assert (guess.value, guess.rule) == (handle, "rel-author")
-
-
-@pytest.mark.parametrize("word", ["Admin", "Author", "Staff", "42nd"])
-def test_a_label_marked_rel_author_is_no_handle(word: str) -> None:
-    body = f'<h1>How to make furniture</h1><a rel="author" href="/u">{word}</a>'
-    assert "author" not in read_visible(_page(body))

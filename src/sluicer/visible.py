@@ -371,27 +371,6 @@ def _name(text: str) -> str | None:
     return text
 
 
-# One word a link marked rel=author may hold that is its author's handle or
-# first name: "MixmasterFred", "b.scherer", "Lauren".
-_HANDLE = re.compile(r"[^\W\d_][\w.\-]{2,30}")
-
-
-def _handle(text: str) -> str | None:
-    """A link marked rel=author holding one word, less a "By" before it: the
-    author's handle or first name, which ``_name`` asks two words of. Only
-    there, since the link says whose it is; never a label, "Admin"."""
-    by = _BY.match(text)
-    word = by.group(1) if by else text
-    if not _HANDLE.fullmatch(word):
-        return None
-    if word.lower() in _LABEL_WORDS or word.lower() in _NOT_HANDLES:
-        return None
-    return word
-
-
-_NOT_HANDLES = frozenset({"admin", "administrator", "by", "unknown", "anonymous"})
-
-
 def _first_name(element: HtmlElement) -> str | None:
     """The first of an element's pieces of text that is a name: pieces, since
     text_content runs "Preetam Jinka" and "Co-founder" into one word, and a
@@ -420,10 +399,8 @@ def _author(page: _Page) -> Guess | None:
         )
         if not page.byline_aside(e)
     ]
-    if 0 < len(marked) <= _MOST_BYLINES:
-        name = _first_name(marked[0]) or _handle(_text(marked[0]))
-        if name:
-            return Guess(name, _where(marked[0]), "rel-author")
+    if 0 < len(marked) <= _MOST_BYLINES and (name := _first_name(marked[0])):
+        return Guess(name, _where(marked[0]), "rel-author")
     named = [
         e
         for e, names in page.named
