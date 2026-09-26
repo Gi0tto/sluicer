@@ -167,6 +167,20 @@ def _sending(headers: tuple[str, ...], cookies: tuple[str, ...]) -> None:
     _Sending.headers, _Sending.cookies = named, crumbs
 
 
+def _browser_named() -> None:
+    """Refuse, as a usage error, a ``SLUICER_BROWSER`` that names a browser
+    Sluicer does not drive: called before an address is fetched, and only
+    then. Until the hostile review of 0.9.1 it was checked for every command
+    that can fetch, and ``SLUICER_BROWSER=firefox sluicer extract page.html``
+    exited 2 for a file, where no browser could run."""
+    from sluicer.fetch.browser import UnknownBrowser, browser_wanted
+
+    try:
+        browser_wanted()
+    except UnknownBrowser as unknown:
+        raise click.UsageError(str(unknown)) from None
+
+
 def _with_proxy(command: click.decorators.FC) -> click.decorators.FC:
     """``--proxy``, ``--header`` and ``--cookie``, taken before the command
     runs: every fetch it makes, of a page, a robots.txt, a sitemap or a site's
@@ -184,12 +198,6 @@ def _with_proxy(command: click.decorators.FC) -> click.decorators.FC:
         if proxy is not None:
             os.environ[PROXY_ENV] = proxy
         _sending(headers, cookies)
-        from sluicer.fetch.browser import UnknownBrowser, browser_wanted
-
-        try:
-            browser_wanted()
-        except UnknownBrowser as unknown:
-            raise click.UsageError(str(unknown)) from None
         return command(*args, **kwargs)
 
     return _proxy_option(_header_option(_cookie_option(through)))  # type: ignore[return-value]

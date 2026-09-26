@@ -199,9 +199,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `--at 2000`, and any year ending in 00, is a date. The year was checked by
   its last two digits against 1 to 9999, so `'2000' is not a date`.
 - `SLUICER_BROWSER` set to anything but `chromium` or `none` is refused with
-  a message naming both: a usage error on the command line, exit 2 for
-  `sluicer mcp` and `sluicer serve`, `UnknownBrowser` (a `ValueError`) from
-  `fetch()`. Any other value was Chromium in silence.
+  a message naming both: a usage error on the command line before an
+  address is fetched (a command reading a file or stdin does not look at
+  it), exit 2 for `sluicer mcp` and `sluicer serve`, `UnknownBrowser` (a
+  `ValueError`) from `fetch()`. Any other value was Chromium in silence.
 - One site's robots.txt is remembered once however its address is written:
   `http://A.com:80/` and `http://a.com/` were two entries, each asked for.
 - The stealth rung joins the values of a header given twice, as every other

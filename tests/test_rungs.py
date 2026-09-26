@@ -459,3 +459,74 @@ def test_the_commands_refuse_an_unknown_browser_before_they_start(monkeypatch):
     assert result.exit_code == 2
     assert "SLUICER_BROWSER='firefox' is not a browser Sluicer drives" in result.stderr
     assert "Traceback" not in result.output
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["extract", "{page}"],
+        ["inspect", "{page}"],
+        ["select", "{page}", "h1"],
+        ["markdown", "{page}"],
+        ["audit", "{page}"],
+        ["compile", "{page}", "--want", "title=Kettle", "-o", "{out}"],
+    ],
+    ids=lambda c: c[0],
+)
+def test_an_unknown_browser_is_no_matter_for_a_command_that_fetches_nothing(
+    monkeypatch, tmp_path, command
+):
+    """The hostile review of 0.9.1: SLUICER_BROWSER=firefox made `sluicer
+    extract E.html` of a local file exit 2 (0.9.0: 0), where no browser could
+    run, while SLUICER_PROXY=ftp://x did not."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    page = tmp_path / "E.html"
+    page.write_text(
+        "<html><head><title>Kettle</title></head><body><h1>Kettle</h1>"
+        "</body></html>",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SLUICER_BROWSER", "firefox")
+    args = [part.format(page=page, out=tmp_path / "e.json") for part in command]
+
+    result = CliRunner().invoke(main, args)
+
+    assert "SLUICER_BROWSER" not in result.output
+    assert result.exit_code in (0, 1), result.output
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["extract", "https://example.com/"],
+        ["compile", "https://example.com/", "--want", "title=A", "-o", "e.json"],
+        ["crawl", "https://example.com/"],
+        ["batch", "-"],
+        ["map", "https://example.com/"],
+    ],
+    ids=lambda c: c[0],
+)
+def test_an_unknown_browser_is_refused_before_an_address_is_fetched(
+    monkeypatch, command
+):
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("fetched")
+
+    monkeypatch.setattr("sluicer.cli.source.fetch_url", refuse)
+    monkeypatch.setattr("sluicer.cli.sites.crawl", refuse, raising=False)
+    monkeypatch.setattr("sluicer.cli.sites.extract_many", refuse, raising=False)
+    monkeypatch.setattr("sluicer.cli.sites.map_site", refuse, raising=False)
+    monkeypatch.setenv("SLUICER_BROWSER", "firefox")
+
+    result = CliRunner().invoke(main, command, input="https://example.com/\n")
+
+    assert result.exit_code == 2, result.output
+    assert "SLUICER_BROWSER='firefox' is not a browser Sluicer drives" in result.stderr
+    assert "fetched" not in result.output

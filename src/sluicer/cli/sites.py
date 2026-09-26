@@ -24,7 +24,12 @@ from sluicer.cli.exits import (
     _fail,
     _unreadable,
 )
-from sluicer.cli.options import _sent, _with_fetch_options, _with_proxy
+from sluicer.cli.options import (
+    _browser_named,
+    _sent,
+    _with_fetch_options,
+    _with_proxy,
+)
 from sluicer.cli.source import _read_source
 from sluicer.crawl import Crawl, crawl as crawl_site, extract_many
 from sluicer.crawl.pages import MAX_DEPTH, MAX_PAGES
@@ -86,6 +91,7 @@ def map_command(
     Each sitemap is asked politely, through robots.txt and after the site's
     delay, and stderr says what became of each one.
     """
+    _browser_named()
     if plain and output_format != "json":
         plain = _plain_wins_over_format()
     try:
@@ -268,6 +274,7 @@ def crawl_command(
     --exclude choosing among them; --template shopify reads a Shopify shop's
     products from its /products.json, --max-pages of them at 250 a page.
     """
+    _browser_named()
     table = output_format == "csv"
     if template is not None:
         _refuse_unused(template, include=include, induce=induce, respect=respect)
@@ -492,6 +499,7 @@ def batch_command(
     No link is followed. Several sites are asked at once, each one request at
     a time, and the pages come out in the order the file lists them.
     """
+    _browser_named()
     table = output_format == "csv"
     _check_out(out, resume, table)
     try:

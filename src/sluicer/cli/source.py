@@ -13,7 +13,7 @@ import click
 from click.core import ParameterSource
 
 from sluicer.cli.exits import _fail
-from sluicer.cli.options import _Sending, _sent
+from sluicer.cli.options import _browser_named, _Sending, _sent
 from sluicer.fetch import (
     AddressRefused,
     FetchFailed,
@@ -172,6 +172,9 @@ def _read_page(
             "--at reads the archive, which is not the site: --header and --cookie "
             "are for the site, and are never sent to web.archive.org."
         )
+    if is_url and at is None:
+        # The archive is read over plain HTTP: no browser runs there.
+        _browser_named()
     if is_url:
         # Only FetchExtraMissing, not ImportError: an import failure inside a
         # working scrapling install is a bug and keeps its traceback.
