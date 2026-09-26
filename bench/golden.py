@@ -399,7 +399,7 @@ def _fetched_or_refused(page: Page) -> object:
         return error
 
 
-def _time_here(rounds: int) -> dict[str, list[float]]:
+def _time_here(rounds: int, modes: list[str] | None) -> dict[str, list[float]]:
     from sluicer.api import extract
 
     pages = _timed_pages()
@@ -411,6 +411,8 @@ def _time_here(rounds: int) -> dict[str, list[float]]:
     }
     times: dict[str, list[float]] = {}
     for mode, call in calls.items():
+        if modes and mode not in modes:
+            continue
         for page in pages[:20]:  # warm-up
             call(page)
         best = [float("inf")] * len(pages)
@@ -446,6 +448,9 @@ def main() -> None:
     timing = sub.add_parser("time")
     timing.add_argument("--src", type=Path, default=ROOT / "src")
     timing.add_argument("--rounds", type=int, default=3)
+    timing.add_argument(
+        "--modes", help="comma-separated: extract,visible,induce,fetch+extract"
+    )
     timing.add_argument("--json", action="store_true")
     timing.add_argument("--here", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -454,6 +459,7 @@ def main() -> None:
         env = {**os.environ, "PYTHONPATH": str(args.src.resolve())}
         command = [sys.executable, __file__, "time", "--here", "--json"]
         command += ["--rounds", str(args.rounds)]
+        command += ["--modes", args.modes] if args.modes else []
         answer = subprocess.run(
             command, env=env, check=True, stdout=subprocess.PIPE, text=True
         )
@@ -463,7 +469,8 @@ def main() -> None:
     if args.command == "time":
         import sluicer
 
-        summary = _summary(_time_here(args.rounds))
+        modes = args.modes.split(",") if args.modes else None
+        summary = _summary(_time_here(args.rounds, modes))
         summary["src"] = {"path": str(Path(sluicer.__file__).parent)}  # type: ignore[dict-item]
         print(json.dumps(summary))
         return

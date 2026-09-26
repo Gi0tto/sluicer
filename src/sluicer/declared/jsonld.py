@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
 from typing import Any
 
 from sluicer.declared.located import Located, Place, xpath_of
@@ -91,12 +92,7 @@ _TRAILING_COMMA = re.compile(_STRING + r"|,(?=\s*[}\]])", re.DOTALL)
 def _parse(raw: str) -> object | None:
     """The JSON in one block, every number as its text, or None when there is
     none to be had."""
-    unwrapped = raw.lstrip("\ufeff")
-    for _ in range(2):
-        unwrapped = _without_closing(_OPENING.sub("", unwrapped))
-    # The cleaned spellings are tried only after the text as written fails, so
-    # a block that is valid JSON is never rewritten.
-    for candidate in dict.fromkeys((raw, unwrapped, _mended(unwrapped))):
+    for candidate in _spellings(raw):
         try:
             parsed: object = json.loads(
                 candidate,
@@ -109,6 +105,25 @@ def _parse(raw: str) -> object | None:
             continue
         return parsed
     return None
+
+
+def _spellings(raw: str) -> Iterator[str]:
+    """``raw``, then without its wrapper, then mended, each only when the one
+    before it failed and only when it differs from every one tried.
+
+    The cleaned spellings are made only after the text as written fails, so a
+    block that is valid JSON is never rewritten, and costs no regex: made
+    all at once, the mending was sixteen times what parsing the block cost.
+    """
+    yield raw
+    unwrapped = raw.lstrip("\ufeff")
+    for _ in range(2):
+        unwrapped = _without_closing(_OPENING.sub("", unwrapped))
+    if unwrapped != raw:
+        yield unwrapped
+    mended = _mended(unwrapped)
+    if mended not in (raw, unwrapped):
+        yield mended
 
 
 def _without_closing(text: str) -> str:
