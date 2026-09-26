@@ -78,11 +78,11 @@ field says `"source": "induced"`.
   rather than crawling its pages.
 - `map_site(url, limit=100)` -- a site's addresses from its sitemaps (up to
   1,000, from up to ten sitemaps), or its start page's links when it has none.
-- `crawl_site(url, max_pages=10, max_depth=2, include, exclude, respect_tdm)` -- follow a
+- `crawl_site(url, max_pages=10, max_depth=2, include, exclude, respect_tdm, visible=true)` -- follow a
   site's links, up to 25 pages on its own site, and get each page's summary and
   the types it declared; `extract_declared` on a page gives its records.
   `include` and `exclude` are plain text an address must or must not contain.
-- `extract_many(urls, records=false, induce, respect_tdm)` -- read up to 25
+- `extract_many(urls, records=false, induce, respect_tdm, visible=true)` -- read up to 25
   addresses you already have, on one site or several, in the order given, and
   get each page's summary and types, and its records with `records=true` as
   far as the answer's bound allows. Use it instead of calling

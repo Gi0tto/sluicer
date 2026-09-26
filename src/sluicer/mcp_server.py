@@ -975,6 +975,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         include: list[str] | None = None,
         exclude: list[str] | None = None,
         respect_tdm: bool = False,
+        visible: bool = True,
     ) -> answers.CrawlAnswer:
         """Crawl a site from url, following its links, and summarise every page.
 
@@ -988,21 +989,24 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         (any one of them); plain text, not a pattern.
         exclude: text that stops a link being followed when its address
         contains it.
+        visible: also guess the title, author and dates each page shows a
+        reader, in its "visible", as extract_declared does; guesses, never
+        part of the summary. On by default; false leaves "visible" out.
 
         Returns {"ok", "url", "pages", "stopped"}. Pages come breadth first,
         each {"ok", "url", "depth", "found_on", "landed", "fetch", "canonical",
-        "summary", "sources", "types", "links"} -- the summary and the types
-        declared, not the records; call extract_declared on a page for those
-        -- or, when it has nothing, {"ok": false, "error"} with the page's
-        reason. stopped is "done", "max_pages" (links were left unfollowed)
+        "summary", "sources", "types", "links", "visible"} -- the summary and
+        the types declared, not the records; call extract_declared on a page
+        for those -- or, when it has nothing, {"ok": false, "error"} with the
+        page's reason. stopped is "done", "max_pages" (links were left unfollowed)
         or "time_budget" (a minute passed). One request at a time, a second
         apart or the site's Crawl-delay, robots.txt obeyed; a page asked again
         after a request that may succeed later says so in "retries". ok is
         false only
         when no page could be read, and error then says why. Past 75,000
-        bytes the heaviest summary answers of any page go first, named in that
-        page's summary_left_out, then the last pages, counted in
-        pages_left_out.
+        bytes the heaviest guesses of any page go first, named in that page's
+        visible_left_out, then the heaviest summary answers, named in its
+        summary_left_out, then the last pages, counted in pages_left_out.
         """
         _within("max_pages", max_pages, 1, CRAWL_PAGES)
         _within("max_depth", max_depth, 0, CRAWL_DEPTH)
@@ -1017,10 +1021,11 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
                 time_budget=TIME_BUDGET_SECONDS,
                 allow_private=_allow_private(),
                 respect_tdm=respect_tdm,
+                visible=visible,
             )
         except ValueError as bad:
             raise _BadInput(str(bad)) from bad
-        pages = [_crawled(page) for page in run]
+        pages = [_crawled(page, visible=visible) for page in run]
         answer: dict[str, Any] = {
             "ok": any(page["ok"] for page in pages),
             "url": crawling.normalise(url),
@@ -1029,7 +1034,12 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         }
         if not answer["ok"] and pages:
             answer["error"] = pages[0]["error"]
-        _bounded(answer, _cut_largest("summary", among="pages"), _cut_list("pages"))
+        _bounded(
+            answer,
+            _cut_largest("visible", among="pages"),
+            _cut_largest("summary", among="pages"),
+            _cut_list("pages"),
+        )
         return cast(answers.CrawlAnswer, answer)
 
     @tool("Extract several pages")
@@ -1039,6 +1049,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         records: bool = False,
         induce: bool = False,
         respect_tdm: bool = False,
+        visible: bool = True,
     ) -> answers.ManyAnswer:
         """Read several pages' declared data, politely, in the order given.
 
@@ -1051,19 +1062,24 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         about them; those fields say source "induced".
         respect_tdm: give a page whose site reserves its text and data mining
         rights (TDMRep) as a tdm_reserved error, never its data.
+        visible: also guess the title, author and dates each page shows a
+        reader, in its "visible", as extract_declared does; guesses, never
+        part of the summary. On by default; false leaves "visible" out.
 
         Returns {"ok", "pages", "stopped"}. Pages come in the order given,
         each {"ok", "url", "landed", "fetch", "canonical", "summary",
-        "sources", "types", "links"}, and "records" when asked -- or, when it
-        has nothing, {"ok": false, "error"} with the page's reason. A page
+        "sources", "types", "links", "visible"}, and "records" when asked --
+        or, when it has nothing, {"ok": false, "error"} with the page's
+        reason. A page
         asked again after a request that may succeed later says so in
         "retries". Each site is asked one request at a time, a second apart
         or its Crawl-delay, robots.txt obeyed; several sites at once. stopped
         is "done", or "time_budget" when a minute passed first and the pages
         after are left out. ok is false only when no page could be read, and
         error then says why. Past 75,000 bytes the heaviest pages' records go
-        first, then the heaviest summary answers, named in summary_left_out,
-        then the last pages, counted in pages_left_out. For many more
+        first, then the heaviest guesses, named in visible_left_out, then the
+        heaviest summary answers, named in summary_left_out, then the last
+        pages, counted in pages_left_out. For many more
         addresses, or a whole site, the command line's sluicer batch has no
         such bounds.
         """
@@ -1079,10 +1095,11 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
                 max_delay=CRAWL_MAX_DELAY_SECONDS,
                 time_budget=TIME_BUDGET_SECONDS,
                 allow_private=_allow_private(),
+                visible=visible,
             )
         except ValueError as bad:
             raise _BadInput(str(bad)) from bad
-        pages = [_crawled(page, records=records) for page in run]
+        pages = [_crawled(page, records=records, visible=visible) for page in run]
         for page in pages:
             page.pop("depth", None)
             page.pop("found_on", None)
@@ -1096,6 +1113,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         _bounded(
             answer,
             _cut_heaviest_lists("records", among="pages"),
+            _cut_largest("visible", among="pages"),
             _cut_largest("summary", among="pages"),
             _cut_list("pages"),
         )
@@ -1358,10 +1376,14 @@ def _within(name: str, value: int, least: int, most: int) -> None:
         raise _BadInput(f"{name} must be from {least} to {most}, not {value}")
 
 
-def _crawled(page: crawling.Page, records: bool = False) -> dict[str, Any]:
-    """A crawled page as an agent gets it: the summary, and the records only
-    when asked for."""
+def _crawled(
+    page: crawling.Page, records: bool = False, visible: bool = True
+) -> dict[str, Any]:
+    """A crawled page as an agent gets it: the summary, the guesses unless
+    told not to read them, and the records only when asked for."""
     line = page.to_json()
+    if not visible:
+        line.pop("visible", None)
     if not page.ok:
         error = {**line["error"], "url": page.url}
         kept = ("ok", "url", "depth", "retries", "landed", "fetch")

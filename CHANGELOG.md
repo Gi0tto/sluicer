@@ -46,6 +46,16 @@ Dates are the day the work landed. Anything not listed here did not happen.
   as it did with `--visible`; `--no-visible` keeps the old exit 1. On WCXB's
   development pages the guesses add 2 to 3 ms to a page at the median and 8 to
   10 ms at the 95th percentile, about four fifths more time.
+- What 0.10 answers differently, for a program that reads its output: every
+  line of `crawl`, `batch` and `warc` carries `visible` (empty with
+  `--no-visible`), and so does every page of the MCP tools `crawl_site` and
+  `extract_many`, which now take `visible` (true by default; false leaves the
+  key out) and cut a page's heaviest guesses first, named in its
+  `visible_left_out`, when an answer is over its bound; `inspect` prints a
+  block of the visible guesses; a page that declares nothing but shows a
+  heading exits 0, not 1; `page_markdown` answers `text_from`. A `crawl
+  --resume` or `batch --resume` over a file 0.9.1 wrote leaves its lines
+  without `visible` beside the new lines with it.
 - The default `extract()` is slower than 0.9.1's default, because it now
   makes the guesses 0.9.1 made only when asked: the 0.10 review measured it
   1.2 to 1.6 ms slower a page at the median on WCXB's development pages, 1.55

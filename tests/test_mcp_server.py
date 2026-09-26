@@ -2337,3 +2337,76 @@ def test_an_error_page_refused_says_how_to_read_it_and_that_way_works(monkeypatc
     read = registered["extract_declared"](fetched["html"])
     assert read["summary"]["title"]["value"] == "404 Not Found"
     assert read["ok"] is True
+
+
+# -- crawl_site and extract_many carry visible, as extract_declared does ----------
+
+
+def _declared_keys(kind) -> set[str]:
+    return set(kind.__annotations__)
+
+
+def test_crawled_and_extracted_pages_declare_every_key_they_carry(monkeypatch):
+    """0.10 put "visible" in every crawled page; CrawledPage and ExtractedPage,
+    the output schema an agent is shown, did not say so."""
+    from sluicer import mcp_answers as answers
+
+    registered = fake_mcp(monkeypatch)
+    _, calls = _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    crawled = registered["crawl_site"]("https://example.com/", max_pages=2)
+    many = registered["extract_many"](["https://example.com/a"], records=True)
+
+    for page in crawled["pages"]:
+        assert "visible" in page
+        assert set(page) <= _declared_keys(answers.CrawledPage), page.keys()
+    for page in many["pages"]:
+        assert "visible" in page
+        assert set(page) <= _declared_keys(answers.ExtractedPage), page.keys()
+    assert all(call["visible"] is True for call in calls)
+
+
+def test_crawl_site_and_extract_many_take_visible_false(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    _, calls = _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    crawled = registered["crawl_site"]("https://example.com/", visible=False)
+    many = registered["extract_many"](["https://example.com/a"], visible=False)
+
+    assert crawled["ok"] and many["ok"]
+    assert all("visible" not in page for page in crawled["pages"] + many["pages"])
+    assert [call["visible"] for call in calls] == [False, False]
+
+
+def test_a_crawled_page_s_heavy_guesses_are_cut_before_its_summary(monkeypatch):
+    import sluicer.crawl.pages as pages_module
+    from sluicer.visible import Guess
+
+    real = pages_module.extract
+
+    def heavy(*args, **kwargs):
+        read = real(*args, **kwargs)
+        read.visible["title"] = Guess("Brake " * 20_000, "/html/body/h1", "h1")
+        return read
+
+    monkeypatch.setattr(pages_module, "extract", heavy)
+    registered = fake_mcp(monkeypatch)
+    _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import MOST_ANSWER_BYTES, build_server
+
+    build_server()
+    for answer in (
+        registered["crawl_site"]("https://example.com/", max_pages=1),
+        registered["extract_many"](["https://example.com/a"]),
+    ):
+        (page,) = answer["pages"]
+        assert page["visible_left_out"] == ["title"]
+        assert "title" not in page["visible"]
+        assert page["summary"]["title"]["value"] in ("Home", "A")
+        assert len(json.dumps(answer, ensure_ascii=False).encode()) <= (
+            MOST_ANSWER_BYTES
+        )
