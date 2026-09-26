@@ -93,6 +93,22 @@ _ROLES = frozenset(
         "editor writer reporter correspondent contributor columnist"
     ).split()
 )
+# Words that say what follows a name's comma is somebody's role, "Sean Peek,
+# Senior Analyst": the name ends at that comma.
+_ROLE_WORDS = frozenset(
+    (  # noqa: SIM905 -- read as a line of words
+        "founder co-founder cofounder ceo cto coo cfo cmo cpo president chair "
+        "chairman chairwoman director head lead manager editor writer reporter "
+        "correspondent contributor columnist journalist author engineer "
+        "researcher scientist analyst partner professor lecturer fellow "
+        "designer developer consultant advisor adviser specialist expert "
+        "officer chief senior principal vp owner producer strategist attorney "
+        "lawyer dietitian physician nurse therapist coach educator teacher "
+        "student intern executive"
+    ).split()
+)
+# The most words a role after a name's comma may hold.
+_ROLE_MOST_WORDS = 6
 # A date a page says it was changed on, not published on: its label, in the
 # text just before it, or its element's name.
 _UPDATED = re.compile(
@@ -341,6 +357,12 @@ def _name(text: str) -> str | None:
     if by:
         text = by.group(1)
     text = re.split(r"\s*[|•·⋅]\s*|\s+-\s+|,\s*(?=\d)|\s+on\s+", text)[0].strip(" ,;:")
+    # "Jane Doe, Senior Writer": the name ends at a comma a role follows.
+    # Not at one a credential, a place or another name follows ("Ann Lee,
+    # Ph.D.", "Bo Li, Zürich", "Ann Lee, Bo Li"), each kept as before.
+    name, comma, after = text.partition(",")
+    if comma and _a_role(after):
+        text = name.strip()
     if (
         not text
         or _NOT_A_NAME.search(text)
@@ -363,6 +385,14 @@ def _name(text: str) -> str | None:
         if word[:1].islower() and word not in _PARTICLES:
             return None
     return text
+
+
+def _a_role(part: str) -> bool:
+    """Whether ``part``, what follows a name's comma, is somebody's role."""
+    words = [word.strip(".'\u2019&").lower() for word in part.split()]
+    return 1 <= len(words) <= _ROLE_MOST_WORDS and bool(
+        _ROLE_WORDS.intersection(words) or _LABEL_WORDS.intersection(words)
+    )
 
 
 def _first_name(element: HtmlElement) -> str | None:

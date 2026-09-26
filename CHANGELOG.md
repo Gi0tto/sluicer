@@ -149,6 +149,11 @@ Dates are the day the work landed. Anything not listed here did not happen.
   with a link holding a control character, such as a backspace in a share
   link's text. The character is now percent-encoded, as the URL standard
   encodes it, and the page is read.
+- `--visible` answered a byline's name with its role glued on, "Jane Doe,
+  Senior" for "Jane Doe, Senior Writer", "Sean Peek, Senior Analyst" for the
+  same (0.9.1 did too; 0.10 guesses by default). The name now ends at a comma
+  a role follows; a credential, a place or another name after it ("Jane Doe,
+  PhD") is kept as before.
 - A publication date that was only a clock time ("10:52", "2:33 PM") was
   answered as the page's date. It is no date now, and the next declaration is
   asked.

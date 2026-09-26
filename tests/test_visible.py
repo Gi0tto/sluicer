@@ -50,6 +50,28 @@ def test_a_role_glued_after_the_name_is_cut() -> None:
     assert read_visible(_page(body))["author"].value == "Jeff Hoyt"
 
 
+@pytest.mark.parametrize(
+    ("body", "name"),
+    [
+        ('<div class="author">Jane Doe, Senior Writer</div>', "Jane Doe"),
+        ("<p>By Jane Doe, Senior Writer</p>", "Jane Doe"),
+        ("<p>By Sean Peek, Senior Analyst</p>", "Sean Peek"),
+        ('<div class="byline">Mike Marshall, Shipping Expert</div>', "Mike Marshall"),
+        # A credential, a place or another name after the comma stays.
+        ('<div class="author">Jane Doe, PhD</div>', "Jane Doe, PhD"),
+        ("<p>By Genevieve Carlton, Ph.D.</p>", "Genevieve Carlton, Ph.D."),
+        ("<p>By Johannes Ritter, Zürich</p>", "Johannes Ritter, Zürich"),
+        ("<p>By Rudolf Fischer, Simon Kohler</p>", "Rudolf Fischer, Simon Kohler"),
+    ],
+)
+def test_a_byline_s_name_ends_at_a_comma_a_role_follows(body: str, name: str) -> None:
+    """Found by the hostile review of 0.10: a byline answered the name with
+    its role glued on, "Jane Doe, Senior" and "Sean Peek, Senior Analyst"
+    (0.9.1 did too; 0.10 guesses by default)."""
+    page = _page(f"<h1>Brake pads</h1>{body}<p>Text.</p>")
+    assert read_visible(page)["author"].value == name
+
+
 def test_a_by_line() -> None:
     body = "<h1>Title</h1><p>By Lisa Jennings on Dec. 19, 2025</p>"
     guesses = read_visible(_page(body))
