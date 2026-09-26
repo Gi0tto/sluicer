@@ -73,37 +73,37 @@ licences and those of everything it installs under
 curl -s http://127.0.0.1:8000/v1/tools/extract_declared \
   -H "Authorization: Bearer $SLUICER_API_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"html_or_url": "https://example.com/product"}'
+  -d '{"html_or_url": "https://example.com/"}'
 ```
 
 The body is the tool's arguments as a JSON object, exactly as an MCP client
-sends them, and the answer is what the tool answers:
+sends them, and the answer is what the tool answers. For example.com, which
+declares no structured data, this is the whole answer, from a run on
+2026-09-26; only `seconds` changes from run to run:
 
 ```json
 {
   "ok": true,
-  "url": "https://example.com/product",
+  "url": "https://example.com/",
   "summary": {
-    "title": { "value": "Brake pad set", "source": "jsonld", "key": "Product.name",
-               "where": "/html/head/script[1]#/name" }
+    "title": {"value": "Example Domain", "source": "html", "key": "<title>",
+              "where": "/html/head/title[1]"},
+    "language": {"value": "en", "source": "html", "key": "<html lang>",
+                 "where": "/html"}
   },
-  "records": [
-    {
-      "type": "Product",
-      "types": ["Product"],
-      "fields": {
-        "name": { "value": "Brake pad set", "source": "jsonld", "where": "/html/head/script[1]#/name" }
-      },
-      "source": "jsonld",
-      "where": "/html/head/script[1]#"
-    }
-  ],
-  "sources": ["jsonld"],
-  "fetch": { "rung": "http", "status": 200, "seconds": 0.412, "climbs": [] }
+  "normalised": {},
+  "conflicts": [],
+  "records": [],
+  "sources": [],
+  "links": {},
+  "rights": {},
+  "fetch": {"rung": "http", "status": 200, "seconds": 0.014, "climbs": []}
 }
 ```
 
-Abridged: a real page declares more, and the summary answers more questions.
+A page that declares more fills `records`, one per thing it declares, and the
+summary answers more questions: [getting started](getting-started.md#3-understand-what-came-back)
+walks through a product page's answer.
 
 | Method and path | Token | Answers |
 |---|---|---|

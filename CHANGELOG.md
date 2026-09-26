@@ -38,6 +38,10 @@ Dates are the day the work landed. Anything not listed here did not happen.
   command runs in, it made every command exit 2. The page now says to save it
   in `~/.config/sluicer/` and name it with `SLUICER_CONFIG` or `--config`, and
   why a found file may not set those keys.
+- The HTTP API page's example answer was written by hand: it showed "Brake
+  pad set" for `https://example.com/product`, a 404 page titled "Example
+  Domain". It is now the whole real answer for `https://example.com/`, and a
+  test makes the page's call and compares.
 - The command line reference said `batch` and `crawl` never retry "a 4xx";
   the commands say "never another 4xx" (a 429 is retried). The page is
   regenerated, and a test now holds every option's help to it.
