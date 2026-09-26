@@ -116,12 +116,14 @@ class Page:
     ended. ``found_on`` is the page whose link led here, None for the start or
     a listed address. ``canonical`` is the page's own ``<link
     rel=canonical>``, and ``links`` every address it lets a crawl follow, in
-    document order; a page that answered 4xx or 5xx has neither, since both
-    would be its error page's. ``extraction`` is ``sluicer.extract``'s
-    reading, as for one fetch; it and the fetch fields are None exactly when
-    ``error`` is not. ``retries`` is every time the page was asked again after
-    a request that may succeed later, oldest first; what the page is, is what
-    its last request came to.
+    document order. A page the site answered with 4xx or 5xx is an
+    ``error``, ``fetch_failed``, whose message names the status -- retryable
+    for a 429 or a 5xx -- and ``status`` keeps it; its error page's
+    declarations, links and canonical are not the page's. ``extraction`` is
+    ``sluicer.extract``'s reading, as for one fetch; it and the other fetch
+    fields are None exactly when ``error`` is not. ``retries`` is every time
+    the page was asked again after a request that may succeed later, oldest
+    first; what the page is, is what its last request came to.
     """
 
     url: str
@@ -792,8 +794,22 @@ class _Visitor:
         # A 429 or a 503 is the site asking to be asked less often: the next
         # request to it waits its Retry-After, or twice the delay.
         self.polite.slow_down(task.url, fetched, self.max_delay)
-        # An error page's links and canonical are the error page's: a 404 that
-        # names a product as its canonical would have the product marked seen.
+        if fetched.status >= 400:
+            # The site's error, not the page: its title is "404 Not Found",
+            # and until 0.9.1 its line said ok true with that as its summary.
+            # Its links and canonical are the error page's too: a 404 that
+            # names a product as its canonical would have the product marked
+            # seen. A 429 or a 5xx may pass, and is asked again.
+            again = fetched.status == 429 or fetched.status >= 500
+            error = PageError(
+                "fetch_failed",
+                f"{fetched.url} answered status {fetched.status}: the site's "
+                "error, not the page",
+                retryable=again,
+            )
+            return Page(
+                task.url, task.depth, task.found_on, status=fetched.status, error=error
+            )
         answered = fetched.status < 400
         return Page(
             task.url,
@@ -856,11 +872,11 @@ def _worth_asking_again(page: Page) -> str | None:
     did not answer, or its answer was cut short (``FetchFailed.transient``)
     -- or a 429 or a 5xx. None for any other answer: a redirect loop, an
     encoding the fetch cannot read, a 404 are asked again for the same."""
+    if page.status is not None and (page.status == 429 or page.status >= 500):
+        return f"it answered {page.status}"
     if page.error is not None:
         retry = page.error.code == "fetch_failed" and page.error.retryable
         return page.error.message if retry else None
-    if page.status is not None and (page.status == 429 or page.status >= 500):
-        return f"it answered {page.status}"
     return None
 
 

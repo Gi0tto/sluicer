@@ -147,10 +147,11 @@ def test_a_retry_after_longer_than_the_crawl_waits_is_an_answer():
 
     assert [p.error.code if p.error else p.status for p in result] == [
         200,
-        429,
+        "fetch_failed",
         "rate_limited",
         "rate_limited",
     ]
+    assert result[1].status == 429 and result[1].error.retryable
     assert result[2].error.retryable
     assert "3600" in result[2].error.message or "3599" in result[2].error.message
     assert len([u for u in fake.asked() if not u.endswith("robots.txt")]) == 2
@@ -901,7 +902,7 @@ def test_an_error_pages_links_and_canonical_are_not_the_sites():
     pages = list(run(fake))
 
     assert urls(pages) == [f"{ROOT}/", f"{ROOT}/gone", f"{ROOT}/p/1"]
-    assert pages[1].ok and pages[1].status == 404
+    assert not pages[1].ok and pages[1].status == 404
     assert pages[1].links == () and pages[1].canonical is None
 
 
@@ -1281,7 +1282,9 @@ def test_an_empty_404_is_the_page_s_answer_and_asked_once(monkeypatch):
 
     pages = list(extract_many([f"{ROOT}/gone"], min_delay=0))
 
-    assert [(p.status, p.error) for p in pages] == [(404, None)]
+    assert [(p.status, p.error.code, p.error.retryable) for p in pages] == [
+        (404, "fetch_failed", False)
+    ]
     assert [r.target for r in seen.requests] == ["/robots.txt", "/gone"]
 
 

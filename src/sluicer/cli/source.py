@@ -30,9 +30,18 @@ def _read_source(
     respect: tuple[str, ...] = (),
     cache_dir: str | None = None,
     max_age: float | None = None,
+    error_page: bool = False,
 ) -> tuple[str | bytes, str | None, Fetched | None]:
     """``_read_page``, then refused when ``respect`` names a reservation the
-    page makes: its text and data mining rights, for ``tdm``."""
+    page makes: its text and data mining rights, for ``tdm``.
+
+    An address the site answered with a status outside 2xx exits with
+    ``COULD_NOT_READ``, naming the status: a 404's answer is the site's
+    error, not the page, and until 0.9.1 ``extract`` printed its "404 Not
+    Found" as the page's title and exited 0. ``error_page`` keeps it, for
+    the commands whose answer is about whatever the site sent: ``fetch``
+    and ``audit``.
+    """
     if max_age is not None and cache_dir is None:
         _fail("--max-age says how long a kept page is good for; it needs --cache.")
     if cache_dir is not None and at is not None:
@@ -40,6 +49,11 @@ def _read_source(
     html, url, fetched = _read_page(
         source, stealth, no_robots, base_url, at, cache_dir, max_age
     )
+    if not error_page and fetched is not None and not 200 <= fetched.status < 300:
+        _fail(
+            f"Could not read {source}: the site answered status "
+            f"{fetched.status}, which is its error, not the page."
+        )
     if "tdm" in respect:
         _refuse_reserved(html, url, fetched, obey_robots=not no_robots)
     return html, url, fetched
@@ -180,18 +194,16 @@ def _read_page(
 
 
 def _read_pages(
-    sources: tuple[str, ...], stealth: bool, no_robots: bool, pages_only: bool = False
+    sources: tuple[str, ...], stealth: bool, no_robots: bool, pages_only: bool = True
 ) -> list[tuple[str | bytes, str | None]]:
-    """Each of ``sources``, read. ``pages_only``: an address the site answered
-    with a status outside 2xx exits with ``COULD_NOT_READ``, naming it -- a
-    404's or a 503's answer is not the page an extractor is held to."""
+    """Each of ``sources``, read. An address the site answered with a status
+    outside 2xx exits with ``COULD_NOT_READ``, naming it -- a 404's or a
+    503's answer is not a page to learn from or to hold an extractor to --
+    unless ``pages_only`` is false."""
     read = []
     for source in sources:
-        html, url, fetched = _read_source(source, stealth, no_robots, None)
-        if pages_only and fetched is not None and not 200 <= fetched.status < 300:
-            _fail(
-                f"Could not read {source}: the site answered status "
-                f"{fetched.status}, which is its error, not the page."
-            )
+        html, url, _fetched = _read_source(
+            source, stealth, no_robots, None, error_page=not pages_only
+        )
         read.append((html, url))
     return read

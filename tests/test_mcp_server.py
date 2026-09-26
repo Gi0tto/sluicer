@@ -2018,3 +2018,85 @@ def test_an_address_with_no_host_is_bad_input_not_retryable(monkeypatch, tool):
     assert answer["error"]["code"] == "bad_input"
     assert answer["error"]["retryable"] is False
     assert "names no host" in answer["error"]["message"]
+
+
+_NOT_FOUND = (
+    "<html><head><title>404 Not Found</title></head>"
+    "<body><h1>Not Found</h1></body></html>"
+)
+
+
+def _answering(monkeypatch, status):
+    from sluicer.fetch.result import Fetched
+
+    def fetch(url, **kwargs):
+        return Fetched(url=url, html=_NOT_FOUND, status=status, rung="http")
+
+    monkeypatch.setattr("sluicer.fetch.fetch", fetch)
+
+
+@pytest.mark.parametrize("status", [404, 503])
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("extract_declared", {}),
+        ("page_markdown", {}),
+        ("select_values", {"selector": "h1"}),
+        ("read_feed", {}),
+        ("compile_extractor", {}),
+        ("run_extractor", {}),
+        ("heal_extractor", {}),
+    ],
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_page_the_site_answered_with_its_error_is_not_ok(
+    monkeypatch, tool, arguments, status
+):
+    """Measured on 0.9.0: extract_declared of a 404 answered ok true with
+    "404 Not Found" as the page's title, though ok is true only when the
+    answer can be used as it is."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    url = "https://example.com/gone"
+    if tool in ("run_extractor", "heal_extractor"):
+        learnt = registered["compile_extractor"](
+            ["<html><head><title>A shop</title></head><body></body></html>"]
+        )
+        arguments = {**arguments, "extractor": learnt["extractor"]}
+    _answering(monkeypatch, status)
+    given = (
+        {"pages": [url]}
+        if tool in ("compile_extractor", "heal_extractor")
+        else {"url_or_text": url}
+        if tool == "read_feed"
+        else {"html_or_url": url}
+    )
+
+    answer = registered[tool](**given, **arguments)
+
+    assert answer["ok"] is False, answer
+    assert answer["error"]["code"] == "fetch_failed"
+    assert f"the site answered status {status}" in answer["error"]["message"]
+    assert answer["error"]["retryable"] is (status == 503)
+    assert answer["error"]["url"] == url
+
+
+@pytest.mark.parametrize("tool", ["fetch_page", "audit_page"])
+def test_fetch_page_and_audit_page_still_answer_about_an_error_page(monkeypatch, tool):
+    """fetch_page hands back whatever the site sent, with its status, and
+    audit_page audits a 404 as the answer it is."""
+    registered = fake_mcp(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    _answering(monkeypatch, 404)
+    given = {"url": "https://example.com/gone"}
+    if tool == "audit_page":
+        given = {"html_or_url": given["url"], "site": False}
+
+    answer = registered[tool](**given)
+
+    assert answer["ok"] is True
+    assert answer["fetch"]["status"] == 404

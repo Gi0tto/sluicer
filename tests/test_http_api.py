@@ -1094,3 +1094,27 @@ def test_the_command_without_the_extra_is_a_message_not_a_traceback(
 
     assert result.exit_code == 2
     assert 'uv pip install "sluicer[api]"' in result.stderr
+
+
+def test_a_page_the_site_answered_404_is_a_502_not_ok(client, monkeypatch):
+    """docs/http-api.md showed ok true for a page that answered 404; the
+    answer was the site's error page read as the page."""
+    from sluicer.fetch.result import Fetched
+
+    def fetch(url, **kwargs):
+        page = "<html><head><title>404 Not Found</title></head></html>"
+        return Fetched(url=url, html=page, status=404, rung="http")
+
+    http = client(_real_server(), token=TOKEN)
+    monkeypatch.setattr("sluicer.fetch.fetch", fetch)
+
+    answer = http.post(
+        "/v1/tools/extract_declared",
+        json={"html_or_url": "https://example.com/product"},
+        headers=AUTHORISED,
+    )
+
+    assert answer.status_code == 502
+    assert answer.json()["ok"] is False
+    assert answer.json()["error"]["code"] == "fetch_failed"
+    assert "answered status 404" in answer.json()["error"]["message"]

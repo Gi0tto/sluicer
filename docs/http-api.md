@@ -73,7 +73,7 @@ licences and those of everything it installs under
 curl -s http://127.0.0.1:8000/v1/tools/extract_declared \
   -H "Authorization: Bearer $SLUICER_API_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"html_or_url": "https://example.com/product"}'
+  -d '{"html_or_url": "https://shop.example/p/1"}'
 ```
 
 The body is the tool's arguments as a JSON object, exactly as an MCP client
@@ -82,7 +82,7 @@ sends them, and the answer is what the tool answers:
 ```json
 {
   "ok": true,
-  "url": "https://example.com/product",
+  "url": "https://shop.example/p/1",
   "summary": {
     "title": { "value": "Brake pad set", "source": "jsonld", "key": "Product.name",
                "where": "/html/head/script[1]#/name" }
@@ -225,7 +225,7 @@ why, in the shape the MCP tools use: `{"code", "message", "retryable"}`, with
 | `misdirected` | 421 | door | Listening on loopback, it answers only requests addressed to `localhost`, `127.0.0.1` or `[::1]`. |
 | `internal_error` | 500 | door | A bug. The message is generic; the traceback is in the server's log. |
 | `missing_extra` | 501 | tool | An extra this call needs is not installed; `extra` names it. |
-| `fetch_failed` | 502 | tool | Every rung failed. Retryable, unless what failed would fail again: a redirect loop, an encoding this install cannot read. |
+| `fetch_failed` | 502 | tool | Every rung failed, or the site answered with its error, a 4xx or a 5xx, which the message names: an error page is not the page. Retryable, unless what failed would fail again: a redirect loop, an encoding this install cannot read, a 4xx other than 429. `fetch_page` and `audit_page` answer about an error page as it is, with its status in `fetch`. |
 | `timed_out` | 504 | door | The request ran past `--timeout`. At `/mcp`, a body that took longer to arrive; a tool call past it is a failed call. Retryable. |
 
 `retryable` is true for `fetch_failed` and `timed_out` only: the same call may

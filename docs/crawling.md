@@ -257,8 +257,8 @@ failed counts. A link is followed when:
 
 - it is an `<a href>` or `<area href>`, resolved against the page's `<base>`,
   on a page that answered below 400: an error page's links, and its
-  canonical, are the error page's, so a 404 is reported with its status and
-  nothing is admitted from it;
+  canonical, are the error page's, so a 404 is a failed line,
+  `fetch_failed` naming its status, and nothing is admitted from it;
 - it is not `rel="nofollow"`, and its page's `<meta name="robots">` (or
   `name="sluicer"`) does not say `nofollow` or `none`;
 - it is on the start's site, unless `--any-site` (`same_site=False`);

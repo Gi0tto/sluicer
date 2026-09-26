@@ -289,7 +289,7 @@ def _allow_private() -> bool:
 
 
 def _html_of(
-    html_or_url: str, at: str | None = None
+    html_or_url: str, at: str | None = None, error_page: bool = False
 ) -> tuple[str, str | None, dict[str, Any] | None]:
     """Return the page's HTML, the URL to attribute it to, and the fetch record.
 
@@ -297,7 +297,7 @@ def _html_of(
     page's relative links resolve against; for literal HTML it is None. Literal
     HTML is held to the bound a fetched page is.
     """
-    html, url, record, _headers = _page_of(html_or_url, at)
+    html, url, record, _headers = _page_of(html_or_url, at, error_page)
     return html, url, record
 
 
@@ -320,7 +320,7 @@ def _check_address(url: str) -> None:
 
 
 def _page_of(
-    html_or_url: str, at: str | None = None
+    html_or_url: str, at: str | None = None, error_page: bool = False
 ) -> tuple[str, str | None, dict[str, Any] | None, dict[str, str] | None]:
     """``_html_of``, and the response's headers for a URL.
 
@@ -328,6 +328,13 @@ def _page_of(
     ``X-Robots-Tag`` -- and never sent back raw: a response's cookies are not
     the agent's to see. ``at`` reads a URL as the Wayback Machine captured it
     nearest to that date, and the record then says which capture it was.
+
+    A URL the site answered with a status outside 2xx is ``fetch_failed``
+    naming the status, retryable for a 429 or a 5xx: its answer is the
+    site's error, not the page, and until 0.9.1 ``extract_declared`` said
+    ``ok`` true with "404 Not Found" as its title. ``error_page`` keeps it,
+    for the tools whose answer is about whatever the site sent:
+    ``fetch_page`` and ``audit_page``.
     """
     is_url = html_or_url.strip().lower().startswith(("http://", "https://"))
     if at is not None and not is_url:
@@ -347,6 +354,14 @@ def _page_of(
         from sluicer.fetch import fetch
 
         fetched = fetch(html_or_url, allow_private=_allow_private())
+    if is_url and not error_page and not 200 <= fetched.status < 300:
+        raise FetchFailed(
+            fetched.url,
+            [],
+            f"the site answered status {fetched.status}, which is its error, "
+            "not the page",
+            transient=fetched.status == 429 or fetched.status >= 500,
+        )
     if is_url:
         return (
             fetched.html,
@@ -621,7 +636,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
             # Refused rather than echoed back: a caller handed the string it
             # sent, with no way to tell nothing was fetched, is worse off.
             raise _BadInput(f"fetch_page needs an http:// or https:// URL, got {url!r}")
-        html, landed, fetched = _html_of(url)
+        html, landed, fetched = _html_of(url, error_page=True)
         part, following = _slice(html, offset, max_chars)
         page = {
             "ok": True,
@@ -791,7 +806,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         the last records, page findings and other_agents are left out,
         counted in records_left_out, page_left_out and other_agents_left_out.
         """
-        html, url, fetched = _html_of(html_or_url)
+        html, url, fetched = _html_of(html_or_url, error_page=True)
         read = None
         if site and url is not None:
             from sluicer.fetch.site import read_site

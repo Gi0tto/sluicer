@@ -12,6 +12,13 @@ Dates are the day the work landed. Anything not listed here did not happen.
   asked: `bad_input` for the MCP tools, `AddressRefused` from `fetch()`, exit
   2 on the command line. It was reported as a robots.txt that could not be
   read, and marked worth retrying.
+- A page the site answers with its error, a 4xx or a 5xx, is no longer read as
+  the page. `extract`, `inspect`, `select`, `markdown`, `diff`, `feed` and
+  `compile` exit 2 naming the status, where `extract` printed "404 Not Found"
+  as the title and exited 0; a crawl's or a batch's line is `ok` false,
+  `fetch_failed`, retryable for a 429 or a 5xx; the MCP tools and the HTTP
+  API answer `fetch_failed` (502). `fetch`, `fetch_page`, `audit` and
+  `audit_page` still answer about the error page as it is, as documented.
 
 ## 0.9.0 - 2026-09-26
 

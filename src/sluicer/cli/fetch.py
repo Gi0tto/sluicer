@@ -87,7 +87,7 @@ def fetch_command(
     if not url.lower().startswith(("http://", "https://")):
         _fail(f"fetch takes an http(s) address; {url} is not one.")
     html, _, fetched = _read_source(
-        url, stealth, no_robots, None, at, (), cache_dir, max_age
+        url, stealth, no_robots, None, at, (), cache_dir, max_age, error_page=True
     )
     if fetched is None:  # pragma: no cover -- an address is always fetched
         _fail(f"fetch takes an http(s) address; {url} is not one.")

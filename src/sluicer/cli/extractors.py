@@ -232,7 +232,7 @@ def run_command(
     pages = []
     broken = False
     for source, (html, url) in zip(
-        sources, _read_pages(sources, stealth, no_robots, pages_only=True), strict=True
+        sources, _read_pages(sources, stealth, no_robots), strict=True
     ):
         run = run_extractor(extractor, html, url=url)
         failed = [asdict(check) for check in run.checks if not check.ok]
@@ -292,7 +292,7 @@ def heal_command(
     quietly replaces the one that would have kept failing.
     """
     extractor = _load_extractor(extractor_file)
-    pages = _read_pages(sources, stealth, no_robots, pages_only=True)
+    pages = _read_pages(sources, stealth, no_robots)
     try:
         healed, changes = heal_extractor(extractor, pages, names=list(sources))
     except NothingToLearn as nothing:

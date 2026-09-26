@@ -1267,9 +1267,71 @@ def test_extract_of_an_empty_error_page_names_the_status(monkeypatch, status):
 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert f"the site answered status {status}" in result.stderr
     assert "compile" not in result.stderr
+
+
+ERROR_PAGE = (
+    "<html><head><title>404 Not Found</title></head>"
+    "<body><h1>Not Found</h1><p>No such page.</p></body></html>"
+)
+
+
+@pytest.mark.parametrize("status", [404, 410, 500, 503])
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["extract"],
+        ["inspect"],
+        ["select", "{url}", "h1"],
+        ["markdown"],
+        ["feed"],
+        ["diff", "{url}", "{url}"],
+        ["compile", "{url}", "-o", "{out}"],
+    ],
+    ids=lambda c: c[0] if isinstance(c, list) else str(c),
+)
+def test_a_page_the_site_answered_with_its_error_exits_two(
+    monkeypatch, tmp_path, command, status
+):
+    """Measured on 0.9.0: sluicer extract of a 404 exited 0 with "404 Not
+    Found" as the page's title; select, markdown and compile read the error
+    page as the page too. Only run and heal refused it."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    _answered(monkeypatch, status, ERROR_PAGE)
+    url = "https://example.com/gone"
+    out = tmp_path / "e.json"
+    args = [part.format(url=url, out=out) for part in command]
+    if len(args) == 1:
+        args.append(url)
+
+    result = CliRunner().invoke(main, args)
+
+    assert result.exit_code == 2, result.output
+    assert f"Could not read {url}: the site answered status {status}" in result.stderr
+    assert "Not Found" not in result.stdout
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("command", ["fetch", "audit"])
+def test_fetch_and_audit_still_answer_about_an_error_page(monkeypatch, command):
+    """fetch prints a page whatever its status, and audit audits a 404 as the
+    answer it is: both documented, both kept."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    _answered(monkeypatch, 404, ERROR_PAGE)
+    extra = ["--no-site"] if command == "audit" else []
+
+    result = CliRunner().invoke(main, [command, "https://example.com/gone", *extra])
+
+    assert result.exit_code != 2, result.output
+    assert "404" in result.output
 
 
 # -- an address that is not on the web --------------------------------------

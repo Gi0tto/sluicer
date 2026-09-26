@@ -4,9 +4,12 @@ Exit codes follow grep: 0 when something was found -- a record, or at least one
 summary answer, a ``<title>`` alone included, or with ``--visible`` a guess --
 1 when the page was read and gives nothing at all, 2 when it could not be
 read. A script can tell "this page gives nothing" from "the fetch failed"
-without parsing English. ``run`` and ``heal`` add 3: a page broke the
-extractor's contract, or healing lost a field, and that is never a success; a
-page the site answered with a status outside 2xx is one they could not read.
+without parsing English. A page the site answered with a status outside
+2xx is one a command could not read: its answer is the site's error, not the
+page. Only ``fetch``, which prints whatever came back, and ``audit``, which
+audits an error page as the answer it is, take it. ``run`` and ``heal`` add
+3: a page broke the extractor's contract, or healing lost a field, and that
+is never a success.
 ``audit`` uses 3 in the same sense: the page was read and breaks a rule it is
 held to, here one its documentation states.
 
