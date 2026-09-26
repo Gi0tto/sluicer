@@ -416,15 +416,18 @@ rest:
 
 - `map_site(url, limit=100)` -- up to 1,000 addresses from up to ten sitemaps,
   within a minute.
-- `crawl_site(url, max_pages=10, max_depth=2, include, exclude)` -- up to 25
+- `crawl_site(url, max_pages=10, max_depth=2, include, exclude, respect_tdm,
+  visible=true)` -- up to 25
   pages, three links deep, on `url`'s site, within a minute. Each page comes
   back with its summary and the types it declared, not its records; call
-  `extract_declared` on a page for those. `include` and `exclude` are plain
+  `extract_declared` on a page for those. Its `visible` holds the guesses
+  read off the page, as `extract_declared`'s does; `visible=false` leaves them
+  out. `include` and `exclude` are plain
   text an address must or must not contain, not patterns. A site asking for
   more than ten seconds between requests is answered `crawl_delay_too_long`
   rather than holding the agent a minute a page. `ok` is false only when no
   page could be read, and `error` then says why.
-- `extract_many(urls, records=false, induce, respect_tdm)` -- up to 25
+- `extract_many(urls, records=false, induce, respect_tdm, visible=true)` -- up to 25
   addresses the agent already has, on one site or several, in the order
   given, within a minute: each site one request at a time, several sites at
   once, where a loop of `extract_declared` calls waits a second behind each

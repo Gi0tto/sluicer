@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from hypothesis import given, strategies as st
 
 from sluicer.document import load
 
@@ -474,3 +475,201 @@ def test_an_address_s_spaces_are_found_as_str_isspace_finds_them():
         for code in range(sys.maxunicode + 1)
         if bool(_ANY_SPACE.match(chr(code))) != chr(code).isspace()
     ] == []
+
+
+def test_valid_utf8_is_parsed_from_its_own_bytes(monkeypatch):
+    """A page that is valid UTF-8 is handed to lxml as it came, not decoded
+    and encoded back, which was a tenth of the time loading took and twice
+    the page in memory."""
+    from sluicer import document
+
+    handed: list[bytes] = []
+    parse = document._parse_utf8
+
+    def recorded(data: bytes):
+        handed.append(data)
+        return parse(data)
+
+    monkeypatch.setattr(document, "_parse_utf8", recorded)
+    page = "<html><head><title>Café — menu</title></head></html>".encode()
+    assert load(page).tree.findtext(".//title") == "Café — menu"
+    assert handed[-1] is page
+    crlf = page.replace(b"<head>", b"<head>\r\n\r")
+    load(crlf)
+    assert handed[-1] == page.replace(b"<head>", b"<head>\n\n")
+
+
+def _round_trip(data: bytes, charset: str | None) -> bytes:
+    """What load parsed until 0.10: the page decoded, its newlines read,
+    and encoded back to UTF-8."""
+    from sluicer.document import _newlines, sniff_encoding
+
+    text = data.decode(sniff_encoding(data, charset), errors="replace")
+    return _newlines(text).encode("utf-8")
+
+
+_PIECES = [
+    b"<p>",
+    b"\r\n",
+    b"\r",
+    b"\n",
+    b"caf\xc3\xa9",
+    b"\xe2\x80\x94",
+    b"\xef\xbb\xbf",
+    b"\xed\xa0\x80",  # a surrogate, which UTF-8 may not hold
+    b"\xe9",
+    b"\xc3",
+    b"\xf0\x9f\x98\x80",
+    b'<meta charset="utf-8">',
+    b'<meta charset="windows-1252">',
+    b"&#13;",
+    b"x",
+]
+
+
+@given(
+    st.lists(st.sampled_from(_PIECES), max_size=12),
+    st.sampled_from([None, "utf-8", "windows-1252"]),
+)
+def test_the_bytes_parsed_are_what_the_round_trip_gave(pieces, charset):
+    from lxml import etree
+
+    from sluicer import document
+
+    data = b"<html><body>" + b"".join(pieces) + b"</body></html>"
+    handed: list[bytes] = []
+    parse = document._parse_utf8
+
+    def recorded(given_bytes: bytes):
+        handed.append(given_bytes)
+        return parse(given_bytes)
+
+    original = document._parse_utf8
+    document._parse_utf8 = recorded
+    try:
+        tree = document._parse_bytes(data, charset)
+    finally:
+        document._parse_utf8 = original
+    assert handed == [_round_trip(data, charset)]
+    assert etree.tostring(tree) == etree.tostring(parse(_round_trip(data, charset)))
+
+
+def test_a_kept_page_is_handed_on_only_as_the_very_same_page():
+    from sluicer import document
+    from sluicer.document import load_and_keep, load_kept
+
+    page = "<html><head><title>Pads</title></head></html>"
+    kept = load_and_keep(page, url="https://a.example/p")
+    assert load_and_keep(page, url="https://a.example/p") is kept
+    # Another address resolves the page's links otherwise.
+    assert load_kept(page, url="https://b.example/p") is not kept
+    # Anything kept is let go by the extraction that asks, whatever it is.
+    assert getattr(document._KEPT, "page", None) is None
+    kept = load_and_keep(page, url="https://a.example/p")
+    # An equal page is not the same page: it is parsed, never trusted.
+    copy = page[:-1] + page[-1:]
+    assert copy == page
+    assert copy is not page
+    assert load_kept(copy, url="https://a.example/p") is not kept
+    kept = load_and_keep(page, url="https://a.example/p")
+    assert load_kept(page, url="https://a.example/p") is kept
+    assert load_kept(page, url="https://a.example/p") is not kept
+    # Bytes depend on the charset they are decoded with, a str does not.
+    data = page.encode()
+    kept = load_and_keep(data, url=None, charset=None)
+    assert load_kept(data, url=None, charset="windows-1252") is not kept
+    kept = load_and_keep(page, url=None, charset=None)
+    assert load_kept(page, url=None, charset="windows-1252") is kept
+
+
+def test_a_page_kept_in_one_thread_is_not_handed_to_another():
+    import threading
+
+    from sluicer.document import load_and_keep, load_kept
+
+    page = "<html><head><title>Pads</title></head></html>"
+    kept = load_and_keep(page)
+    found = []
+    other = threading.Thread(target=lambda: found.append(load_kept(page)))
+    other.start()
+    other.join()
+    assert found[0] is not kept
+    assert load_kept(page) is kept
+
+
+def test_a_str_is_parsed_as_utf8_bytes(monkeypatch):
+    """libxml2 reads UTF-8 bytes faster than the UCS-2 or UCS-4 a str is
+    handed to it in, and builds the same tree."""
+    from sluicer import document
+
+    handed: list[bytes] = []
+    parse = document._parse_utf8
+
+    def recorded(data: bytes):
+        handed.append(data)
+        return parse(data)
+
+    monkeypatch.setattr(document, "_parse_utf8", recorded)
+    page = "<html><head><title>Café \U0001f600</title></head></html>"
+    assert load(page).tree.findtext(".//title") == "Café \U0001f600"
+    assert handed == [page.encode("utf-8")]
+    # A lone surrogate cannot be UTF-8: that str is parsed as it is.
+    assert load("<p>a\ud800b</p>").tree.findtext(".//p") == "a"
+
+
+def _as_str_was_parsed(text: str) -> bytes:
+    """The tree ``load`` made of a str until 0.10, serialised."""
+    import lxml.etree
+    import lxml.html
+
+    from sluicer.document import _TEXT_PARSER, _newlines, _parse_utf8
+
+    text = _newlines(text)
+    try:
+        tree = lxml.html.document_fromstring(text, parser=_TEXT_PARSER)
+    except lxml.etree.LxmlError:
+        tree = lxml.html.Element("html")
+    except ValueError:
+        tree = _parse_utf8(text.encode("utf-8", "replace"))
+    return lxml.etree.tostring(tree)
+
+
+_STR_PIECES = [
+    "<p>",
+    "</p>",
+    "<b>",
+    "\x00",
+    "\x01",
+    "\x0c",
+    "\x7f",
+    "\x80",
+    "﻿",
+    "￾",
+    "￿",
+    "\U0001f600",
+    "é",
+    "—",
+    "&amp;",
+    "&#0;",
+    "&#x80;",
+    "\r\n",
+    "\r",
+    " ",
+    "<meta charset='windows-1252'>",
+    "<!--",
+    "-->",
+    "<script>",
+    "</script>",
+    '<?xml version="1.0" encoding="utf-8"?>',
+    "\ud800",
+]
+
+
+@given(st.lists(st.sampled_from(_STR_PIECES), max_size=12), st.booleans())
+def test_a_str_gives_the_tree_it_always_gave(pieces, whole):
+    from lxml import etree
+
+    text = "".join(pieces)
+    if whole:
+        text = f"<html><body>{text}</body></html>"
+    assert etree.tostring(load(text).tree) == _as_str_was_parsed(text)

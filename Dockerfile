@@ -1,8 +1,8 @@
 # A Sluicer that can fetch, read, and serve an agent or any HTTP client, in one
 # image.
 #
-# The base install fetches over plain HTTP; this image adds the markdown, MCP
-# and HTTP API extras, so that one image serves every door.
+# The base install fetches over plain HTTP and turns a page into markdown; this
+# image adds the MCP and HTTP API extras, so that one image serves every door.
 #
 # The browser is a build argument, because it is most of the image. Built as
 # is, the image fetches with the plain HTTP rung only: a page that makes the
@@ -33,7 +33,7 @@ FROM python:3.13-slim
 ARG WITH_BROWSER=0
 # The version the labels state. The build stops if the wheel says another, and
 # a test holds this line to pyproject.toml.
-ARG SLUICER_VERSION=0.9.1
+ARG SLUICER_VERSION=0.10.0
 
 LABEL org.opencontainers.image.title="Sluicer" \
       org.opencontainers.image.description="The data a web page declares, with where each value came from. No model, no API key." \

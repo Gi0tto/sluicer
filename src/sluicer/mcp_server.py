@@ -29,6 +29,7 @@ from typing import Annotated, Any, cast
 from sluicer import __version__, crawl as crawling, extractor as extractor_module
 from sluicer.api import _extract as extract
 from sluicer.audit import answered_with, audit
+from sluicer.document import let_go
 from sluicer.extras import MissingExtra, import_extra
 from sluicer.fetch import (
     AddressRefused,
@@ -43,7 +44,7 @@ from sluicer.fetch.http_rung import PROXY_ENV, chosen_proxy
 from sluicer.fetch.result import MAX_RESPONSE_BYTES, ResponseTooLarge
 from sluicer.fetch.wire import Proxy, UnusableProxy
 from sluicer.isolated import TookTooLong, isolated
-from sluicer.markdown import to_markdown
+from sluicer.markdown import declared_front_matter, read_markdown
 from sluicer.selectors import (
     SelectorError,
     parse as parse_page,
@@ -199,6 +200,11 @@ def _answers_instead_of_raising(tool: Callable[..., Any]) -> Callable[..., Any]:
             return _error("bad_input", slow)
         except _Reserved as reserved:
             return _error("tdm_reserved", reserved, url=reserved.url)
+        finally:
+            # A page the call fetched and did not extract (page_markdown,
+            # fetch_page, a refusal) stayed parsed on this worker thread
+            # until its next call.
+            let_go()
 
     return guarded
 
@@ -263,11 +269,11 @@ def _respect_tdm(
     from sluicer.declared.headers import lowered, read_header_rights
     from sluicer.declared.rights import read_rights
     from sluicer.declared.tdmrep import read_tdmrep, reservation
-    from sluicer.document import load
+    from sluicer.document import load_and_keep
 
     sent = lowered(headers) if headers else {}
     rights = read_rights(
-        load(html, url=url), read_header_rights(sent) if sent else None
+        load_and_keep(html, url=url), read_header_rights(sent) if sent else None
     )
     rules = []
     if fetched is not None and "archived" not in fetched and url:
@@ -535,7 +541,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         at: str | None = None,
         respect_tdm: bool = False,
         records: bool = True,
-        visible: bool = False,
+        visible: bool = True,
     ) -> answers.ExtractAnswer:
         """Read the structured data a page declares, with where each value came from.
 
@@ -554,7 +560,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         visible: also guess the title, author, publication and update dates
         the page shows a reader, in "visible", each {"value", "where",
         "rule"}; guesses, never part of the summary, which holds only what
-        the page declares.
+        the page declares. On by default; false reads the declarations alone.
 
         Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
         for a URL. records are typed fields, each {"value", "source",
@@ -601,6 +607,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
     def page_markdown(
         html_or_url: str,
         front_matter: bool = False,
+        full: bool = False,
         at: str | None = None,
         respect_tdm: bool = False,
         offset: int = 0,
@@ -612,6 +619,8 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         front_matter: open the markdown with a YAML block of what the page
         declares about itself (title, author, dates, url...) and each
         answer's source.
+        full: the whole page, menus and footers included, not its main
+        content.
         at: a date: read the URL as the Wayback Machine captured it then.
         respect_tdm: answer tdm_reserved when the site reserves its text and
         data mining rights (TDMRep).
@@ -621,20 +630,31 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         fewer when more would weigh over 75,000 bytes, as 60,000 characters
         of Chinese do.
 
-        Returns {"ok", "markdown", "url", "length", "next_offset"}, and
-        "fetch" for a URL: markdown is one slice, length the whole markdown's,
-        next_offset where the next slice starts or null at the end. The
+        Returns {"ok", "markdown", "text_from", "url", "length",
+        "next_offset"}, and "fetch" for a URL: markdown is one slice, length
+        the whole markdown's, next_offset where the next slice starts or null
+        at the end. text_from says where the text came from: source
+        "extracted" (the main content, method naming the extractor) or
+        "page" (full), and "" with no text. The
         markdown is always the page's own content: a failure is ok false with
         "error", never text that could be mistaken for the page.
         """
         html, url, fetched, headers = _page_of(html_or_url, at)
         if respect_tdm:
             _respect_tdm(html, url, fetched, headers)
-        whole = to_markdown(html, url=url, front_matter=front_matter)
+        found = read_markdown(html, url=url, full=full)
+        whole = found.markdown
+        if whole and front_matter:
+            whole = declared_front_matter(html, url, text=found) + whole
         part, following = _slice(whole, offset, max_chars)
         result: dict[str, Any] = {
             "ok": True,
             "markdown": part,
+            "text_from": {
+                "source": found.source,
+                "method": found.method,
+                "where": found.where,
+            },
             "url": url,
             "length": len(whole),
             "next_offset": following,
@@ -955,6 +975,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         include: list[str] | None = None,
         exclude: list[str] | None = None,
         respect_tdm: bool = False,
+        visible: bool = True,
     ) -> answers.CrawlAnswer:
         """Crawl a site from url, following its links, and summarise every page.
 
@@ -968,21 +989,24 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         (any one of them); plain text, not a pattern.
         exclude: text that stops a link being followed when its address
         contains it.
+        visible: also guess the title, author and dates each page shows a
+        reader, in its "visible", as extract_declared does; guesses, never
+        part of the summary. On by default; false leaves "visible" out.
 
         Returns {"ok", "url", "pages", "stopped"}. Pages come breadth first,
         each {"ok", "url", "depth", "found_on", "landed", "fetch", "canonical",
-        "summary", "sources", "types", "links"} -- the summary and the types
-        declared, not the records; call extract_declared on a page for those
-        -- or, when it has nothing, {"ok": false, "error"} with the page's
-        reason. stopped is "done", "max_pages" (links were left unfollowed)
+        "summary", "sources", "types", "links", "visible"} -- the summary and
+        the types declared, not the records; call extract_declared on a page
+        for those -- or, when it has nothing, {"ok": false, "error"} with the
+        page's reason. stopped is "done", "max_pages" (links were left unfollowed)
         or "time_budget" (a minute passed). One request at a time, a second
         apart or the site's Crawl-delay, robots.txt obeyed; a page asked again
         after a request that may succeed later says so in "retries". ok is
         false only
         when no page could be read, and error then says why. Past 75,000
-        bytes the heaviest summary answers of any page go first, named in that
-        page's summary_left_out, then the last pages, counted in
-        pages_left_out.
+        bytes the heaviest guesses of any page go first, named in that page's
+        visible_left_out, then the heaviest summary answers, named in its
+        summary_left_out, then the last pages, counted in pages_left_out.
         """
         _within("max_pages", max_pages, 1, CRAWL_PAGES)
         _within("max_depth", max_depth, 0, CRAWL_DEPTH)
@@ -997,10 +1021,11 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
                 time_budget=TIME_BUDGET_SECONDS,
                 allow_private=_allow_private(),
                 respect_tdm=respect_tdm,
+                visible=visible,
             )
         except ValueError as bad:
             raise _BadInput(str(bad)) from bad
-        pages = [_crawled(page) for page in run]
+        pages = [_crawled(page, visible=visible) for page in run]
         answer: dict[str, Any] = {
             "ok": any(page["ok"] for page in pages),
             "url": crawling.normalise(url),
@@ -1009,7 +1034,12 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         }
         if not answer["ok"] and pages:
             answer["error"] = pages[0]["error"]
-        _bounded(answer, _cut_largest("summary", among="pages"), _cut_list("pages"))
+        _bounded(
+            answer,
+            _cut_largest("visible", among="pages"),
+            _cut_largest("summary", among="pages"),
+            _cut_list("pages"),
+        )
         return cast(answers.CrawlAnswer, answer)
 
     @tool("Extract several pages")
@@ -1019,6 +1049,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         records: bool = False,
         induce: bool = False,
         respect_tdm: bool = False,
+        visible: bool = True,
     ) -> answers.ManyAnswer:
         """Read several pages' declared data, politely, in the order given.
 
@@ -1031,19 +1062,24 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         about them; those fields say source "induced".
         respect_tdm: give a page whose site reserves its text and data mining
         rights (TDMRep) as a tdm_reserved error, never its data.
+        visible: also guess the title, author and dates each page shows a
+        reader, in its "visible", as extract_declared does; guesses, never
+        part of the summary. On by default; false leaves "visible" out.
 
         Returns {"ok", "pages", "stopped"}. Pages come in the order given,
         each {"ok", "url", "landed", "fetch", "canonical", "summary",
-        "sources", "types", "links"}, and "records" when asked -- or, when it
-        has nothing, {"ok": false, "error"} with the page's reason. A page
+        "sources", "types", "links", "visible"}, and "records" when asked --
+        or, when it has nothing, {"ok": false, "error"} with the page's
+        reason. A page
         asked again after a request that may succeed later says so in
         "retries". Each site is asked one request at a time, a second apart
         or its Crawl-delay, robots.txt obeyed; several sites at once. stopped
         is "done", or "time_budget" when a minute passed first and the pages
         after are left out. ok is false only when no page could be read, and
         error then says why. Past 75,000 bytes the heaviest pages' records go
-        first, then the heaviest summary answers, named in summary_left_out,
-        then the last pages, counted in pages_left_out. For many more
+        first, then the heaviest guesses, named in visible_left_out, then the
+        heaviest summary answers, named in summary_left_out, then the last
+        pages, counted in pages_left_out. For many more
         addresses, or a whole site, the command line's sluicer batch has no
         such bounds.
         """
@@ -1059,10 +1095,11 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
                 max_delay=CRAWL_MAX_DELAY_SECONDS,
                 time_budget=TIME_BUDGET_SECONDS,
                 allow_private=_allow_private(),
+                visible=visible,
             )
         except ValueError as bad:
             raise _BadInput(str(bad)) from bad
-        pages = [_crawled(page, records=records) for page in run]
+        pages = [_crawled(page, records=records, visible=visible) for page in run]
         for page in pages:
             page.pop("depth", None)
             page.pop("found_on", None)
@@ -1076,6 +1113,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         _bounded(
             answer,
             _cut_heaviest_lists("records", among="pages"),
+            _cut_largest("visible", among="pages"),
             _cut_largest("summary", among="pages"),
             _cut_list("pages"),
         )
@@ -1338,10 +1376,14 @@ def _within(name: str, value: int, least: int, most: int) -> None:
         raise _BadInput(f"{name} must be from {least} to {most}, not {value}")
 
 
-def _crawled(page: crawling.Page, records: bool = False) -> dict[str, Any]:
-    """A crawled page as an agent gets it: the summary, and the records only
-    when asked for."""
+def _crawled(
+    page: crawling.Page, records: bool = False, visible: bool = True
+) -> dict[str, Any]:
+    """A crawled page as an agent gets it: the summary, the guesses unless
+    told not to read them, and the records only when asked for."""
     line = page.to_json()
+    if not visible:
+        line.pop("visible", None)
     if not page.ok:
         error = {**line["error"], "url": page.url}
         kept = ("ok", "url", "depth", "retries", "landed", "fetch")

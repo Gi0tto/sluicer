@@ -41,7 +41,7 @@ import subprocess
 import sys
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +70,10 @@ class Table:
     tools: tuple[str, ...]
     python: str
     page: str
+    # A harness of its own per tool, where the table asks more than the
+    # tool's scoreboard harness does, and the environment each tool is given.
+    harnesses: dict[str, str] = field(default_factory=dict)
+    requirements: Callable[[str], list[str]] = board.requirements
 
 
 def _wcxb() -> Path:
@@ -82,6 +86,18 @@ def _news() -> Path:
     import news
 
     return news.ensure()
+
+
+def _tools() -> Path:
+    import tools_compare
+
+    return tools_compare.ensure_served()
+
+
+def _tools_environment(tool: str) -> list[str]:
+    import tools_compare
+
+    return tools_compare.environment(tool)
 
 
 def _extruct() -> Path:
@@ -110,6 +126,28 @@ TABLES = {
         board.TOOLS,
         board.PYTHON,
         "[news in many languages](scoreboard-news.md)",
+    ),
+    "tools": Table(
+        "WCXB's pages as served, every tool",
+        _tools,
+        (
+            "sluicer",
+            "trafilatura",
+            "newspaper4k",
+            "markitdown",
+            "scrapling",
+            "metascraper",
+        ),
+        board.PYTHON,
+        "[every tool on the same pages](scoreboard-tools.md)",
+        harnesses={
+            "sluicer": "compare_sluicer",
+            "trafilatura": "compare_trafilatura",
+            "newspaper4k": "compare_newspaper4k",
+            "markitdown": "compare_markitdown",
+            "scrapling": "compare_scrapling",
+        },
+        requirements=_tools_environment,
     ),
     "extruct": Table(
         "the pages extruct's interface is compared on",
@@ -357,9 +395,11 @@ def _run_one(table: Table, pages: Path) -> Callable[[str, int], dict[str, Any]]:
                 str(pages),
             ]
         else:
+            harness = [table.harnesses[tool]] if tool in table.harnesses else []
             command = [
                 "uv", "run", "--no-project", "--python", python,
-                *board.requirements(tool), "python", str(WORKER), tool, str(pages),
+                *table.requirements(tool), "python", str(WORKER), tool, str(pages),
+                *harness,
             ]  # fmt: skip
         found = subprocess.run(
             command,

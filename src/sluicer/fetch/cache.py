@@ -33,10 +33,9 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from sluicer.api import _extract as extract
 from sluicer.declared.headers import charset
-from sluicer.declared.merge import ABOUT_A_THING
-from sluicer.document import sniff_encoding
+from sluicer.declared.merge import declares_a_thing
+from sluicer.document import load_and_keep, sniff_encoding
 from sluicer.fetch.address import _resolve, shown
 from sluicer.fetch.gate import GATE, after, ungated
 from sluicer.fetch.http_rung import Response
@@ -393,12 +392,7 @@ def _challenge(fetched: Fetched) -> bool:
 
 def _found(fetched: Fetched) -> bool:
     """Whether the page declares something about a thing, as the ladder asks."""
-    records = extract(fetched.html, url=fetched.url).records
-    return any(
-        field.source in ABOUT_A_THING
-        for record in records
-        for field in record.fields.values()
-    )
+    return declares_a_thing(load_and_keep(fetched.html, url=fetched.url))
 
 
 def _html(fetched: Fetched) -> str:

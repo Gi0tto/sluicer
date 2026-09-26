@@ -31,6 +31,11 @@ OUT = JS / "python"
 # Pyodide ships none of them. protego, the robots.txt parser, joined the base
 # install with fetching over plain HTTP, and every start failed on it.
 FETCHING_ONLY = frozenset({"protego"})
+# Base requirements only markdown uses, which Pyodide ships none of either:
+# trafilatura joined the base install in 0.10, and in Pyodide it stays what the
+# `markdown` option installs from PyPI through micropip (index.js), since a
+# start that asked Pyodide's repository for it would fail.
+MARKDOWN_ONLY = frozenset({"trafilatura"})
 # A requirement for some Pythons only, "tomli; python_version < '3.11'", is
 # judged against the Python Pyodide runs, which its version names: 314.0.7 is
 # Python 3.14.
@@ -64,8 +69,7 @@ def main() -> int:
         wheel = OUT / built.name
         shutil.copyfile(built, wheel)
     requires, extras = _requirements(wheel, version, _pyodide_python())
-    fetching = [r for r in requires if _name(r) in FETCHING_ONLY]
-    requires = [r for r in requires if _name(r) not in FETCHING_ONLY]
+    requires, fetching = _loaded_at_start(requires, extras)
     (OUT / "wheel.json").write_text(
         json.dumps(
             {
@@ -133,6 +137,21 @@ def _requirements(
         else:
             requires.append(requirement.strip())
     return requires, extras
+
+
+def _loaded_at_start(
+    requires: list[str], extras: dict[str, list[str]]
+) -> tuple[list[str], list[str]]:
+    """The base requirements every start loads from Pyodide's repository, and
+    those only fetching uses. What only markdown uses is left to the
+    ``markdown`` extra, which must name it."""
+    markdown = {_name(r) for r in extras.get("markdown", [])}
+    for requirement in requires:
+        if _name(requirement) in MARKDOWN_ONLY and _name(requirement) not in markdown:
+            raise SystemExit(f"the markdown extra no longer names {requirement}")
+    fetching = [r for r in requires if _name(r) in FETCHING_ONLY]
+    left_out = FETCHING_ONLY | MARKDOWN_ONLY
+    return [r for r in requires if _name(r) not in left_out], fetching
 
 
 def _name(requirement: str) -> str:

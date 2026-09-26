@@ -33,10 +33,11 @@ dates written with 年, 月 and 日 (or 년, 월, 일) are read too.
 
 ## Can I get a guess from the visible page when nothing is declared?
 
-Yes, when you ask: `sluicer extract --visible`, `extract(..., visible=True)`
-or `extract_declared` with `visible` read the heading, the byline and the
-publication and update dates the page shows, by Sluicer's own rules and no
-model. Each answer is a guess naming its element and rule, in a field of its
+Yes, by default since 0.10: `sluicer extract`, `extract(...)` and
+`extract_declared` read the heading, the byline and the publication and update
+dates the page shows, by Sluicer's own rules and no model; `--no-visible`,
+`visible=False` or `"visible": false` read what the page declares alone, a
+few milliseconds a page faster. Each answer is a guess naming its element and rule, in a field of its
 own, `visible`, never in the summary, where it would look exactly like a
 declared one. An update date is never given as a publication date. The rules were made on WCXB's development pages alone, and there, with what is
 declared first and the guesses after it:
@@ -53,7 +54,7 @@ declared first and the guesses after it:
 
 On the pages it was not made on, each scoreboard's section "What `--visible`
 adds" scores it: it finds more authors and dates -- on WCXB 0.649 and 0.717
-of them against 0.532 and 0.581 -- and invents some, 33 answers on WCXB's 511
+of them against 0.537 and 0.581 -- and invents some, 33 answers on WCXB's 511
 pages, so its dates are right less often when it answers (0.823 against
 0.917).
 

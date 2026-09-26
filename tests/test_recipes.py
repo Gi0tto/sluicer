@@ -115,13 +115,66 @@ def test_the_formula_installs_every_base_dependency_at_or_above_its_floor():
             assert marker == 'python_version < "3.11"', f"a marker to judge: {marker}"
             continue
         wanted[name] = floor
-    assert set(resources) == set(wanted)
+    assert set(wanted) <= set(resources)
     for name, floor in wanted.items():
         resource = resources[name]
         assert _parts(resource.version) >= _parts(floor), name
-        assert resource.url.startswith("https://files.pythonhosted.org/packages/")
         assert resource.url.endswith(f"/{name}-{resource.version}.tar.gz")
-        assert re.fullmatch(r"[0-9a-f]{64}", resource.sha256)
+    for resource in resources.values():
+        assert resource.url.startswith("https://files.pythonhosted.org/packages/")
+        assert re.fullmatch(r"[0-9a-f]{64}", resource.sha256), resource.name
+
+
+def test_the_formula_installs_the_whole_tree_under_the_base_install():
+    """A formula installs its resources with no index to fall back on, so
+    every package the base install needs on macOS and Linux is one of them,
+    each at a version its dependents accept, and nothing else is. Since 0.10
+    that is trafilatura's tree. Read from the metadata of the packages this
+    suite runs with, which is the tree pip would install."""
+    from importlib import metadata
+
+    from packaging.markers import default_environment
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
+
+    environment = default_environment() | {
+        "python_version": "3.14",
+        "python_full_version": "3.14.0",
+        "sys_platform": "darwin",
+        "platform_system": "Darwin",
+        "os_name": "posix",
+        "extra": "",
+    }
+    resources = {
+        canonicalize_name(resource.name): resource for resource in recipes.RESOURCES
+    }
+    tree: set[str] = set()
+    seen: set[tuple[str, str]] = set()
+    # A requirement's own extras count: justext asks for lxml[html_clean].
+    waiting = [("sluicer", "")]
+    while waiting:
+        name, extra = waiting.pop()
+        if (name, extra) in seen:
+            continue
+        seen.add((name, extra))
+        for line in metadata.requires(name) or []:
+            wanted = Requirement(line)
+            marker = wanted.marker
+            if marker is not None and not marker.evaluate(
+                environment | {"extra": extra}
+            ):
+                continue
+            if marker is None and extra:
+                continue
+            key = canonicalize_name(wanted.name)
+            assert key in resources, f"the formula does not install {key}"
+            version = resources[key].version
+            assert wanted.specifier.contains(version, prereleases=True), (
+                f"{name} wants {wanted}, the formula installs {version}"
+            )
+            tree.add(key)
+            waiting += [(wanted.name, ""), *((wanted.name, e) for e in wanted.extras)]
+    assert set(resources) == tree
 
 
 def test_the_recipe_runs_on_pyproject_s_floors():

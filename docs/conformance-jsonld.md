@@ -9,7 +9,7 @@ interface and extruct itself read every page; each answer, as the reader
 gives it, is processed by PyLD, a JSON-LD processor, with the test's
 options, and compared with the suite's expected result by the suite's
 own rules.
-Regenerated on 2026-09-26 from commit `8a426a2` by
+Regenerated on 2026-09-26 from commit `5e97f6b` by
 `uv run bench/w3c_jsonld.py`, against the suite at `ffdb326121ea`; the
 rules are in [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md).
 
@@ -34,16 +34,16 @@ scores a processor as the suite does: it passes 49 of
 | reads the page | all | expand (21) | compact (4) | flatten (5) | toRdf (20) | negative tests |
 |---|---|---|---|---|---|---|
 | PyLD 3.3.0 | 0.980 (0.89–1.00) | 21/21 | 4/4 | 4/5 | 20/20 | 15/15 |
-| Sluicer's JSON-LD reader 0.9.1 | 0.480 (0.34–0.62) | 11/21 | 1/4 | 2/5 | 10/20 | 7/15 |
-| sluicer.compat.extruct 0.9.1 | 0.660 (0.52–0.78) | 15/21 | 2/4 | 2/5 | 14/20 | 13/15 |
+| Sluicer's JSON-LD reader 0.10.0 | 0.480 (0.34–0.62) | 11/21 | 1/4 | 2/5 | 10/20 | 7/15 |
+| sluicer.compat.extruct 0.10.0 | 0.660 (0.52–0.78) | 15/21 | 2/4 | 2/5 | 14/20 | 13/15 |
 | extruct 0.18.0 | 0.660 (0.52–0.78) | 15/21 | 2/4 | 2/5 | 14/20 | 13/15 |
 
 21 of the tests ask for what no reader's answer can give: a script named by its fragment, the first of several scripts alone, or the base a page's `<base href>` sets. On the other 29, which a reader passes or fails by what it answers, Sluicer's JSON-LD reader 0.690 (0.50–0.83), sluicer.compat.extruct 1.000 (0.88–1.00) and extruct 1.000 (0.88–1.00).
 
 | first | against | difference in tests passed (95% interval) | verdict |
 |---|---|---|---|
-| Sluicer's JSON-LD reader 0.9.1 | extruct 0.18.0 | -0.180 (-0.300 to -0.079) | worse |
-| Sluicer's JSON-LD reader 0.9.1 | sluicer.compat.extruct 0.9.1 | -0.180 (-0.300 to -0.079) | worse |
+| Sluicer's JSON-LD reader 0.10.0 | extruct 0.18.0 | -0.180 (-0.300 to -0.079) | worse |
+| Sluicer's JSON-LD reader 0.10.0 | sluicer.compat.extruct 0.10.0 | -0.180 (-0.300 to -0.079) | worse |
 
 The difference is the first side's rate minus the second's, over the
 same pages. Its interval is the 95% percentile interval of 10,000

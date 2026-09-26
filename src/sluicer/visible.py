@@ -1,6 +1,7 @@
 """What a page shows a reader and does not declare: a byline, a date, a heading.
 
-``read_visible`` is the opt-in ``--visible`` reading. Every answer is a guess,
+``read_visible`` is the ``--visible`` reading, on by default since 0.10 and
+off with ``--no-visible`` or ``visible=False``. Every answer is a guess,
 kept apart from the summary, which only ever holds what a page declares, and
 each names the element it was read from and the rule that read it. The rules
 are deterministic: no clock is read, so the same page gives the same guesses,
@@ -92,6 +93,22 @@ _ROLES = frozenset(
         "editor writer reporter correspondent contributor columnist"
     ).split()
 )
+# Words that say what follows a name's comma is somebody's role, "Sean Peek,
+# Senior Analyst": the name ends at that comma.
+_ROLE_WORDS = frozenset(
+    (  # noqa: SIM905 -- read as a line of words
+        "founder co-founder cofounder ceo cto coo cfo cmo cpo president chair "
+        "chairman chairwoman director head lead manager editor writer reporter "
+        "correspondent contributor columnist journalist author engineer "
+        "researcher scientist analyst partner professor lecturer fellow "
+        "designer developer consultant advisor adviser specialist expert "
+        "officer chief senior principal vp owner producer strategist attorney "
+        "lawyer dietitian physician nurse therapist coach educator teacher "
+        "student intern executive"
+    ).split()
+)
+# The most words a role after a name's comma may hold.
+_ROLE_MOST_WORDS = 6
 # A date a page says it was changed on, not published on: its label, in the
 # text just before it, or its element's name.
 _UPDATED = re.compile(
@@ -108,6 +125,11 @@ _UPDATED_WORD = re.compile(
 )
 # Boxes that hold the whole page, not a header.
 _PAGE_BOXES = frozenset({"html", "body", "main"})
+# The boxes that hold the whole page or all of an article: none of them is a
+# byline, whatever its classes say.
+_NO_BYLINE_BOX = frozenset({"html", "body", "main", "article"})
+# A class that says there is no byline: "no-byline", "hide-author".
+_NO_BYLINE = re.compile(r"\b(?:no|hide|hidden)-\S*")
 # The most different dates a page may show before it is taken for a listing,
 # whose dates are its cards' and are read only next to its heading.
 _MOST_DATES = 3
@@ -211,11 +233,24 @@ class _Page:
 
     @cached_property
     def named(self) -> list[tuple[HtmlElement, str]]:
-        return [
-            (e, f"{e.get('class') or ''} {e.get('id') or ''}".lower())
-            for e in self.tree.xpath("//*[@class or @id]")
-            if e.tag not in _AWAY
-        ]
+        """The elements with a class or an id, in document order, with their
+        names lowercased. Tested in Python on each element: asked as
+        ``//*[@class or @id]``, libxml2 took the square of their number,
+        31 s for a 10 MB page of 60,000 rows."""
+        found = []
+        for e in self.tree.iter():
+            if not isinstance(e.tag, str) or e.tag in _AWAY:
+                continue
+            classes, key = e.get("class"), e.get("id")
+            if classes is not None or key is not None:
+                found.append((e, f"{classes or ''} {key or ''}".lower()))
+        return found
+
+    @cached_property
+    def named_bylines(self) -> list[tuple[HtmlElement, str]]:
+        """The elements a class or an id names as a byline's, with their
+        names, found once for the author and for the date in a byline's line."""
+        return [(e, names) for e, names in self.named if _BYLINE.search(names)]
 
     @cached_property
     def named_dates(self) -> list[HtmlElement]:
@@ -229,10 +264,13 @@ class _Page:
         # The XPath predicate string-length(normalize-space()) > 1 cost libxml2
         # the square of a page's tail texts: 16,000 took 2.2 s, a 3.6 MB page
         # held a server's workers past their budget. The same test, in Python.
+        # Collapsed, a text is longer than one character exactly when it is
+        # once its ends are stripped of the same four characters: read so,
+        # since collapsing every text node of a page cost a third of --visible.
         return [
             text
             for text in self.tree.xpath("//text()")
-            if len(_XML_SPACES.sub(" ", text).strip(" ")) > 1
+            if len(text.strip(_XML_SPACE_CHARACTERS)) > 1
         ]
 
     @cached_property
@@ -281,7 +319,7 @@ class _Page:
 
 # What XPath's normalize-space() collapses: XML's four white-space characters,
 # not a no-break space.
-_XML_SPACES = re.compile(r"[ \t\n\r]+")
+_XML_SPACE_CHARACTERS = " \t\n\r"
 
 
 def _text(element: HtmlElement) -> str:
@@ -319,6 +357,12 @@ def _name(text: str) -> str | None:
     if by:
         text = by.group(1)
     text = re.split(r"\s*[|•·⋅]\s*|\s+-\s+|,\s*(?=\d)|\s+on\s+", text)[0].strip(" ,;:")
+    # "Jane Doe, Senior Writer": the name ends at a comma a role follows.
+    # Not at one a credential, a place or another name follows ("Ann Lee,
+    # Ph.D.", "Bo Li, Zürich", "Ann Lee, Bo Li"), each kept as before.
+    name, comma, after = text.partition(",")
+    if comma and _a_role(after):
+        text = name.strip()
     if (
         not text
         or _NOT_A_NAME.search(text)
@@ -343,6 +387,14 @@ def _name(text: str) -> str | None:
     return text
 
 
+def _a_role(part: str) -> bool:
+    """Whether ``part``, what follows a name's comma, is somebody's role."""
+    words = [word.strip(".'\u2019&").lower() for word in part.split()]
+    return 1 <= len(words) <= _ROLE_MOST_WORDS and bool(
+        _ROLE_WORDS.intersection(words) or _LABEL_WORDS.intersection(words)
+    )
+
+
 def _first_name(element: HtmlElement) -> str | None:
     """The first of an element's pieces of text that is a name: pieces, since
     text_content runs "Preetam Jinka" and "Co-founder" into one word, and a
@@ -362,7 +414,9 @@ def _first_name(element: HtmlElement) -> str | None:
 def _author(page: _Page) -> Guess | None:
     """A byline: a link marked rel=author, then an element named as a byline,
     then a "By X" line; a card a selector matches more than three times of is
-    testimonials or comments, and is passed over."""
+    testimonials or comments, and is passed over. A line with no such mark,
+    "Name, role" under the heading, is not read: nothing in it tells a
+    byline from a deck, a team's list or a job's department."""
     marked = [
         e
         for e in page.tree.xpath(
@@ -373,7 +427,11 @@ def _author(page: _Page) -> Guess | None:
     if 0 < len(marked) <= _MOST_BYLINES and (name := _first_name(marked[0])):
         return Guess(name, _where(marked[0]), "rel-author")
     named = [
-        e for e, names in page.named if _BYLINE.search(names) and not page.aside(e)
+        e
+        for e, names in page.named_bylines
+        if _BYLINE.search(_NO_BYLINE.sub("", names))
+        and e.tag not in _NO_BYLINE_BOX
+        and not page.aside(e)
     ]
     # The innermost of nested byline boxes, since the outer ones hold dates too.
     boxes = set(named)
@@ -389,17 +447,26 @@ def _author(page: _Page) -> Guess | None:
     # every container's whole text to find the short ones costs the most. A
     # page with more than three of them, each naming somebody else, is a
     # listing of other pages' cards.
-    lines: list[Guess] = []
+    # The names are counted as they come, and only the first line's place is
+    # written: counting them all again for each line, and writing each one's
+    # place, cost the square of their number, 2 s for 16,000 "By" lines.
+    first: tuple[str, HtmlElement] | None = None
+    names: set[str] = set()
     for opening in page.texts:
         if not _OPENS_BY.match(opening):
             continue
         element = _box_of(opening)
+        if element is None or _in_a_card(page, element):
+            continue
         found = _by_line(page, opening, element)
         if found is not None:
-            lines.append(found)
-            if len({line.value for line in lines}) > _MOST_BYLINES:
+            first = first or found
+            names.add(found[0])
+            if len(names) > _MOST_BYLINES:
                 return None
-    return lines[0] if lines else None
+    if first is not None:
+        return Guess(first[0], _where(first[1]), "by-line")
+    return None
 
 
 # Somebody a line names who is not the author: "Medically reviewed by".
@@ -410,9 +477,12 @@ _NOT_THE_AUTHOR = re.compile(
 )
 
 
-def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | None:
-    """The author a "By X" line starting with ``opening`` names, climbing
-    from its element to the short box that holds the whole line."""
+def _by_line(
+    page: _Page, opening: str, element: HtmlElement | None
+) -> tuple[str, HtmlElement] | None:
+    """The author a "By X" line starting with ``opening`` names, and the
+    element it is read from, climbing from its element to the short box that
+    holds the whole line."""
     for _ in range(5):
         if element is None or not isinstance(element.tag, str):
             return None
@@ -426,12 +496,32 @@ def _by_line(page: _Page, opening: str, element: HtmlElement | None) -> Guess | 
             if _NOT_THE_AUTHOR.search(before):
                 return None
             if _BY.match(text) and (name := _name(text)):
-                return Guess(name, _where(element), "by-line")
+                return name, element
             # "Written by" and the name in two texts, glued by text_content.
             if _LABEL_ONLY.match(opening) and (name := _name_after(element, opening)):
-                return Guess(name, _where(element), "by-line")
+                return name, element
         element = element.getparent()
     return None
+
+
+# The most text a link round a byline may hold beyond it and still be the
+# author's own link, not another article's card.
+_CARD_MOST = 40
+
+
+def _in_a_card(page: _Page, element: HtmlElement) -> bool:
+    """Whether ``element`` sits in a link to another page that holds more than
+    a byline: another article's card, its title and "By Noah Cortez"."""
+    if not page.linked(element):
+        return False
+    link = (
+        element
+        if element.tag == "a" and element.get("href")
+        else next((a for a in element.iterancestors("a") if a.get("href")), None)
+    )
+    if link is None:
+        return False
+    return page.short(link, len(page.text(element)) + _CARD_MOST) is None
 
 
 def _box_of(text: Any) -> HtmlElement | None:
@@ -488,7 +578,7 @@ def _date_in_a_line(page: _Page, updates: bool) -> Guess | None:
     an update's is ``modified``'s, and read only when ``updates``."""
     lines: list[HtmlElement] = []
     if not page.listing:
-        lines += [e for e, names in page.named if _BYLINE.search(names) and _small(e)]
+        lines += [e for e, _names in page.named_bylines if _small(e)]
         lines += page.named_dates
     lines += [e for e in page.near if _small(e)]
     seen: set[HtmlElement] = set()

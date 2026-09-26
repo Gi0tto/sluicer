@@ -789,7 +789,7 @@ def test_without_the_extra_building_the_app_says_how_to_install_it(absent):
     with pytest.raises(http_api.ApiExtraMissing) as raised:
         http_api.build_app()
 
-    assert 'uv pip install "sluicer[api]"' in str(raised.value)
+    assert 'Install it with: pip install "sluicer[api]"' in str(raised.value)
     assert raised.value.extra == "api"
 
 
@@ -1112,7 +1112,7 @@ def test_the_command_without_the_extra_is_a_message_not_a_traceback(
     result = CliRunner().invoke(cli.main, ["serve"])
 
     assert result.exit_code == 2
-    assert 'uv pip install "sluicer[api]"' in result.stderr
+    assert 'Install it with: pip install "sluicer[api]"' in result.stderr
 
 
 def test_the_page_s_example_answer_is_what_the_call_answers(client, monkeypatch):

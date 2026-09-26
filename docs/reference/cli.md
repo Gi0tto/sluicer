@@ -44,6 +44,10 @@ Extractors:
 Servers:
   mcp       Run the MCP server over stdio (needs sluicer[mcp]), as sluicer-mcp does.
   serve     Serve the MCP server's tools over HTTP (needs sluicer[api]).
+
+Setup:
+  install   Download the Chromium the browser extra drives, once.
+  doctor    Say what is installed, what each missing piece is for, and how to add it.
 ```
 
 ## `sluicer audit`
@@ -122,6 +126,8 @@ Options:
                               at a time.  [default: 4; 1<=x<=32]
   --induce / --no-induce      Also read the rows a page repeats when it declares nothing
                               about them.
+  --visible / --no-visible    Also guess the title, byline and dates each page shows, in
+                              "visible", never in the summary.  [default: visible]
   --respect [tdm]             Give a page whose rights are reserved as an error, not its
                               data: tdm reads TDMRep's tdmrep.json, headers and meta
                               tags.
@@ -221,6 +227,8 @@ Options:
                                 at a time.  [default: 4; 1<=x<=32]
   --induce / --no-induce        Also read the rows a page repeats when it declares
                                 nothing about them.
+  --visible / --no-visible      Also guess the title, byline and dates each page shows,
+                                in "visible", never in the summary.  [default: visible]
   --respect [tdm]               Give a page whose rights are reserved as an error, not
                                 its data: tdm reads TDMRep's tdmrep.json, headers and
                                 meta tags.
@@ -275,6 +283,26 @@ Options:
   --help                      Show this message and exit.
 ```
 
+## `sluicer doctor`
+
+```text
+Usage: sluicer doctor [OPTIONS]
+
+  Say what is installed, what each missing piece is for, and how to add it.
+
+  One line for the base install and one for each extra: ok, missing, or off, with what
+  it is for and, when it is not there, the one command that adds it for the way sluicer
+  was installed (pip, uv tool, pipx, uvx or a uv project). The browser is ok only when
+  Playwright's Chromium is downloaded too, and invalid when SLUICER_BROWSER names a
+  browser Sluicer does not drive, which every fetch refuses. Exits 0 when everything a
+  plain install gives works, a missing extra included, and 2 when protego or trafilatura
+  is missing or SLUICER_BROWSER is invalid. Without lxml, click or cssselect no command
+  starts, this one included.
+
+Options:
+  --help  Show this message and exit.
+```
+
 ## `sluicer extract`
 
 ```text
@@ -288,7 +316,8 @@ Options:
   --microformats / --no-microformats
                                   Also read microformats2 (needs sluicer[microformats]).
   --visible / --no-visible        Also guess the title, byline and dates the page shows,
-                                  not in the summary.
+                                  in "visible", never in the summary. --no-visible reads
+                                  what the page declares alone.  [default: visible]
   --proxy URL                     Fetch through this proxy (http://host:port,
                                   socks5h://host:port); the environment's HTTPS_PROXY is
                                   never used. Same as SLUICER_PROXY.
@@ -434,7 +463,8 @@ Options:
   --microformats / --no-microformats
                                   Also read microformats2 (needs sluicer[microformats]).
   --visible / --no-visible        Also guess the title, byline and dates the page shows,
-                                  not in the summary.
+                                  in "visible", never in the summary. --no-visible reads
+                                  what the page declares alone.  [default: visible]
   --proxy URL                     Fetch through this proxy (http://host:port,
                                   socks5h://host:port); the environment's HTTPS_PROXY is
                                   never used. Same as SLUICER_PROXY.
@@ -459,6 +489,25 @@ Options:
                                   to DATE (2025, 2025-06, 2025-06-01), not from its
                                   site.
   --help                          Show this message and exit.
+```
+
+## `sluicer install`
+
+```text
+Usage: sluicer install [OPTIONS] browser
+
+  Download the Chromium the browser extra drives, once.
+
+  Runs Playwright's own "playwright install chromium" with the Python this sluicer runs
+  on, and then asks Playwright whether every part of Chromium is there. Run again, it
+  downloads nothing that is already there. Without the browser extra, prints the command
+  that adds it for the way sluicer was installed (pip, uv tool, pipx or uvx) and exits
+  2. Exits 2 as well when the download fails.
+
+Options:
+  --with-deps  Also install the system libraries Chromium needs, on Linux; Playwright
+               may ask for sudo.
+  --help       Show this message and exit.
 ```
 
 ## `sluicer map`
@@ -497,10 +546,15 @@ Usage: sluicer markdown [OPTIONS] SOURCE
 
   Print the main content of a URL, a file or stdin as markdown.
 
+  The main content is trafilatura's extraction; --full prints the whole page instead,
+  menus and footers included.
+
 Options:
   --front-matter / --no-front-matter
                                   Open with a YAML block of what the page declares, and
-                                  where from.
+                                  where the text and each answer came from.
+  --full                          The whole page, menus and footers included, not its
+                                  main content.
   --proxy URL                     Fetch through this proxy (http://host:port,
                                   socks5h://host:port); the environment's HTTPS_PROXY is
                                   never used. Same as SLUICER_PROXY.
@@ -646,5 +700,8 @@ Options:
                                   nothing about them.
   --microformats / --no-microformats
                                   Also read microformats2 (needs sluicer[microformats]).
+  --visible / --no-visible        Also guess the title, byline and dates each page
+                                  shows, in "visible", never in the summary.  [default:
+                                  visible]
   --help                          Show this message and exit.
 ```

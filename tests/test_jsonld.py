@@ -100,6 +100,28 @@ def test_a_block_with_javascript_comments_is_still_read():
     ]
 
 
+def test_a_block_that_is_json_as_written_is_never_mended(monkeypatch):
+    """The cleaned spellings are made only once the text as written fails:
+    made for every block, the mending cost sixteen times the parse."""
+    from sluicer.declared import jsonld
+
+    made: list[str] = []
+
+    def mended(text: str) -> str:
+        made.append(text)
+        return text
+
+    monkeypatch.setattr(jsonld, "_mended", mended)
+    assert _parse('{"@type": "Product", "name": "Pad"}') == {
+        "@type": "Product",
+        "name": "Pad",
+    }
+    assert _parse('<!-- {"@type": "Product"} -->') == {"@type": "Product"}
+    assert made == []
+    assert _parse('{"@type": "Product",}') is None  # the stub mends nothing
+    assert made == ['{"@type": "Product",}']
+
+
 def test_a_comment_left_open_ends_the_block_and_never_the_reading():
     assert _one('{"@type": "Product", "name": "Pad"} /* left open') == [
         {"@type": "Product", "name": "Pad"}

@@ -45,9 +45,13 @@ def test_a_page_that_gives_nothing_says_what_to_try_next(tmp_path):
     page = tmp_path / "bare.html"
     page.write_text("<html><body><p>Words.</p></body></html>", encoding="utf-8")
 
+    # --visible is on by default since 0.10: tried, so not offered.
     said = CliRunner().invoke(main, ["extract", str(page)]).stderr
-    assert "--induce" in said and "--visible" in said
+    assert "--induce" in said and "--visible" not in said
     assert f"sluicer compile {page} --want" in said
+
+    declared = CliRunner().invoke(main, ["extract", "--no-visible", str(page)])
+    assert declared.exit_code == 1 and "--visible" in declared.stderr
 
     tried = CliRunner().invoke(main, ["extract", "--induce", "--visible", str(page)])
     assert tried.exit_code == 1
@@ -162,7 +166,7 @@ def test_a_url_whose_rung_needs_a_missing_extra_explains_itself(monkeypatch):
     def fake_fetch(url, rungs=None, **kwargs):
         raise FetchExtraMissing(
             "The stealth rung needs scrapling, which is not installed. "
-            'Install it with: uv pip install "sluicer[stealth]"'
+            'Install it with: pip install "sluicer[stealth]"'
         )
 
     monkeypatch.setattr("sluicer.cli.source.fetch_url", fake_fetch)
@@ -170,7 +174,7 @@ def test_a_url_whose_rung_needs_a_missing_extra_explains_itself(monkeypatch):
     result = CliRunner().invoke(main, ["extract", "https://example.com/p", "--stealth"])
 
     assert result.exit_code == 2
-    assert 'uv pip install "sluicer[stealth]"' in result.stderr
+    assert 'pip install "sluicer[stealth]"' in result.stderr
     assert isinstance(result.exception, SystemExit)
 
 
@@ -328,7 +332,7 @@ def test_markdown_without_the_extra_explains_itself(monkeypatch, tmp_path):
     def refuse(html, url=None):
         raise MarkdownExtraMissing(
             "Turning a page into markdown needs trafilatura, which is not installed. "
-            'Install it with: uv pip install "sluicer[markdown]"'
+            'Install it with: pip install "sluicer[markdown]"'
         )
 
     monkeypatch.setattr("sluicer.cli.page.to_markdown", refuse)
@@ -453,7 +457,7 @@ def test_a_missing_protego_at_the_command_line_is_a_broken_install(monkeypatch, 
     result = CliRunner().invoke(main, ["extract", "https://example.com/p"])
 
     assert type(result.exception) is ModuleNotFoundError
-    assert "uv pip install" not in result.stderr
+    assert "pip install" not in result.stderr
 
 
 def test_standard_input_is_a_source():
@@ -1100,6 +1104,7 @@ def test_the_help_groups_the_commands_by_what_they_are_for():
         "Whole sites": ["map", "crawl", "batch", "feed", "warc"],
         "Extractors": ["compile", "run", "heal"],
         "Servers": ["mcp", "serve"],
+        "Setup": ["install", "doctor"],
     }
     starts = [said.index(f"{title}:\n") for title in sections]
     assert starts == sorted(starts) and "Commands:" not in said

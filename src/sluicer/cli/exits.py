@@ -1,8 +1,9 @@
 """The exit codes every command keeps, and the one way out for input it cannot read.
 
 Exit codes follow grep: 0 when something was found -- a record, or at least one
-summary answer, a ``<title>`` alone included, or with ``--visible`` a guess --
-1 when the page was read and gives nothing at all, 2 when it could not be
+summary answer, a ``<title>`` alone included, or a guess ``--visible`` read, on
+unless ``--no-visible`` -- 1 when the page was read and gives nothing at all,
+2 when it could not be
 read. A script can tell "this page gives nothing" from "the fetch failed"
 without parsing English. A page the site answered with a status outside
 2xx is one a command could not read: its answer is the site's error, not the

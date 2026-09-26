@@ -194,6 +194,13 @@ _many_options = [
         help="Also read the rows a page repeats when it declares nothing about them.",
     ),
     click.option(
+        "--visible/--no-visible",
+        default=True,
+        show_default=True,
+        help="Also guess the title, byline and dates each page shows, in "
+        '"visible", never in the summary.',
+    ),
+    click.option(
         "--respect",
         type=click.Choice(["tdm"]),
         multiple=True,
@@ -263,6 +270,7 @@ def crawl_command(
     retries: int,
     jobs: int,
     induce: bool,
+    visible: bool,
     respect: tuple[str, ...],
 ) -> None:
     """Crawl a site from URL, politely, one JSON line per page.
@@ -277,7 +285,9 @@ def crawl_command(
     _browser_named()
     table = output_format == "csv"
     if template is not None:
-        _refuse_unused(template, include=include, induce=induce, respect=respect)
+        _refuse_unused(
+            template, include=include, induce=induce, visible=visible, respect=respect
+        )
     _check_out(out, resume, table)
     state = None if table else out
     total: int | None = max_pages
@@ -302,6 +312,7 @@ def crawl_command(
                 exclude=exclude,
                 state=state,
                 induce=induce,
+                visible=visible,
                 respect_tdm="tdm" in respect,
                 min_delay=delay,
                 retries=retries,
@@ -318,6 +329,7 @@ def crawl_command(
                 exclude=exclude,
                 state=state,
                 induce=induce,
+                visible=visible,
                 respect_tdm="tdm" in respect,
                 min_delay=delay,
                 retries=retries,
@@ -351,6 +363,7 @@ def _refuse_unused(template: str, **given: tuple[str, ...] | bool) -> None:
             "include": "--include",
             "exclude": "--exclude",
             "induce": "--induce",
+            "visible": "--visible/--no-visible",
             "respect": "--respect",
         }
     for name, option in unused.items():
@@ -427,7 +440,16 @@ def feed_command(
     is_flag=True,
     help="Also read microformats2 (needs sluicer[microformats]).",
 )
-def warc_command(files: tuple[str, ...], induce: bool, microformats: bool) -> None:
+@click.option(
+    "--visible/--no-visible",
+    default=True,
+    show_default=True,
+    help="Also guess the title, byline and dates each page shows, in "
+    '"visible", never in the summary.',
+)
+def warc_command(
+    files: tuple[str, ...], induce: bool, microformats: bool, visible: bool
+) -> None:
     """Read every page the WARC FILES hold, one JSON line per page.
 
     Plain or gzipped, as web archives and Common Crawl write them; - reads
@@ -444,10 +466,16 @@ def warc_command(files: tuple[str, ...], induce: bool, microformats: bool) -> No
         count = 0
         try:
             for page, extraction in extract_warc(
-                name, induce=induce, microformats=microformats, skipped=skipped
+                name,
+                induce=induce,
+                microformats=microformats,
+                visible=visible,
+                skipped=skipped,
             ):
                 count += 1
                 payload = asdict(extraction)
+                if not visible:
+                    del payload["visible"]
                 record = {
                     "file": "-" if name == "-" else name,
                     "record_id": page.record_id,
@@ -490,6 +518,7 @@ def batch_command(
     retries: int,
     jobs: int,
     induce: bool,
+    visible: bool,
     respect: tuple[str, ...],
 ) -> None:
     """Read every address in URLS_FILE, politely, one JSON line per page.
@@ -524,6 +553,7 @@ def batch_command(
             listed,
             state=None if table else out,
             induce=induce,
+            visible=visible,
             respect_tdm="tdm" in respect,
             min_delay=delay,
             retries=retries,

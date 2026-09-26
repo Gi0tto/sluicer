@@ -9,6 +9,7 @@ of its group and added to ``main`` at the end of this one:
 - ``sites``: map, crawl, batch, feed and warc
 - ``extractors``: compile, run and heal
 - ``servers``: serve and mcp
+- ``install``: install and doctor
 
 What they share is beside them: ``exits`` the exit codes every command keeps,
 ``options`` the options of the commands that fetch, ``source`` reading a URL,
@@ -33,6 +34,7 @@ from sluicer.cli.exits import (
 )
 from sluicer.cli.extractors import compile_command, heal_command, run_command
 from sluicer.cli.fetch import fetch_command
+from sluicer.cli.install import doctor_command, install_command
 from sluicer.cli.page import diff_command, extract, inspect, markdown, select_command
 from sluicer.cli.servers import mcp_command, serve
 from sluicer.cli.sites import (
@@ -55,11 +57,13 @@ __all__ = [
     "compile_command",
     "crawl_command",
     "diff_command",
+    "doctor_command",
     "extract",
     "feed_command",
     "fetch_command",
     "heal_command",
     "inspect",
+    "install_command",
     "main",
     "map_command",
     "markdown",
@@ -83,6 +87,7 @@ SECTIONS: dict[str, tuple[str, ...]] = {
     "Whole sites": ("map", "crawl", "batch", "feed", "warc"),
     "Extractors": ("compile", "run", "heal"),
     "Servers": ("mcp", "serve"),
+    "Setup": ("install", "doctor"),
 }
 """The sections ``sluicer --help`` lists the commands in, each in this order."""
 
@@ -197,6 +202,8 @@ for _command in (
     feed_command,
     warc_command,
     batch_command,
+    install_command,
+    doctor_command,
 ):
     main.add_command(_command)
 del _command

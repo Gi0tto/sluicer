@@ -36,7 +36,7 @@ from lxml.html import HtmlElement
 
 from sluicer.declared.located import Located, Place, placed
 from sluicer.declared.types import type_name
-from sluicer.document import Document, absolute, trimmed
+from sluicer.document import Document, absolute, carrying, trimmed
 
 # The address attributes RDFa reads a value from when an element carries no
 # `content` and no `resource`. `href` on the elements HTML gives it, `src` on
@@ -91,7 +91,7 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     left = [max(_PAGE_FLOOR, 10 * len(doc.html))]
     scopes = _Scopes()
     found: list[dict[str, Any]] = []
-    for subject in doc.tree.xpath("//*[@typeof]"):
+    for subject in carrying(doc.tree, "//@typeof"):
         if not left[0]:
             # The page's budget is spent: reading more subjects, each
             # walking its words, would cost what no answer can hold.
@@ -366,3 +366,124 @@ class _Scopes:
                 scope = _Scope(node, scope)
             self.found[node] = scope
         return self.found[element]
+
+
+# The most document-level properties one page's reading looks at: a page's
+# own date and author are in its first few, and a hostile page writes
+# thousands.
+_MOST_DOCUMENT_PROPERTIES = 200
+
+
+# Attributes that make an element's subject another than the document's: on
+# the element itself, or on a box round it.
+_A_SUBJECT = ("typeof", "about", "resource")
+# Round a property, a link's address is a subject too: a related article's
+# card, <a href="/other"><span property="dc:date">, is about that article
+# (RDFa 1.0's rule, and RDFa 1.1's with a rel beside the href).
+_AN_ADDRESS_ROUND = (*_A_SUBJECT, "href", "src")
+# The boxes of other voices and of the site's chrome: a quotation, an aside,
+# a footer, a menu. A property in one is not the page's own.
+_NOT_THE_PAGE_S = frozenset({"blockquote", "aside", "footer", "nav"})
+
+
+class _Subjects:
+    """Whether a box round an element starts another subject than the
+    document or holds other voices' words, each box asked once: asked of
+    every property's ancestors, a page of thousands of properties deep in
+    one box would read that box's chain for each."""
+
+    def __init__(self) -> None:
+        self.found: dict[HtmlElement, bool] = {}
+
+    def within(self, element: HtmlElement) -> bool:
+        """Whether ``element`` or a box round it is a subject of its own
+        (``_AN_ADDRESS_ROUND``) or another voice's box."""
+        chain: list[HtmlElement] = []
+        node: HtmlElement | None = element
+        found = False
+        while node is not None:
+            if node in self.found:
+                found = self.found[node]
+                break
+            chain.append(node)
+            if _another_box(node):
+                found = True
+                break
+            node = node.getparent()
+        for seen in chain:
+            self.found[seen] = found
+        return found
+
+    def another_subject(self, element: HtmlElement) -> bool:
+        """Whether a subject other than the document is in force at
+        ``element``, or it sits in another voice's box: a ``typeof``,
+        ``about`` or ``resource`` on it; one of them, an ``href`` or a
+        ``src`` on a box round it; or a comment, a quotation, an aside, a
+        footer or a menu round it. Its own ``href`` is its value."""
+        if any(element.get(name) is not None for name in _A_SUBJECT):
+            return True
+        if _other_voices(element):
+            return True
+        parent = element.getparent()
+        return parent is not None and self.within(parent)
+
+
+def _another_box(node: HtmlElement) -> bool:
+    return any(
+        node.get(name) is not None for name in _AN_ADDRESS_ROUND
+    ) or _other_voices(node)
+
+
+def _other_voices(node: HtmlElement) -> bool:
+    if node.tag in _NOT_THE_PAGE_S:
+        return True
+    if node.tag in ("html", "head", "body"):
+        # The page's own classes, "comments-open", say nothing of a box.
+        return False
+    named = f"{node.get('class') or ''} {node.get('id') or ''}".lower()
+    return "comment" in named
+
+
+def document_properties(
+    doc: Document,
+) -> list[tuple[str, str, str, HtmlElement]]:
+    """The RDFa properties whose subject is the document itself, as
+    ``(iri, term, value, element)`` in page order, ``term`` as written: those
+    on an element with no ``typeof``, ``about`` or ``resource`` of its own or
+    around it, so no other subject is in force. Each term is resolved as
+    ``read_rdfa`` resolves it, through the page's ``vocab`` and ``prefix`` and
+    RDFa's initial context; a bare term under no ``vocab`` and an OpenGraph
+    term are left out.
+
+    ``read_rdfa`` reads subjects a ``typeof`` names, so it never sees these:
+    ``<meta property="dc:date" content="2020-05-01">`` or ``<span
+    property="dcterms:creator">Ann Smith</span>`` say a date and an author of
+    the page, the subject RDFa gives a property with none in force. Read once
+    per page.
+    """
+    found: list[tuple[str, str, str, HtmlElement]] | None = doc.memo.get(
+        "rdfa.document_properties"
+    )
+    if found is not None:
+        return found
+    found = doc.memo["rdfa.document_properties"] = []
+    scopes = _Scopes()
+    subjects = _Subjects()
+    # //*[@property][not(ancestor-or-self::*[@typeof or @about])]
+    # [not(ancestor::*[@resource])][not(@resource)], through the attribute
+    # axis and asked of each element's ancestors in Python: the same
+    # elements, without a predicate tested on every element of the page.
+    for element in carrying(doc.tree, "//@property"):
+        if subjects.another_subject(element):
+            continue
+        scope = scopes.at(element)
+        for token in (element.get("property") or "").split():
+            if ":" not in token and (scope is None or scope.vocab is None):
+                continue
+            iri = _resolve(token, scope)
+            if iri is None or iri.startswith(_OPENGRAPH):
+                continue
+            found.append((iri, token, _value(doc, element), element))
+        if len(found) >= _MOST_DOCUMENT_PROPERTIES:
+            break
+    return found

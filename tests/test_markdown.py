@@ -227,3 +227,53 @@ def test_the_markdown_command_resolves_links_against_the_page():
     assert result.exit_code == 0, result.output
     assert "(https://example.com/guide/brakes/next.html)" in result.output
     assert "(https://example.com/guide/brakes/fitting.html#intro)" in result.output
+
+
+def test_a_link_holding_a_control_character_does_not_stop_the_page():
+    """A share link on a real page (WCXB dev 0121) held a backspace, from a
+    comment's text: resolving the links raised lxml's "All strings must be
+    XML compatible", and the page gave no markdown at all. The character is
+    percent-encoded, as the URL standard encodes a C0 control."""
+    pytest.importorskip("trafilatura")
+    from sluicer.markdown import to_markdown
+
+    page = (
+        "<html><body><article><h1>Fix it</h1>"
+        + "<p>A paragraph long enough to be the main text of the page. " * 8
+        + "</p><p><a href='https://share.example/?text=18&#8;...'>Share</a></p>"
+        "</article></body></html>"
+    )
+    out = to_markdown(page, url="https://example.com/a/p")
+
+    assert "A paragraph long enough" in out
+    assert "\x08" not in out
+
+
+def test_the_whole_page_encodes_a_link_s_controls_as_the_main_text_does():
+    """Found by the hostile review of 0.10: `--full` wrote a link's raw
+    backspace into its target, `[bs](https://a.example/x\\x08y)`. It is now
+    percent-encoded, as the main text's markdown writes it and the URL
+    standard encodes it."""
+    pytest.importorskip("trafilatura")
+    from sluicer.markdown import to_markdown
+
+    links = (
+        "<a href='/x&#8;y'>bs</a> <a href='/a&#31;b&#127;c'>ctl</a> "
+        "<img src='/i&#8;.png' alt='i'>"
+    )
+    words = " ".join(
+        f"Step {n} of fitting the controls page's brakes." for n in range(40)
+    )
+    page = (
+        "<html><body><article><h1>Controls in links</h1>"
+        f"<p>{words} Read {links} before you start.</p></article></body></html>"
+    )
+    url = "https://a.example/p/q"
+    whole = to_markdown(page, url=url, full=True)
+    main = to_markdown(page, url=url)
+
+    for out in (whole, main):
+        assert "[bs](https://a.example/x%08y)" in out
+        assert "[ctl](https://a.example/a%1Fb%7Fc)" in out
+    assert "![i](https://a.example/i%08.png)" in whole
+    assert not any((ord(c) < 32 and c != "\n") or c == "\x7f" for c in whole)

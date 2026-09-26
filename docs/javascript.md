@@ -6,7 +6,7 @@ rewritten in JavaScript: the package carries the wheel built from the same
 commit as the Python release of the same version, installs it into Pyodide
 when it starts, and hands every call to it. The answers are the Python
 package's, field for field: its tests hold them to the native package's in
-29 cases on 19 pages, a page for each reader and a case for each option.
+30 cases on 19 pages, a page for each reader and a case for each option.
 
 To see it without installing anything, [try it in your browser](try/index.html): paste
 a page's HTML, and Sluicer reads it in the tab, sending it nowhere.
@@ -55,7 +55,7 @@ The object it resolves to:
 
 | | |
 |---|---|
-| `extract(html, { url, induce, visible, headers })` | What the page declares, as Python's `sluicer.extract`: the summary, each answer's source and place, conflicts, records, links and rights. `induce: true` also reads the rows a page repeats, `visible: true` guesses the byline and dates it shows, `headers` are the response's, when the page came over HTTP, as a plain object: `Object.fromEntries(response.headers)`. |
+| `extract(html, { url, induce, visible, headers })` | What the page declares, as Python's `sluicer.extract`: the summary, each answer's source and place, conflicts, records, links and rights. `induce: true` also reads the rows a page repeats, `visible`, on unless `false`, guesses the heading, byline and dates it shows, apart from the summary, `headers` are the response's, when the page came over HTTP, as a plain object: `Object.fromEntries(response.headers)`. |
 | `compile(pages, { listing, want, names, select, rows })` | An extractor learnt from pages of one template, each `{ html, url }`: the file `sluicer compile` writes, as an object. `want` gives example values by name, as `--want`; `select` writes the fields by selector instead, `{ price: "span.price::text" }`, and `rows` the selector of a listing's rows, as `--select` and `--rows`; with `select`, `pages` may be empty. |
 | `run(extractor, html, { url })` | That extractor replayed on a page, as `sluicer run`: `ok` is false when a check failed, and `checks` says which. The extractor is the object, or its JSON text: a file written by the Python CLI runs here, and one written here runs there. |
 | `toMarkdown(html, { url })` | The page's main text as Markdown. Only after `createSluicer({ markdown: true })`. |
@@ -126,8 +126,8 @@ It runs in Node. The package reads its wheel from its own folder with
 
 ## Versions
 
-The npm package's version is the Python package's: `sluicer@0.9.1` on npm
-is the wheel of `sluicer==0.9.1`, built from the same commit. The build
+The npm package's version is the Python package's: `sluicer@0.10.0` on npm
+is the wheel of `sluicer==0.10.0`, built from the same commit. The build
 refuses to run when `js/package.json` and `pyproject.toml` differ, and a
 test on each side, Python's and Node's, holds them equal. CI
 (`.github/workflows/js.yml`) runs the Node tests on Node 18, 22 and 24, writes

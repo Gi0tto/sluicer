@@ -2,6 +2,222 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Added
+- A scoreboard of every tool on the same pages, `docs/scoreboard-tools.md`:
+  Sluicer, trafilatura, newspaper4k, markitdown, Scrapling's markdown and
+  metascraper, each in a pinned environment of its own, on WCXB's pages as
+  served, trafilatura's evaluation set and one page added by hand, scored for
+  title, author, date, main text, leaked menus and wrong answers given without
+  a warning. `bench/PREREG.md` fixed how before it was run; `uv run
+  bench/tools_compare.py` makes it again.
+- `sluicer[all]` installs every extra but `stealth`, which stays asked for by
+  name.
+- `sluicer install browser` downloads the Chromium the `browser` extra drives,
+  with Playwright's own installer and the Python Sluicer runs on, then checks
+  that every part of it is there; without the extra, it prints the command
+  that adds it and exits 2.
+- `sluicer doctor` says what is installed, what each missing piece is for, and
+  the command that adds it; it exits 2 when protego or trafilatura is
+  missing, or when `SLUICER_BROWSER` names a browser no fetch accepts.
+  Without lxml, click or cssselect no command starts, `doctor` included.
+- `bench/golden.py`: a digest of every public reading of every cached
+  benchmark page, so a change meant only to be faster is shown to change no
+  byte of any answer, and a timer per page.
+- `sluicer markdown --full`, `to_markdown(full=True)` and `page_markdown`'s
+  `full` write the whole page as markdown, menus and footers included, scripts
+  and styles left out, links and images resolved against the page, a control
+  character in a link's address percent-encoded as the main text's markdown
+  writes it. It needs no extra.
+- `sluicer.read_markdown` returns the text with where it came from
+  (`MainText`: `source`, `method`, `where`), `page_markdown` answers it as
+  `text_from`, and the front matter's `sources` gains a `text` line. The main
+  text itself is trafilatura's extraction exactly as before.
+
+### Changed
+- A page's summary can differ from 0.9.1's in three ways, by the fixes
+  below: `published` that is only a clock time ("10:52") is no answer, and
+  the next declaration is asked; `author` and `published` are answered where
+  0.9.1 had none, from an `itemprop` outside any item or an RDFa property of
+  the page; and `sku` where 0.9.1 had none, from the product's offer. No
+  other summary answer moves. Over the 4,976 cached benchmark pages 21
+  summaries differ from 0.9.1's: 3 clock-time dates gone, and answers added
+  on the rest. An extractor learnt on 0.9.1 checks the answers it learnt,
+  so on a page whose clock-time `published` went it fails `run` with exit 3
+  until it is learnt again with `sluicer heal --force` or `sluicer
+  compile`; an answer added where it had none does not fail it.
+- The guesses read off the visible page are on by default: `extract()` and
+  `aextract()` take `visible=True` unless told `visible=False`, `sluicer
+  extract`, `inspect`, `crawl`, `batch` and `warc` guess unless given
+  `--no-visible`, and the MCP tool `extract_declared`, the HTTP API and the
+  npm package's `extract` guess unless sent `visible: false`. The guesses stay
+  in their own `visible` field, each naming its element and rule, never in the
+  summary. `visible=True` and `--visible` still work and change nothing.
+  `crawl` and `batch` lines now carry `visible`, empty with `--no-visible`. A
+  page that declares nothing but shows a heading now exits 0 with its guess,
+  as it did with `--visible`; `--no-visible` keeps the old exit 1. On WCXB's
+  development pages the guesses add 2 to 3 ms to a page at the median and 8 to
+  10 ms at the 95th percentile, about four fifths more time.
+- What 0.10 answers differently, for a program that reads its output: every
+  line of `crawl`, `batch` and `warc` carries `visible` (empty with
+  `--no-visible`), and so does every page of the MCP tools `crawl_site` and
+  `extract_many`, which now take `visible` (true by default; false leaves the
+  key out) and cut a page's heaviest guesses first, named in its
+  `visible_left_out`, when an answer is over its bound; `inspect` prints a
+  block of the visible guesses; a page that declares nothing but shows a
+  heading exits 0, not 1; `page_markdown` answers `text_from`. A `crawl
+  --resume` or `batch --resume` over a file 0.9.1 wrote leaves its lines
+  without `visible` beside the new lines with it.
+- The default `extract()` is slower than 0.9.1's default, because it now
+  makes the guesses 0.9.1 made only when asked: the 0.10 review measured it
+  1.2 to 1.6 ms slower a page at the median on WCXB's development pages, 1.55
+  to 1.62 times 0.9.1's default. Each mode on its own is faster than it was:
+  with `visible=False` about 7% less time in total than 0.9.1's default (the
+  median page about the same), and with the guesses about a quarter less at
+  the median than 0.9.1's `visible=True`. The speed-ups below are each
+  mode's, not the new default's against the old.
+- A missing extra's message names the command that adds it for the way Sluicer
+  was installed: `pip install`, `uv tool install` or `pipx install --force`
+  with the extras already there, `uvx --from`, `uv add` in a uv project, or
+  `uv pip install` in an environment uv made. It said `uv pip install
+  "sluicer[x]"` to everyone, which uv refuses outside a virtual environment
+  and which misses a `uv tool` or pipx one.
+- `pip install sluicer` now turns a page into markdown: trafilatura is in the
+  base install, so the one install line covers every command but the
+  browser's. The `markdown` extra still installs, and brings nothing more;
+  `mcp` no longer needs it. Measured on Python 3.14, the base install grows
+  from 5 packages and 22 MB to 21 and 69 MB, and `import sluicer` takes as
+  long as before.
+- The Homebrew formula and the conda-forge recipe install trafilatura and its
+  tree with the base package; the npm package still loads it only with its
+  `markdown` option.
+- JSON-LD: a block that parses as written is no longer run through the comment
+  and trailing-comma repair first; the repair is made only when the text as
+  written fails. Same output, and the default `extract` is about 5% faster on
+  the timed pages.
+- The readers find the elements carrying an attribute through the attribute
+  axis (`//@itemscope`, each attribute's element taken in Python) instead of
+  testing a predicate on every element (`//*[@itemscope]`): the same elements
+  in the same order, and the default `extract` about 18% faster on the timed
+  pages. Taken in XPath (`//@itemscope/..`) the elements cost the square of
+  their number, so a page of eighty thousand items is still read in linear
+  time.
+- The `<meta>` tags and the elements with a `rel` are found once per page and
+  shared by the readers that filter them, and the canonical addresses are read
+  once for the links and the summary; the same answers, about 5% less time per
+  default `extract`.
+- A page that is valid UTF-8 is parsed from its own bytes, its newlines read
+  on the bytes, instead of being decoded and encoded back first: the same
+  tree, about 4% less time per `extract`, and one copy of the page less in
+  memory.
+- The fetch ladder and the page cache decide whether a page declared a thing
+  with the readers about things alone
+  (`sluicer.declared.merge.declares_a_thing`), instead of a whole `extract` of
+  it: the same verdict, and a fetch followed by an extraction takes about 13%
+  less CPU.
+- Judging a fetched page that declared a thing no longer strips its tags to
+  count its text, which no rule then reads: the same verdicts, and about 11%
+  less CPU per fetch and extraction.
+- A fetched page is parsed once: the Document the fetch ladder (or the cache,
+  the crawl, the MCP server's TDM check) parsed to judge the page is handed to
+  the `extract` of that very page that follows in the same thread, instead of
+  the page being parsed again. The same answers; a fetch followed by an
+  extraction takes about 30% less CPU. One parsed page of up to 1 MB is kept
+  per thread until it is extracted or replaced, and let go when an MCP or
+  HTTP API call ends, when a crawl is done with a page and when a page is
+  turned into markdown; `to_markdown(full=True)` reads the kept tree itself.
+- `visible=True`: a text node is measured by stripping its ends instead of
+  rewriting its white space with a regex, and the elements a class or an id
+  names as a byline are found once for the author and the date: the same
+  guesses, about 20% less time.
+- A page given as a `str` (a fetched page is one) is handed to the parser as
+  UTF-8 bytes, which libxml2 reads faster than a `str`, into the same tree; a
+  `str` holding a lone surrogate is parsed as before.
+
+### Fixed
+- The guesses, on by default, found the elements with a class or an id in
+  the square of their number, and counted a page's "By" lines in the square
+  of theirs: a 10.8 MB page of 60,000 rows took 35 s to `extract`, and
+  `sluicer serve` answered 504. The same elements are now found in one walk
+  of the page and the same guesses made; that page takes 0.5 s.
+- `--visible` took a box whose class says there is no byline ("no-byline"), or
+  the page's `<body>` itself, for a byline and read the first capitalised
+  words in it as the author, and took the "By" line on another article's card,
+  inside its link, for the page's own. None of them is read as the author now.
+- `to_markdown` and `sluicer markdown` gave nothing but an error on a page
+  with a link holding a control character, such as a backspace in a share
+  link's text. The character is now percent-encoded, as the URL standard
+  encodes it, and the page is read.
+- `--visible` answered a byline's name with its role glued on, "Jane Doe,
+  Senior" for "Jane Doe, Senior Writer", "Sean Peek, Senior Analyst" for the
+  same (0.9.1 did too; 0.10 guesses by default). The name now ends at a comma
+  a role follows; a credential, a place or another name after it ("Jane Doe,
+  PhD") is kept as before.
+- A publication date that was only a clock time ("10:52", "2:33 PM") was
+  answered as the page's date. It is no date now, and the next declaration is
+  asked.
+- An author written as `itemprop="author"` on an element outside any microdata
+  item, `<span itemprop="author">Ann Smith</span>`, was not read; only a
+  `<meta itemprop>` was. It is now the author when nothing else on the page
+  declares one: the first text in it that reads as a person's name, never
+  one in a comment or an aside, nor one inside another property, such as a
+  `<div itemprop="review">`, whose author is the review's (the article's own
+  `articleBody` excepted), and never a role alone, "Staff Reporter" or "News
+  Desk". A name must open with a capital, so a name in lowercase, or in a
+  script without capitals such as `山田太郎`, is not read here.
+- RDFa properties with no subject in force, which RDFa gives to the page
+  itself (`<meta property="dc:date">`, `<span property="dcterms:creator">`),
+  were not read, since the RDFa reader reads only the subjects a `typeof`
+  names. Their schema.org and Dublin Core author and publication date now
+  answer the summary when nothing else on the page does. A property inside a
+  link, or inside a comment, a quotation, an aside, a footer or a menu, is
+  not the page's, and a date must read as one. An author's "By" or "Written
+  by" is left out, and one that is only a placeholder, "Written by our
+  staff", names nobody.
+- A product whose SKU was declared only on its offer, `"offers": {"sku":
+  ...}`, had no SKU in the summary. The offer's SKU is now the product's when
+  the product declares neither a SKU nor a `productID` and its offers name
+  one SKU. Only an offer of the product itself counts: not one whose
+  `itemOffered` is another thing, such as a bundle's accessory, nor any
+  offer inside it, and not an `AggregateOffer`'s own `sku`, which is a
+  listing's; the sellers' offers inside an `AggregateOffer` still count.
+- A page fetched and never extracted stayed parsed for as long as its thread
+  lived: sixteen threads that each fetched a 10 MB page without extracting it
+  held 1.4 GB where 0.9.1 held 0.3 GB, and `page_markdown` kept the fetched
+  tree alive through trafilatura's own parse of the page. A page over 1 MB is
+  no longer kept, and a kept page is let go wherever no extraction follows;
+  the same sixteen threads now hold 0.2 GB.
+- `--full` markdown wrote what a reader is not shown: a table's hidden cells,
+  rows, bodies and caption, anything hidden with `display:` and a tab or a
+  newline before `none`, and a `<script>` or `<style>` inside `<code>`. It
+  wrote `href="java&#9;script:..."` as a link, a `<pre
+  class="language-```x">` opened a fence the page never closed, and a page
+  600 `<div>`s deep failed with a RecursionError. None of these happens now:
+  past 100 levels the rest is written as plain text.
+- The install lines `doctor` and a missing extra's message give: a pipx
+  install pinned to a version (`sluicer[microformats]==0.10.0`) was read as
+  having no extra, and the line dropped microformats; an environment with no
+  pip in it was told `python -m pip`, which fails there, and is now told `uv
+  pip install --python` when uv is on the `PATH`, or `python -m ensurepip`
+  first; in a uv project, "then: sluicer install browser" ran whichever
+  sluicer the `PATH` found, and now names the project's own Python.
+  `SLUICER_BROWSER=chrome sluicer doctor` said "ok browser" while every
+  fetch refused the value; it is now reported invalid, and doctor exits 2.
+  Homebrew's own Python, or any a package manager marks
+  `EXTERNALLY-MANAGED`, was told `python -m ensurepip` (pip into Homebrew's
+  Cellar) or `python -m pip install`, which it refuses; it is now told to
+  make a virtual environment first, `python -m venv .venv`. An extra pipx
+  recorded in capitals, `Sluicer[MCP]`, is named in lowercase, as pip names
+  it, not twice.
+- The scoreboard still said `--visible` guesses bylines and dates "when
+  asked"; 0.10 guesses by default, and its generator and page now say so.
+- `sluicer doctor` and `sluicer install browser` ran Playwright with
+  `python -m playwright`, which imports from the working directory first: a
+  `playwright/__main__.py` in the folder they were run in, a cloned
+  repository, ran in Playwright's place. Playwright now runs in an isolated
+  interpreter (`-I`) importing only from this Sluicer's own path.
+
 ## 0.9.1 - 2026-09-26
 
 ### Fixed

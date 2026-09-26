@@ -1574,3 +1574,47 @@ def test_the_links_left_out_by_depth_are_counted_within_a_bound(monkeypatch):
     full = run(FakeWeb(deep), max_depth=0)
     list(full)
     assert full.notice == "12 links deeper than max_depth 0 were not followed"
+
+
+def _shown_site():
+    shown = "<h1>Brake pads</h1><p>By Ada Lovelace</p>"
+    return {
+        f"{ROOT}/": page("Home", "/p/1", extra=""),
+        f"{ROOT}/p/1": page("Pad 1").replace("<body>", f"<body>{shown}"),
+    }
+
+
+def test_a_crawl_s_lines_carry_the_visible_guesses_unless_told_not_to():
+    pages = list(run(FakeWeb(_shown_site())))
+    assert pages[1].to_json()["visible"]["author"]["value"] == "Ada Lovelace"
+    assert pages[1].to_json()["summary"]["title"]["value"] == "Pad 1"
+
+    declared = list(run(FakeWeb(_shown_site()), visible=False))
+    assert declared[1].to_json()["visible"] == {}
+    assert declared[1].to_json()["summary"] == pages[1].to_json()["summary"]
+
+
+def test_a_batch_s_lines_carry_the_visible_guesses_unless_told_not_to():
+    fake = FakeWeb(_shown_site())
+    read = list(
+        extract_many(
+            [f"{ROOT}/p/1"],
+            web=fake.web(),
+            clock=fake.clock,
+            sleep=fake.clock.sleep,
+            min_delay=1.0,
+        )
+    )
+    assert read[0].to_json()["visible"]["author"]["value"] == "Ada Lovelace"
+    fake = FakeWeb(_shown_site())
+    off = list(
+        extract_many(
+            [f"{ROOT}/p/1"],
+            web=fake.web(),
+            clock=fake.clock,
+            sleep=fake.clock.sleep,
+            min_delay=1.0,
+            visible=False,
+        )
+    )
+    assert off[0].to_json()["visible"] == {}

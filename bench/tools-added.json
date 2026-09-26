@@ -1,0 +1,34 @@
+{
+ "about": "Pages added by hand to docs/scoreboard-tools.md, beside the pinned corpora (bench/PREREG.md). Each is a Wayback Machine capture, pinned by the SHA-256 of its bytes, fetched into bench/cache/ and never committed. Labels written by hand from the page a reader sees, on 2026-09-26, before any tool was run on it.",
+ "pages": [
+  {
+   "id": "typesafe-system-one",
+   "url": "https://typesafe.ai/blog/introducing-system-one-models-and-jev",
+   "archive": "wayback",
+   "timestamp": "20260922123749",
+   "original": "https://typesafe.ai/blog/introducing-system-one-models-and-jev",
+   "sha256": "19a428f4d388bb5f218cdb950f11d28d67677e887c01a753010258c621c5cb27",
+   "why": "The page that prompted the comparison: a blog post built with Framer, which declares no author or date in markup, shows its date above the title and its author in a byline under it, and writes the time the site was last built in an HTML comment (<!-- Published Sep 22, 2026, 4:54 AM UTC --> in this capture).",
+   "page_type": "article",
+   "title": "Introducing System One Models & Jev",
+   "author": "Diogo Almeida",
+   "date": "2026-09-15",
+   "with": [
+    "Models have been superhuman at chat for years, so where is all the automation?",
+    "This has been my driving question for the last four years.",
+    "Think of Jev as a frontier-intelligence function call",
+    "We love skeptics, and are skeptics ourselves.",
+    "We named Jev after William Stanley Jevons.",
+    "Hallucination and type-safety are intrinsically related"
+   ],
+   "without": [
+    "Contact sales",
+    "Privacy Policy",
+    "Terms of Use",
+    "Our Team",
+    "Sign in",
+    "TypeSafe AI © 2026"
+   ]
+  }
+ ]
+}

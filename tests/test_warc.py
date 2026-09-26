@@ -535,3 +535,16 @@ def test_the_warc_page_s_line_has_the_keys_a_real_line_has(tmp_path):
     line = json.loads(result.stdout.splitlines()[0])
     assert list(line) == list(shown)
     assert list(line["warc"]) == list(shown["warc"])
+
+
+def test_a_warc_line_carries_the_visible_guesses_unless_told_not_to(tmp_path):
+    body = b"<html><body><h1>Brake pads</h1><p>By Ada Lovelace</p></body></html>"
+    path = warc(record("response", http(body)), tmp_path=tmp_path)
+
+    shown = CliRunner().invoke(main, ["warc", str(path)])
+    assert shown.exit_code == 0, shown.stderr
+    line = json.loads(shown.stdout.splitlines()[0])
+    assert line["visible"]["author"]["value"] == "Ada Lovelace"
+
+    declared = CliRunner().invoke(main, ["warc", "--no-visible", str(path)])
+    assert "visible" not in json.loads(declared.stdout.splitlines()[0])

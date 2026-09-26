@@ -124,6 +124,7 @@ def extract_warc(
     induce: bool = False,
     microformats: bool = False,
     skipped: Skipped | None = None,
+    visible: bool = True,
 ) -> Iterator[tuple[WarcPage, Extraction]]:
     """``sluicer.extract`` over every page ``source`` holds, with its headers.
 
@@ -140,6 +141,7 @@ def extract_warc(
                 induce=induce,
                 microformats=microformats,
                 headers=page.headers,
+                visible=visible,
             ),
         )
 

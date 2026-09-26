@@ -65,19 +65,22 @@ still believed. When only text is available and lxml cannot parse it, the
 retry reads it as UTF-8 whatever the document claims, because the text has
 already been decoded.
 
-**A guess from the visible page only when asked, and kept apart.** The
-summary holds only what a page declares. `--visible` (`extract(...,
-visible=True)`, `extract_declared`'s `visible`) guesses the heading, byline
-and dates a page shows, in `visible`, each with its element and rule; its
+**A guess from the visible page, on by default, and kept apart.** The
+summary holds only what a page declares. `--visible` (`extract(...)`,
+`extract_declared`'s `visible`), on by default since 0.10 and off with
+`--no-visible` or `visible=False`, guesses the heading, byline and dates a
+page shows, in `visible`, each with its element and rule; it adds 2 to 3 ms
+to a page at the median, about four fifths more time on WCXB's development
+pages. Its
 rules were made on WCXB's development pages only, and every title, author and
 date scoreboard scores it on pages it was not made on, a guess taken only
 where the summary has no answer (`bench/PREREG.md`). It finds more: authors
-0.532 to 0.649 and dates 0.581 to 0.717 on WCXB, 0.690 to 0.752 and 0.780 to
-0.855 as served, 0.468 to 0.548 and 0.585 to 0.701 on trafilatura's set. And
+0.537 to 0.649 and dates 0.581 to 0.717 on WCXB, 0.698 to 0.760 and 0.780 to
+0.855 as served, 0.472 to 0.552 and 0.588 to 0.701 on trafilatura's set. And
 it invents -- 33 answers on WCXB's 511 pages, 25 of them dates -- so dates
 are right when answering less often with it, 0.823 against 0.917 on WCXB and
 0.701 against 0.734 as served. Trafilatura, which
-`sluicer[markdown]` installs, can guess too: `examples/04_a_guess_from_the_visible_page.py`
+the base install brings, can guess too: `examples/04_a_guess_from_the_visible_page.py`
 puts its guess beside Sluicer's answer, named a guess, when the page declares
 no author or date. Measured where Sluicer answers nothing, the guess is right
 on 48 of the 114 WCXB pages where it names an author and on 76 of the 312

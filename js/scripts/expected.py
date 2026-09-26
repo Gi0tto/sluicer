@@ -99,6 +99,11 @@ EXTRACT: dict[str, dict[str, Any]] = {
         "url": "http://127.0.0.1:8000/notes.html",
         "options": {"visible": True},
     },
+    "visible-off": {
+        "page": "examples/site/article.html",
+        "url": "http://127.0.0.1:8000/article.html",
+        "options": {"visible": False},
+    },
     "plain": {"page": "tests/fixtures/plain.html", "url": None},
 }
 

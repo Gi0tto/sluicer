@@ -48,7 +48,7 @@ from sluicer.crawl.urls import (
 )
 from sluicer.crawl.web import Parts, Web, default_web
 from sluicer.declared.tdmrep import WELL_KNOWN, TdmRule, read_tdmrep, reservation
-from sluicer.document import load
+from sluicer.document import let_go, load_and_keep
 from sluicer.fetch import (
     AddressRefused,
     Climb,
@@ -192,6 +192,9 @@ class Page:
             "records": read.get("records", []),
             "sources": read.get("sources", []),
             "links": list(self.links),
+            # Guesses read off the visible page, never in the summary; empty
+            # when the crawl was asked not to read them.
+            "visible": read.get("visible", {}),
         }
 
     def _fetch(self) -> dict[str, Any]:
@@ -244,6 +247,7 @@ def crawl(
     *,
     state: str | Path | None = None,
     induce: bool = False,
+    visible: bool = True,
     respect_tdm: bool = False,
     min_delay: float = DEFAULT_DELAY_SECONDS,
     max_delay: float = MAX_DELAY_SECONDS,
@@ -276,6 +280,8 @@ def crawl(
         state: a JSON Lines file: pages it already holds are not fetched
             again, and every new page is appended as its turn comes.
         induce: also read repeated rows from a page that declares nothing.
+        visible: also guess the title, author and dates each page shows, as
+            ``extract`` does, into its line's ``visible``; on by default.
         respect_tdm: give a page whose site reserves its text and data mining
             rights (TDMRep: its tdmrep.json, headers or meta tags) as a
             ``tdm_reserved`` error, never its data.
@@ -351,6 +357,7 @@ def crawl(
         respect_tdm,
         retries,
         deadline,
+        visible,
     )
     schedule: Schedule[Page] = Schedule(visitor.visit, polite, concurrency, deadline)
 
@@ -386,6 +393,7 @@ def extract_many(
     *,
     state: str | Path | None = None,
     induce: bool = False,
+    visible: bool = True,
     respect_tdm: bool = False,
     min_delay: float = DEFAULT_DELAY_SECONDS,
     max_delay: float = MAX_DELAY_SECONDS,
@@ -425,6 +433,7 @@ def extract_many(
         given,
         state=state,
         induce=induce,
+        visible=visible,
         respect_tdm=respect_tdm,
         min_delay=min_delay,
         max_delay=max_delay,
@@ -448,6 +457,7 @@ def _extract_listed(
     *,
     state: str | Path | None,
     induce: bool,
+    visible: bool,
     respect_tdm: bool,
     min_delay: float,
     max_delay: float,
@@ -517,6 +527,7 @@ def _extract_listed(
         respect_tdm,
         retries,
         deadline,
+        visible,
     )
     schedule: Schedule[Page] = Schedule(visitor.visit, polite, concurrency, deadline)
 
@@ -683,6 +694,7 @@ class _Visitor:
         respect_tdm: bool = False,
         retries: int = RETRIES,
         deadline: float | None = None,
+        visible: bool = True,
     ) -> None:
         _check_retries(retries)
         self.web = web
@@ -696,6 +708,7 @@ class _Visitor:
         self.max_bytes = max_bytes
         self.max_delay = max_delay
         self.induce = induce
+        self.visible = visible
         self.kept = kept
         self.respect_tdm = respect_tdm
         self.retries = retries
@@ -734,14 +747,19 @@ class _Visitor:
     def visit(self, task: Task) -> Page:
         """Take ``task``, asking again, a bounded number of times and each time
         later, while what came back may be different later."""
-        page, retries = asking_again(
-            self.polite,
-            task.url,
-            self.retries,
-            self.deadline,
-            lambda: self._take(task),
-            _worth_asking_again,
-        )
+        try:
+            page, retries = asking_again(
+                self.polite,
+                task.url,
+                self.retries,
+                self.deadline,
+                lambda: self._take(task),
+                _worth_asking_again,
+            )
+        finally:
+            # A page fetched and then dropped (off the site, refused) was
+            # kept parsed on this worker until its next page.
+            let_go()
         return replace(page, retries=retries) if retries else page
 
     def _take(self, task: Task) -> Page:
@@ -820,12 +838,13 @@ class _Visitor:
                 f"{task.url} landed on {landed}, which is not followed: {reason}",
                 target=landed,
             )
-        doc = load(fetched.html, url=fetched.url)
+        doc = load_and_keep(fetched.html, url=fetched.url)
         extraction = extract(
             fetched.html,
             url=fetched.url,
             induce=self.induce,
             headers=fetched.headers,
+            visible=self.visible,
         )
         if self.respect_tdm:
             found = reservation(

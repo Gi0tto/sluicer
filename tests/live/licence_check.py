@@ -1,7 +1,7 @@
 """Every licence in the installed tree, and a failure for one nobody has read.
 
 Run by CI in an environment holding sluicer and every extra, nothing else. The
-README names the three non-permissive licences the extras bring in; this is
+README names the three non-permissive licences the install brings in; this is
 what keeps that sentence true. A new dependency under a licence not listed
 below fails the job until someone reads it and either lists it or drops it.
 

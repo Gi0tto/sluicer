@@ -9,7 +9,7 @@ predictions are added beside theirs and that evaluator runs unchanged, so
 every rule below is Zyte's: a price matches as a decimal, several values
 can be right, and a page with no availability counts as in stock.
 
-Regenerated on 2026-09-26 from commit `8a426a2` by `uv run bench/products.py`, against the benchmark at `cba97d7a8d42`.
+Regenerated on 2026-09-26 from commit `5e97f6b` by `uv run bench/products.py`, against the benchmark at `cba97d7a8d42`.
 
 !!! warning "Sluicer's rules were made on these pages"
     Rules were written, measured on these pages and kept because the
@@ -28,23 +28,23 @@ Regenerated on 2026-09-26 from commit `8a426a2` by `uv run bench/products.py`, a
 
 | attribute | system | F1 | precision | recall | pages labelled |
 |---|---|---|---|---|---|
-| price | **sluicer 0.9.1** | 0.750 ± 0.034 | 0.888 | 0.649 | 134 |
+| price | **sluicer 0.10.0** | 0.750 ± 0.034 | 0.888 | 0.649 | 134 |
 | price | extruct + price-parser | 0.685 ± 0.039 | 0.864 | 0.567 | 134 |
 | price | Diffbot (paid API, 2021) | 0.824 ± 0.031 | 0.844 | 0.806 | 134 |
 | price | Zyte Automatic Extraction (paid API, 2021) | 0.918 ± 0.023 | 0.918 | 0.918 | 134 |
-| sku | **sluicer 0.9.1** | 0.541 ± 0.046 | 0.778 | 0.415 | 135 |
+| sku | **sluicer 0.10.0** | 0.555 ± 0.045 | 0.784 | 0.430 | 135 |
 | sku | extruct + price-parser | 0.537 ± 0.045 | 0.786 | 0.407 | 135 |
 | sku | Diffbot (paid API, 2021) | 0.765 ± 0.035 | 0.828 | 0.711 | 135 |
 | sku | Zyte Automatic Extraction (paid API, 2021) | 0.841 ± 0.031 | 0.860 | 0.822 | 135 |
-| availability | **sluicer 0.9.1** | 0.907 ± 0.026 | 0.907 | 0.907 | 140 |
+| availability | **sluicer 0.10.0** | 0.907 ± 0.026 | 0.907 | 0.907 | 140 |
 | availability | extruct + price-parser | 0.626 ± 0.041 | 0.905 | 0.479 | 140 |
 | availability | Diffbot (paid API, 2021) | 0.943 ± 0.020 | 0.943 | 0.943 | 140 |
 | availability | Zyte Automatic Extraction (paid API, 2021) | 0.957 ± 0.018 | 0.957 | 0.957 | 140 |
-| InStock | **sluicer 0.9.1** | 0.950 ± 0.014 | 0.954 | 0.947 | 131 |
+| InStock | **sluicer 0.10.0** | 0.950 ± 0.014 | 0.954 | 0.947 | 131 |
 | InStock | extruct + price-parser | 0.954 ± 0.014 | 0.954 | 0.954 | 131 |
 | InStock | Diffbot (paid API, 2021) | 0.970 ± 0.011 | 0.956 | 0.985 | 131 |
 | InStock | Zyte Automatic Extraction (paid API, 2021) | 0.977 ± 0.010 | 0.970 | 0.985 | 131 |
-| OutOfStock | **sluicer 0.9.1** | 0.316 ± 0.140 | 0.300 | 0.333 | 9 |
+| OutOfStock | **sluicer 0.10.0** | 0.316 ± 0.140 | 0.300 | 0.333 | 9 |
 | OutOfStock | extruct + price-parser | 0.333 ± 0.147 | 0.333 | 0.333 | 9 |
 | OutOfStock | Diffbot (paid API, 2021) | 0.429 ± 0.175 | 0.600 | 0.333 | 9 |
 | OutOfStock | Zyte Automatic Extraction (paid API, 2021) | 0.625 ± 0.154 | 0.714 | 0.556 | 9 |
@@ -59,9 +59,9 @@ matching and F1, the pages resampled together:
 | price | extruct + price-parser | +0.065 (+0.012 to +0.122) | better |
 | price | Diffbot (paid API, 2021) | -0.074 (-0.172 to +0.021) | inconclusive |
 | price | Zyte Automatic Extraction (paid API, 2021) | -0.168 (-0.229 to -0.111) | worse |
-| sku | extruct + price-parser | +0.004 (-0.019 to +0.030) | inconclusive |
-| sku | Diffbot (paid API, 2021) | -0.224 (-0.340 to -0.107) | worse |
-| sku | Zyte Automatic Extraction (paid API, 2021) | -0.300 (-0.403 to -0.196) | worse |
+| sku | extruct + price-parser | +0.018 (-0.012 to +0.051) | inconclusive |
+| sku | Diffbot (paid API, 2021) | -0.210 (-0.325 to -0.095) | worse |
+| sku | Zyte Automatic Extraction (paid API, 2021) | -0.286 (-0.389 to -0.184) | worse |
 | availability | extruct + price-parser | +0.281 (+0.208 to +0.360) | better |
 | availability | Diffbot (paid API, 2021) | -0.036 (-0.079 to +0.008) | inconclusive |
 | availability | Zyte Automatic Extraction (paid API, 2021) | -0.050 (-0.093 to -0.014) | worse |

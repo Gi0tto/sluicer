@@ -194,7 +194,7 @@ jobs:
         run: uvx twine check dist/*
 
   import-without-extras:
-    name: The base install imports, and fetches over plain HTTP
+    name: The base install imports, turns a page into markdown, and fetches over plain HTTP
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -212,10 +212,15 @@ jobs:
           # floors job documents.
           .venv/bin/python -c "
           import importlib.util, sluicer
-          for extra in ('scrapling', 'playwright', 'patchright', 'curl_cffi', 'trafilatura', 'mcp'):
+          for extra in ('scrapling', 'playwright', 'patchright', 'curl_cffi', 'mcp'):
               assert importlib.util.find_spec(extra) is None, extra + ' leaked into the base install'
+          assert importlib.util.find_spec('trafilatura') is not None, 'the base install lost markdown'
           print('base install imports cleanly, version', sluicer.__version__)
           "
+          # Since 0.10 markdown is the base install's: `pip install sluicer`
+          # is the whole install line for every command but the browser's.
+          .venv/bin/sluicer markdown examples/brake-pads.html
+          .venv/bin/sluicer doctor
       # Since 0.8 the base install fetches: the HTTP rung is the standard
       # library, and nothing but protego is installed for it. Asked of a real
       # server with nothing else installed, not believed from the suite.

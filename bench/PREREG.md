@@ -161,8 +161,9 @@ and errors only. The held-out half is scored, and read only as numbers:
 | 2026-09-25 | 0.8.0 at `d5e8c10` | the documentation review, checking the README's numbers against the scoreboard |
 | 2026-09-25 | 0.9.0 | the release's scoreboard |
 | 2026-09-26 | 0.9.1 | the release's scoreboard |
+| 2026-09-26 | 0.10.0 | the release's scoreboard |
 
-The next reading is the release after 0.9.1. All ten camera sites were read
+The next reading is the release after 0.10.0. All ten camera sites were read
 while the benchmark was built, before the split, so the held-out camera sites
 are not a clean test; the scoreboard says so.
 
@@ -220,6 +221,158 @@ one.
 - **No seconds.** The speed tables time `extract` without `visible`; no
   time of `--visible` is printed.
 
+## 0.10: `--visible` on by default, and the rules added for it
+
+Fixed on 2026-09-26, after the rules below were made and measured on WCXB's
+development split, and before any of them was run on a scoreboard's pages.
+
+**On by default.** From 0.10 `extract()` reads the visible page unless told
+`visible=False`, and the command line, the MCP tools, the HTTP API and the npm
+package likewise. The scoreboards still score what the page declares: the
+harnesses call `extract(html, url=..., visible=False)` where they called
+`extract(html, url=...)`, so the call timed and scored is the one it was, and
+the section above holds as written.
+
+**The rules.** Made reading only the 1,358 pages of WCXB's `dev` split, their
+labels, and Sluicer's and newspaper4k 0.9.6's answers on them; each kept there
+only when, on those pages, it added no invention (`bench/visible_dev.py`'s
+counts, and the same per page):
+
+| commit | rule | development split, before -> after |
+|---|---|---|
+| `817ae10` | summary: the declared title the page's `<h1>` shows is the title | title hits 935 -> 1047, wrong 423 -> 311 |
+| `b835274` | `--visible`: no byline in a box that says it has none, in `<body>`, `<main>` or `<article>`, or on another article's card | author, declared then `--visible`: inventions 58 -> 56 |
+| `fb353a1` | `--visible`: the page's own `<body>` classes do not hide its byline; a testimonial's signature is none | author hits 473 -> 487, wrong 26 -> 27 |
+| `c21d51f` | `--visible`: a byline in an article's own `<footer>` | author hits 487 -> 488 |
+| `d750661` | `--visible`: one word in a link marked `rel=author` is its author's handle | author hits 488 -> 491 |
+| `fd2eabb` | `--visible`: a forum thread's first `username`, asked last | author hits 491 -> 497, wrong 27 -> 28 |
+
+Tried there and dropped, each for adding an invention or a wrong answer:
+class names read with `_` as a word's edge, an "Author:" label, "Text by" and
+"Recipe by", `itemprop=author` as a byline, Elementor's `elementor-widget`
+boxes not taken for widgets, and the body's classes left out for dates too.
+
+**The measure after, once.** On WCXB's 511 test pages, the 360 as served, the
+263 news pages and trafilatura's 851 annotated pages, each scored by
+`bench/score.py` as its scoreboard scores it: the code before these rules
+(`0a41977`), then each commit above added in turn, in that order. For each set
+and each of title, author and date: hits, wrong answers and inventions of what
+the page declares, of `--visible` alone, and of declared then `--visible`. Read
+as numbers only; no page's answer is read to make or change a rule, and a rule
+taken out is not refined on these pages.
+
+**What is kept.** A `--visible` commit that adds an invention on any of the
+four sets, declared then `--visible` or `--visible` alone, is reverted whole.
+The title commit changes which declared title is answered, never whether one
+is, so it cannot invent; it is reverted if it lowers the title's hits on any
+set. Whatever is reverted is said in the commit that reverts it, with the
+numbers.
+
+**Read once, on 2026-09-26.** Every rule but the first `--visible` one was
+reverted: `fb353a1`, `c21d51f`, `d750661` and `fd2eabb` each added
+inventions (`fb353a1` on three sets), and the title commit, `817ae10`,
+lowered the news pages' title hits, 229 -> 224, while raising the other
+three sets'. `b835274` added none and is kept. Each revert gives its
+numbers. (The table named `fb353a1` and `c21d51f` by the hashes they had
+before their messages were amended, `1afc3ca` and `a974a09`; the code is
+the same.)
+
+**Its cost.** The seconds `--visible` adds are measured on the development
+split's pages, not a scoreboard's: every page read by `extract` with
+`visible=False` and with `visible=True`, each the fastest of three in one
+process, and the per-page difference given as its median and 95th
+percentile. The scoreboards' speed tables stay as the section above fixes
+them.
+
+**Defects a review found after the reading.** A hostile review of 0.10 on
+2026-09-26 read answers on scoreboard pages, and two of the defects it
+found are rules' defects, fixed to each rule's own stated intent and not to
+a page's label:
+
+- The summary's `itemprop="author"` outside any item (`3d02ef8`), whose
+  commit says it reads a byline's name, took the element's whole text. The
+  review found it on WCXB's test page 4048, which the summary's rules are
+  not held out from (the first section) but which was read here as a
+  held-out page: "Keith Barry Senior Autos Reporter". It also took "Posted
+  by John Smith on March 3, 2020 in News" whole, a date inside the element,
+  and a commenter's name. The fix, made on synthetic cases, takes the first
+  of the element's texts that reads as a person's name and passes over one
+  in a comment or an `<aside>`; no rule was added and no threshold set by
+  that page. Over the 4,976 cached benchmark pages it changes three
+  answers, the same page three times (WCXB test and dev 4048, and its copy
+  as served), each to "Keith Barry".
+- `--visible`'s "Name, role" line under the heading (`d95510f`) read a
+  role or an organisation as the name ("Managing Editor, Senior Writer",
+  "The Daily Planet, Editor") and the first line of a team's list. The fix,
+  made on synthetic cases, asks that the first part hold no role's word,
+  open with no "The", "A" or "An" and not be all capitals, and that the next
+  line not be another such line. On the development split it keeps the
+  rule's one hit (author, `--visible` alone: 191 -> 192 hits, 7 wrong and
+  10 inventions both ways).
+
+**`d95510f`, measured once after, on 2026-09-26.** The rule was made after
+the reading above and never run on the four sets, which this section asks
+of every `--visible` rule. Read once, as numbers, the code without the rule
+against the rule as shipped and as fixed above, author hits / wrong /
+inventions of `--visible` alone and of declared then `--visible`: WCXB's
+test pages 51/6/9 and 122/12/50, as served 29/4/4 and 98/7/46, the news
+pages 89/13/0 and 217/14/4, trafilatura's set 129/17/12 and 297/51/104,
+the same with and without the rule in either form: it fires on none of
+their 1,985 pages. It adds no invention and is kept.
+
+**`d95510f`, dropped after a second review.** The same day a second pass
+of the hostile review wrote synthetic lines the fix above still read as a
+byline: an organisation ("Acme Widgets, Chief Executive Officer office"),
+decks ("Apple Inc, CEO Tim Cook said", "Prime Minister, President meet in
+Paris"), a job's department ("Product Engineering, Senior Engineer,
+Remote") and a board's list ("Jane Doe, Chair, John Roe, Treasurer").
+Each word-list patch leaves the next one open, and "Product Engineering,
+Senior Engineer, Remote" is written exactly as "Jane Doe, Senior Engineer,
+Acme": nothing in a line with no byline mark tells them apart. The rule is
+taken out whole; a line marked as a byline is still read by the byline
+rules. What it costs, measured on WCXB's development split and the 4,976
+cached benchmark pages, never on the four sets: the rule fired on two
+pages, WCXB development page 0056, whose declared author is the same
+name (author, `--visible` alone: 0.285 -> 0.284 hit rate, 10 inventions
+both ways; declared then `--visible` unchanged), and the TypeSafe page it
+was written for, which is silent again, as it was in 0.9 and is for every
+tool on `docs/scoreboard-tools.md`.
+
+**A byline's role cut at its comma, measured on the development split
+only.** A second-pass finding of the same review: a byline answered "Jane
+Doe, Senior" and "Sean Peek, Senior Analyst" (as 0.9.1 did). The name now
+ends at a comma when what follows, six words at most, holds a role's or a
+byline label's word; the word list is the one the dropped "Name, role"
+rule used, made on synthetic cases. WCXB's development split, author:
+
+| | exact | hit | wrong | invention | silent |
+|---|---|---|---|---|---|
+| `--visible` alone, before | 181 | 191 | 7 | 10 | 475 |
+| `--visible` alone, after | 182 | 192 | 8 | 10 | 473 |
+| declared then `--visible`, before | 455 | 473 | 26 | 56 | 174 |
+| declared then `--visible`, after | 454 | 474 | 27 | 56 | 172 |
+
+No invention is added. The one exact match lost (page 0096, "Tracy Parker")
+and the one wrong answer added (page 0372, "Mayank Gupta") come from labels
+that include the role, "Tracy Parker, Dietitian" and "Mayank Gupta, CEO of
+CaseBasix": the answer is the person, and the rule is not tuned to them.
+Of the split's 673 author labels, 34 hold a comma and 14 a credential.
+Over the 4,976 cached benchmark pages it changes nine guesses: six names
+lose their role, two silent pages gain a name (0372 above, and 4178, a
+hit), and one loses a trailing comma.
+
+**The publisher's own offset, measured and dropped.** `1af29f0` answered a
+publication instant declared twice, in UTC and in the publisher's own
+offset, with the own offset. Its commit measured it, in-sample, at one wrong
+date turned into a hit on the pages as served and one on trafilatura's set,
+and nothing else. The review of 0.10 found it moved answers 0.9.1 gave: on
+the 4,976 cached benchmark pages, twelve even after it was narrowed to
+ISO 8601 (`3fa304c`), and an extractor learnt on 0.9.1 failed `run` on
+each such page. A summary answer an extractor learnt staying put is the
+project's first promise, and two hits do not buy twelve broken extractors:
+the rule is taken out of 0.10 whole. The first declaration answers, as in
+0.9.1.
+
 ## Two more tools, beside the markdown and beside heal
 
 Fixed on 2026-09-25, before either was run on a scoreboard's pages. Neither is
@@ -256,6 +409,338 @@ its dependencies in `bench/requirements/`.
   A and B are replayed seconds apart, and the selector given is tried before
   any stored one. The page says where anansi healed -- the selector matched
   nothing on B -- and that it does not tell its caller when it does.
+
+## Every tool on the same pages: title, author, date and the main text
+
+Fixed on 2026-09-26, before any of the tools below was run on a page of the
+sets below, and before `bench/tools_compare.py` was written. It makes one
+page, `docs/scoreboard-tools.md`, that puts every tool people reach for to
+turn a web page into its title, author, date and text on the same pages, as
+served with their scripts, scored one way. What prompted it: on one blog post
+built with Framer, one tool answered the date the site was last built, which
+the page writes in an HTML comment, one kept the site's menu in its text, and
+Sluicer missed the byline. One page is an anecdote; this is the count.
+
+**The tools, each in an environment of its own**, pinned with its
+dependencies in `bench/requirements/` (or the lockfile), on Python 3.12, given
+the page's bytes and its address and nothing else:
+
+| tool | version | what it is asked | install line printed |
+|---|---|---|---|
+| Sluicer | this checkout, editable, with trafilatura 2.2.0 for its `markdown` extra | `extract(html, url=...).summary`'s `title`, `author`, `published`; `sluicer.markdown.to_markdown(html, url=...)` | `pip install "sluicer[markdown]"` |
+| Sluicer, declared then `--visible` | the same | the summary's answer, and where it has none the guess of `extract(..., visible=True)`, as every other scoreboard scores it; the text is Sluicer's | the same |
+| trafilatura | 2.2.0 (`requirements/trafilatura.txt`) | `extract_metadata(html, default_url=...)`; `extract(html, url=..., output_format="markdown")` | `pip install trafilatura==2.2.0` |
+| newspaper4k | 0.9.6 (`requirements/newspaper4k.txt`), network taken away, images off | `download(input_html=...)`, `parse()`: `title`, `authors`, `publish_date`, `text` (plain text: it writes no markdown) | `pip install newspaper4k==0.9.6` |
+| markitdown | 0.1.8 from PyPI, base install (`requirements/markitdown.txt`) | `MarkItDown().convert_stream(bytes, stream_info=StreamInfo(extension=".html", mimetype="text/html", url=...))`: `.title` and `.markdown`; it answers no author or date | `pip install markitdown==0.1.8` |
+| Scrapling | 0.4.15 with its `rag` extra (`requirements/scrapling-markdown.txt`), which its markdown needs | a `Response` of the bytes, status 200, and `.markdown(main_content_only=True)`, as its own site-to-markdown spider calls it; the title as that spider reads it, `<title>`'s text; it answers no author or date | `pip install "scrapling[rag]==0.4.15"` |
+| metascraper | the lockfile in `bench/metascraper/` | its `title`, `author` and `date` rules, as the other scoreboards call them; it answers no text | `npm install metascraper@5.58.1 metascraper-title@5.56.2 metascraper-author@5.56.2 metascraper-date@5.56.2` |
+
+Left out, and said so on the page: **Firecrawl**, whose service needs an
+account and a key, and whose self-hosted form is a Docker Compose of several
+services, not a package to pin in an environment like the others; **Scrapy**,
+which has no reading of its own for a title, a date or a text, only the
+selectors someone writes (the drift and SWDE benchmarks measure selectors);
+**html-to-markdown**, a converter of whole pages already beside the markdown
+on trafilatura's scoreboard.
+
+Added while the harness was written, before it was run on any page:
+Scrapling's fetchers build a `Response` with the charset the server sent, and
+given bytes alone it reads them as UTF-8; so each page is handed to it as
+text, decoded by the rule html-to-markdown is given above (`snippets.as_text`),
+before the clock starts, as newspaper4k's page is decoded before it.
+
+A tool that raises on a page answered nothing on it, and the raise is counted
+apart. A question a tool does not answer (markitdown's and Scrapling's author
+and date, metascraper's text) is not scored for it: the page prints a dash,
+never a zero.
+
+**The pages.** Only corpora already pinned here, whose labels were checked by
+people, and scored with the scripts intact:
+
+1. **As served**, the 360 WCXB test pages whose captures `realweb-manifest.json`
+   pins, with WCXB's labels: title, author, date, and the main text, both whole
+   (`main_content`) and as snippets it must hold (`with`) and boilerplate
+   snippets it must not (`without`: navigation, footers, cookie banners). WCXB's
+   labels were drafted with a language model and then reviewed by people in
+   several passes, as its README says.
+2. **trafilatura's evaluation set**, its 990 pages at the commit pinned in
+   `bench/evaldata.py`, each with hand-written `with` and `without` snippets,
+   and 851 with their title, author and date.
+3. **One page added by hand**: the Framer blog post that prompted this
+   comparison, `https://typesafe.ai/blog/introducing-system-one-models-and-jev`,
+   as the Wayback Machine captured it at `20260922123749`, pinned by the
+   SHA-256 of its bytes in `bench/tools-added.json`, where its labels are
+   written by hand from the page a reader sees: its title, the byline's
+   author, the date shown above the title (15 September 2026), six `with` and
+   six `without` snippets. It is fetched into `bench/cache/`, never committed,
+   and the run stops if its bytes no longer hash to the pin. One page carries
+   no rate: it is printed apart, answer by answer, and pooled into nothing.
+
+Not used: **WCXB's own copies** of the test pages, from which every `<script>`
+was removed, so they are not pages as any server sends them (the served set
+is the same pages whole); and **the news set**, whose labels are what fundus's
+parsers read, not labels a person checked page by page. No new page is added
+beyond the one above, and no label of the corpora is changed.
+
+**The questions, and how an answer counts.**
+
+- **Title, author, date**: `bench/score.py`, unchanged -- hit, wrong, silent
+  miss with a label; correct silence or invention without one. Hit rate over
+  the labelled pages and share right when answering over the answers given,
+  inventions included, each with its Wilson interval.
+- **Silent wrong**: an answer that is wrong or invented, given with nothing
+  in the tool's own output to warn of it. The one warning any of these tools
+  gives is Sluicer's `conflicts`: an answer to a question the page answers two
+  ways that mean different things is flagged, and counted apart. A source or a
+  provenance is not a warning. A guess of `--visible` is kept apart from the
+  summary, but is counted like any other answer: it carries no warning. The
+  page prints each tool's silent wrong answers per question, over the answers
+  it gave, with their Wilson interval, and lists the first three per tool and
+  question, by page id, with the label and the answer.
+- **The main text**: every tool's text is first written as plain text by one
+  function, the same for all -- a link or an image becomes its text, emphasis,
+  heading and list marks, setext underlines, table bars and backslash escapes
+  are taken out, spaces collapsed -- so that markdown is not scored against
+  plain text for its syntax. Then:
+  - **Snippets**, as trafilatura's evaluation counts them
+    (`bench/tools/snippets.py`): a `with` snippet the text holds is found, a
+    `without` snippet it holds has leaked, at most six of each per page.
+    Precision, recall and F1 over the summed counts, each with a 95% interval
+    bootstrapped over pages, on both sets.
+  - **Boilerplate**: the share of pages kept clean, where no `without`
+    snippet leaked, over the pages that have one, with its Wilson interval.
+  - **Silent empty**: pages where the tool raised nothing and gave no text,
+    or only spaces, though the page has `with` snippets. Counted per tool.
+  - **The whole text** (the served set only, where WCXB writes it): word-level
+    precision, recall and F1 against `main_content`, as WCXB's README computes
+    them (lowercased `\w+` words, counted as a multiset), averaged over the
+    pages, each with a 95% interval bootstrapped over pages. A page a tool gave
+    no text for scores 0.
+- **Paired comparisons**, as the section below fixes them: Sluicer, and
+  Sluicer declared then `--visible`, against every other tool on every rate
+  both answer (title, author, date by hit rate and by share right when
+  answering; the text's snippet precision, recall and F1, the share of pages
+  kept clean and the mean word F1), on the pages both scored, per set. No
+  correction for making many; the page says how many it makes.
+- **Seconds per page**: `bench/timing.py`, as fixed below, in one run of every
+  tool on the 360 served pages, the timed call being everything the tool is
+  asked above for one page (for Sluicer, `extract` and `to_markdown`; its
+  `--visible` guesses untimed). Printed with each tool's install line, its
+  packages and its install size.
+
+**Not floored.** `bench/gate.py` is not given this page: its title, author
+and date for Sluicer are already floored on the same pages by the served and
+trafilatura scoreboards, and its main text is trafilatura's by design. A floor
+is added, if at all, in a release's own commit.
+
+**Sluicer's rules** were made while the pages of both sets were read (the
+first section), and the page says so. No rule of Sluicer's is changed on
+reading this page's numbers in the commit that first publishes it.
+
+## The main text: made on WCXB's development split, measured on the scoreboards once
+
+Fixed on 2026-09-26, before any rule below was written or run on a page. The
+every-tool scoreboard found Sluicer's text level with trafilatura's, whose
+extraction it is: on the served pages snippet F1 0.859 and pages kept clean
+0.897, but recall 0.782, against 0.90 for markitdown and Scrapling, which keep
+the menus (0.006 and 0.017 of pages clean). What follows says how
+`sluicer.markdown.to_markdown`, the `markdown` command and the MCP
+`page_markdown` may change to find more of the text without taking the menus
+with it, on which pages that is decided, and how the result is read.
+
+**The pages rules are made on**: WCXB's `dev` split, the 1,358 pages
+`metadata.json` marks `dev`, in the archive already pinned at `c039d5e`, with
+their labels (`with`, `without`, `main_content`) and every candidate's output
+on them. They are WCXB's own copies, which lost many of their `<script>`s, so a
+rule reading JSON-LD is measured only on the dev pages whose JSON-LD survived,
+and the numbers say how many those are. No page of a scoreboard -- WCXB's test
+split, its pages as served, trafilatura's set, the page added by hand, the news
+fixtures -- is read while the rules are made, nor any tool's answer on one.
+
+**The measure** (`bench/markdown_dev.py`, run from the checkout's
+environment): each candidate's markdown on each dev page is written as plain
+text by `bench/tools_compare.py`'s `plain`, the six first `with` and `without`
+snippets of each page are counted by `bench/tools/snippets.py`'s `counted`, as
+the served set is; printed are snippet precision, recall and F1 over the
+summed counts, each with its interval bootstrapped over pages, the pages kept
+clean with their Wilson interval, WCXB's mean word precision, recall and F1,
+and the pages silently empty. Each candidate is compared with the 0.9.1 call
+(`baseline`: trafilatura's markdown with links and tables, links resolved
+against the page), paired by page, as the section on differences below fixes.
+
+**The candidates**, measured one by one against `baseline`:
+
+1. *Declared text.* The page's one record of type `Article` or a schema.org
+   subtype of it (`NewsArticle`, `BlogPosting`, `Report`, `ScholarlyArticle`,
+   `TechArticle`, `SocialMediaPosting` and theirs), from JSON-LD or microdata,
+   carrying `articleBody` (or `text`). It is the page's main entity when it is
+   the only such record carrying a body, and, when it names a `url` or
+   `mainEntityOfPage` and the page's address is known, that address is the
+   page's (scheme, a trailing slash and a fragment aside). It is written as
+   markdown: a microdata body by converting its element, a JSON-LD body by
+   converting it when it holds HTML markup, else as its paragraphs. Used first
+   (`declared-first-R`) when it has at least R times the words of the
+   extraction, R in 0.5, 0.8 and 1.0, else the extraction; used as a rescue
+   (`declared-rescue`) only when the extraction has under half its words. A
+   body ending in an ellipsis is truncated and never used.
+2. *Recall.* trafilatura's `favor_recall=True` always (`recall`); only when
+   the extraction has under X times the words of the recall extraction
+   (`recall-if-short-X`, X in 0.5 and 0.7); or only when it has under X times
+   the words of the page's main region's visible text (`region-X`, X in 0.5
+   and 0.7): the first `<main>`, else the first `[role=main]`, else the page's
+   one `<article>`, else `<body>`, without `script`, `style`, `noscript`,
+   `template`, `nav`, `header`, `footer`, `aside`, `form` and `[hidden]`.
+3. *A second extractor, as a rescue*: under the same trigger as `region-X`,
+   the longer of the extraction and the text of trafilatura's own copy of
+   readability or of jusText (both ship with trafilatura, so nothing is added
+   to the install), written as markdown by Sluicer's converter
+   (`readability-X`, `justext-X`).
+4. *Precision*: `include_comments=False` (`no-comments`), and
+   `favor_precision=True` (`precision`), for reference.
+5. *The heading*: `# ` and the page's `<h1>`, the only one, before the text
+   when the text does not already hold it (`h1`), on top of `baseline`.
+
+**What is kept.** A candidate replaces `baseline` when on the dev pages its
+snippet F1 is called better by the paired comparison, and its pages kept clean
+are not called worse and are not more than 0.010 below `baseline`'s. Of several
+that pass, the one with the highest F1. Combinations of passing candidates, and
+any rule added after reading the dev pages' outputs, are recorded here before
+they are measured, and pass the same test against `baseline`. The `h1` rule is
+kept unless it is called worse on F1 or on pages kept clean: it is about the
+markdown being right, not about the score.
+
+**Added on 2026-09-26, after the first run of the candidates above on the
+dev pages and before any of these was run.** That run found every candidate's
+gain at most 0.011 of F1, and, reading the dev pages' misses only, that of the
+6,044 `with` snippets 781 are in the page's own text and left out by the
+extraction, on 378 pages, often a few paragraphs, a nested list or a card of
+a region whose rest was kept. So:
+
+6. *The extraction's own region* (`container-K`, K in 1.25, 1.5 and 2.0): the
+   blocks of the extraction of six words or more are found in the page, by
+   their first words, in the text of its elements; the deepest element that
+   holds four in five of those found, when it is not `<body>` or `<html>`, is
+   written as markdown by Sluicer's converter, without images and without
+   `nav`, `aside`, `footer`, `form`, the ARIA roles `navigation`, `banner`,
+   `contentinfo`, `complementary` and `search`, and elements whose class or id
+   names a share, social, related, comment, newsletter, subscribe, cookie,
+   breadcrumb, sidebar, advert, promo, sponsor, popup or modal box. It
+   replaces the extraction when it holds at least the extraction's words and
+   at most K times them; otherwise the extraction stands.
+7. *The heading, when it is the title* (`h1-titled`): as `h1`, only when the
+   `<h1>` and the title the page declares (the summary's) are one, the shorter
+   within the longer, compared as `bench/score.py` compares titles.
+
+**Added on 2026-09-26, after `container-K` was run on the dev pages and
+before any of these was run.** Written whole, the region brought back 242 of
+the missing snippets and let 159 boilerplate ones in, nearly all of them short
+(a button, a menu item, a forum's "Member" or "Reply with quote") or an author's
+biography. So:
+
+8. *The extraction, with the region's long paragraphs* (`merge-W`, W in 8, 12
+   and 16): the region is found as in `container-K`, and author, bio and byline
+   boxes are left out of it too; its blocks are taken in order, each kept when
+   the extraction already holds its text, or when it has W words or more of
+   which under half are the text of links; then every block of the extraction
+   the kept blocks do not hold is added after them, in its order. With no
+   region, or a region of `<body>`, the extraction stands.
+
+**Added on 2026-09-26, after `merge-W` was run on the dev pages and before
+any of these was run.** `merge-8` found 282 more snippets and let 41 more
+boilerplate ones in: headings of calls to action, menus written as lists whose
+items carry a line of text each, and sentences before or after the article
+(a sign-up line, a disclosure, a review). So:
+
+9. *Only the gaps* (`gap-W`, W in 8, 12 and 16): as `merge-W`, but a block
+   the extraction does not hold is added only when it lies between two blocks
+   it does hold, in the region's order, never before the first or after the
+   last; a heading is added only when the block right after it is; and a list
+   is judged item by item, each item by the same test as a paragraph.
+
+**Added on 2026-09-26, after `gap-W` was run on the dev pages and before
+any of these was run.** `gap-16` found 105 more snippets and lost none, and let
+14 boilerplate ones in, on 14 pages: headings of boxes, a forum's quoted post
+("Click to expand..."), a button's words repeated in a marquee, and sentences
+holding a button's words. Its pages kept clean were 0.009 below `baseline`'s
+and called worse. So:
+
+10. *Gaps, stricter* (`gap2-W`, W in 12 and 16): as `gap-W`, but a heading is
+    never added, nor a block quote, nor a block with fewer distinct words than
+    half its words.
+11. *With the cleaner extraction first*: `readability-0.7`, the one candidate
+    whose pages kept clean were called better, gives the extraction the gaps
+    are filled in (`read-gap2-W`), and `no-comments` does (`nc-gap2-W`).
+
+**Added on 2026-09-26, after `gap2-W`, `read-gap2-W` and `nc-gap2-W` were
+run on the dev pages, and before these were run.** `read-gap2-12` passed the
+test above (F1 +0.013, called better; pages kept clean -0.002, inconclusive),
+the first to find more without being called less clean. The last round,
+after which the best that passes is kept:
+
+12. *Every passing rescue, then the gaps*: `readability-0.7`'s extraction,
+    then, where it has under 0.7 times the words of trafilatura's recall
+    extraction, that one (`read-recall-gap2-12`); or the same with the recall
+    extraction chosen when it has under 0.7 times the region's words
+    (`read-region-gap2-12`); the gaps then filled as `gap2-12`.
+
+**Chosen on 2026-09-26**, by the test above: `read-recall-gap2-12` (F1
++0.017, called better; pages kept clean -0.004, inconclusive), the highest F1
+of those that pass. `declared-first-1.0` passed alone (+0.001, better; -0.001,
+inconclusive), and `h1-titled` was called worse on neither. Before either is
+run with the chosen rule: the code written into `sluicer.markdown` -- the
+declared text first where it has at least the chosen extraction's words, then
+the chosen rule, then the `<h1>` that is the declared title -- is measured on
+the dev pages as the candidate `sluicer`, and kept if it passes the same test
+against `baseline` and is called worse than `read-recall-gap2-12` on neither
+F1 nor pages kept clean; otherwise the declared text and the heading are left
+out of the default, and the code is `read-recall-gap2-12` alone.
+
+**Read once on 2026-09-26**, at `cd6fba5`, as fixed above, and not changed
+on reading it. Sluicer's text against trafilatura's, paired by page: on the
+served pages snippet F1 0.869 against 0.862 (+0.007, -0.003 to +0.017,
+inconclusive), recall 0.802 against 0.786 (inconclusive), pages kept clean
+0.891 against 0.900 (inconclusive); on trafilatura's set F1 0.907 against
+0.915 (-0.008, called worse), precision called worse, pages kept clean 0.719
+against 0.758 (called worse); on the page added by hand six of six found,
+none leaked, as before. Against newspaper4k, markitdown and Scrapling, F1 is
+called better on both sets. The rules did not carry to trafilatura's set:
+they are not changed here, and the next rule for the text is to be made on
+the dev pages again, recorded here first.
+
+**Not shipped, 2026-09-26**, after the reading above. The owner keeps 0.10's
+main text as 0.9.1's: trafilatura's extraction, links resolved, and nothing
+else. The readability and recall rescues, the gaps put back, the declared
+article text first and the `<h1>` are measured and recorded here, and not
+shipped; their code is kept in `bench/markdown_rules.py`, so that
+`bench/markdown_dev.py` reproduces every number above. The `<h1>` alone
+(`h1-titled`) was not called worse, but its pages kept clean fell from 0.849
+to 0.847 on the dev pages (-0.001, -0.004 to 0.000): it let a menu's heading
+into the text of some page, so it cannot be shown to add none, and is left
+out. What 0.10 ships of this work changes no default output: `full`, and
+where the text came from (`read_markdown`, `text_from`, `sources.text`).
+
+And in `full`, `<noscript>` is kept, without the images in it: a reader that
+runs no script is shown it, and a forum written for such readers keeps its
+posts there. It is still chosen by nothing.
+
+**`full`**, the whole page as markdown -- the body with `script`, `style`,
+`noscript`, `template`, `svg`, `iframe` and `[hidden]` taken out, links and
+images resolved against the page -- is an option, not a candidate for the
+default: it is measured on the dev pages to be described, and chosen by
+nothing.
+
+**The scoreboards, once, at the end.** With the code chosen above committed,
+`bench/tools/compare_sluicer.py` is run on the served pages, trafilatura's set
+and the page added by hand, from the checkout's own environment, whose
+trafilatura and its dependencies are exactly the pins of
+`bench/requirements/trafilatura.txt`, since `uv run` is not used on this
+branch. The other tools' results are those of v010-bench's run (`ed3b378`),
+reused as they are. Scored by `bench/tools_compare.py`'s functions: snippet
+precision, recall, F1, pages kept clean and word F1, each with its interval,
+and Sluicer's paired comparisons with trafilatura, newspaper4k, markitdown and
+Scrapling on them. The numbers are reported whatever they are, and no rule is
+changed on reading them; if they are read more than once, the reason is written
+here.
 
 ## How sure a number is, and how a difference is called
 

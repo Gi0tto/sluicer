@@ -109,7 +109,7 @@ def test_a_missing_scrapling_says_the_stealth_extra_installs_it(absent):
         stealth_rung()
 
     assert raised.value.extra == "stealth"
-    assert 'uv pip install "sluicer[stealth]"' in str(raised.value)
+    assert 'Install it with: pip install "sluicer[stealth]"' in str(raised.value)
 
 
 class _BrokenFetchers:

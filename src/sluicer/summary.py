@@ -33,7 +33,8 @@ from sluicer.declared.links import canonicals
 from sluicer.declared.located import Places, paid, place, xpath_of
 from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Overruled, Record
 from sluicer.declared.opengraph import NAMESPACES
-from sluicer.document import Document, base_url, join
+from sluicer.declared.rdfa import document_properties
+from sluicer.document import METAS, Document, base_url, carrying, join, scan
 from sluicer.normalise import (
     amount,
     currency as currency_of,
@@ -168,6 +169,12 @@ _DATE_NAMES = (
 # scoreboards' pages and trafilatura's evaluation set they gave seven answers,
 # six wrong or where the label has no author, and one where the label itself
 # reads "Unknown".
+# A clock time and nothing else: "10:52", "2:33 PM", "3 pm", "07:01:27 UTC".
+_ONLY_A_TIME = re.compile(
+    r"^\s*\d{1,2}(?:(?::\d{2}){1,2}(?:\.\d+)?\s*(?:[ap]\.?\s?m\.?)?"
+    r"|\s*[ap]\.?\s?m\.?)\s*(?:z|[a-z]{2,4}|[+-]\d{2}:?\d{2})?\s*$",
+    re.IGNORECASE,
+)
 _NO_ONE = frozenset({"admin", "administrator", "super user", "unknown"})
 _AUTHOR_NAMES = ("citation_author", "parsely-author", "sailthru.author", "byl")
 _TITLE_NAMES = ("citation_title",)
@@ -351,6 +358,8 @@ def read_summary(
             _orphan_itemprop(doc, "author"),
             meta(dublincore, "dublincore", "creator", "dc."),
             _not_an_address(og("article:author")),
+            _orphan_itemprop(doc, "author", meta=False),
+            _not_an_address(_of_the_document(doc, _RDFA_AUTHOR, named=True)),
         ],
         "published": [
             own("datePublished"),
@@ -363,6 +372,7 @@ def read_summary(
             meta(dublincore, "dublincore", "created", "dc."),
             _orphan_itemprop(doc, "datePublished"),
             _named(doc, _DATE_NAMES),
+            _of_the_document(doc, _RDFA_PUBLISHED, dated=True),
         ],
         "modified": [
             own("dateModified"),
@@ -406,6 +416,7 @@ def read_summary(
         "sku": [
             own("sku"),
             own("productID"),
+            _offers_sku(subject, variants),
             og("product:retailer_item_id"),
             og("sku"),
             og("product:sku"),
@@ -443,6 +454,13 @@ def read_summary(
         )
         and answer.value.casefold() not in _NO_ONE
         and any(c.isalpha() for c in answer.value)
+    ]
+    # A time with no day is no date: a page that writes "10:52" where its
+    # publication date goes has not said which day, and the next is asked.
+    questions["published"] = [
+        answer
+        for answer in questions["published"]
+        if answer and not _ONLY_A_TIME.match(answer.value)
     ]
     questions["title"] = [
         _without_site(answer, site_names)
@@ -1140,6 +1158,81 @@ def _pricing(subject: Record, offers: JsonValue) -> _Pricing:
     return _Pricing(price, regular, low, high, currency, availability)
 
 
+def _offers_sku(subject: Record | None, variants: list[Record]) -> Answer:
+    """The SKU the subject's offers declare, when the subject declares none:
+    schema.org gives ``sku`` to an ``Offer`` as to a ``Product``. Only when its
+    offers name one SKU, and every variant's the same: offers of several SKUs
+    are several things."""
+    found = _one_offer_sku(subject)
+    if found is None or subject is None:
+        return None
+    for variant in variants:
+        other = _one_offer_sku(variant)
+        if other is None or other.value != found.value:
+            return None
+    return found
+
+
+def _one_offer_sku(record: Record | None) -> SummaryField | None:
+    if record is None or "offers" not in record.fields:
+        return None
+    held = record.fields["offers"]
+    if held.source not in ABOUT_A_THING:
+        return None
+    # An offer of another thing, and every offer inside it, sells that
+    # thing: a bundle's offer of its accessory holds the accessory's SKU.
+    own_name = record.fields.get("name")
+    name_of = (_text(own_name.value) or "").casefold() if own_name else ""
+    elsewhere: list[str] = []
+    skus = []
+    for offer, path in _offers_in(held.value, "offers"):
+        if any(path.startswith(f"{away}.") for away in elsewhere):
+            continue
+        if not _offers_the_subject(offer, name_of):
+            elsewhere.append(path)
+            continue
+        # An AggregateOffer's own SKU is a listing's, not the product's: it
+        # sums the sellers' offers, each of which may say its own.
+        if _aggregate(offer):
+            continue
+        text = _text(offer["sku"]) if "sku" in offer else None
+        if text:
+            skus.append((text, path))
+    if not skus or len({text for text, _ in skus}) > 1:
+        return None
+    text, path = skus[0]
+    name = record.type or "Thing"
+    key = f"{name}.{path}.sku"
+    return SummaryField(text, held.source, key, _inside(held, f"{path}.sku"))
+
+
+def _offers_the_subject(offer: dict[str, JsonValue], name: str) -> bool:
+    """Whether ``offer`` sells the subject itself: it names no
+    ``itemOffered``, or names one by the subject's own name, whole or as the
+    part of it after a title's separator ("Log in · Casio FX-991ES" offers
+    "Casio FX-991ES")."""
+    offered = offer.get("itemOffered")
+    if offered is None:
+        return True
+    said = _text(offered)
+    if not name or not said:
+        return False
+    said = said.casefold()
+    return name == said or any(
+        name.endswith(separator + said) for separator in _TITLE_SEPARATORS
+    )
+
+
+def _aggregate(offer: dict[str, JsonValue]) -> bool:
+    """Whether ``offer`` declares itself an ``AggregateOffer``, under any of
+    the ways a type is written: ``AggregateOffer``, ``schema:AggregateOffer``,
+    ``https://schema.org/AggregateOffer``."""
+    return any(
+        isinstance(kind, str) and re.split(r"[/:#]", kind)[-1] == "AggregateOffer"
+        for kind in _listed(offer.get("@type"))
+    )
+
+
 def _offers_in(value: JsonValue, path: str) -> list[tuple[dict[str, JsonValue], str]]:
     """Every offer under ``value``, in document order, each with its path.
 
@@ -1322,7 +1415,7 @@ def _headline_or_name(
         text.casefold()
         for text in (
             opengraph.get("title"),
-            *(title.text_content() for title in doc.tree.xpath(_PAGE_TITLE)),
+            *(title.text_content() for title in scan(doc, _PAGE_TITLE)),
         )
         if text
     )
@@ -1332,7 +1425,7 @@ def _headline_or_name(
 
 
 def _element_text(doc: Document, path: str, key: str) -> SummaryField | None:
-    found = doc.tree.xpath(path)
+    found = scan(doc, path)
     text = _clean(found[0].text_content()) if found else None
     return SummaryField(text, "html", key, xpath_of(found[0])) if text else None
 
@@ -1385,7 +1478,9 @@ def _meta_names(doc: Document) -> dict[str, list[tuple[str, HtmlElement]]]:
     )
     if found is None:
         found = doc.memo["summary.meta_names"] = {}
-        for meta in doc.tree.xpath("//meta[@name][@content]"):
+        for meta in scan(doc, METAS):
+            if meta.get("name") is None or meta.get("content") is None:
+                continue
             text = _clean(meta.get("content"))
             if text:
                 name = (meta.get("name") or "").strip().lower()
@@ -1393,8 +1488,15 @@ def _meta_names(doc: Document) -> dict[str, list[tuple[str, HtmlElement]]]:
     return found
 
 
-def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
-    """A ``<meta itemprop>`` outside any item, as templates put in the head.
+def _orphan_itemprop(
+    doc: Document, prop: str, meta: bool = True
+) -> SummaryField | None:
+    """An ``itemprop`` outside any item: a ``<meta itemprop>`` as templates put
+    in the head, or, with ``meta`` false, any other element's author, ``<span
+    itemprop="author">``, asked after every other declaration. A byline that
+    is only a label, "Staff", names nobody. (Other elements' dates were
+    measured and not kept: on WCXB's development split they added an
+    invention and no hit.)
 
     The microdata standard ignores it, having no item to give it to, so the
     microdata reader does too. It is still the page stating the value. The
@@ -1402,16 +1504,204 @@ def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
     """
     orphans: list[HtmlElement] | None = doc.memo.get("summary.orphan_itemprops")
     if orphans is None:
-        orphans = doc.memo["summary.orphan_itemprops"] = doc.tree.xpath(
-            "//meta[@itemprop][@content][not(ancestor::*[@itemscope])]"
-        )
-    for meta in orphans:
-        if prop in (meta.get("itemprop") or "").split():
-            text = _clean(meta.get("content"))
-            if text:
+        # Through the attribute axis, each element's ancestors asked in
+        # Python: the same elements as //*[@itemprop][not(ancestor::*
+        # [@itemscope])], without a predicate tested on every element.
+        orphans = doc.memo["summary.orphan_itemprops"] = [
+            element
+            for element in carrying(doc.tree, "//@itemprop")
+            if not any(
+                above.get("itemscope") is not None for above in element.iterancestors()
+            )
+        ]
+    for element in orphans:
+        if (element.tag == "meta") is not meta:
+            continue
+        if prop in (element.get("itemprop") or "").split():
+            if meta:
+                text = _clean(element.get("content"))
+                if not text:
+                    continue
                 return SummaryField(
-                    text, "html", f"<meta itemprop={prop}>", xpath_of(meta)
+                    text, "html", f"<meta itemprop={prop}>", xpath_of(element)
                 )
+            # An element that is an item itself holds a card, not a value;
+            # one in a comment or an aside is somebody else's, and one inside
+            # another property, <div itemprop="review">, is that property's:
+            # a review's author is not the page's. The article's own text,
+            # articleBody, is the page's, and an author box may close it.
+            if (
+                element.get("itemscope") is not None
+                or _another_voice(element)
+                or any(
+                    set(held.split()) - _THE_PAGE_S_TEXT
+                    for above in element.iterancestors()
+                    if (held := above.get("itemprop")) is not None
+                )
+            ):
+                continue
+            if _itemprop_value(element) is None:
+                continue
+            text = _first_person(element)
+            if text is None:
+                continue
+            key = f"<{element.tag} itemprop={prop}>"
+            return SummaryField(text, "html", key, xpath_of(element))
+    return None
+
+
+# The properties that hold the page's own text, inside which an author is
+# still the page's.
+_THE_PAGE_S_TEXT = frozenset({"articleBody", "text"})
+# The words of a byline that name nobody: its label or a role, not a person.
+# A byline of these words alone, "Staff Reporter", "News Desk", "Guest
+# Contributor", is a placeholder where no name was written.
+_NOBODY_WORDS = frozenset(
+    (  # noqa: SIM905 -- read as a line of words
+        "by staff team editor editors writer writers reporter reporters "
+        "correspondent correspondents contributor contributors columnist "
+        "journalist author authors desk news newsroom admin guest senior chief "
+        "special our the"
+    ).split()
+)
+# The longest text an element outside any item is read as a value: a name or
+# a date, not a paragraph that happens to carry an itemprop.
+_ORPHAN_MOST = 120
+
+
+# A label before a byline's name, "By", "Posted by", "Author:", alone or
+# opening the name's text.
+_BYLINE_LABEL = re.compile(
+    r"^\s*(?:(?:written|posted|authored|story|words)\s+)?"
+    r"(?:by|author)\s*:?(?:\s+|$)",
+    re.IGNORECASE,
+)
+# Where a byline's name ends: "John Smith on March 3", "Ann Lee | News",
+# "Bo Li - Reporter", "Ann Lee, 3 May".
+_NAME_ENDS = re.compile(r"\s+(?:on|in)\s+|\s*[|\u2022\u00b7]\s*|\s+-\s+|,\s*(?=\d)")
+# What a person's name never holds: a digit, an address, an ampersand.
+_NOT_A_PERSON = re.compile(r"\d|@|https?:|www\.|&")
+# The lowercase words a name may hold: its particles, as in Ludwig van
+# Beethoven, and the "and" between two names.
+_NAME_PARTICLES = frozenset(
+    "van von der den de del della da di du dos das la le bin ibn al el y and".split()  # noqa: SIM905
+)
+# The most words of a byline's name.
+_NAME_MOST_WORDS = 5
+# Boxes of other people's words: a comment, an aside.
+_ANOTHER_VOICE = re.compile(r"comment")
+
+
+def _another_voice(element: HtmlElement) -> bool:
+    """Whether ``element`` sits in an ``<aside>`` or a box a class or an id
+    names as a comment's: a commenter's name is not the page's author. The
+    page's own ``<html>`` and ``<body>`` classes say nothing of a box."""
+    for node in (element, *element.iterancestors()):
+        if node.tag in ("html", "body"):
+            break
+        if node.tag == "aside":
+            return True
+        named = f"{node.get('class') or ''} {node.get('id') or ''}".lower()
+        if _ANOTHER_VOICE.search(named):
+            return True
+    return False
+
+
+def _first_person(element: HtmlElement) -> str | None:
+    """The first of ``element``'s pieces of text that is a person's name:
+    pieces, since a byline's box runs "By", "Keith Barry" and "Senior Autos
+    Reporter" into one text, and "Posted by John Smith on March 3, 2020 in
+    News" names John Smith. A label alone, "By", only says the name comes
+    next; a date, a label word such as "Staff", a sentence, is nobody."""
+    for piece in element.itertext():
+        text = " ".join(piece.split())
+        text = _BYLINE_LABEL.sub("", text, count=1)
+        text = _NAME_ENDS.split(text, maxsplit=1)[0].strip(" ,;:")
+        if not text or len(text) > _ORPHAN_MOST:
+            continue
+        name = _a_person(text)
+        if name is not None:
+            return name
+    return None
+
+
+def _a_person(text: str) -> str | None:
+    """``text`` when it reads as a person's name, else None."""
+    words = text.split()
+    if not 1 <= len(words) <= _NAME_MOST_WORDS or _NOT_A_PERSON.search(text):
+        return None
+    if set(text.casefold().split()) <= _NOBODY_WORDS:
+        return None
+    if any(w[:1].islower() and w not in _NAME_PARTICLES for w in words):
+        return None
+    if not any(w[:1].isupper() for w in words):
+        return None
+    return text
+
+
+def _itemprop_value(element: HtmlElement) -> str | None:
+    """An element's microdata value when it is a text, as the standard reads
+    it: a <time>'s datetime, a <data>'s value, else its text. An element whose
+    value is an address has none here."""
+    if element.tag in _AN_ADDRESS:
+        return None
+    attribute = {"time": "datetime", "data": "value", "meter": "value"}
+    value = element.get(attribute[element.tag]) if element.tag in attribute else None
+    if value is None and element.tag != "time" and element.tag in attribute:
+        return None
+    return str(value if value is not None else element.text_content())
+
+
+# The elements whose microdata value is an address, not a text.
+_AN_ADDRESS = frozenset(
+    {"a", "area", "link", "img", "audio", "video", "source", "track", "embed"}
+    | {"iframe", "object"}
+)
+
+
+# RDFa properties of the document itself that name its author and its
+# publication date, most specific first: schema.org's, and Dublin Core's, which
+# RDFa's initial context gives the prefixes dc: and dcterms:.
+_DCTERMS, _DC11 = "http://purl.org/dc/terms/", "http://purl.org/dc/elements/1.1/"
+_SCHEMA = ("http://schema.org/", "https://schema.org/")
+_RDFA_AUTHOR = (
+    *(f"{s}author" for s in _SCHEMA),
+    f"{_DCTERMS}creator",
+    f"{_DC11}creator",
+    *(f"{s}creator" for s in _SCHEMA),
+)
+_RDFA_PUBLISHED = (
+    *(f"{s}datePublished" for s in _SCHEMA),
+    f"{_DCTERMS}issued",
+    f"{_DCTERMS}date",
+    f"{_DC11}date",
+    f"{_DCTERMS}created",
+    *(f"{s}dateCreated" for s in _SCHEMA),
+)
+
+
+def _of_the_document(
+    doc: Document, iris: tuple[str, ...], dated: bool = False, named: bool = False
+) -> SummaryField | None:
+    """The first of ``iris`` an RDFa property of the document itself gives a
+    value for: one with no subject in force, which RDFa gives the page. With
+    ``dated``, only a value that reads as a date: a link's address, ``<a
+    property="dcterms:date" href="/archive/2020/05">``, is the value RDFa
+    gives it, and no date. With ``named``, a byline's text read as the
+    ``itemprop`` one is: its "By" or "Written by" left out, and one of label
+    and role words alone, "Written by our staff", naming nobody."""
+    found = document_properties(doc)
+    for iri in iris:
+        for said, term, value, element in found:
+            text = _clean(value) if said == iri else None
+            if dated and text and iso_date(text) is None:
+                continue
+            if named and text:
+                text = _BYLINE_LABEL.sub("", text, count=1).strip()
+                if set(text.casefold().split()) <= _NOBODY_WORDS:
+                    continue
+            if text and len(text) <= _ORPHAN_MOST:
+                return SummaryField(text, "rdfa", f"property={term}", xpath_of(element))
     return None
 
 
@@ -1442,7 +1732,7 @@ def _canonical(doc: Document, header: list[str]) -> SummaryField | None:
 
 
 def _language(doc: Document) -> SummaryField | None:
-    for element in doc.tree.xpath("//html[@lang]"):
+    for element in carrying(doc.tree, "//html/@lang"):
         lang = _clean(element.get("lang"))
         if lang:
             return SummaryField(lang, "html", "<html lang>", xpath_of(element))

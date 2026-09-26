@@ -4,7 +4,7 @@ description: Read the structured data a web page already declares (JSON-LD, micr
 license: MIT
 compatibility: Needs the sluicer MCP server (uvx --with "sluicer[mcp]" sluicer mcp) or the sluicer command; reading a URL needs network access.
 metadata:
-  version: "0.9.1"
+  version: "0.10.0"
   homepage: "https://github.com/Gi0tto/sluicer"
 ---
 
@@ -33,10 +33,11 @@ field says `"source": "induced"`.
 ## The MCP tools
 
 - `extract_declared(html_or_url, induce=false, at=null, respect_tdm=false,
-  records=true, visible=false)` -- the summary and the records.
+  records=true, visible=true)` -- the summary and the records.
   `records=false` keeps only the summary and what was normalised, a small
-  answer. `visible=true` adds the title, author and dates the page shows a
-  reader, as guesses in `visible`, never in the summary. `at` is a date (`2024`, `2024-06-01`): the URL
+  answer. `visible`, on by default, adds the title, author and dates the page
+  shows a reader, as guesses in `visible`, never in the summary; `false`
+  leaves them out. `at` is a date (`2024`, `2024-06-01`): the URL
   as the Wayback Machine captured it nearest to then, and `fetch.archived`
   says which capture. `respect_tdm=true` answers `tdm_reserved` instead of a
   page whose site reserves its text and data mining rights.
@@ -77,11 +78,11 @@ field says `"source": "induced"`.
   rather than crawling its pages.
 - `map_site(url, limit=100)` -- a site's addresses from its sitemaps (up to
   1,000, from up to ten sitemaps), or its start page's links when it has none.
-- `crawl_site(url, max_pages=10, max_depth=2, include, exclude, respect_tdm)` -- follow a
+- `crawl_site(url, max_pages=10, max_depth=2, include, exclude, respect_tdm, visible=true)` -- follow a
   site's links, up to 25 pages on its own site, and get each page's summary and
   the types it declared; `extract_declared` on a page gives its records.
   `include` and `exclude` are plain text an address must or must not contain.
-- `extract_many(urls, records=false, induce, respect_tdm)` -- read up to 25
+- `extract_many(urls, records=false, induce, respect_tdm, visible=true)` -- read up to 25
   addresses you already have, on one site or several, in the order given, and
   get each page's summary and types, and its records with `records=true` as
   far as the answer's bound allows. Use it instead of calling
@@ -220,8 +221,8 @@ have a reason you would defend.
 **It climbs only on a measurement.** Plain HTTP first; a browser only for a
 refusal, a challenge, or a page that is a script waiting to render. The stealth
 rung is never automatic. Plain HTTP needs no extra; the browser is the
-`browser` extra and needs installing once:
-`uvx --from "sluicer[browser]" playwright install chromium`; without it, a climb
+`browser` extra, and its Chromium is downloaded once with
+`sluicer install browser`; without it, a climb
 falls back to what plain HTTP brought back and says so. A site that needed the
 browser once starts its next pages there.
 

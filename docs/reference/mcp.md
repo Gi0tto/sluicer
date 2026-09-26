@@ -16,7 +16,7 @@ Read the structured data a page declares, with where each value came from.
 - `at`: a date (2024, 2024-06, 2024-06-01): read the URL as the Wayback Machine captured it nearest to then; "fetch" says which capture.
 - `respect_tdm`: answer tdm_reserved instead of the page when the site reserves its text and data mining rights (TDMRep: its tdmrep.json, headers or meta tags).
 - `records`: also return every record, not only the summary and what was normalised; false keeps the answer small. Records that would make the answer larger than 75,000 bytes are left out and counted in records_left_out.
-- `visible`: also guess the title, author, publication and update dates the page shows a reader, in "visible", each {"value", "where", "rule"}; guesses, never part of the summary, which holds only what the page declares.
+- `visible`: also guess the title, author, publication and update dates the page shows a reader, in "visible", each {"value", "where", "rule"}; guesses, never part of the summary, which holds only what the page declares. On by default; false reads the declarations alone.
 
 Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
 for a URL. records are typed fields, each {"value", "source",
@@ -43,7 +43,7 @@ visible_left_out, normalised_left_out or links_left_out.
 | `at` | string or null | `None` |
 | `respect_tdm` | boolean | `False` |
 | `records` | boolean | `True` |
-| `visible` | boolean | `False` |
+| `visible` | boolean | `True` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
 
@@ -55,14 +55,18 @@ Return a page's main content as markdown, without navigation or footer.
 
 - `html_or_url`: an http(s) URL to fetch, or the HTML itself.
 - `front_matter`: open the markdown with a YAML block of what the page declares about itself (title, author, dates, url...) and each answer's source.
+- `full`: the whole page, menus and footers included, not its main content.
 - `at`: a date: read the URL as the Wayback Machine captured it then.
 - `respect_tdm`: answer tdm_reserved when the site reserves its text and data mining rights (TDMRep).
 - `offset`: where in the markdown this answer starts, 0 for the beginning; the answer before gives the next as next_offset.
 - `max_chars`: the most characters this answer carries, 1 to 60,000; fewer when more would weigh over 75,000 bytes, as 60,000 characters of Chinese do.
 
-Returns {"ok", "markdown", "url", "length", "next_offset"}, and
-"fetch" for a URL: markdown is one slice, length the whole markdown's,
-next_offset where the next slice starts or null at the end. The
+Returns {"ok", "markdown", "text_from", "url", "length",
+"next_offset"}, and "fetch" for a URL: markdown is one slice, length
+the whole markdown's, next_offset where the next slice starts or null
+at the end. text_from says where the text came from: source
+"extracted" (the main content, method naming the extractor) or
+"page" (full), and "" with no text. The
 markdown is always the page's own content: a failure is ok false with
 "error", never text that could be mistaken for the page.
 
@@ -70,6 +74,7 @@ markdown is always the page's own content: a failure is ok false with
 |---|---|---|
 | `html_or_url` | string | required |
 | `front_matter` | boolean | `False` |
+| `full` | boolean | `False` |
 | `at` | string or null | `None` |
 | `respect_tdm` | boolean | `False` |
 | `offset` | integer | `0` |
@@ -272,21 +277,22 @@ Crawl a site from url, following its links, and summarise every page.
 - `respect_tdm`: give a page whose site reserves its text and data mining rights (TDMRep) as a tdm_reserved error, never its summary.
 - `include`: text an address must contain for its link to be followed (any one of them); plain text, not a pattern.
 - `exclude`: text that stops a link being followed when its address contains it.
+- `visible`: also guess the title, author and dates each page shows a reader, in its "visible", as extract_declared does; guesses, never part of the summary. On by default; false leaves "visible" out.
 
 Returns {"ok", "url", "pages", "stopped"}. Pages come breadth first,
 each {"ok", "url", "depth", "found_on", "landed", "fetch", "canonical",
-"summary", "sources", "types", "links"} -- the summary and the types
-declared, not the records; call extract_declared on a page for those
--- or, when it has nothing, {"ok": false, "error"} with the page's
-reason. stopped is "done", "max_pages" (links were left unfollowed)
+"summary", "sources", "types", "links", "visible"} -- the summary and
+the types declared, not the records; call extract_declared on a page
+for those -- or, when it has nothing, {"ok": false, "error"} with the
+page's reason. stopped is "done", "max_pages" (links were left unfollowed)
 or "time_budget" (a minute passed). One request at a time, a second
 apart or the site's Crawl-delay, robots.txt obeyed; a page asked again
 after a request that may succeed later says so in "retries". ok is
 false only
 when no page could be read, and error then says why. Past 75,000
-bytes the heaviest summary answers of any page go first, named in that
-page's summary_left_out, then the last pages, counted in
-pages_left_out.
+bytes the heaviest guesses of any page go first, named in that page's
+visible_left_out, then the heaviest summary answers, named in its
+summary_left_out, then the last pages, counted in pages_left_out.
 
 | parameter | type | default |
 |---|---|---|
@@ -296,6 +302,7 @@ pages_left_out.
 | `include` | array or null | `None` |
 | `exclude` | array or null | `None` |
 | `respect_tdm` | boolean | `False` |
+| `visible` | boolean | `True` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
 
@@ -309,19 +316,22 @@ Read several pages' declared data, politely, in the order given.
 - `records`: also return each page's records, not only its summary; the heaviest pages' records are left out first to keep the answer under 75,000 bytes, each counted in that page's records_left_out.
 - `induce`: also read repeated rows from a page that declares nothing about them; those fields say source "induced".
 - `respect_tdm`: give a page whose site reserves its text and data mining rights (TDMRep) as a tdm_reserved error, never its data.
+- `visible`: also guess the title, author and dates each page shows a reader, in its "visible", as extract_declared does; guesses, never part of the summary. On by default; false leaves "visible" out.
 
 Returns {"ok", "pages", "stopped"}. Pages come in the order given,
 each {"ok", "url", "landed", "fetch", "canonical", "summary",
-"sources", "types", "links"}, and "records" when asked -- or, when it
-has nothing, {"ok": false, "error"} with the page's reason. A page
+"sources", "types", "links", "visible"}, and "records" when asked --
+or, when it has nothing, {"ok": false, "error"} with the page's
+reason. A page
 asked again after a request that may succeed later says so in
 "retries". Each site is asked one request at a time, a second apart
 or its Crawl-delay, robots.txt obeyed; several sites at once. stopped
 is "done", or "time_budget" when a minute passed first and the pages
 after are left out. ok is false only when no page could be read, and
 error then says why. Past 75,000 bytes the heaviest pages' records go
-first, then the heaviest summary answers, named in summary_left_out,
-then the last pages, counted in pages_left_out. For many more
+first, then the heaviest guesses, named in visible_left_out, then the
+heaviest summary answers, named in summary_left_out, then the last
+pages, counted in pages_left_out. For many more
 addresses, or a whole site, the command line's sluicer batch has no
 such bounds.
 
@@ -331,6 +341,7 @@ such bounds.
 | `records` | boolean | `False` |
 | `induce` | boolean | `False` |
 | `respect_tdm` | boolean | `False` |
+| `visible` | boolean | `True` |
 
 Its annotations say it only reads, changes nothing, gives the same answer when called again and may reach the web.
 

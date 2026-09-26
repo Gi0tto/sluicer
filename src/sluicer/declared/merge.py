@@ -39,6 +39,7 @@ from sluicer.declared.located import (
 )
 from sluicer.declared.readers import BY_NAME, READERS
 from sluicer.declared.types import type_name
+from sluicer.document import Document
 
 # What a field holds: text, or the objects and lists a page nests, down to text.
 JsonValue: TypeAlias = "str | list[JsonValue] | dict[str, JsonValue]"
@@ -52,6 +53,32 @@ MAX_DEPTH = 16
 # own questions only from these. Read off the registry, so a new reader is
 # counted by saying what it describes, once.
 ABOUT_A_THING = frozenset(reader.name for reader in READERS if reader.about_things)
+
+
+def declares_a_thing(doc: Document) -> bool:
+    """Whether ``doc`` declares a field about a thing on it: what
+    ``sluicer.api._declared_about_its_things`` says of the records a default
+    ``extract`` of it gives, read with only the readers about things, each alone, in
+    the order of precedence, stopping at the first that declares one.
+
+    The same answer, by construction: folding only ever adds a field to a
+    record, and a field of one reader that meets a key already held meets a
+    field of an earlier reader about things; the readers about the page add
+    fields of their own sources only. So the merged records hold a field
+    about a thing exactly when one reader's own records do. The fetch ladder
+    and the page cache judge each page they are given by this, and a full
+    ``extract`` -- the summary, the links, the rights -- was twice the work
+    for a yes or a no.
+    """
+    for reader in READERS:
+        if not reader.about_things or reader.optional is not None:
+            continue
+        declared = reader.read(doc)
+        if declared and any(
+            record.fields for record in merge(**{reader.name: declared})
+        ):
+            return True
+    return False
 
 
 @dataclass(frozen=True)

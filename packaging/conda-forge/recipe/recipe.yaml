@@ -7,7 +7,7 @@
 schema_version: 1
 
 context:
-  version: "0.9.1"
+  version: "0.10.0"
 
 package:
   name: sluicer
@@ -15,7 +15,9 @@ package:
 
 source:
   url: https://pypi.org/packages/source/s/sluicer/sluicer-${{ version }}.tar.gz
-  sha256: 90bc8c1ad6a1df80129f0229eadaf9f506de17d4f220cbce99d40720764daa8d
+  # PLACEHOLDER: sluicer 0.10.0 has no sdist yet. Run
+  # packaging/recipes.py again once it is on PyPI.
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000
 
 build:
   noarch: python
@@ -37,6 +39,7 @@ requirements:
     - cssselect >=1.2
     - lxml >=5.3
     - protego >=0.3
+    - trafilatura >=2.0
 
 tests:
   - python:
@@ -63,8 +66,8 @@ about:
     microdata, RDFa, OpenGraph, Dublin Core, Twitter cards, HTML's meta
     names -- merged into one answer that names where every value came
     from, with no model in the loop. This package is the base install:
-    it fetches over plain HTTP; the browser, markdown and MCP extras are
-    on PyPI.
+    it fetches over plain HTTP and turns a page into markdown; the
+    browser and MCP extras are on PyPI.
   license: MIT AND CC-BY-SA-3.0 AND Unicode-3.0
   license_file:
     - LICENSE

@@ -34,9 +34,8 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from urllib.parse import urlsplit
 
-from sluicer.api import _extract as extract
-from sluicer.declared.merge import ABOUT_A_THING
-from sluicer.document import load
+from sluicer.declared.merge import declares_a_thing
+from sluicer.document import load, load_and_keep
 from sluicer.fetch.address import (
     AddressRefused,
     _resolve,
@@ -593,12 +592,7 @@ def _climb(
         # What counts as having delivered is a field about a thing, the rule
         # induction uses: a theme-color in the head of an empty React shell is
         # not the page's data.
-        records = extract(result.html, url=result.url).records
-        found = any(
-            field.source in ABOUT_A_THING
-            for record in records
-            for field in record.fields.values()
-        )
+        found = declares_a_thing(load_and_keep(result.html, url=result.url))
         reason = why_climb(result.status, result.html, found_records=found)
         if reason is None:
             checked = _checked(result, url, allow_private, resolve, obey_robots, read)

@@ -164,10 +164,19 @@ class ExtractAnswer(TypedDict, total=False):
     fetch: FetchRecord
 
 
+class TextFromAnswer(TypedDict):
+    """Where a page's markdown came from (``sluicer.markdown.MainText``)."""
+
+    source: str
+    method: str
+    where: str | None
+
+
 class MarkdownAnswer(TypedDict, total=False):
     ok: Required[bool]
     error: ErrorDetail
     markdown: str
+    text_from: TextFromAnswer
     url: str | None
     length: int
     next_offset: int | None
@@ -428,6 +437,8 @@ class CrawledPage(TypedDict, total=False):
     sources: list[str]
     types: list[str]
     links: int
+    visible: dict[str, GuessAnswer]
+    visible_left_out: list[str]
     retries: list[RetryAnswer]
     error: PageError
 
@@ -448,6 +459,8 @@ class ExtractedPage(TypedDict, total=False):
     sources: list[str]
     types: list[str]
     links: int
+    visible: dict[str, GuessAnswer]
+    visible_left_out: list[str]
     retries: list[RetryAnswer]
     error: PageError
 

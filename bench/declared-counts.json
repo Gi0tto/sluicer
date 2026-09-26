@@ -175,8 +175,8 @@
    "description": 58986,
    "url": 67955,
    "image": 50276,
-   "author": 19229,
-   "published": 23361,
+   "author": 19297,
+   "published": 23066,
    "modified": 21403,
    "language": 76842,
    "site_name": 48967,
@@ -189,7 +189,7 @@
    "currency": 8714,
    "availability": 7549,
    "brand": 4548,
-   "sku": 5540,
+   "sku": 5612,
    "gtin": 948,
    "mpn": 1227,
    "rating": 1742,
@@ -242,7 +242,7 @@
  },
  "normalised": {
   "answered": {
-   "published": 23361,
+   "published": 23066,
    "modified": 21403,
    "price": 8051,
    "price_regular": 167,
@@ -252,7 +252,7 @@
    "gtin": 948
   },
   "read": {
-   "published": 22039,
+   "published": 22083,
    "modified": 21024,
    "price": 8010,
    "price_regular": 167,
@@ -264,15 +264,15 @@
   "unread_shapes": {
    "date": {
     "9999": 258,
-    "9:99 aa": 135,
-    "99:99": 120,
     "9999/99/99": 90,
-    "99:99 aa": 64,
     "-9999-99-99a99:99:99+99:99": 59,
     "999 aaaa aaa": 52,
     "99/99/9999": 49,
     "9999999999": 48,
-    "9999-99-99aaa99:99:99+99:99": 40
+    "9999-99-99aaa99:99:99+99:99": 40,
+    "99 aaaa aaa": 32,
+    "99.99.9999": 29,
+    "9999-99-99 99:99:99": 27
    },
    "price": {
     "999.999": 7,
@@ -412,8 +412,8 @@
   }
  ],
  "sluicer": {
-  "src": "8a426a2",
-  "version": "0.9.1",
+  "src": "5e97f6b",
+  "version": "0.10.0",
   "lxml": "6.1.3",
   "libxml2": "2.14.6",
   "mf2py": "2.0.2",

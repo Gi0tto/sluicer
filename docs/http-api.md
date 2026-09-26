@@ -97,9 +97,17 @@ declares no structured data, this is the whole answer, from a run on
   "sources": [],
   "links": {},
   "rights": {},
+  "visible": {
+    "title": {"value": "Example Domain", "where": "/html/body/div/h1",
+              "rule": "h1"}
+  },
   "fetch": {"rung": "http", "status": 200, "seconds": 0.014, "climbs": []}
 }
 ```
+
+`visible` holds what the page shows a reader and may not declare -- its
+heading, byline and dates -- each a guess naming its element and rule, never
+part of the summary. Send `"visible": false` to leave it out.
 
 A page that declares more fills `records`, one per thing it declares, and the
 summary answers more questions: [getting started](getting-started.md#3-understand-what-came-back)

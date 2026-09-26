@@ -159,6 +159,34 @@ uv run bench/evaldata.py --tools html-to-markdown   # the converter alone
 repository. The annotations were written to measure trafilatura, and follow
 the byline and date a reader sees.
 
+## Every tool, on the same pages
+
+[`docs/scoreboard-tools.md`](../docs/scoreboard-tools.md) puts the tools
+people reach for to turn a page into its title, author, date and text on the
+same pages as served, scripts intact: Sluicer (with and without `--visible`),
+trafilatura, newspaper4k, markitdown, Scrapling's markdown and metascraper.
+
+```bash
+uv run bench/timing.py tools               # the seconds, on a clean checkout
+uv run bench/tools_compare.py              # every tool, then the scoreboard
+uv run bench/tools_compare.py --tools markitdown   # rerun one, reuse the others
+```
+
+The pages are WCXB's 360 test pages as served (`bench/realweb.py`'s pinned
+captures, with WCXB's labels, the whole main text included), trafilatura's
+990 evaluation pages (`bench/evaldata.py`), and the page added by hand in
+[`tools-added.json`](tools-added.json), a Wayback capture pinned by its
+SHA-256 with labels written from the page. Each tool runs in an environment
+of its own (`tools/compare_*.py`, pinned by `requirements/` and
+`metascraper/`). Every tool's text is made plain text by one rule, then
+scored by trafilatura's snippets (what it must hold, and the menus and
+footers it must not), and on the served pages by WCXB's word scores against
+the whole labelled text. A wrong or invented title, author or date is
+*silent* unless the tool's output warns of it; the one warning any of them
+gives is Sluicer's `conflicts`. [`PREREG.md`](PREREG.md) fixed all of it
+before any tool was run. Firecrawl is left out: it needs an account, or a
+Docker Compose of services to host.
+
 ## extruct's interface, beside extruct
 
 [`docs/extruct.md`](../docs/extruct.md) measures `sluicer.compat.extruct`
@@ -328,6 +356,25 @@ record, and refuses one of another commit, another version, a tree with
 uncommitted changes, or a tool timed apart from the rest; so time on a clean
 checkout, then regenerate the scoreboards at the same commit. SWDE and the
 drift benchmark print no seconds.
+
+## A faster change that changes nothing
+
+```bash
+.venv/bin/python bench/golden.py record /tmp/golden.json   # before the change
+.venv/bin/python bench/golden.py check /tmp/golden.json    # after: 0 differ, or exit 1
+.venv/bin/python bench/golden.py time --src ../before/src  # ms per page, any tree
+```
+
+`golden.py` reads every page cached under `bench/cache/` (never writing
+there) every public way: `extract` with and without the page's headers,
+`visible=True`, `induce=True`, the ladder's verdict, `to_markdown`, a fetch
+through the real ladder with rungs that hand the page back, a WARC built from
+the pages, and extractors learnt and replayed on the drift captures and on
+SWDE's first pages. It keeps a digest of each answer, so a change meant only
+to be faster is shown to change no byte. `time` prints the median and 95th
+percentile per page of the extractions and of the fetch path; `--src` times
+another checkout in a process of its own, so two trees can be timed turn
+about.
 
 ## How sure a number is
 

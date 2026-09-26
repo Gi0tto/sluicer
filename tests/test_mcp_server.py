@@ -4,6 +4,8 @@ import types
 
 import pytest
 
+from sluicer.markdown import MainText
+
 
 def fake_mcp(monkeypatch):
     """Stand in for the mcp SDK, recording every tool the server registers.
@@ -128,15 +130,16 @@ def test_extract_declared_reads_html_given_directly(monkeypatch):
     assert result["records"][0]["fields"]["name"]["value"] == "Brake pad set"
 
 
-def test_extract_declared_guesses_the_visible_page_only_when_asked(monkeypatch):
+def test_extract_declared_guesses_the_visible_page_unless_told_not_to(monkeypatch):
     registered = fake_mcp(monkeypatch)
     from sluicer.mcp_server import build_server
 
     build_server()
     page = "<html><body><h1>Brake pads</h1><p>By Ada Lovelace</p></body></html>"
 
-    assert "visible" not in registered["extract_declared"](page)
-    shown = registered["extract_declared"](page, visible=True)["visible"]
+    assert "visible" not in registered["extract_declared"](page, visible=False)
+    assert registered["extract_declared"](page, visible=True)["visible"]
+    shown = registered["extract_declared"](page)["visible"]
     assert shown["author"] == {
         "value": "Ada Lovelace",
         "where": "/html/body/p",
@@ -510,7 +513,9 @@ def test_page_markdown_without_the_markdown_extra_reports_it_as_an_error(monkeyp
 
     result = registered["page_markdown"]("<html><body>hi</body></html>")
 
-    assert 'uv pip install "sluicer[markdown]"' in result["error"]["message"]
+    assert (
+        'Install it with: pip install "sluicer[markdown]"' in result["error"]["message"]
+    )
     assert result["error"] | {"message": ""} == {
         "code": "missing_extra",
         "message": "",
@@ -603,7 +608,9 @@ def test_a_missing_extra_is_never_mistakable_for_content(monkeypatch):
     for name, result in results.items():
         assert isinstance(result, Mapping), f"{name} returned {type(result).__name__}"
         assert "error" in result, f"{name} carries no error key: {result!r}"
-        assert 'uv pip install "sluicer[' in result["error"]["message"], name
+        assert 'Install it with: pip install "sluicer[' in result["error"]["message"], (
+            name
+        )
 
 
 def test_the_fetch_fake_matches_the_real_fetch_signature(monkeypatch):
@@ -858,7 +865,11 @@ def test_markdown_is_read_in_slices_too(monkeypatch):
     import sluicer.mcp_server as server_module
 
     text = "".join(f"line {n}\n" for n in range(10_000))
-    monkeypatch.setattr(server_module, "to_markdown", lambda *a, **k: text)
+    monkeypatch.setattr(
+        server_module,
+        "read_markdown",
+        lambda *a, **k: MainText(text, "extracted", "trafilatura"),
+    )
     server_module.build_server()
     slices, offset = [], 0
     while offset is not None:
@@ -1861,7 +1872,11 @@ def test_a_slice_of_markdown_is_held_to_the_bound_in_bytes_too(monkeypatch):
     import sluicer.mcp_server as server_module
 
     text = '"quoted"\n' * 20_000
-    monkeypatch.setattr(server_module, "to_markdown", lambda *a, **k: text)
+    monkeypatch.setattr(
+        server_module,
+        "read_markdown",
+        lambda *a, **k: MainText(text, "extracted", "trafilatura"),
+    )
     server_module.build_server()
     slices, offset = [], 0
     while offset is not None:
@@ -2203,7 +2218,7 @@ def test_sluicer_mcp_without_the_extra_exits_2_with_the_install_line(monkeypatch
     result = CliRunner().invoke(main, ["mcp"])
 
     assert result.exit_code == 2, result.output
-    assert 'uv pip install "sluicer[mcp]"' in result.stderr
+    assert 'Install it with: pip install "sluicer[mcp]"' in result.stderr
     assert "Traceback" not in result.output
 
 
@@ -2322,3 +2337,76 @@ def test_an_error_page_refused_says_how_to_read_it_and_that_way_works(monkeypatc
     read = registered["extract_declared"](fetched["html"])
     assert read["summary"]["title"]["value"] == "404 Not Found"
     assert read["ok"] is True
+
+
+# -- crawl_site and extract_many carry visible, as extract_declared does ----------
+
+
+def _declared_keys(kind) -> set[str]:
+    return set(kind.__annotations__)
+
+
+def test_crawled_and_extracted_pages_declare_every_key_they_carry(monkeypatch):
+    """0.10 put "visible" in every crawled page; CrawledPage and ExtractedPage,
+    the output schema an agent is shown, did not say so."""
+    from sluicer import mcp_answers as answers
+
+    registered = fake_mcp(monkeypatch)
+    _, calls = _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    crawled = registered["crawl_site"]("https://example.com/", max_pages=2)
+    many = registered["extract_many"](["https://example.com/a"], records=True)
+
+    for page in crawled["pages"]:
+        assert "visible" in page
+        assert set(page) <= _declared_keys(answers.CrawledPage), page.keys()
+    for page in many["pages"]:
+        assert "visible" in page
+        assert set(page) <= _declared_keys(answers.ExtractedPage), page.keys()
+    assert all(call["visible"] is True for call in calls)
+
+
+def test_crawl_site_and_extract_many_take_visible_false(monkeypatch):
+    registered = fake_mcp(monkeypatch)
+    _, calls = _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import build_server
+
+    build_server()
+    crawled = registered["crawl_site"]("https://example.com/", visible=False)
+    many = registered["extract_many"](["https://example.com/a"], visible=False)
+
+    assert crawled["ok"] and many["ok"]
+    assert all("visible" not in page for page in crawled["pages"] + many["pages"])
+    assert [call["visible"] for call in calls] == [False, False]
+
+
+def test_a_crawled_page_s_heavy_guesses_are_cut_before_its_summary(monkeypatch):
+    import sluicer.crawl.pages as pages_module
+    from sluicer.visible import Guess
+
+    real = pages_module.extract
+
+    def heavy(*args, **kwargs):
+        read = real(*args, **kwargs)
+        read.visible["title"] = Guess("Brake " * 20_000, "/html/body/h1", "h1")
+        return read
+
+    monkeypatch.setattr(pages_module, "extract", heavy)
+    registered = fake_mcp(monkeypatch)
+    _fake_site_library(monkeypatch)
+    from sluicer.mcp_server import MOST_ANSWER_BYTES, build_server
+
+    build_server()
+    for answer in (
+        registered["crawl_site"]("https://example.com/", max_pages=1),
+        registered["extract_many"](["https://example.com/a"]),
+    ):
+        (page,) = answer["pages"]
+        assert page["visible_left_out"] == ["title"]
+        assert "title" not in page["visible"]
+        assert page["summary"]["title"]["value"] in ("Home", "A")
+        assert len(json.dumps(answer, ensure_ascii=False).encode()) <= (
+            MOST_ANSWER_BYTES
+        )
