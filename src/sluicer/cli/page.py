@@ -288,6 +288,12 @@ def _inspection(
             records_by[record.source] = records_by.get(record.source, 0) + 1
         for found in record.fields.values():
             fields_by[found.source] = fields_by.get(found.source, 0) + 1
+    # A reader can answer the summary without a record field: html's <title>
+    # is a summary answer and no record's field, and html was listed silent
+    # right above the answer it gave.
+    answered_by: dict[str, int] = {}
+    for answer in result.summary.values():
+        answered_by[answer.source] = answered_by.get(answer.source, 0) + 1
     said = []
     for name in [reader.name for reader in READERS] + ["induced"]:
         if name in fields_by:
@@ -297,10 +303,15 @@ def _inspection(
                 n = records_by[name]
                 counted = f"{n} record{'s' if n != 1 else ''}, {counted}"
             said.append(f"{name} ({counted})")
+        elif name in answered_by:
+            n = answered_by[name]
+            said.append(f"{name} ({n} summary answer{'s' if n != 1 else ''})")
     silent = [
         reader.name
         for reader in READERS
-        if reader.name not in fields_by and (reader.optional is None or microformats)
+        if reader.name not in fields_by
+        and reader.name not in answered_by
+        and (reader.optional is None or microformats)
     ]
     lines.append("readers   " + (", ".join(said) if said else "none said anything"))
     if silent:

@@ -12,6 +12,9 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - `map` and the MCP `map_site` tool answered `truncated: false` when `--limit`
   (or `limit`) cut the start page's links a site with no sitemap falls back
   to. They now say the map was cut short.
+- `inspect` listed a reader as silent when it had answered the summary without
+  giving a record field, such as html's `<title>`. It now lists that reader
+  with the summary answers it gave.
 
 ## 0.9.0 - 2026-09-26
 

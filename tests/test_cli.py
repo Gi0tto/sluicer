@@ -582,6 +582,20 @@ def test_inspect_shows_each_field_and_answer_with_where_it_came_from():
     assert any("not read: microformats" in line for line in lines)
 
 
+def test_inspect_does_not_call_a_reader_silent_that_answered_the_summary():
+    """plain.html's title comes from html's <title>, which is no record field:
+    the readers line said "none said anything / silent: ..., html" right above
+    "title  Plain page  [html <title>]"."""
+    result = CliRunner().invoke(main, ["inspect", str(FIXTURES / "plain.html")])
+
+    lines = result.stdout.splitlines()
+    readers = next(line for line in lines if line.startswith("readers"))
+    silent = next(line for line in lines if "silent:" in line)
+    assert readers == "readers   html (1 summary answer)"
+    assert "html" not in silent.split(":", 1)[1].replace(",", " ").split()
+    assert any(line.split()[:3] == ["title", "Plain", "page"] for line in lines)
+
+
 def test_inspect_is_the_same_report_every_time():
     page = str(FIXTURES / "drift" / "product.html")
 
