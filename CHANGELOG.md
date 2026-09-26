@@ -56,6 +56,8 @@ Dates are the day the work landed. Anything not listed here did not happen.
   twelve names and exit 2. It started a server with no tool, in silence.
 - `sluicer heal --force` without `-o` is a usage error, exit 2, before any
   page is read. `--force` alone did nothing and said nothing.
+- `sluicer diff - -` is refused: standard input is one page. It read the page,
+  then said standard input "contains no HTML".
 
 ## 0.9.0 - 2026-09-26
 

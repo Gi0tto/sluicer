@@ -446,6 +446,12 @@ def diff_command(
     reported as rewritten; a price in another currency (£41.90 and $41.90)
     is changed.
     """
+    if before == after == "-":
+        # Standard input can be read once: the second reading found it empty,
+        # "Standard input contains no HTML.", until 0.9.1.
+        raise click.UsageError(
+            "Standard input is one page: give - for BEFORE or AFTER, not both."
+        )
     readings = []
     for source, when in ((before, at), (after, None)):
         html, url, fetched = _read_source(
