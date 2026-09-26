@@ -10,32 +10,39 @@ square of their number too, 2.1 s, since each line counted every line before
 it again and wrote its own place in the page.
 
 The work is in libxml2 as much as in Python, so it is timed, not counted: a
-page twice the size may take at most ``_GROWTH`` times as long, each size the
-fastest of three runs so a busy machine does not fail it.
+page four times the size may take at most ``_GROWTH`` times as long, each
+size the fastest of three runs with the garbage collector held, so a busy
+machine does not fail it.
 """
 
 from __future__ import annotations
 
+import gc
 import time
 
 from sluicer import extract
 
-# A page twice the size may cost this many times as much. Linear work doubles;
-# the quadratic scans took 5.8 and 3.7 times as long.
-_GROWTH = 3.0
+# A page four times the size may cost this many times as much. Linear work
+# takes four times as long; the square of it, sixteen.
+_SCALE, _GROWTH = 4, 8.0
 
 
 def _fastest(page: str) -> float:
     best = float("inf")
-    for _ in range(3):
-        started = time.perf_counter()
-        extract(page, url="https://example.com/big")
-        best = min(best, time.perf_counter() - started)
+    gc.collect()
+    gc.disable()
+    try:
+        for _ in range(3):
+            started = time.perf_counter()
+            extract(page, url="https://example.com/big")
+            best = min(best, time.perf_counter() - started)
+    finally:
+        gc.enable()
     return best
 
 
 def _growth(make) -> float:
-    return _fastest(make(2)) / _fastest(make(1))
+    return _fastest(make(_SCALE)) / _fastest(make(1))
 
 
 def _rows(scale: int) -> str:
@@ -43,7 +50,7 @@ def _rows(scale: int) -> str:
     rows = "\n".join(
         f'<div class="item" id="i{i}"><h3><a href="/x/{i}">Item {i}</a></h3>'
         f'<p>Some text {i}.</p><span class="price">{i}.99</span></div>'
-        for i in range(16_000 * scale)
+        for i in range(8_000 * scale)
     )
     return (
         f"<html><head><title>Big</title></head><body><h1>Big</h1>{rows}</body></html>"
@@ -52,7 +59,7 @@ def _rows(scale: int) -> str:
 
 def _by_lines(scale: int) -> str:
     """A page of many "By" lines, every one naming the same author."""
-    lines = "<div><p>By John Smith</p></div>" * (16_000 * scale)
+    lines = "<div><p>By John Smith</p></div>" * (8_000 * scale)
     return f"<html><body><h1>Head</h1>{lines}</body></html>"
 
 
