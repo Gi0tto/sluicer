@@ -238,6 +238,7 @@ def test_every_call_the_guides_spell_from_sluicer_is_there_after_import_sluicer(
         [sys.executable, "-c", lookup, *sorted(names)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=True,
     ).stdout.split()
     assert missing == [], missing
