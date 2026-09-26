@@ -6,7 +6,7 @@ holds, and how much it installs, measured one way for every tool, as
 fixes it under "How a second is measured". Every tool of a table was
 timed in one run, on one machine, on the same pages; a scoreboard
 prints no second measured otherwise. Regenerated from commit
-`8a426a2` by `uv run bench/timing.py`.
+`5e97f6b` by `uv run bench/timing.py`.
 
 Install size counts every file each package of the tool's environment
 installs, bytecode caches left out (for Sluicer, installed editable, the
@@ -19,35 +19,50 @@ interpreter and every page read into memory included.
 
 The tools [the scoreboard](scoreboard.md) scores, on its 511 pages.
 
-Measured on 2026-09-26 by `uv run bench/timing.py wcxb` at commit `8a426a2`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+Measured on 2026-09-26 by `uv run bench/timing.py wcxb` at commit `5e97f6b`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
 
 | tool | runtime | seconds per page | seconds for all 511 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
 |---|---|---|---|---|---|---|---|
-| sluicer 0.9.1 | Python 3.12.13 | 0.0036 | 1.85 (1.23–2.08) | 277 | 91.8 MiB | 19.5 MiB | 5 |
-| trafilatura 2.2.0 | Python 3.12.13 | 0.0452 | 23.10 (20.38–28.05) | 22 | 171.0 MiB | 58.2 MiB | 17 |
-| metascraper 5.58.1 | Node 26.1.0 | 0.0091 | 4.63 (3.83–5.52) | 110 | 719.6 MiB | 55.5 MiB | 125 |
-| newspaper4k 0.9.6 | Python 3.12.13 | 0.0914 | 46.69 (35.08–55.63) | 11 | 217.5 MiB | 39.4 MiB | 22 |
+| sluicer 0.10.0 | Python 3.12.13 | 0.0015 | 0.78 (0.78–0.79) | 657 | 92.3 MiB | 58.7 MiB | 21 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0270 | 13.81 (13.70–13.82) | 37 | 168.1 MiB | 58.2 MiB | 17 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0049 | 2.50 (2.49–2.51) | 204 | 707.9 MiB | 55.5 MiB | 125 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0571 | 29.19 (29.13–29.55) | 18 | 217.2 MiB | 39.4 MiB | 22 |
 
 ## Fundus's news pages
 
 The tools [news in many languages](scoreboard-news.md) scores, on its 263 pages.
 
-Measured on 2026-09-26 by `uv run bench/timing.py news` at commit `8a426a2`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+Measured on 2026-09-26 by `uv run bench/timing.py news` at commit `5e97f6b`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
 
 | tool | runtime | seconds per page | seconds for all 263 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
 |---|---|---|---|---|---|---|---|
-| sluicer 0.9.1 | Python 3.12.13 | 0.0048 | 1.27 (1.06–1.49) | 207 | 196.2 MiB | 19.5 MiB | 5 |
-| trafilatura 2.2.0 | Python 3.12.13 | 0.0107 | 2.81 (2.33–3.40) | 94 | 253.7 MiB | 58.2 MiB | 17 |
-| metascraper 5.58.1 | Node 26.1.0 | 0.0134 | 3.53 (2.82–4.13) | 75 | 1454.4 MiB | 55.5 MiB | 125 |
-| newspaper4k 0.9.6 | Python 3.12.13 | 0.0833 | 21.92 (18.68–26.30) | 12 | 331.1 MiB | 39.4 MiB | 22 |
+| sluicer 0.10.0 | Python 3.12.13 | 0.0024 | 0.64 (0.64–0.65) | 409 | 168.6 MiB | 58.7 MiB | 21 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0075 | 1.98 (1.98–1.99) | 133 | 245.3 MiB | 58.2 MiB | 17 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0083 | 2.18 (2.17–2.22) | 121 | 2772.8 MiB | 55.5 MiB | 125 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0574 | 15.10 (15.02–15.24) | 17 | 331.6 MiB | 39.4 MiB | 22 |
+
+## WCXB's pages as served, every tool
+
+The tools [every tool on the same pages](scoreboard-tools.md) scores, on its 360 pages.
+
+Measured on 2026-09-26 by `uv run bench/timing.py tools` at commit `5e97f6b`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+
+| tool | runtime | seconds per page | seconds for all 360 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
+|---|---|---|---|---|---|---|---|
+| sluicer 0.10.0 | Python 3.12.13 | 0.0246 | 8.85 (8.82–8.86) | 41 | 241.0 MiB | 58.7 MiB | 21 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0567 | 20.41 (20.36–20.51) | 18 | 287.1 MiB | 58.2 MiB | 17 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0641 | 23.07 (22.87–23.13) | 16 | 333.3 MiB | 39.4 MiB | 22 |
+| markitdown 0.1.8 | Python 3.12.13 | 0.0267 | 9.60 (9.52–10.12) | 37 | 223.1 MiB | 129.3 MiB | 20 |
+| scrapling 0.4.15 | Python 3.12.13 | 0.0201 | 7.23 (7.17–7.27) | 50 | 352.1 MiB | 296.8 MiB | 26 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0077 | 2.79 (2.77–2.83) | 129 | 990.3 MiB | 55.5 MiB | 125 |
 
 ## The pages extruct's interface is compared on
 
-The tools [moving from extruct](extruct.md) scores, on its 530 pages.
+The tools [moving from extruct](extruct.md) scores, on its 533 pages.
 
-Measured on 2026-09-26 by `uv run bench/timing.py extruct` at commit `8a426a2`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+Measured on 2026-09-26 by `uv run bench/timing.py extruct` at commit `5e97f6b`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
 
-| tool | runtime | seconds per page | seconds for all 530 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
+| tool | runtime | seconds per page | seconds for all 533 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
 |---|---|---|---|---|---|---|---|
-| extruct 0.18.0 | Python 3.14.6 | 0.0690 | 36.57 (34.00–61.82) | 14 | 320.3 MiB | 25.9 MiB | 21 |
-| sluicer.compat.extruct 0.9.1 | Python 3.14.6 | 0.0511 | 27.06 (25.83–28.91) | 20 | 332.6 MiB | 23.2 MiB | 17 |
+| extruct 0.18.0 | Python 3.14.6 | 0.0507 | 27.05 (26.96–27.21) | 20 | 319.1 MiB | 25.9 MiB | 21 |
+| sluicer.compat.extruct 0.10.0 | Python 3.14.6 | 0.0360 | 19.21 (19.10–19.35) | 28 | 335.7 MiB | 60.6 MiB | 29 |
