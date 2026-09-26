@@ -2,6 +2,16 @@
 
 Dates are the day the work landed. Anything not listed here did not happen.
 
+## Unreleased
+
+### Fixed
+- `compile --want` took a product's table of labelled facts (UPC, type,
+  prices, tax, availability) for a listing of the value asked for, and a run
+  on another product passed with every row of the table as a "price". Such a
+  table is now no listing: the example is learnt as the page's own value, with
+  a note that says why, `--listing` refuses it with the same reason, and a run
+  of an extractor 0.9.0 learnt that way fails.
+
 ## 0.9.0 - 2026-09-26
 
 ### Added

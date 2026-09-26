@@ -100,6 +100,16 @@ class NothingToLearn(ValueError):
     """The pages declare nothing and repeat nothing, so there is no extractor."""
 
 
+class _FactsNotListing(NothingToLearn):
+    """The only group holding the examples is one thing's table of labelled
+    facts, not a listing; ``note`` says so when they are learnt as the
+    page's own values instead."""
+
+    def __init__(self, message: str, note: str) -> None:
+        super().__init__(message)
+        self.note = note
+
+
 @dataclass(frozen=True)
 class ListingField:
     """One column of a listing.
@@ -764,12 +774,19 @@ def _compiled(
         try:
             learnt, notes = _learn_wanted(docs, want)
         except NothingToLearn as no_listing:
+            if listing and isinstance(no_listing, _FactsNotListing):
+                raise NothingToLearn(
+                    f"{no_listing}: learnt without a listing (--no-listing, "
+                    "listing=False), each example is read as the page's own value"
+                ) from None
             if listing:
                 # Asked for a listing: the page's own values, the first
                 # row's, would pass on every page as if they were one.
                 raise
             # A product page that declares nothing: the examples are its own.
             fields, notes = _learn_fields(docs, want, no_listing)
+            if isinstance(no_listing, _FactsNotListing):
+                notes.insert(0, no_listing.note)
     elif listing or (listing is None and not has_a_subject):
         learnt, notes = _learn_listing(docs)
     if listing and learnt is None:
@@ -1102,6 +1119,7 @@ def _learn_wanted(
     columns: dict[str, str] = {}
     ambiguous: dict[str, list[str]] = {}
     missing: set[str] = set(want)
+    facts: tuple[str, list[str]] | None = None
     for doc in docs:
         for group in _groups(doc):
             group_rows = _rows_of(group, doc)
@@ -1113,12 +1131,31 @@ def _learn_wanted(
             missing &= {name for name, paths in held.items() if not paths}
             own = _columns_of(held) if all(held.values()) else None
             if own is not None:
-                chosen = (path_of(group[0].getparent()), _kind_of(group[0]))
+                place = (path_of(group[0].getparent()), _kind_of(group[0]))
+                labels = _facts_of_one_thing(docs, *place, own, want)
+                if labels is not None:
+                    # A product's table of facts -- UPC, Price, Tax,
+                    # Availability -- holds the price in one of its rows, and
+                    # read as a listing its every row is a "price".
+                    facts = facts or (place[0], labels)
+                    continue
+                chosen = place
                 columns = own
                 ambiguous = {n: p for n, p in held.items() if len(p) > 1}
                 break
         if chosen is not None:
             break
+    if chosen is None and facts is not None and not missing:
+        said = ", ".join(f"{name}={value!r}" for name, value in want.items())
+        shown = ", ".join(repr(label) for label in facts[1][:4])
+        more = ", ..." if len(facts[1]) > 4 else ""
+        raise _FactsNotListing(
+            f"the rows at {facts[0]} that hold {said} are the labelled facts of "
+            f"one thing ({shown}{more}), not a listing's rows",
+            f"the rows at {facts[0]} are the labelled facts of one thing "
+            f"({shown}{more}), not a listing: {said} is read as the page's own "
+            "value",
+        )
     if chosen is None:
         said = ", ".join(f"{name}={want[name]!r}" for name in sorted(missing) or want)
         raise NothingToLearn(
@@ -1197,6 +1234,109 @@ def _columns_of(held: Mapping[str, list[str]]) -> dict[str, str] | None:
             return None
     column = {name: path for path, name in owner.items()}
     return {name: column[name] for name in held}
+
+
+def _facts_of_one_thing(
+    docs: list[Document],
+    container: str,
+    member: str,
+    columns: Mapping[str, str],
+    want: Mapping[str, str],
+) -> list[str] | None:
+    """The labels of the rows at ``container``, when they are one thing's
+    labelled facts rather than a listing's items; None when they are not.
+
+    Every row, on every page that has them, carries a label of its own
+    (``_row_labels``) outside the examples' columns, no two alike. The rows
+    are then one thing's facts when two pages or more label them alike -- a
+    listing's items change from page to page, a product's "UPC", "Price"
+    and "Tax" do not -- or, on one page, when most rows hold a value of
+    another shape than the example: the price's row among the UPC's, the
+    product type's and the availability's. A table of products headed by
+    their names, each row a price, is a listing on either count."""
+    pages: list[list[str]] = []
+    rows_seen: list[list[dict[str, str]]] = []
+    for doc in docs:
+        found, _ = _find(doc, container)
+        members = _members(found, member) if found is not None else []
+        rows = _rows_of(members, doc) if members else []
+        if len(rows) < 2:
+            continue
+        labels = _row_labels(members, rows, set(columns.values()))
+        if labels is None or len({_label_key(t) for t in labels}) < len(labels):
+            return None
+        pages.append(labels)
+        rows_seen.append(rows)
+    if not pages:
+        return None
+    if len(pages) >= 2:
+        first = {_label_key(t) for t in pages[0]}
+        shared = all(
+            len(first & (other := {_label_key(t) for t in labels}))
+            >= SHAPE_KEPT * min(len(first), len(other))
+            for labels in pages[1:]
+        )
+        return pages[0] if shared else None
+    for name, path in columns.items():
+        values = [row[path] for row in rows_seen[0] if row.get(path)]
+        alike = sum(1 for value in values if shape(value) == shape(want[name]))
+        if values and alike < SHAPE_KEPT * len(values):
+            return pages[0]
+    return None
+
+
+def _row_labels(
+    members: list[HtmlElement], rows: list[dict[str, str]], taken: set[str]
+) -> list[str] | None:
+    """The label each row carries, or None when a row carries none.
+
+    A label is in the row, in a column no example took whose element is
+    HTML's own for a label -- ``<th>UPC</th><td>...</td>`` -- or whose every
+    value ends with a colon; or right before the row, as a ``<dt>`` is
+    before its ``<dd>``. A label says a word: a rank, "1.", is none."""
+
+    def worded(text: str) -> bool:
+        return any(char.isalpha() for char in text)
+
+    for path in dict.fromkeys(p for row in rows for p in row):
+        if path in taken or _is_address(path):
+            continue
+        said = [row.get(path) for row in rows]
+        values = [v for v in said if v is not None]
+        if len(values) < len(said):
+            continue
+        written = _element_kind(path)[0] in _LABELLING or all(
+            v.endswith(_COLONS) for v in values
+        )
+        if written and all(worded(v) for v in values):
+            return values
+    labels: list[str] = []
+    for element in members:
+        before = element.getprevious()
+        while before is not None and not isinstance(before.tag, str):
+            before = before.getprevious()
+        if before is None:
+            return None
+        text = " ".join(before.text_content().split())
+        if not worded(text) or not (before.tag in _LABELLING or text.endswith(_COLONS)):
+            return None
+        labels.append(text)
+    return labels or None
+
+
+def _mixed(values: list[str]) -> bool:
+    """Whether ``values`` are of clearly different kinds: no one shape holds
+    most of them, and some read as an amount or a date while others are
+    words that read as neither -- "£47.82" beside "Books" and "In stock"."""
+    if len(values) < 2:
+        return False
+    most = Counter(shape(v) for v in values).most_common(1)[0][1]
+    read = [any(r(v) is not None for r in _READERS.values()) for v in values]
+    worded = [
+        not was_read and any(char.isalpha() for char in v)
+        for v, was_read in zip(values, read, strict=True)
+    ]
+    return most < SHAPE_KEPT * len(values) and any(read) and any(worded)
 
 
 def _still_listed(docs: list[Document], old: Listing) -> Listing | None:
@@ -2390,8 +2530,51 @@ def _replay_listing(
             if value is not None:
                 kept[f.name] = value
         rows.append(kept)
+    if listing.chosen:
+        _check_not_facts(listing, members, raw, rows, checks)
     _check_rows(listing.fields, rows, len(members), listing.empty, checks)
     return rows
+
+
+def _check_not_facts(
+    listing: Listing,
+    members: list[HtmlElement],
+    raw: list[dict[str, str]],
+    rows: list[dict[str, str]],
+    checks: list[Check],
+) -> None:
+    """Fail a listing chosen by examples whose rows are one thing's labelled
+    facts, each a label of its own and a value of its own kind: a product's
+    UPC, type, prices and availability, all read as "price". Such a listing
+    was learnt before 0.9.1 (``_facts_of_one_thing``), and passed every
+    product page. Said only when so, as a check that failed."""
+    if len(raw) < 2:
+        return
+    taken = {f.path for f in listing.fields} | {
+        path
+        for row in raw
+        for path in row
+        if any(_unnumbered(path) == _unnumbered(f.path) for f in listing.fields)
+    }
+    labels = _row_labels(members, raw, taken)
+    if labels is None or len({_label_key(t) for t in labels}) < len(labels):
+        return
+    for f in listing.fields:
+        values = [row[f.name] for row in rows if row.get(f.name)]
+        if f.shape is None and _mixed(values):
+            shown = ", ".join(repr(label) for label in labels[:4])
+            checks.append(
+                Check(
+                    "listing",
+                    f"rows that are items, each holding its own {f.name}",
+                    f"the labelled facts of one thing ({shown}"
+                    f"{', ...' if len(labels) > 4 else ''}), each a value of "
+                    "another kind: compile again, and the example is read as "
+                    "the page's own value",
+                    False,
+                )
+            )
+            return
 
 
 def _check_rows(
