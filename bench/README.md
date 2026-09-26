@@ -329,6 +329,25 @@ uncommitted changes, or a tool timed apart from the rest; so time on a clean
 checkout, then regenerate the scoreboards at the same commit. SWDE and the
 drift benchmark print no seconds.
 
+## A faster change that changes nothing
+
+```bash
+.venv/bin/python bench/golden.py record /tmp/golden.json   # before the change
+.venv/bin/python bench/golden.py check /tmp/golden.json    # after: 0 differ, or exit 1
+.venv/bin/python bench/golden.py time --src ../before/src  # ms per page, any tree
+```
+
+`golden.py` reads every page cached under `bench/cache/` (never writing
+there) every public way: `extract` with and without the page's headers,
+`visible=True`, `induce=True`, the ladder's verdict, `to_markdown`, a fetch
+through the real ladder with rungs that hand the page back, a WARC built from
+the pages, and extractors learnt and replayed on the drift captures and on
+SWDE's first pages. It keeps a digest of each answer, so a change meant only
+to be faster is shown to change no byte. `time` prints the median and 95th
+percentile per page of the extractions and of the fetch path; `--src` times
+another checkout in a process of its own, so two trees can be timed turn
+about.
+
 ## How sure a number is
 
 Every hit rate and share right when answering a scoreboard prints carries
