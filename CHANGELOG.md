@@ -197,6 +197,12 @@ Dates are the day the work landed. Anything not listed here did not happen.
   sluicer the `PATH` found, and now names the project's own Python.
   `SLUICER_BROWSER=chrome sluicer doctor` said "ok browser" while every
   fetch refused the value; it is now reported invalid, and doctor exits 2.
+  Homebrew's own Python, or any a package manager marks
+  `EXTERNALLY-MANAGED`, was told `python -m ensurepip` (pip into Homebrew's
+  Cellar) or `python -m pip install`, which it refuses; it is now told to
+  make a virtual environment first, `python -m venv .venv`. An extra pipx
+  recorded in capitals, `Sluicer[MCP]`, is named in lowercase, as pip names
+  it, not twice.
 - The scoreboard still said `--visible` guesses bylines and dates "when
   asked"; 0.10 guesses by default, and its generator and page now say so.
 - `sluicer doctor` and `sluicer install browser` ran Playwright with
