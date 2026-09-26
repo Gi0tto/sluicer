@@ -1316,13 +1316,19 @@ def _facts_of_one_thing(
     labelled facts rather than a listing's items; None when they are not.
 
     Every row, on every page that has them, carries a label of its own
-    (``_row_labels``) outside the examples' columns, no two alike. The rows
-    are then one thing's facts when two pages or more label them alike -- a
-    listing's items change from page to page, a product's "UPC", "Price"
-    and "Tax" do not -- or, on one page, when most rows hold a value of
-    another shape than the example: the price's row among the UPC's, the
-    product type's and the availability's. A table of products headed by
-    their names, each row a price, is a listing on either count."""
+    (``_row_labels``) outside the examples' columns, no two alike. A facts
+    table's labels are keys whose values are of different kinds, row by row:
+    a product's "UPC", "Product Type", "Price" and "Availability". A
+    listing's labels are its items' names, and its example's column holds
+    one kind on every row: prices, "£10" beside "£12.50", however many items
+    are "Sold out" (``_kinds_of``). So the rows are facts when, on one page,
+    most rows hold a value of another kind than the example; or, when two
+    pages or more label them alike -- a listing's items mostly change from
+    page to page, a product's keys do not -- when a row's label holds a
+    value of the example's kind on none of them: "Availability" is never a
+    price, where an item that sold out had one before. An example no reader
+    reads, a UPC or a brand, is told from a table of keys only by its shape,
+    and labels two pages share are then facts."""
     pages: list[list[str]] = []
     rows_seen: list[list[dict[str, str]]] = []
     for doc in docs:
@@ -1345,13 +1351,61 @@ def _facts_of_one_thing(
             >= SHAPE_KEPT * min(len(first), len(other))
             for labels in pages[1:]
         )
-        return pages[0] if shared else None
+        if not shared:
+            return None
     for name, path in columns.items():
-        values = [row[path] for row in rows_seen[0] if row.get(path)]
-        alike = sum(1 for value in values if shape(value) == shape(want[name]))
-        if values and alike < SHAPE_KEPT * len(values):
+        held = [
+            (_label_key(label), row[path])
+            for labels, rows in zip(pages, rows_seen, strict=True)
+            for label, row in zip(labels, rows, strict=True)
+            if row.get(path)
+        ]
+        example = _value_kind(want[name])
+        if example is None:
+            if len(pages) >= 2:
+                return pages[0]
+            alike = sum(1 for _, value in held if shape(value) == shape(want[name]))
+            if held and alike < SHAPE_KEPT * len(held):
+                return pages[0]
+            continue
+        counted = _kinds_of(held)
+        if len(pages) == 1:
+            alike = sum(1 for _, kind in counted if kind == example)
+            if counted and alike < SHAPE_KEPT * len(counted):
+                return pages[0]
+            continue
+        items = {label for label, kind in counted if kind == example}
+        if any(label not in items for label, _ in counted):
             return pages[0]
     return None
+
+
+def _value_kind(value: str) -> str | None:
+    """What ``value`` reads as, as a column's values are alike: "amount" or
+    "date" by ``_READERS``, an amount with a currency sign ("amountS") apart
+    from a bare number -- a price's "£10" is of a kind with "£12.50", a
+    review count's "0" is not -- and None when no reader reads it."""
+    for reading, read in _READERS.items():
+        if read(value) is not None:
+            return reading + ("S" if "S" in shape(value) else "")
+    return None
+
+
+def _kinds_of(held: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Each ``(label, value)``'s label and kind: ``_value_kind``, or for a
+    value no reader reads, ``"text:"`` and the value, each text a kind of
+    its own. A text said under two labels or more, "Sold out" or "N/A", is
+    a listing's way of saying an item has no value, and is left out."""
+    said: dict[str, set[str]] = {}
+    for label, value in held:
+        said.setdefault(value, set()).add(label)
+    kinds: list[tuple[str, str]] = []
+    for label, value in held:
+        kind = _value_kind(value)
+        if kind is None and len(said[value]) >= 2:
+            continue
+        kinds.append((label, kind if kind is not None else "text:" + value))
+    return kinds
 
 
 def _row_labels(
@@ -1394,18 +1448,18 @@ def _row_labels(
 
 
 def _mixed(values: list[str]) -> bool:
-    """Whether ``values`` are of clearly different kinds: no one shape holds
-    most of them, and some read as an amount or a date while others are
-    words that read as neither -- "£47.82" beside "Books" and "In stock"."""
-    if len(values) < 2:
+    """Whether ``values`` are of clearly different kinds (``_kinds_of``), as
+    one thing's facts are: no one kind holds most of them, and some read as
+    an amount or a date while others are words no reader reads -- "£47.82"
+    beside "Books" and "In stock". A column of prices where items are "Sold
+    out", or cost "£45" beside "£141.90", is of one kind."""
+    kinds = [kind for _, kind in _kinds_of([(str(i), v) for i, v in enumerate(values)])]
+    if len(kinds) < 2:
         return False
-    most = Counter(shape(v) for v in values).most_common(1)[0][1]
-    read = [any(r(v) is not None for r in _READERS.values()) for v in values]
-    worded = [
-        not was_read and any(char.isalpha() for char in v)
-        for v, was_read in zip(values, read, strict=True)
-    ]
-    return most < SHAPE_KEPT * len(values) and any(read) and any(worded)
+    most = Counter(kinds).most_common(1)[0][1]
+    texts = [kind.removeprefix("text:") for kind in kinds if kind.startswith("text:")]
+    worded = any(any(char.isalpha() for char in text) for text in texts)
+    return most < SHAPE_KEPT * len(kinds) and len(texts) < len(kinds) and worded
 
 
 def _still_listed(docs: list[Document], old: Listing) -> Listing | None:
@@ -2626,8 +2680,11 @@ def _check_not_facts(
     facts, each a label of its own and a value of its own kind: a product's
     UPC, type, prices and availability, all read as "price". Such a listing
     was learnt before 0.9.1 (``_facts_of_one_thing``), and passed every
-    product page. Said only when so, as a check that failed."""
-    if len(raw) < 2:
+    product page. Said only when so, as a check that failed: the field's
+    samples, the values it was learnt with, are of mixed kinds too. A
+    listing learnt from items' prices, the page's rows now "£141.90", "Sold
+    out" and "£45", was learnt with prices alone, and is held to them."""
+    if len(raw) < 2 or not any(_mixed(list(f.samples)) for f in listing.fields):
         return
     taken = {f.path for f in listing.fields} | {
         path
@@ -2640,7 +2697,7 @@ def _check_not_facts(
         return
     for f in listing.fields:
         values = [row[f.name] for row in rows if row.get(f.name)]
-        if f.shape is None and _mixed(values):
+        if f.shape is None and _mixed(list(f.samples)) and _mixed(values):
             shown = ", ".join(repr(label) for label in labels[:4])
             checks.append(
                 Check(
