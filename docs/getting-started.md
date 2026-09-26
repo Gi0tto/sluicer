@@ -5,30 +5,30 @@ page, understand what came back, and do the same from Python and from an agent.
 
 ## 1. Install
 
-As a command, in an environment of its own:
-
 ```bash
-uv tool install "sluicer[markdown]"
+pip install sluicer
 sluicer --version
 ```
 
-With pipx instead: `pipx install "sluicer[markdown]"`. To run it once without
-installing anything: `uvx --from "sluicer[markdown]" sluicer --version`. As a
-library, in your project's virtual environment:
+That is the whole install for everything this guide does. For the `sluicer`
+command in an environment of its own, `uv tool install sluicer` or
+`pipx install sluicer`; to run it once without installing anything,
+`uvx sluicer --version`; in a uv project, `uv add sluicer`.
+
+The base install reads every page you have on disk, fetches pages from the web
+over plain HTTP and turns a page into markdown, with nothing installed but
+`lxml`, `click`, `cssselect`, `protego` and `trafilatura` (and `tomli` on
+Python 3.10). A page that is an empty shell a script fills in needs a browser:
+add the `browser` extra, then let Sluicer download Playwright's Chromium once.
 
 ```bash
-pip install "sluicer[markdown]"
+pip install "sluicer[browser]"
+sluicer install browser
 ```
 
-In a uv project, `uv add "sluicer[markdown]"` does the same.
-
-The base install reads every page you have on disk and fetches pages from the
-web over plain HTTP, with nothing installed but `lxml`, `click`, `cssselect` and `protego`
-(and `tomli` on Python 3.10);
-the extra adds turning a page into markdown. A page that is an empty shell a
-script fills in needs a browser: add the `browser` extra, and install its
-Chromium once with `uvx --from "sluicer[browser]" playwright install chromium`.
-The [extras](index.md#install) are listed on the home page.
+`sluicer doctor` says what is installed and, for each missing piece, what it is
+for and the command that adds it for the way you installed Sluicer. The
+[extras](index.md#install) are listed on the home page.
 
 ### Shell completion
 

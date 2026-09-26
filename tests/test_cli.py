@@ -1100,6 +1100,7 @@ def test_the_help_groups_the_commands_by_what_they_are_for():
         "Whole sites": ["map", "crawl", "batch", "feed", "warc"],
         "Extractors": ["compile", "run", "heal"],
         "Servers": ["mcp", "serve"],
+        "Setup": ["install", "doctor"],
     }
     starts = [said.index(f"{title}:\n") for title in sections]
     assert starts == sorted(starts) and "Commands:" not in said

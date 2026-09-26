@@ -30,7 +30,8 @@ which no proxy carries, is off.
 Backends, chosen by the environment:
 
 * ``SLUICER_BROWSER=chromium`` (the default): Playwright's own Chromium,
-  installed once with ``playwright install chromium``.
+  installed once with ``sluicer install browser``, which runs
+  ``playwright install chromium``.
 * ``SLUICER_CDP_URL=ws://...`` or ``http://...``: a Chromium already running
   elsewhere, reached over the DevTools protocol (``connect_over_cdp``). The
   guard still judges every request by Sluicer's resolver; the browser

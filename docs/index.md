@@ -59,7 +59,7 @@ from. No model reads any page, so the same page always gives the same answer.
 ## Quick start
 
 ```bash
-uv tool install sluicer   # or: pipx install sluicer
+pip install sluicer   # or: uv tool install sluicer, pipx install sluicer
 
 # Learn where a book's title and price sit, from two pages of one template.
 sluicer compile https://books.toscrape.com/catalogue/page-1.html \
@@ -147,36 +147,46 @@ page.html` shows the same reading laid out for a person.
 ## Install
 
 ```bash
-uv tool install sluicer   # the sluicer command, in an environment of its own
-uvx sluicer --version     # or run it once, installing nothing
-pip install sluicer       # the library, in your project's virtual environment
+pip install sluicer
 ```
 
-`pipx install sluicer` works as `uv tool install` does, and `uv add sluicer`
-adds the library to a uv project. Extras go in brackets, as in
-`uv tool install "sluicer[browser,markdown,mcp]"`. The base install reads HTML
-you already have and fetches pages over plain HTTP, with `lxml`, `click`,
-`cssselect` (CSS selectors) and `protego` (robots.txt) alone, and `tomli` on
-Python 3.10 to read a
-[configuration file](https://gi0tto.github.io/sluicer/configuration/): the
-HTTP client is Python's own.
+That is the whole install for every command but one kind of page: it reads
+HTML you have, fetches and crawls over plain HTTP, audits, learns extractors
+and turns a page into markdown. For the `sluicer` command in an environment of
+its own, `uv tool install sluicer` or `pipx install sluicer`; to run it once,
+installing nothing, `uvx sluicer --version`; in a uv project, `uv add sluicer`.
+
+A page a script draws, which plain HTTP brings back as an empty shell, needs a
+browser: add the `browser` extra, then let Sluicer download Playwright's
+Chromium once.
+
+```bash
+pip install "sluicer[browser]"
+sluicer install browser
+```
+
+`sluicer doctor` says what is installed, what each missing piece is for, and
+the command that adds it for the way you installed Sluicer (pip, uv tool, pipx
+or uvx); a command that needs a missing extra names the same command.
 
 <details>
 <summary>What each extra adds</summary>
 
 | extra | adds |
 |---|---|
-| `browser` | a browser, Playwright's Chromium, for a page plain HTTP brings back as an empty shell |
-| `stealth` | the stealth rung, by scrapling: one page, only when asked with `--stealth`, never in a crawl |
-| `markdown` | a page's main content as Markdown, by trafilatura |
-| `mcp` | the MCP server, with `markdown`; add `browser` for pages that need one |
+| `browser` | a browser, Playwright's Chromium, for a page plain HTTP brings back as an empty shell; download Chromium with `sluicer install browser` |
+| `mcp` | the MCP server; add `browser` for pages that need one |
 | `api` | the HTTP API, with `mcp` |
 | `microformats` | microformats2, which is off by default |
+| `all` | every extra above |
+| `stealth` | the stealth rung, by scrapling: one page, only when asked with `--stealth`, never in a crawl; never in `all` |
+| `markdown` | nothing more since 0.10, when trafilatura joined the base install; kept so an older install line still works |
 | `fetch` | deprecated since 0.8: `browser` and `stealth` together, what it installed before |
 
-To let Sluicer use a browser, install one once:
-`uvx --from "sluicer[browser]" playwright install chromium`. Without it, plain
-HTTP still works, and a page that needed a browser says so.
+The base install is `lxml`, `click`, `cssselect` (CSS selectors), `protego`
+(robots.txt) and `trafilatura` (markdown), and `tomli` on Python 3.10 to read a
+[configuration file](https://gi0tto.github.io/sluicer/configuration/): the
+HTTP client is Python's own.
 
 </details>
 
@@ -304,10 +314,11 @@ scoreboards measured and the extractors working as the web changes.
 MIT, except two data files under their own licences: schema.org's type names
 (CC BY-SA 3.0) and CLDR's month and weekday names (Unicode License v3); the
 package's licence expression is `MIT AND CC-BY-SA-3.0 AND Unicode-3.0`. The base
-install needs `lxml`, `click`, `cssselect` and `protego`, all BSD-3-Clause, and on Python
-3.10 `tomli`, MIT. The extras pull a wider
-tree that is not all permissive: `tld` is MPL-1.1, GPL-2.0-only or
-LGPL-2.1-or-later, `orjson` is MPL-2.0 alongside Apache-2.0 or MIT, and
-`certifi` is MPL-2.0. CI lists every licence in that tree and fails on one
+install needs `lxml`, `click`, `cssselect` and `protego`, all BSD-3-Clause,
+`trafilatura`, Apache-2.0, and on Python 3.10 `tomli`, MIT. The tree under
+trafilatura and the extras is not all permissive: `tld` is MPL-1.1,
+GPL-2.0-only or LGPL-2.1-or-later, and `certifi` is MPL-2.0, both brought by
+trafilatura, and `orjson`, from an extra, is MPL-2.0 alongside Apache-2.0 or
+MIT. CI lists every licence in that tree and fails on one
 nobody has read; [NOTICE](https://github.com/Gi0tto/sluicer/blob/main/NOTICE)
 says more.
