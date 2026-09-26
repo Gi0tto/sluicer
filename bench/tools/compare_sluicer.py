@@ -31,7 +31,7 @@ DISTRIBUTION = "sluicer"
 @answered
 def extract(html: bytes, url: str | None) -> dict[str, Any]:
     """The call the scoreboard scores and ``bench/timing.py`` times."""
-    found = sluicer.extract(html, url=url)
+    found = sluicer.extract(html, url=url, visible=False)
     row: dict[str, Any] = {}
     for field, question in FIELDS.items():
         answer = found.summary.get(question)
@@ -48,7 +48,7 @@ def extract(html: bytes, url: str | None) -> dict[str, Any]:
 
 def after(html: bytes, url: str | None, row: dict[str, Any]) -> None:
     """``--visible``'s guesses, untimed, beside the summary's answers."""
-    summary = sluicer.extract(html, url=url).summary
+    summary = sluicer.extract(html, url=url, visible=False).summary
     row["visible"] = guesses(html, url, summary)
 
 

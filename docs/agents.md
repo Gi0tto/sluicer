@@ -25,6 +25,11 @@ variables rather than arguments. A name that is not a tool stops the server
 with the list of them, and exit code 2. Where the scripts directory is not on the `PATH`,
 `python -m sluicer mcp` starts the same server.
 
+`extract_declared` answers what a page declares in `summary`, and beside it,
+in `visible`, the title, byline and dates the page shows a reader: guesses,
+each naming its element and rule, never mixed into the summary. Pass
+`"visible": false` for the declared answers alone.
+
 The server refuses to fetch `localhost`, a private network or a cloud's
 metadata endpoint unless it is started with `SLUICER_ALLOW_PRIVATE=1`.
 

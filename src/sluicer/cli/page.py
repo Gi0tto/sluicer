@@ -62,9 +62,11 @@ def _what_to_try(source: str, induce: bool, visible: bool) -> str:
     help="Also read microformats2 (needs sluicer[microformats]).",
 )
 @click.option(
-    "--visible",
-    is_flag=True,
-    help="Also guess the title, byline and dates the page shows, not in the summary.",
+    "--visible/--no-visible",
+    default=True,
+    show_default=True,
+    help='Also guess the title, byline and dates the page shows, in "visible", '
+    "never in the summary. --no-visible reads what the page declares alone.",
 )
 @_with_fetch_options
 def extract(
@@ -202,9 +204,11 @@ def select_command(
     help="Also read microformats2 (needs sluicer[microformats]).",
 )
 @click.option(
-    "--visible",
-    is_flag=True,
-    help="Also guess the title, byline and dates the page shows, not in the summary.",
+    "--visible/--no-visible",
+    default=True,
+    show_default=True,
+    help='Also guess the title, byline and dates the page shows, in "visible", '
+    "never in the summary. --no-visible reads what the page declares alone.",
 )
 @_with_fetch_options
 def inspect(
@@ -481,7 +485,12 @@ def diff_command(
             source, stealth, no_robots, base_url, when, respect, cache_dir, max_age
         )
         readings.append(
-            extract_html(html, url=url, headers=fetched.headers if fetched else None)
+            extract_html(
+                html,
+                url=url,
+                headers=fetched.headers if fetched else None,
+                visible=False,
+            )
         )
     differences = compare(readings[0], readings[1])
     if as_json:

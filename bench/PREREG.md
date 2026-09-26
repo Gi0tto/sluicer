@@ -220,6 +220,69 @@ one.
 - **No seconds.** The speed tables time `extract` without `visible`; no
   time of `--visible` is printed.
 
+## 0.10: `--visible` on by default, and the rules added for it
+
+Fixed on 2026-09-26, after the rules below were made and measured on WCXB's
+development split, and before any of them was run on a scoreboard's pages.
+
+**On by default.** From 0.10 `extract()` reads the visible page unless told
+`visible=False`, and the command line, the MCP tools, the HTTP API and the npm
+package likewise. The scoreboards still score what the page declares: the
+harnesses call `extract(html, url=..., visible=False)` where they called
+`extract(html, url=...)`, so the call timed and scored is the one it was, and
+the section above holds as written.
+
+**The rules.** Made reading only the 1,358 pages of WCXB's `dev` split, their
+labels, and Sluicer's and newspaper4k 0.9.6's answers on them; each kept there
+only when, on those pages, it added no invention (`bench/visible_dev.py`'s
+counts, and the same per page):
+
+| commit | rule | development split, before -> after |
+|---|---|---|
+| `817ae10` | summary: the declared title the page's `<h1>` shows is the title | title hits 935 -> 1047, wrong 423 -> 311 |
+| `b835274` | `--visible`: no byline in a box that says it has none, in `<body>`, `<main>` or `<article>`, or on another article's card | author, declared then `--visible`: inventions 58 -> 56 |
+| `fb353a1` | `--visible`: the page's own `<body>` classes do not hide its byline; a testimonial's signature is none | author hits 473 -> 487, wrong 26 -> 27 |
+| `c21d51f` | `--visible`: a byline in an article's own `<footer>` | author hits 487 -> 488 |
+| `d750661` | `--visible`: one word in a link marked `rel=author` is its author's handle | author hits 488 -> 491 |
+| `fd2eabb` | `--visible`: a forum thread's first `username`, asked last | author hits 491 -> 497, wrong 27 -> 28 |
+
+Tried there and dropped, each for adding an invention or a wrong answer:
+class names read with `_` as a word's edge, an "Author:" label, "Text by" and
+"Recipe by", `itemprop=author` as a byline, Elementor's `elementor-widget`
+boxes not taken for widgets, and the body's classes left out for dates too.
+
+**The measure after, once.** On WCXB's 511 test pages, the 360 as served, the
+263 news pages and trafilatura's 851 annotated pages, each scored by
+`bench/score.py` as its scoreboard scores it: the code before these rules
+(`0a41977`), then each commit above added in turn, in that order. For each set
+and each of title, author and date: hits, wrong answers and inventions of what
+the page declares, of `--visible` alone, and of declared then `--visible`. Read
+as numbers only; no page's answer is read to make or change a rule, and a rule
+taken out is not refined on these pages.
+
+**What is kept.** A `--visible` commit that adds an invention on any of the
+four sets, declared then `--visible` or `--visible` alone, is reverted whole.
+The title commit changes which declared title is answered, never whether one
+is, so it cannot invent; it is reverted if it lowers the title's hits on any
+set. Whatever is reverted is said in the commit that reverts it, with the
+numbers.
+
+**Read once, on 2026-09-26.** Every rule but the first `--visible` one was
+reverted: `fb353a1`, `c21d51f`, `d750661` and `fd2eabb` each added
+inventions (`fb353a1` on three sets), and the title commit, `817ae10`,
+lowered the news pages' title hits, 229 -> 224, while raising the other
+three sets'. `b835274` added none and is kept. Each revert gives its
+numbers. (The table named `fb353a1` and `c21d51f` by the hashes they had
+before their messages were amended, `1afc3ca` and `a974a09`; the code is
+the same.)
+
+**Its cost.** The seconds `--visible` adds are measured on the development
+split's pages, not a scoreboard's: every page read by `extract` with
+`visible=False` and with `visible=True`, each the fastest of three in one
+process, and the per-page difference given as its median and 95th
+percentile. The scoreboards' speed tables stay as the section above fixes
+them.
+
 ## Two more tools, beside the markdown and beside heal
 
 Fixed on 2026-09-25, before either was run on a scoreboard's pages. Neither is

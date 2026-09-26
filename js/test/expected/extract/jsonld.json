@@ -78,6 +78,12 @@
     ],
     "links": {},
     "rights": {},
-    "visible": {}
+    "visible": {
+      "title": {
+        "value": "Brake pad set",
+        "where": "/html/body/h1",
+        "rule": "h1"
+      }
+    }
   }
 }

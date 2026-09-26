@@ -41,12 +41,15 @@ def _answer(call):
 def extract(html, options):
     def call():
         given = json.loads(options)
+        # On unless asked off, as in Python: an option left out is undefined
+        # in JavaScript, and JSON.stringify drops it.
+        visible = given.get("visible")
         return asdict(
             sluicer.extract(
                 _page(html),
                 url=given.get("url"),
                 induce=bool(given.get("induce")),
-                visible=bool(given.get("visible")),
+                visible=True if visible is None else bool(visible),
                 headers=given.get("headers"),
             )
         )

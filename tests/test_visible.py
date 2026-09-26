@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -201,23 +202,144 @@ _SHOWN = (
 )
 
 
-def test_extract_guesses_only_when_asked_and_never_in_the_summary() -> None:
-    assert sluicer.extract(_SHOWN).visible == {}
-    read = sluicer.extract(_SHOWN, visible=True)
+def test_extract_guesses_by_default_and_never_in_the_summary() -> None:
+    assert sluicer.extract(_SHOWN, visible=False).visible == {}
+    read = sluicer.extract(_SHOWN)
     assert read.visible["author"].value == "Ada Lovelace"
     assert read.visible["published"].value == "2025-06-03"
     assert read.summary == {}
+    # visible=True, the spelling before 0.10, still asks for the same.
+    assert sluicer.extract(_SHOWN, visible=True) == read
+
+
+async def _awaited() -> sluicer.Extraction:
+    return await sluicer.aextract(_SHOWN)
+
+
+def test_aextract_guesses_by_default_too() -> None:
+    import asyncio
+
+    assert asyncio.run(_awaited()).visible["author"].value == "Ada Lovelace"
 
 
 def test_the_command_line_shows_guesses_as_guesses(tmp_path) -> None:
     page = tmp_path / "page.html"
     page.write_text(_SHOWN, encoding="utf-8")
 
+    declared = CliRunner().invoke(main, ["extract", "--no-visible", str(page)])
+    assert declared.exit_code == 1
     plain = CliRunner().invoke(main, ["extract", str(page)])
-    assert plain.exit_code == 1
+    assert plain.exit_code == 0
+    assert json.loads(plain.output)["visible"]["title"]["rule"] == "h1"
     asked = CliRunner().invoke(main, ["extract", "--visible", str(page)])
-    assert asked.exit_code == 0
-    assert json.loads(asked.output)["visible"]["title"]["rule"] == "h1"
-    shown = CliRunner().invoke(main, ["inspect", "--visible", str(page)])
+    assert asked.output == plain.output
+    shown = CliRunner().invoke(main, ["inspect", str(page)])
     assert "from what the page shows, not declared" in shown.output
     assert "[guess: by-line]" in shown.output
+    hidden = CliRunner().invoke(main, ["inspect", "--no-visible", str(page)])
+    assert "[guess:" not in hidden.output
+
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+# A trimmed copy of the page as served on 2026-09-26 (its robots.txt allows
+# all). Framer writes the site's build time in a comment before <html>.
+_TYPESAFE = _FIXTURES / "typesafe_byline_under_heading.html"
+_TYPESAFE_URL = "https://typesafe.ai/blog/introducing-system-one-models-and-jev"
+
+
+def test_a_name_and_role_right_under_the_heading_is_the_author() -> None:
+    read = sluicer.extract(_TYPESAFE.read_bytes(), url=_TYPESAFE_URL, visible=True)
+    assert read.visible["author"] == Guess(
+        "Diogo Almeida", "/html/body/div/div[1]/div[2]/div/p[1]", "name, role"
+    )
+    assert "author" not in read.summary
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # No role after the comma: a place.
+        "<h1>Brake pads</h1><p>Porto Alegre, Brazil</p>",
+        # Not the first line under the heading.
+        "<h1>Brake pads</h1><p>A short intro.</p><p>Diogo Almeida, founder</p>",
+        # A sentence, not a name.
+        "<h1>Brake pads</h1><p>We asked the founder, who said no.</p>",
+        "<h1>Brake pads</h1><p>Then Diogo Almeida left. Later, founder</p>",
+        # One word, or words in lowercase.
+        "<h1>Brake pads</h1><p>Almeida, founder, TypeSafe</p>",
+        "<h1>Brake pads</h1><p>diogo almeida, founder, TypeSafe</p>",
+        # Two headings: no page's heading to be under.
+        "<h1>One</h1><h1>Two</h1><p>Diogo Almeida, founder</p>",
+    ],
+)
+def test_what_is_not_a_name_and_role_under_the_heading(body: str) -> None:
+    assert "author" not in read_visible(_page(body))
+
+
+def test_a_date_in_an_html_comment_is_never_read() -> None:
+    read = sluicer.extract(_TYPESAFE.read_bytes(), url=_TYPESAFE_URL, visible=True)
+    assert read.visible["published"].value == "2026-09-15"
+    assert read.visible["published"].rule == "near-heading"
+    assert "published" not in read.summary
+    assert "modified" not in read.summary
+    assert "modified" not in read.visible
+
+
+def test_no_reader_or_guess_takes_a_date_from_a_comment() -> None:
+    comment = "<!-- Published Sep 26, 2026, 7:01 AM UTC -->"
+    page = (
+        f"<!doctype html>{comment}<html><head>{comment}"
+        '<meta name="date" content="2025-03-04">'
+        '<!--[if IE]><meta name="dcterms.modified" content="2026-09-26"><![endif]-->'
+        f"</head><body>{comment}"
+        f'<h1>Brake pads</h1>{comment}<p class="date">{comment}</p>'
+        f'<div itemscope itemtype="https://schema.org/Article">'
+        f'<span itemprop="dateModified">{comment}</span></div>'
+        f'<span property="dc:date">{comment}</span>'
+        f"<time>{comment}</time><p>{comment} Published: {comment}</p>"
+        f'<p class="byline">By Ada Lovelace {comment}</p></body></html>'
+    )
+    read = sluicer.extract(page, url="https://example.com/brake-pads", visible=True)
+    answers = [a.value for a in read.summary.values()]
+    answers += [g.value for g in read.visible.values()]
+    answers += [str(f.value) for r in read.records for f in r.fields.values()]
+    assert not [a for a in answers if "2026" in str(a) or "Sep 26" in str(a)]
+    assert read.summary["published"].value == "2025-03-04"
+
+
+def test_a_box_that_says_there_is_no_byline_is_none() -> None:
+    body = (
+        '<h1>Cybersecurity</h1><div class="post-meta-detail no-byline">'
+        "Home » Consulting Services</div>"
+    )
+    assert "author" not in read_visible(_page(body))
+
+
+@pytest.mark.parametrize("tag", ["main", "article"])
+def test_a_box_holding_the_whole_article_is_no_byline(tag: str) -> None:
+    body = (
+        f'<{tag} class="author-archive"><h1>Store Policies</h1><p>Read on.</p></{tag}>'
+    )
+    assert "author" not in read_visible(_page(body))
+
+
+def test_a_by_line_on_another_article_s_card_is_not_the_author() -> None:
+    body = (
+        "<h1>Tips from a first time visitor</h1>"
+        '<a href="/articles/sports"><div>8 places to go all-in on sports this year'
+        "</div><div>From baseball games in Tokyo to F1 races.</div>"
+        "<div>By Noah Cortez</div></a>"
+    )
+    assert "author" not in read_visible(_page(body), url="https://example.com/topic/1")
+
+
+def test_a_by_line_linked_to_its_author_s_page_is_the_author() -> None:
+    body = '<h1>Costs</h1><a href="/authors/scott"><div>By Scott Kasun</div></a>'
+    guess = read_visible(_page(body), url="https://example.com/costs")["author"]
+    assert (guess.value, guess.rule) == ("Scott Kasun", "by-line")
+
+
+def test_sluicer_s_own_callers_guess_by_default_as_extract_does() -> None:
+    from sluicer.api import _extract
+
+    assert _extract(_SHOWN).visible == sluicer.extract(_SHOWN).visible != {}

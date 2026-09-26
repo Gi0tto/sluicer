@@ -126,6 +126,8 @@ Options:
                               at a time.  [default: 4; 1<=x<=32]
   --induce / --no-induce      Also read the rows a page repeats when it declares nothing
                               about them.
+  --visible / --no-visible    Also guess the title, byline and dates each page shows, in
+                              "visible", never in the summary.  [default: visible]
   --respect [tdm]             Give a page whose rights are reserved as an error, not its
                               data: tdm reads TDMRep's tdmrep.json, headers and meta
                               tags.
@@ -225,6 +227,8 @@ Options:
                                 at a time.  [default: 4; 1<=x<=32]
   --induce / --no-induce        Also read the rows a page repeats when it declares
                                 nothing about them.
+  --visible / --no-visible      Also guess the title, byline and dates each page shows,
+                                in "visible", never in the summary.  [default: visible]
   --respect [tdm]               Give a page whose rights are reserved as an error, not
                                 its data: tdm reads TDMRep's tdmrep.json, headers and
                                 meta tags.
@@ -309,7 +313,8 @@ Options:
   --microformats / --no-microformats
                                   Also read microformats2 (needs sluicer[microformats]).
   --visible / --no-visible        Also guess the title, byline and dates the page shows,
-                                  not in the summary.
+                                  in "visible", never in the summary. --no-visible reads
+                                  what the page declares alone.  [default: visible]
   --proxy URL                     Fetch through this proxy (http://host:port,
                                   socks5h://host:port); the environment's HTTPS_PROXY is
                                   never used. Same as SLUICER_PROXY.
@@ -455,7 +460,8 @@ Options:
   --microformats / --no-microformats
                                   Also read microformats2 (needs sluicer[microformats]).
   --visible / --no-visible        Also guess the title, byline and dates the page shows,
-                                  not in the summary.
+                                  in "visible", never in the summary. --no-visible reads
+                                  what the page declares alone.  [default: visible]
   --proxy URL                     Fetch through this proxy (http://host:port,
                                   socks5h://host:port); the environment's HTTPS_PROXY is
                                   never used. Same as SLUICER_PROXY.
@@ -686,5 +692,8 @@ Options:
                                   nothing about them.
   --microformats / --no-microformats
                                   Also read microformats2 (needs sluicer[microformats]).
+  --visible / --no-visible        Also guess the title, byline and dates each page
+                                  shows, in "visible", never in the summary.  [default:
+                                  visible]
   --help                          Show this message and exit.
 ```

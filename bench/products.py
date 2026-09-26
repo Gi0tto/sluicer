@@ -96,7 +96,7 @@ def predict(bench: Path) -> tuple[dict[str, dict[str, str]], set[str]]:
         html = gzip.decompress(
             (bench / "dataset" / "html" / f"{page_id}.html.gz").read_bytes()
         )
-        result = sluicer.extract(html, url=labels.get("url"))
+        result = sluicer.extract(html, url=labels.get("url"), visible=False)
         answer: dict[str, str] = {}
         if "price" in result.normalised:
             answer["price"] = result.normalised["price"]

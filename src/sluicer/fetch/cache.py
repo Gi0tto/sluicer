@@ -393,7 +393,7 @@ def _challenge(fetched: Fetched) -> bool:
 
 def _found(fetched: Fetched) -> bool:
     """Whether the page declares something about a thing, as the ladder asks."""
-    records = extract(fetched.html, url=fetched.url).records
+    records = extract(fetched.html, url=fetched.url, visible=False).records
     return any(
         field.source in ABOUT_A_THING
         for record in records

@@ -535,7 +535,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         at: str | None = None,
         respect_tdm: bool = False,
         records: bool = True,
-        visible: bool = False,
+        visible: bool = True,
     ) -> answers.ExtractAnswer:
         """Read the structured data a page declares, with where each value came from.
 
@@ -554,7 +554,7 @@ def build_server(tools: Iterable[str] | None = None) -> Any:
         visible: also guess the title, author, publication and update dates
         the page shows a reader, in "visible", each {"value", "where",
         "rule"}; guesses, never part of the summary, which holds only what
-        the page declares.
+        the page declares. On by default; false reads the declarations alone.
 
         Returns {"ok", "url", "summary", "records", "sources"}, and "fetch"
         for a URL. records are typed fields, each {"value", "source",

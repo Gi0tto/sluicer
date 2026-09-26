@@ -267,10 +267,11 @@ records which pages each rule was made on.
 ## When not to use Sluicer
 
 - **You need authors or dates that pages do not declare.** trafilatura reads
-  them from the visible text and finds more of them. Sluicer's `--visible`
-  option guesses them too: on the scoreboards it finds more of them and
-  invents some, and on two of them its dates are right less often when it
-  answers.
+  them from the visible text and finds more of them. Sluicer guesses them too,
+  by default since 0.10, in a `visible` field of its own that never enters
+  the summary (`--no-visible` or `visible=False` turns it off): on the
+  scoreboards it finds more of them and invents some, and on two of them its
+  dates are right less often when it answers.
 - **You need an article's full text.** `sluicer markdown` uses trafilatura for
   it; if you need trafilatura's options or other output formats, use it
   directly.

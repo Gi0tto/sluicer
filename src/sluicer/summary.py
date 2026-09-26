@@ -33,6 +33,7 @@ from sluicer.declared.links import canonicals
 from sluicer.declared.located import Places, paid, place, xpath_of
 from sluicer.declared.merge import ABOUT_A_THING, Field, JsonValue, Overruled, Record
 from sluicer.declared.opengraph import NAMESPACES
+from sluicer.declared.rdfa import document_properties
 from sluicer.document import Document, base_url, join
 from sluicer.normalise import (
     amount,
@@ -168,6 +169,12 @@ _DATE_NAMES = (
 # scoreboards' pages and trafilatura's evaluation set they gave seven answers,
 # six wrong or where the label has no author, and one where the label itself
 # reads "Unknown".
+# A clock time and nothing else: "10:52", "2:33 PM", "3 pm", "07:01:27 UTC".
+_ONLY_A_TIME = re.compile(
+    r"^\s*\d{1,2}(?:(?::\d{2}){1,2}(?:\.\d+)?\s*(?:[ap]\.?\s?m\.?)?"
+    r"|\s*[ap]\.?\s?m\.?)\s*(?:z|[a-z]{2,4}|[+-]\d{2}:?\d{2})?\s*$",
+    re.IGNORECASE,
+)
 _NO_ONE = frozenset({"admin", "administrator", "super user", "unknown"})
 _AUTHOR_NAMES = ("citation_author", "parsely-author", "sailthru.author", "byl")
 _TITLE_NAMES = ("citation_title",)
@@ -351,6 +358,8 @@ def read_summary(
             _orphan_itemprop(doc, "author"),
             meta(dublincore, "dublincore", "creator", "dc."),
             _not_an_address(og("article:author")),
+            _orphan_itemprop(doc, "author", meta=False),
+            _not_an_address(_of_the_document(doc, _RDFA_AUTHOR)),
         ],
         "published": [
             own("datePublished"),
@@ -363,6 +372,7 @@ def read_summary(
             meta(dublincore, "dublincore", "created", "dc."),
             _orphan_itemprop(doc, "datePublished"),
             _named(doc, _DATE_NAMES),
+            _of_the_document(doc, _RDFA_PUBLISHED),
         ],
         "modified": [
             own("dateModified"),
@@ -405,6 +415,7 @@ def read_summary(
         "brand": [own("brand", _names), og("brand"), og("product:brand")],
         "sku": [
             own("sku"),
+            _offers_sku(subject, variants),
             own("productID"),
             og("product:retailer_item_id"),
             og("sku"),
@@ -444,6 +455,14 @@ def read_summary(
         and answer.value.casefold() not in _NO_ONE
         and any(c.isalpha() for c in answer.value)
     ]
+    # A time with no day is no date: a page that writes "10:52" where its
+    # publication date goes has not said which day, and the next is asked.
+    questions["published"] = [
+        answer
+        for answer in questions["published"]
+        if answer and not _ONLY_A_TIME.match(answer.value)
+    ]
+    questions["published"] = _in_own_offset(questions["published"])
     questions["title"] = [
         _without_site(answer, site_names)
         if answer and answer.source not in ABOUT_A_THING
@@ -949,6 +968,34 @@ def _same_moment(
     return one[0] == other[0]
 
 
+def _in_own_offset(answers: list[Answer]) -> list[Answer]:
+    """``answers`` with the first moved behind a declaration of the same
+    instant in the publisher's own time zone, when it is written in UTC.
+
+    A page that says 2020-01-01T01:30Z in one tag and 2019-12-31T20:30-05:00
+    in another says one instant twice, and the day it was published where it
+    was published is the 31st: UTC is how a platform stores the instant, the
+    offset is the publisher's.
+    """
+    first = next((answer for answer in answers if answer), None)
+    moment = _moment(first.value) if first is not None else None
+    if first is None or moment is None or moment[1] is None:
+        return answers
+    if moment[1].utcoffset() != datetime.timedelta(0):
+        return answers
+    for answer in answers:
+        other = _moment(answer.value) if answer else None
+        if (
+            answer is not None
+            and other is not None
+            and other[1] is not None
+            and other[1] == moment[1]
+            and other[1].utcoffset() != datetime.timedelta(0)
+        ):
+            return [answer, *(a for a in answers if a is not answer)]
+    return answers
+
+
 def _same_text(one: object, other: object) -> bool:
     return one == other
 
@@ -1138,6 +1185,40 @@ def _pricing(subject: Record, offers: JsonValue) -> _Pricing:
             None,
         )
     return _Pricing(price, regular, low, high, currency, availability)
+
+
+def _offers_sku(subject: Record | None, variants: list[Record]) -> Answer:
+    """The SKU the subject's offers declare, when the subject declares none:
+    schema.org gives ``sku`` to an ``Offer`` as to a ``Product``. Only when its
+    offers name one SKU, and every variant's the same: offers of several SKUs
+    are several things."""
+    found = _one_offer_sku(subject)
+    if found is None or subject is None:
+        return None
+    for variant in variants:
+        other = _one_offer_sku(variant)
+        if other is None or other.value != found.value:
+            return None
+    return found
+
+
+def _one_offer_sku(record: Record | None) -> SummaryField | None:
+    if record is None or "offers" not in record.fields:
+        return None
+    held = record.fields["offers"]
+    if held.source not in ABOUT_A_THING:
+        return None
+    skus = [
+        (text, path)
+        for offer, path in _offers_in(held.value, "offers")
+        if (text := _text(offer["sku"]) if "sku" in offer else None)
+    ]
+    if not skus or len({text for text, _ in skus}) > 1:
+        return None
+    text, path = skus[0]
+    name = record.type or "Thing"
+    key = f"{name}.{path}.sku"
+    return SummaryField(text, held.source, key, _inside(held, f"{path}.sku"))
 
 
 def _offers_in(value: JsonValue, path: str) -> list[tuple[dict[str, JsonValue], str]]:
@@ -1393,8 +1474,15 @@ def _meta_names(doc: Document) -> dict[str, list[tuple[str, HtmlElement]]]:
     return found
 
 
-def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
-    """A ``<meta itemprop>`` outside any item, as templates put in the head.
+def _orphan_itemprop(
+    doc: Document, prop: str, meta: bool = True
+) -> SummaryField | None:
+    """An ``itemprop`` outside any item: a ``<meta itemprop>`` as templates put
+    in the head, or, with ``meta`` false, any other element's author, ``<span
+    itemprop="author">``, asked after every other declaration. A byline that
+    is only a label, "Staff", names nobody. (Other elements' dates were
+    measured and not kept: on WCXB's development split they added an
+    invention and no hit.)
 
     The microdata standard ignores it, having no item to give it to, so the
     microdata reader does too. It is still the page stating the value. The
@@ -1403,15 +1491,90 @@ def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
     orphans: list[HtmlElement] | None = doc.memo.get("summary.orphan_itemprops")
     if orphans is None:
         orphans = doc.memo["summary.orphan_itemprops"] = doc.tree.xpath(
-            "//meta[@itemprop][@content][not(ancestor::*[@itemscope])]"
+            "//*[@itemprop][not(ancestor::*[@itemscope])]"
         )
-    for meta in orphans:
-        if prop in (meta.get("itemprop") or "").split():
-            text = _clean(meta.get("content"))
-            if text:
+    for element in orphans:
+        if (element.tag == "meta") is not meta:
+            continue
+        if prop in (element.get("itemprop") or "").split():
+            if meta:
+                text = _clean(element.get("content"))
+                if not text:
+                    continue
                 return SummaryField(
-                    text, "html", f"<meta itemprop={prop}>", xpath_of(meta)
+                    text, "html", f"<meta itemprop={prop}>", xpath_of(element)
                 )
+            # An element that is an item itself holds a card, not a value.
+            if element.get("itemscope") is not None:
+                continue
+            text = _clean(_itemprop_value(element))
+            if not text or len(text) > _ORPHAN_MOST:
+                continue
+            text = _BYLINE.sub("", text)
+            if set(text.casefold().split()) <= _NOBODY_WORDS:
+                continue
+            key = f"<{element.tag} itemprop={prop}>"
+            return SummaryField(text, "html", key, xpath_of(element))
+    return None
+
+
+# The words of a byline that name nobody: its label, not a person.
+_NOBODY_WORDS = frozenset({"by", "staff", "team", "editor", "editors", "writer"})
+# The longest text an element outside any item is read as a value: a name or
+# a date, not a paragraph that happens to carry an itemprop.
+_ORPHAN_MOST = 120
+
+
+def _itemprop_value(element: HtmlElement) -> str | None:
+    """An element's microdata value when it is a text, as the standard reads
+    it: a <time>'s datetime, a <data>'s value, else its text. An element whose
+    value is an address has none here."""
+    if element.tag in _AN_ADDRESS:
+        return None
+    attribute = {"time": "datetime", "data": "value", "meter": "value"}
+    value = element.get(attribute[element.tag]) if element.tag in attribute else None
+    if value is None and element.tag != "time" and element.tag in attribute:
+        return None
+    return str(value if value is not None else element.text_content())
+
+
+# The elements whose microdata value is an address, not a text.
+_AN_ADDRESS = frozenset(
+    {"a", "area", "link", "img", "audio", "video", "source", "track", "embed"}
+    | {"iframe", "object"}
+)
+
+
+# RDFa properties of the document itself that name its author and its
+# publication date, most specific first: schema.org's, and Dublin Core's, which
+# RDFa's initial context gives the prefixes dc: and dcterms:.
+_DCTERMS, _DC11 = "http://purl.org/dc/terms/", "http://purl.org/dc/elements/1.1/"
+_SCHEMA = ("http://schema.org/", "https://schema.org/")
+_RDFA_AUTHOR = (
+    *(f"{s}author" for s in _SCHEMA),
+    f"{_DCTERMS}creator",
+    f"{_DC11}creator",
+    *(f"{s}creator" for s in _SCHEMA),
+)
+_RDFA_PUBLISHED = (
+    *(f"{s}datePublished" for s in _SCHEMA),
+    f"{_DCTERMS}issued",
+    f"{_DCTERMS}date",
+    f"{_DC11}date",
+    f"{_DCTERMS}created",
+    *(f"{s}dateCreated" for s in _SCHEMA),
+)
+
+
+def _of_the_document(doc: Document, iris: tuple[str, ...]) -> SummaryField | None:
+    """The first of ``iris`` an RDFa property of the document itself gives a
+    value for: one with no subject in force, which RDFa gives the page."""
+    found = document_properties(doc)
+    for iri in iris:
+        for said, term, value, element in found:
+            text = _clean(value) if said == iri else None
+            if text and len(text) <= _ORPHAN_MOST:
+                return SummaryField(text, "rdfa", f"property={term}", xpath_of(element))
     return None
 
 

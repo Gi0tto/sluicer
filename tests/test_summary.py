@@ -1173,3 +1173,126 @@ def test_what_a_fold_sets_aside_never_answers_the_summary():
 
     assert "currency" not in found.summary
     assert found.conflicts == []
+
+
+def test_a_published_date_that_is_only_a_time_is_no_date():
+    """A page writing "10:52" where its date goes has not said which day."""
+    only = '<html><head><meta name="date" content="10:52"></head></html>'
+    assert "published" not in _summary(only)
+    for time in ("2:33 PM", "3 pm", "07:01:27 UTC"):
+        html = _page(
+            {"@type": "Article", "headline": "H", "datePublished": time},
+            head='<meta name="pubdate" content="2020-05-01">',
+        )
+        assert _summary(html)["published"] == (
+            "2020-05-01",
+            "html",
+            "meta name=pubdate",
+        )
+    # A date with a time is a date, and so is one whose year is two digits.
+    for date in ("2020-05-01 10:52", "01/07/16"):
+        page = f'<html><head><meta name="date" content="{date}"></head></html>'
+        assert _summary(page)["published"][0] == date
+
+
+def test_of_one_instant_written_twice_the_publisher_s_own_offset_is_kept():
+    """UTC is how a platform stores the instant; the day it was published
+    where it was published is the one its own offset writes."""
+    own = '<meta property="article:published_time" content="2019-12-31T20:30:00-05:00">'
+    utc = {"@type": "Article", "headline": "H", "datePublished": "2020-01-01T01:30:00Z"}
+    found = extract(_page(utc, head=own)).summary
+    assert (found["published"].value, found["published"].key) == (
+        "2019-12-31T20:30:00-05:00",
+        "article:published_time",
+    )
+    assert not extract(_page(utc, head=own)).conflicts
+    # Two instants are two answers: the first is kept, and they conflict.
+    other = own.replace("20:30:00", "21:30:00")
+    read = extract(_page(utc, head=other))
+    assert read.summary["published"].value == "2020-01-01T01:30:00Z"
+    assert [c.question for c in read.conflicts] == ["published"]
+    # Written in the publisher's offset first, it stays first.
+    first = {**utc, "datePublished": "2019-12-31T20:30:00-05:00"}
+    zulu = '<meta property="article:published_time" content="2020-01-01T01:30:00Z">'
+    assert _summary(_page(first, head=zulu))["published"][2] == "Article.datePublished"
+
+
+def test_an_author_itemprop_outside_any_item_is_read_last():
+    """Outside any item, microdata ignores it; it is still the page stating
+    who wrote it."""
+    html = (
+        '<html><body><p>By <span itemprop="author">Ann Smith</span></p></body></html>'
+    )
+    found = extract(html).summary["author"]
+    assert (found.value, found.source, found.key, found.where) == (
+        "Ann Smith",
+        "html",
+        "<span itemprop=author>",
+        "/html/body/p[1]/span[1]",
+    )
+    # Every other declaration first.
+    named = '<html><head><meta name="author" content="Bo Li"></head>' + html[6:]
+    assert _summary(named)["author"][0] == "Bo Li"
+    # Not an item's own property, a card, an address, a label or a paragraph.
+    for body in (
+        '<div itemscope><span itemprop="author">Ann Smith</span></div>',
+        '<div itemprop="author" itemscope><span>Ann Smith</span></div>',
+        '<a itemprop="author" href="/ann">Ann Smith</a>',
+        '<span itemprop="author">Staff</span>',
+        f'<p itemprop="author">{"Ann Smith wrote this. " * 10}</p>',
+    ):
+        assert "author" not in _summary(f"<html><body>{body}</body></html>")
+    # An element outside any item gives no date: measured, that invented one.
+    dated = '<html><body><time itemprop="datePublished">2020-05-01</time></body></html>'
+    assert "published" not in _summary(dated)
+
+
+def test_rdfa_properties_of_the_document_itself_answer_author_and_date():
+    """With no subject in force, RDFa gives a property to the page."""
+    html = (
+        '<html><head><meta property="dc:date" content="2020-05-01"></head><body>'
+        '<p>By <span property="dcterms:creator">Ann Smith</span></p></body></html>'
+    )
+    summary = _summary(html)
+    assert summary["published"] == ("2020-05-01", "rdfa", "property=dc:date")
+    assert summary["author"] == ("Ann Smith", "rdfa", "property=dcterms:creator")
+    # schema.org's terms under its vocab, and its datePublished before DC's.
+    vocab = (
+        '<html><body vocab="http://schema.org/"><span property="author">Bo Li</span>'
+        '<span property="dc:created">2019-01-01</span>'
+        '<time property="datePublished" datetime="2020-02-02">2 Feb</time>'
+        "</body></html>"
+    )
+    assert _summary(vocab)["author"][0] == "Bo Li"
+    assert _summary(vocab)["published"][0] == "2020-02-02"
+    # Not another subject's, not a prefix the page redefined, not a bare term
+    # under no vocab, and not an address.
+    for body in (
+        '<div typeof="Person"><span property="dc:creator">Ann Smith</span></div>',
+        '<div about="/other"><span property="dc:creator">Ann Smith</span></div>',
+        '<div resource="/other"><span property="dc:creator">Ann Smith</span></div>',
+        '<div prefix="dc: http://example.org/">'
+        '<span property="dc:creator">Ann Smith</span></div>',
+        '<span property="author">Ann Smith</span>',
+        '<a property="dc:creator" href="https://example.com/ann">Ann Smith</a>',
+    ):
+        assert "author" not in _summary(f"<html><body>{body}</body></html>"), body
+
+
+def test_an_offer_s_sku_is_the_product_s_when_the_product_has_none():
+    """schema.org gives sku to an Offer as to a Product."""
+    offer = {"@type": "Offer", "price": "9.99", "sku": "BR-114"}
+    product = {"@type": "Product", "name": "Brake pad", "offers": offer}
+    assert _summary(_page(product))["sku"] == (
+        "BR-114",
+        "jsonld",
+        "Product.offers.sku",
+    )
+    # The product's own first; offers of two SKUs name no one SKU.
+    assert _summary(_page({**product, "sku": "P-1"}))["sku"][0] == "P-1"
+    two = [offer, {**offer, "sku": "BR-115"}]
+    assert "sku" not in _summary(_page({**product, "offers": two}))
+    same = [offer, {**offer, "price": "8.99"}]
+    assert _summary(_page({**product, "offers": same}))["sku"][2] == (
+        "Product.offers[0].sku"
+    )

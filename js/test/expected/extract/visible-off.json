@@ -1,0 +1,172 @@
+{
+  "page": "examples/site/article.html",
+  "url": "http://127.0.0.1:8000/article.html",
+  "as": "bytes",
+  "options": {
+    "visible": false
+  },
+  "answer": {
+    "url": "http://127.0.0.1:8000/article.html",
+    "summary": {
+      "title": {
+        "value": "How a sluice gate works",
+        "source": "jsonld",
+        "key": "Article.headline",
+        "where": "/html/head/script[1]#/headline"
+      },
+      "description": {
+        "value": "A sluice gate holds water back or lets it through, and how far it opens decides how much.",
+        "source": "html",
+        "key": "meta name=description",
+        "where": null
+      },
+      "url": {
+        "value": "https://lockkeeper.example/articles/how-a-sluice-gate-works",
+        "source": "html",
+        "key": "<link rel=canonical>",
+        "where": null
+      },
+      "image": {
+        "value": "https://lockkeeper.example/images/sluice-gate.jpg",
+        "source": "jsonld",
+        "key": "Article.image",
+        "where": "/html/head/script[1]#/image"
+      },
+      "author": {
+        "value": "Jane Doe",
+        "source": "jsonld",
+        "key": "Article.author",
+        "where": "/html/head/script[1]#/author"
+      },
+      "published": {
+        "value": "2025-03-03T09:00:00+00:00",
+        "source": "jsonld",
+        "key": "Article.datePublished",
+        "where": "/html/head/script[1]#/datePublished"
+      },
+      "modified": {
+        "value": "2025-03-10T16:30:00+00:00",
+        "source": "jsonld",
+        "key": "Article.dateModified",
+        "where": "/html/head/script[1]#/dateModified"
+      },
+      "language": {
+        "value": "en",
+        "source": "html",
+        "key": "<html lang>",
+        "where": "/html"
+      },
+      "site_name": {
+        "value": "The Lock Keeper",
+        "source": "opengraph",
+        "key": "og:site_name",
+        "where": null
+      },
+      "publisher": {
+        "value": "The Lock Keeper",
+        "source": "jsonld",
+        "key": "Article.publisher",
+        "where": "/html/head/script[1]#/publisher"
+      },
+      "type": {
+        "value": "Article",
+        "source": "jsonld",
+        "key": "@type",
+        "where": "/html/head/script[1]#"
+      }
+    },
+    "normalised": {
+      "published": "2025-03-03T09:00:00+00:00",
+      "modified": "2025-03-10T16:30:00+00:00"
+    },
+    "conflicts": [],
+    "records": [
+      {
+        "type": "Article",
+        "types": [
+          "Article"
+        ],
+        "fields": {
+          "headline": {
+            "value": "How a sluice gate works",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/headline"
+          },
+          "author": {
+            "value": {
+              "@type": "Person",
+              "name": "Jane Doe"
+            },
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/author"
+          },
+          "datePublished": {
+            "value": "2025-03-03T09:00:00+00:00",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/datePublished"
+          },
+          "dateModified": {
+            "value": "2025-03-10T16:30:00+00:00",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/dateModified"
+          },
+          "publisher": {
+            "value": {
+              "@type": "Organization",
+              "name": "The Lock Keeper"
+            },
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/publisher"
+          },
+          "image": {
+            "value": "https://lockkeeper.example/images/sluice-gate.jpg",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/image"
+          },
+          "inLanguage": {
+            "value": "en",
+            "source": "jsonld",
+            "where": "/html/head/script[1]#/inLanguage"
+          },
+          "type": {
+            "value": "article",
+            "source": "opengraph",
+            "where": null
+          },
+          "title": {
+            "value": "How a sluice gate works",
+            "source": "opengraph",
+            "where": null
+          },
+          "site_name": {
+            "value": "The Lock Keeper",
+            "source": "opengraph",
+            "where": null
+          },
+          "article:published_time": {
+            "value": "2025-03-03T09:00:00+00:00",
+            "source": "opengraph",
+            "where": null
+          },
+          "description": {
+            "value": "A sluice gate holds water back or lets it through, and how far it opens decides how much.",
+            "source": "html",
+            "where": null
+          }
+        },
+        "source": "jsonld",
+        "where": "/html/head/script[1]#"
+      }
+    ],
+    "sources": [
+      "jsonld",
+      "opengraph",
+      "html"
+    ],
+    "links": {
+      "canonical": "https://lockkeeper.example/articles/how-a-sluice-gate-works"
+    },
+    "rights": {},
+    "visible": {}
+  }
+}

@@ -14,7 +14,7 @@ extract(
     induce: bool = False,
     microformats: bool = False,
     headers: Mapping[str, str] | None = None,
-    visible: bool = False,
+    visible: bool = True,
 ) -> Extraction
 ```
 
@@ -27,7 +27,7 @@ Read the structured data ``html`` declares, merged, with its provenance.
 - `induce`: when the page declares nothing about the things on it, also read the rows its markup repeats; those fields say ``source="induced"``. Never fills a gap in a declared record.
 - `microformats`: also read microformats2. Off by default; needs ``sluicer[microformats]``.
 - `headers`: the response's headers, when the page came over HTTP. A canonical, ``hreflang`` alternates and the next and previous pages in its ``Link`` header join the markup's in ``links`` and the summary's ``url``; ``X-Robots-Tag`` and TDMRep's headers are reported in ``rights["http"]``; the ``Content-Type`` charset decodes bytes, ahead of the page's own declaration, as a browser does. ``Fetched.headers`` is this.
-- `visible`: also read what the page shows and may not declare -- its heading, byline, publication and update dates -- into ``visible``, each answer a guess, never into the summary.
+- `visible`: also read what the page shows and may not declare -- its heading, byline, publication and update dates -- into ``visible``, each answer a guess, never into the summary. On by default since 0.10; ``visible=False`` reads the declarations alone, a little faster.
 
 **Returns**
 
@@ -54,7 +54,7 @@ aextract(
     induce: bool = False,
     microformats: bool = False,
     headers: Mapping[str, str] | None = None,
-    visible: bool = False,
+    visible: bool = True,
 ) -> Extraction
 ```
 
@@ -100,10 +100,10 @@ the summary's dates, price and currency into ISO 8601, a decimal and an ISO
 ``conflicts`` is every question the page answers in two ways that mean
 different things -- a price in JSON-LD and another in OpenGraph -- the
 summary's answer first (see ``sluicer.summary.Conflict``). ``visible`` is
-empty unless ``extract`` was asked for it: then the title, author,
-publication and update dates the page shows a reader, each a guess naming
-its element and rule, kept apart from the summary, which holds only what
-the page declares (see ``sluicer.visible``).
+the title, author, publication and update dates the page shows a reader,
+each a guess naming its element and rule, kept apart from the summary,
+which holds only what the page declares (see ``sluicer.visible``); empty
+when ``extract`` was told ``visible=False``.
 
 ### `sluicer.SummaryField`
 
@@ -716,6 +716,7 @@ crawl(
     exclude: Sequence[str] = (),
     state: str | Path | None = None,
     induce: bool = False,
+    visible: bool = True,
     respect_tdm: bool = False,
     min_delay: float = 1.0,
     max_delay: float = 60.0,
@@ -746,6 +747,7 @@ per site, and hand back each page as its turn comes.
 - `exclude`: regular expressions; a link in whose address one is found is not followed. Neither applies to ``start``.
 - `state`: a JSON Lines file: pages it already holds are not fetched again, and every new page is appended as its turn comes.
 - `induce`: also read repeated rows from a page that declares nothing.
+- `visible`: also guess the title, author and dates each page shows, as ``extract`` does, into its line's ``visible``; on by default.
 - `respect_tdm`: give a page whose site reserves its text and data mining rights (TDMRep: its tdmrep.json, headers or meta tags) as a ``tdm_reserved`` error, never its data.
 - `min_delay`: the least seconds between two requests to one site; a site that takes longer to answer waits as long as it lately took.
 - `max_delay`: the longest robots.txt ``Crawl-delay`` waited for, and the longest wait a slow site or a retry is given.
@@ -775,6 +777,7 @@ extract_many(
     urls: Iterable[str],
     state: str | Path | None = None,
     induce: bool = False,
+    visible: bool = True,
     respect_tdm: bool = False,
     min_delay: float = 1.0,
     max_delay: float = 60.0,
@@ -854,6 +857,7 @@ extract_warc(
     induce: bool = False,
     microformats: bool = False,
     skipped: Skipped | None = None,
+    visible: bool = True,
 ) -> Iterator[tuple[WarcPage, Extraction]]
 ```
 

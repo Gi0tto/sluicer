@@ -82,9 +82,9 @@ On python.org, `sluicer diff https://www.python.org/ https://www.python.org/
 ## Each line
 
 A line is what `sluicer extract` answers for one page, plus a `warc` object
-that says where in the archive the page came from, and `visible`, which is
-always there and always empty, `{}`: `sluicer warc` does not guess from the
-visible page.
+that says where in the archive the page came from, and `visible`, the title,
+byline and dates the page shows, guessed as `sluicer extract` guesses them;
+`--no-visible` leaves it out and reads each page a little faster.
 
 ```json
 {
