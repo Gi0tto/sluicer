@@ -276,7 +276,13 @@ def test_pip_by_name_only_when_the_path_leads_to_this_environment(tmp_path):
 
     here = detect(prefix, python, {}, lambda _: str(prefix / "bin" / "pip"))
     other = detect(prefix, python, {}, lambda _: "/usr/local/bin/pip")
-    system = detect("/usr", "/usr/bin/python3", {}, lambda _: "/usr/bin/pip")
+    # A system Python no package manager marks as its own: not the real /usr,
+    # which Debian's and Ubuntu's mark EXTERNALLY-MANAGED (a venv is advised).
+    usr = tmp_path / "usr"
+    (usr / "bin").mkdir(parents=True)
+    system = detect(
+        usr, str(usr / "bin" / "python3"), {}, lambda _: str(usr / "bin" / "pip")
+    )
 
     assert here.command(["api"]) == 'pip install "sluicer[api]"'
     assert other.command(["api"]) == f'{python} -m pip install "sluicer[api]"'

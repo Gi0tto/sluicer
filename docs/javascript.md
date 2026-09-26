@@ -6,7 +6,7 @@ rewritten in JavaScript: the package carries the wheel built from the same
 commit as the Python release of the same version, installs it into Pyodide
 when it starts, and hands every call to it. The answers are the Python
 package's, field for field: its tests hold them to the native package's in
-29 cases on 19 pages, a page for each reader and a case for each option.
+30 cases on 19 pages, a page for each reader and a case for each option.
 
 To see it without installing anything, [try it in your browser](try/index.html): paste
 a page's HTML, and Sluicer reads it in the tab, sending it nowhere.
