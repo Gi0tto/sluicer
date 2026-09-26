@@ -34,19 +34,17 @@ Dates are the day the work landed. Anything not listed here did not happen.
   text itself is trafilatura's extraction exactly as before.
 
 ### Changed
-- A page's summary can differ from 0.9.1's in four ways, by the fixes
-  below: `published` given in UTC is answered in the publisher's own
-  offset when another declaration writes the same instant so in ISO 8601;
-  `published` that is only a clock time ("10:52") is no answer, and the next
-  declaration is asked; `author` and `published` are answered where 0.9.1
-  had none from an `itemprop` outside any item or an RDFa property of the
-  page; and `sku` where 0.9.1 had none from the product's offer. No other
-  summary answer moves. Over the 4,976 cached benchmark pages 33 summaries
-  differ from 0.9.1's: 12 dates moved to their own offset, 3 clock times
-  gone, and 18 answers added. An extractor learnt on 0.9.1 checks the
-  answers it learnt, so on a page whose `published` moved or went it fails
-  `run` with exit 3 until it is learnt again with `sluicer heal` (with
-  `--force` where the answer is gone) or `sluicer compile`.
+- A page's summary can differ from 0.9.1's in three ways, by the fixes
+  below: `published` that is only a clock time ("10:52") is no answer, and
+  the next declaration is asked; `author` and `published` are answered where
+  0.9.1 had none, from an `itemprop` outside any item or an RDFa property of
+  the page; and `sku` where 0.9.1 had none, from the product's offer. No
+  other summary answer moves. Over the 4,976 cached benchmark pages 21
+  summaries differ from 0.9.1's: 3 clock-time dates gone, and answers added
+  on the rest. An extractor learnt on 0.9.1 checks the answers it learnt,
+  so on a page whose clock-time `published` went it fails `run` with exit 3
+  until it is learnt again with `sluicer heal --force` or `sluicer
+  compile`; an answer added where it had none does not fail it.
 - The guesses read off the visible page are on by default: `extract()` and
   `aextract()` take `visible=True` unless told `visible=False`, `sluicer
   extract`, `inspect`, `crawl`, `batch` and `warc` guess unless given
@@ -138,11 +136,6 @@ Dates are the day the work landed. Anything not listed here did not happen.
 - A publication date that was only a clock time ("10:52", "2:33 PM") was
   answered as the page's date. It is no date now, and the next declaration is
   asked.
-- A page declaring its publication instant twice, once in UTC and once in its
-  own time zone, was answered in UTC, which can fall on the next day. The
-  declaration in the publisher's own offset is now the answer when it is
-  written in ISO 8601 (`2019-12-31T20:30:00-05:00`); written otherwise, as a
-  JavaScript date or an RFC 2822 one, the UTC answer stays.
 - An author written as `itemprop="author"` on an element outside any microdata
   item, `<span itemprop="author">Ann Smith</span>`, was not read; only a
   `<meta itemprop>` was. It is now the author when nothing else on the page

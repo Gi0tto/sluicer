@@ -1195,26 +1195,24 @@ def test_a_published_date_that_is_only_a_time_is_no_date():
         assert _summary(page)["published"][0] == date
 
 
-def test_of_one_instant_written_twice_the_publisher_s_own_offset_is_kept():
-    """UTC is how a platform stores the instant; the day it was published
-    where it was published is the one its own offset writes."""
+def test_of_one_instant_written_twice_the_first_declaration_answers():
+    """The same instant in UTC and in the publisher's own offset: the first
+    declaration answers, as in 0.9.1, and they do not conflict. 0.10 tried
+    answering the own offset and dropped it, since extractors learnt on
+    0.9.1 failed `run` on the pages it moved (bench/PREREG.md)."""
     own = '<meta property="article:published_time" content="2019-12-31T20:30:00-05:00">'
     utc = {"@type": "Article", "headline": "H", "datePublished": "2020-01-01T01:30:00Z"}
-    found = extract(_page(utc, head=own)).summary
-    assert (found["published"].value, found["published"].key) == (
-        "2019-12-31T20:30:00-05:00",
-        "article:published_time",
+    found = extract(_page(utc, head=own))
+    assert (found.summary["published"].value, found.summary["published"].key) == (
+        "2020-01-01T01:30:00Z",
+        "Article.datePublished",
     )
-    assert not extract(_page(utc, head=own)).conflicts
+    assert not found.conflicts
     # Two instants are two answers: the first is kept, and they conflict.
     other = own.replace("20:30:00", "21:30:00")
     read = extract(_page(utc, head=other))
     assert read.summary["published"].value == "2020-01-01T01:30:00Z"
     assert [c.question for c in read.conflicts] == ["published"]
-    # Written in the publisher's offset first, it stays first.
-    first = {**utc, "datePublished": "2019-12-31T20:30:00-05:00"}
-    zulu = '<meta property="article:published_time" content="2020-01-01T01:30:00Z">'
-    assert _summary(_page(first, head=zulu))["published"][2] == "Article.datePublished"
 
 
 def test_an_author_itemprop_outside_any_item_is_read_last():
@@ -1306,24 +1304,6 @@ def test_a_product_id_answers_before_an_offer_s_sku():
     offer = {"@type": "Offer", "price": "9.99", "sku": "BR-114"}
     product = {"@type": "Product", "name": "Pads", "productID": "BP-9", "offers": offer}
     assert _summary(_page(product))["sku"] == ("BP-9", "jsonld", "Product.productID")
-
-
-def test_the_own_offset_is_moved_to_only_when_written_in_iso_8601():
-    """Found by the hostile review of 0.10: the same instant in the
-    publisher's offset was taken however it was written, a JavaScript Date's
-    string or an RFC 2822 date over the ISO 8601 UTC one 0.9.1 answered."""
-    utc = {"@type": "Article", "headline": "H", "datePublished": "2018-02-20T00:00:00Z"}
-    for written in (
-        "Tue Feb 20 2018 01:00:00 GMT+0100 (Central European Standard Time)",
-        "Tue, 20 Feb 2018 01:00:00 +0100",
-        "2018-02-20T01:00:00+0100",
-    ):
-        own = f'<meta property="article:published_time" content="{written}">'
-        found = _summary(_page(utc, head=own))["published"]
-        assert found == ("2018-02-20T00:00:00Z", "jsonld", "Article.datePublished")
-    for written in ("2018-02-20T01:00:00+01:00", "2018-02-20T01:00:00.000+01:00"):
-        own = f'<meta property="article:published_time" content="{written}">'
-        assert _summary(_page(utc, head=own))["published"][0] == written
 
 
 def test_rdfa_properties_of_another_subject_or_voice_are_not_the_document_s():

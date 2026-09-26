@@ -319,6 +319,18 @@ pages 89/13/0 and 217/14/4, trafilatura's set 129/17/12 and 297/51/104,
 the same with and without the rule in either form: it fires on none of
 their 1,985 pages. It adds no invention and is kept.
 
+**The publisher's own offset, measured and dropped.** `1af29f0` answered a
+publication instant declared twice, in UTC and in the publisher's own
+offset, with the own offset. Its commit measured it, in-sample, at one wrong
+date turned into a hit on the pages as served and one on trafilatura's set,
+and nothing else. The review of 0.10 found it moved answers 0.9.1 gave: on
+the 4,976 cached benchmark pages, twelve even after it was narrowed to
+ISO 8601 (`3fa304c`), and an extractor learnt on 0.9.1 failed `run` on
+each such page. A summary answer an extractor learnt staying put is the
+project's first promise, and two hits do not buy twelve broken extractors:
+the rule is taken out of 0.10 whole. The first declaration answers, as in
+0.9.1.
+
 ## Two more tools, beside the markdown and beside heal
 
 Fixed on 2026-09-25, before either was run on a scoreboard's pages. Neither is

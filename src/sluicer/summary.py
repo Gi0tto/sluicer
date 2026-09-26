@@ -462,7 +462,6 @@ def read_summary(
         for answer in questions["published"]
         if answer and not _ONLY_A_TIME.match(answer.value)
     ]
-    questions["published"] = _in_own_offset(questions["published"])
     questions["title"] = [
         _without_site(answer, site_names)
         if answer and answer.source not in ABOUT_A_THING
@@ -966,46 +965,6 @@ def _same_moment(
     if one[1] is not None and other[1] is not None and one[1] == other[1]:
         return True
     return one[0] == other[0]
-
-
-# An instant as ISO 8601's extended format writes it, with its offset:
-# 2019-12-31T20:30:00-05:00, 2026-01-07T18:34:29.712+01:00.
-_ISO_INSTANT = re.compile(
-    r"\s*\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?[+-]\d{2}:\d{2}\s*$"
-)
-
-
-def _in_own_offset(answers: list[Answer]) -> list[Answer]:
-    """``answers`` with the first moved behind a declaration of the same
-    instant in the publisher's own time zone, when it is written in UTC.
-
-    A page that says 2020-01-01T01:30Z in one tag and 2019-12-31T20:30-05:00
-    in another says one instant twice, and the day it was published where it
-    was published is the 31st: UTC is how a platform stores the instant, the
-    offset is the publisher's.
-    """
-    first = next((answer for answer in answers if answer), None)
-    moment = _moment(first.value) if first is not None else None
-    if first is None or moment is None or moment[1] is None:
-        return answers
-    if moment[1].utcoffset() != datetime.timedelta(0):
-        return answers
-    # Only an instant written in ISO 8601 is moved to: a JavaScript Date's
-    # "Tue Feb 20 2018 01:00:00 GMT+0100 (...)" or an RFC 2822 "Sat, 19 Oct
-    # 2019 00:04:00 +0200" names the same instant worse than the UTC one, and
-    # 0.9.1's answer, which an extractor learnt, stays.
-    for answer in answers:
-        other = _moment(answer.value) if answer else None
-        if (
-            answer is not None
-            and other is not None
-            and other[1] is not None
-            and other[1] == moment[1]
-            and other[1].utcoffset() != datetime.timedelta(0)
-            and _ISO_INSTANT.match(answer.value)
-        ):
-            return [answer, *(a for a in answers if a is not answer)]
-    return answers
 
 
 def _same_text(one: object, other: object) -> bool:
