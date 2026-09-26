@@ -1385,7 +1385,7 @@ def _meta_names(doc: Document) -> dict[str, list[tuple[str, HtmlElement]]]:
     )
     if found is None:
         found = doc.memo["summary.meta_names"] = {}
-        for meta in doc.tree.xpath("//meta[@name][@content]"):
+        for meta in doc.tree.xpath("//meta/@name/parent::*[@content]"):
             text = _clean(meta.get("content"))
             if text:
                 name = (meta.get("name") or "").strip().lower()
@@ -1403,7 +1403,7 @@ def _orphan_itemprop(doc: Document, prop: str) -> SummaryField | None:
     orphans: list[HtmlElement] | None = doc.memo.get("summary.orphan_itemprops")
     if orphans is None:
         orphans = doc.memo["summary.orphan_itemprops"] = doc.tree.xpath(
-            "//meta[@itemprop][@content][not(ancestor::*[@itemscope])]"
+            "//meta/@itemprop/parent::*[@content][not(ancestor::*[@itemscope])]"
         )
     for meta in orphans:
         if prop in (meta.get("itemprop") or "").split():
@@ -1442,7 +1442,7 @@ def _canonical(doc: Document, header: list[str]) -> SummaryField | None:
 
 
 def _language(doc: Document) -> SummaryField | None:
-    for element in doc.tree.xpath("//html[@lang]"):
+    for element in doc.tree.xpath("//html/@lang/.."):
         lang = _clean(element.get("lang"))
         if lang:
             return SummaryField(lang, "html", "<html lang>", xpath_of(element))

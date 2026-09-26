@@ -76,7 +76,7 @@ def canonicals(doc: Document) -> list[str]:
     # A dict keeps them once each, in page order: a list asked whether it held
     # each new one, and forty thousand canonicals took four seconds.
     found: dict[str, None] = {}
-    for link in doc.tree.xpath("//head//link[@rel][@href]"):
+    for link in doc.tree.xpath("//head//link/@rel/parent::*[@href]"):
         if "canonical" in (link.get("rel") or "").lower().split():
             href = clean_address(link.get("href") or "")
             if href:
@@ -103,7 +103,7 @@ def read_links(doc: Document, header: HeaderLinks | None = None) -> Links:
     feeds: list[Feed] = []
     oembed: list[str] = []
     seen: set[tuple[str, str]] = set()
-    for element in doc.tree.xpath("//link[@rel][@href] | //a[@rel][@href]"):
+    for element in doc.tree.xpath("//@rel/parent::*[self::link or self::a][@href]"):
         rels = set((element.get("rel") or "").lower().split())
         is_link = element.tag == "link"
         if not rels & (_READ_ON_LINKS if is_link else _READ_ON_ANCHORS):

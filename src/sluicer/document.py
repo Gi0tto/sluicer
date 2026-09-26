@@ -369,7 +369,7 @@ def base_url(doc: Document) -> str | None:
 
 
 def _base_of(tree: lxml.html.HtmlElement, url: str | None) -> str | None:
-    for base in tree.xpath("//base[@href]"):
+    for base in tree.xpath("//base/@href/.."):
         declared = trimmed(base.get("href"))
         if declared:
             return _join(url, declared) if url else declared

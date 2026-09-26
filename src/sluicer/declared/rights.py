@@ -79,7 +79,7 @@ def read_rights(doc: Document, header: HeaderRights | None = None) -> Rights:
     found: Rights = {}
     general: list[str] = []
     agents: dict[str, list[str]] = {}
-    for meta in doc.tree.xpath("//meta[@name][@content]"):
+    for meta in doc.tree.xpath("//meta/@name/parent::*[@content]"):
         name = (meta.get("name") or "").strip().lower()
         content = " ".join((meta.get("content") or "").split())
         if not content:
@@ -111,7 +111,7 @@ def _licences(doc: Document) -> list[str]:
     base = base_url(doc)
     found: list[str] = []
     for element in doc.tree.xpath(
-        "//link[@rel][@href] | //a[@rel][@href] | //area[@rel][@href]"
+        "//@rel/parent::*[self::link or self::a or self::area][@href]"
     ):
         if "license" not in (element.get("rel") or "").lower().split():
             continue

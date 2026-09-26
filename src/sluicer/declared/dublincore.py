@@ -25,7 +25,7 @@ _PREFIXES = ("dc.", "dcterms.")
 def read_dublincore(doc: Document) -> dict[str, str]:
     """Return the Dublin Core meta tags, prefixes stripped, keys lowercased."""
     found: dict[str, str] = {}
-    for meta in doc.tree.xpath("//meta[@name]"):
+    for meta in doc.tree.xpath("//meta/@name/.."):
         name = (meta.get("name") or "").strip().lower()
         content = (meta.get("content") or "").strip()
         if not content:

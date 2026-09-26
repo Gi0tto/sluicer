@@ -55,15 +55,18 @@ def read_microdata(doc: Document) -> list[dict[str, Any]]:
     than as a record of its own. A property declared more than once is a list
     in document order; declared once, it is its value.
     """
-    scopes = doc.tree.xpath("//*[@itemscope]")
+    # Every element's attributes are asked once through the attribute axis:
+    # ``//*[@itemscope]`` tests a predicate on every element of the page, and
+    # took libxml2 three times as long for the same elements in the same order.
+    scopes = doc.tree.xpath("//@itemscope/..")
     if not scopes:
         # Most pages: no item, so no index of ids and no order of the elements,
         # which were a fifth of the time a page without microdata took.
         return []
-    referring = doc.tree.xpath("//*[@itemref]")
+    referring = doc.tree.xpath("//@itemref/..")
     by_id: dict[str | None, HtmlElement] = {}
     if referring:
-        for element in doc.tree.xpath("//*[@id]"):
+        for element in doc.tree.xpath("//@id/.."):
             # The standard's first element with an id, not the last.
             by_id.setdefault(element.get("id"), element)
     referenced = {

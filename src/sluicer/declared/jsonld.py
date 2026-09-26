@@ -11,7 +11,7 @@ from sluicer.declared.located import Located, Place, xpath_of
 from sluicer.declared.types import _SCHEMA_ORG
 from sluicer.document import Document
 
-_XPATH = "//script[@type]"
+_XPATH = "//script/@type/.."
 # How many references one path may follow. One is enough for an article's
 # author, publisher and image, and keeps the output in proportion: measured on
 # 2026-09-22 on a Yoast blog post, one hop gives 22 KB of JSON against 10 KB

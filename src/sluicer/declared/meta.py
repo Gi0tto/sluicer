@@ -53,7 +53,7 @@ _SCAN = "meta_tags"
 
 
 def _scan(doc: Document) -> Iterator[tuple[tuple[str, ...], str, str]]:
-    for meta in doc.tree.xpath("//meta[@property or @name]"):
+    for meta in doc.tree.xpath("(//meta/@property | //meta/@name)/.."):
         content = (meta.get("content") or "").strip()
         if not content:
             continue

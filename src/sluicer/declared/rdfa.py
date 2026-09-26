@@ -91,7 +91,7 @@ def read_rdfa(doc: Document) -> list[dict[str, Any]]:
     left = [max(_PAGE_FLOOR, 10 * len(doc.html))]
     scopes = _Scopes()
     found: list[dict[str, Any]] = []
-    for subject in doc.tree.xpath("//*[@typeof]"):
+    for subject in doc.tree.xpath("//@typeof/.."):
         if not left[0]:
             # The page's budget is spent: reading more subjects, each
             # walking its words, would cost what no answer can hold.
