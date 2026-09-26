@@ -3,7 +3,7 @@
 How often Sluicer's `summary` gets a page's title, author and publication
 date right, measured beside the tools people use for the same job, on a
 public annotated corpus, with the losses in the same table as the wins.
-Regenerated on 2026-09-25 from commit `10211f3` by
+Regenerated on 2026-09-26 from commit `8a426a2` by
 `uv run bench/run.py`; the method and every pin are in
 [`bench/`](https://github.com/Gi0tto/sluicer/tree/main/bench).
 
@@ -33,7 +33,7 @@ All 511 test pages:
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.9.0 | 0.727 (0.68–0.77) | 0.532 (0.46–0.61) | 0.581 (0.52–0.64) | 42 | 8 |
+| sluicer 0.9.1 | 0.727 (0.68–0.77) | 0.532 (0.46–0.61) | 0.581 (0.52–0.64) | 42 | 8 |
 | trafilatura 2.2.0 | 0.745 (0.70–0.79) | 0.750 (0.68–0.81) | 0.838 (0.78–0.88) | 98 | 216 |
 | metascraper 5.58.1 | 0.654 (0.61–0.70) | 0.787 (0.72–0.84) | 0.725 (0.66–0.78) | 125 | 84 |
 | newspaper4k 0.9.6 | 0.768 (0.72–0.81) | 0.532 (0.46–0.61) | 0.645 (0.58–0.71) | 50 | 52 |
@@ -42,21 +42,21 @@ The 359 article, listing, collection and product pages:
 
 | tool | title | author | date | authors invented | dates invented |
 |---|---|---|---|---|---|
-| sluicer 0.9.0 | 0.748 (0.70–0.80) | 0.532 (0.46–0.61) | 0.598 (0.53–0.67) | 18 | 3 |
+| sluicer 0.9.1 | 0.748 (0.70–0.80) | 0.532 (0.46–0.61) | 0.598 (0.53–0.67) | 18 | 3 |
 | trafilatura 2.2.0 | 0.723 (0.67–0.77) | 0.750 (0.68–0.81) | 0.866 (0.81–0.91) | 45 | 124 |
 | metascraper 5.58.1 | 0.661 (0.61–0.71) | 0.787 (0.72–0.84) | 0.723 (0.66–0.78) | 62 | 47 |
 | newspaper4k 0.9.6 | 0.748 (0.70–0.80) | 0.532 (0.46–0.61) | 0.625 (0.55–0.69) | 21 | 27 |
 
 ## Speed and size
 
-Measured on 2026-09-25 by `uv run bench/timing.py wcxb` at commit `10211f3`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+Measured on 2026-09-26 by `uv run bench/timing.py wcxb` at commit `8a426a2`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
 
 | tool | runtime | seconds per page | seconds for all 511 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
 |---|---|---|---|---|---|---|---|
-| sluicer 0.9.0 | Python 3.12.13 | 0.0020 | 1.01 (1.01–1.03) | 503 | 89.9 MiB | 19.5 MiB | 5 |
-| trafilatura 2.2.0 | Python 3.12.13 | 0.0270 | 13.80 (13.70–13.85) | 37 | 168.2 MiB | 58.2 MiB | 17 |
-| metascraper 5.58.1 | Node 26.1.0 | 0.0049 | 2.50 (2.49–2.51) | 205 | 698.4 MiB | 55.5 MiB | 125 |
-| newspaper4k 0.9.6 | Python 3.12.13 | 0.0572 | 29.21 (29.03–29.43) | 17 | 217.0 MiB | 39.4 MiB | 22 |
+| sluicer 0.9.1 | Python 3.12.13 | 0.0036 | 1.85 (1.23–2.08) | 277 | 91.8 MiB | 19.5 MiB | 5 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0452 | 23.10 (20.38–28.05) | 22 | 171.0 MiB | 58.2 MiB | 17 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0091 | 4.63 (3.83–5.52) | 110 | 719.6 MiB | 55.5 MiB | 125 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0914 | 46.69 (35.08–55.63) | 11 | 217.5 MiB | 39.4 MiB | 22 |
 
 How install size and memory are counted, and the other tables, are in
 [speed and weight](speed.md).
@@ -145,12 +145,12 @@ answer and with the guess where it has none, never in its place.
 
 | declared then `--visible`, against | field | rate | difference (95% interval) | verdict |
 |---|---|---|---|---|
-| sluicer 0.9.0, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.9.0, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
-| sluicer 0.9.0, declared | author | hit rate | +0.117 (+0.072 to +0.165) | better |
-| sluicer 0.9.0, declared | author | right when answering | +0.006 (-0.025 to +0.037) | inconclusive |
-| sluicer 0.9.0, declared | date | hit rate | +0.136 (+0.095 to +0.179) | better |
-| sluicer 0.9.0, declared | date | right when answering | -0.094 (-0.137 to -0.055) | worse |
+| sluicer 0.9.1, declared | title | hit rate | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.9.1, declared | title | right when answering | 0.000 (0.000 to 0.000) | inconclusive |
+| sluicer 0.9.1, declared | author | hit rate | +0.117 (+0.072 to +0.165) | better |
+| sluicer 0.9.1, declared | author | right when answering | +0.006 (-0.025 to +0.037) | inconclusive |
+| sluicer 0.9.1, declared | date | hit rate | +0.136 (+0.095 to +0.179) | better |
+| sluicer 0.9.1, declared | date | right when answering | -0.094 (-0.137 to -0.055) | worse |
 | trafilatura 2.2.0 | title | hit rate | -0.018 (-0.052 to +0.016) | inconclusive |
 | trafilatura 2.2.0 | title | right when answering | -0.018 (-0.051 to +0.016) | inconclusive |
 | trafilatura 2.2.0 | author | hit rate | -0.101 (-0.171 to -0.032) | worse |
@@ -188,9 +188,9 @@ All 511 test pages:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.9.0 | title | 370 | 139 | 0 | 1 | 1 | 0.727 (0.68–0.77) | 0.725 (0.68–0.77) |
-| sluicer 0.9.0 | author | 100 | 11 | 77 | 281 | 42 | 0.532 (0.46–0.61) | 0.654 (0.57–0.73) |
-| sluicer 0.9.0 | date | 154 | 6 | 105 | 238 | 8 | 0.581 (0.52–0.64) | 0.917 (0.86–0.95) |
+| sluicer 0.9.1 | title | 370 | 139 | 0 | 1 | 1 | 0.727 (0.68–0.77) | 0.725 (0.68–0.77) |
+| sluicer 0.9.1 | author | 100 | 11 | 77 | 281 | 42 | 0.532 (0.46–0.61) | 0.654 (0.57–0.73) |
+| sluicer 0.9.1 | date | 154 | 6 | 105 | 238 | 8 | 0.581 (0.52–0.64) | 0.917 (0.86–0.95) |
 | trafilatura 2.2.0 | title | 379 | 130 | 0 | 1 | 1 | 0.745 (0.70–0.79) | 0.743 (0.70–0.78) |
 | trafilatura 2.2.0 | author | 141 | 17 | 30 | 225 | 98 | 0.750 (0.68–0.81) | 0.551 (0.48–0.62) |
 | trafilatura 2.2.0 | date | 222 | 42 | 1 | 30 | 216 | 0.838 (0.78–0.88) | 0.463 (0.41–0.51) |
@@ -205,9 +205,9 @@ The 359 article, listing, collection and product pages:
 
 | tool | field | hit | wrong | silent miss | correct silence | invention | hit rate | right when answering |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.9.0 | title | 267 | 90 | 0 | 1 | 1 | 0.748 (0.70–0.80) | 0.746 (0.69–0.79) |
-| sluicer 0.9.0 | author | 100 | 11 | 77 | 153 | 18 | 0.532 (0.46–0.61) | 0.775 (0.69–0.84) |
-| sluicer 0.9.0 | date | 134 | 3 | 87 | 132 | 3 | 0.598 (0.53–0.67) | 0.957 (0.90–0.99) |
+| sluicer 0.9.1 | title | 267 | 90 | 0 | 1 | 1 | 0.748 (0.70–0.80) | 0.746 (0.69–0.79) |
+| sluicer 0.9.1 | author | 100 | 11 | 77 | 153 | 18 | 0.532 (0.46–0.61) | 0.775 (0.69–0.84) |
+| sluicer 0.9.1 | date | 134 | 3 | 87 | 132 | 3 | 0.598 (0.53–0.67) | 0.957 (0.90–0.99) |
 | trafilatura 2.2.0 | title | 258 | 99 | 0 | 1 | 1 | 0.723 (0.67–0.77) | 0.721 (0.67–0.77) |
 | trafilatura 2.2.0 | author | 141 | 17 | 30 | 126 | 45 | 0.750 (0.68–0.81) | 0.695 (0.62–0.76) |
 | trafilatura 2.2.0 | date | 194 | 29 | 1 | 11 | 124 | 0.866 (0.81–0.91) | 0.559 (0.50–0.62) |
