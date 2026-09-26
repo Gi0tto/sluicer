@@ -26,5 +26,19 @@ OpenGraph and HTML, a page of notes that shows them but declares neither, and a
 robots.txt that asks every crawler to stay out of `drafts/`. The documentation
 site publishes the same pages at <https://gi0tto.github.io/sluicer/demo/>.
 
-`brake-pads.html` is the product page the README's quick start and picture
-read: one product in JSON-LD, microdata and OpenGraph, with two prices.
+`brake-pads.html` is the product page the README's Python example and
+`docs/assets/inspect.svg` read: one product in JSON-LD, microdata and
+OpenGraph, with two prices.
+
+`shop/` is a made-up shop's listing of books: two pages of it, `before-1.html`
+and `before-2.html`, to learn an extractor from, and `after.html`, the first
+page after a redesign that renamed every class and wrapped the listing in a new
+element. The README's quick start learns from the first two, fails on the
+third with exit 3, and heals the extractor on it:
+
+```bash
+sluicer compile shop/before-1.html shop/before-2.html \
+  --want title="A Light in the Attic" --want price=51.77 -o shop.json
+sluicer run shop.json shop/after.html     # exit 3
+sluicer heal shop.json shop/after.html -o shop-healed.json
+```

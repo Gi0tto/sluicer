@@ -8,7 +8,9 @@ HTTP API take their arguments as they are called and read no file.
 ## A file
 
 `sluicer.toml`, keyed as the options are spelt on the command line, without
-their dashes:
+their dashes. Save it as `~/.config/sluicer/sluicer.toml` and name it once, in
+your shell's profile, with `export SLUICER_CONFIG=~/.config/sluicer/sluicer.toml`,
+or for one command with `sluicer --config ~/.config/sluicer/sluicer.toml ...`:
 
 ```toml
 proxy = "socks5h://127.0.0.1:1080"
@@ -23,6 +25,10 @@ max-pages = 500
 [extract]
 visible = true
 ```
+
+This file sets a proxy, a header and a cache, which only a file you name may
+set. The same file saved in the directory you run in, and found there, makes
+every command exit 2 and say so: [which file](#which-file) says why.
 
 A key at the top applies to every command that takes that option, and the
 others ignore it: `json` above is for `fetch`, `diff` and `audit`. A command

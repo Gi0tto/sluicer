@@ -14,6 +14,8 @@ import os
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -120,3 +122,261 @@ def test_the_javascript_page_says_what_the_npm_package_is():
     # What the package does not do is said, not left to be found out.
     assert "## What it does not do" in page
     assert "fetch" in page.split("## What it does not do", 1)[1]
+
+
+def _commands(block: str) -> list[tuple[list[str], int]]:
+    """Each ``sluicer`` command of a shell block, its line continuations
+    joined, with the exit code its comment names (0 when it names none)."""
+    import shlex
+
+    commands = []
+    for line in block.replace("\\\n", " ").splitlines():
+        if not line.startswith("sluicer "):
+            continue
+        command, _, comment = line.partition("#")
+        said = re.search(r"exit (\d)", comment)
+        commands.append((shlex.split(command)[1:], int(said.group(1)) if said else 0))
+    return commands
+
+
+def test_the_readme_s_heal_runs_as_written_and_prints_what_it_shows(
+    monkeypatch, tmp_path
+):
+    """The quick start's heal step, on the made-up shop in ``examples/shop``,
+    is run command by command: the quick start once opened ``p1.html``, a file
+    that exists nowhere, and healed ``https://shop.example/``."""
+    import shutil
+
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## Quick start", 1)[1].split("\n## ", 1)[0]
+    shell, shown = re.search(
+        r"```bash\n(sluicer compile examples/shop/.*?)```\n\n```text\n(.*?)```",
+        section,
+        re.DOTALL,
+    ).groups()
+    commands = _commands(shell)
+    assert [c[0][0] for c in commands] == ["compile", "run", "heal"]
+
+    shutil.copytree(ROOT / "examples" / "shop", tmp_path / "examples" / "shop")
+    monkeypatch.chdir(tmp_path)
+    for arguments, code in commands:
+        result = CliRunner().invoke(main, arguments)
+        assert result.exit_code == code, (arguments, result.stderr)
+    assert result.stderr == shown
+
+    healed = CliRunner().invoke(
+        main, ["run", "shop-healed.json", "examples/shop/after.html"]
+    )
+    assert healed.exit_code == 0, healed.stderr
+
+
+def test_what_the_readme_and_why_say_of_heal_is_the_drift_benchmark_s():
+    """The README said `heal` "tells you where each field moved"; on the drift
+    benchmark's redesigns it was fully right on none. What the README and the
+    why page now say of heal's record is read from the drift page's heal
+    table, so a regenerated benchmark cannot leave the claim behind."""
+    drift = (ROOT / "docs" / "drift.md").read_text(encoding="utf-8")
+    table = drift.split("| heal | on the pairs with drift |", 1)[1].split("\n\n", 1)[0]
+    heal = {
+        row.group(1): int(row.group(2))
+        for row in re.finditer(r"^\| ([A-Za-z ]+) \| (\d+) \| \d+ \|$", table, re.M)
+    }
+    assert set(heal) == {"right", "partly right", "nothing to match", "no listing on B"}
+    changed = sum(heal.values())
+    right = "none" if heal["right"] == 0 else str(heal["right"])
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    said = " ".join(readme.split())
+    assert f"{changed} real redesigns, {heal['nothing to match']} of the new" in said
+    assert f"fully right on {right} and partly right on {heal['partly right']}" in said
+    why = " ".join((ROOT / "docs" / "why.md").read_text(encoding="utf-8").split())
+    assert f"{changed} real redesigns" in why
+    assert f"fully right on {right} of them and partly right on" in why
+    assert f"partly right on {heal['partly right']}." in why
+
+
+def test_the_roadmap_names_every_release_the_changelog_does():
+    """ROADMAP.md stopped at "Shipped in 0.6.0" while 0.7.0, 0.8.0 and 0.9.0
+    had shipped: every minor release in the changelog has its section."""
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+    releases = re.findall(r"^## (\d+\.\d+\.0) - ", changelog, re.MULTILINE)
+    assert releases
+    for release in releases:
+        assert f"## Shipped in {release}\n" in roadmap, release
+
+
+def test_every_call_the_guides_spell_from_sluicer_is_there_after_import_sluicer():
+    """getting-started said `sluicer.fetch.fetch(url)` after `import sluicer`,
+    which raises AttributeError: `sluicer.fetch` is a module `import sluicer`
+    does not load. Each `sluicer.a.b(` a guide spells is looked up as a reader
+    would, in a fresh interpreter that ran only `import sluicer`."""
+    import subprocess
+    import sys
+
+    pages = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
+    names = set()
+    for page in pages:
+        if page.is_symlink():  # the changelog tells history, not usage
+            continue
+        text = page.read_text(encoding="utf-8")
+        names.update(re.findall(r"`sluicer\.([A-Za-z_][\w.]*)\(", text))
+    assert "extract" in names
+    lookup = (
+        "import sluicer, sys\n"
+        "for name in sys.argv[1:]:\n"
+        "    thing = sluicer\n"
+        "    for part in name.split('.'):\n"
+        "        thing = getattr(thing, part, None)\n"
+        "    if thing is None:\n"
+        "        print(name)\n"
+    )
+    missing = subprocess.run(
+        [sys.executable, "-c", lookup, *sorted(names)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    ).stdout.split()
+    assert missing == [], missing
+
+
+def test_the_configuration_page_s_first_file_works_where_the_page_saves_it(
+    monkeypatch, tmp_path
+):
+    """configuration.md's first example sets a proxy, and the page said only
+    to call it `sluicer.toml`: saved in the directory a command runs in, it
+    made every command exit 2. Saved where the page now says, and named as it
+    says, a command reads it and runs; found in the working directory, it is
+    still refused, as the page warns."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    page = (ROOT / "docs" / "configuration.md").read_text(encoding="utf-8")
+    lead = page.split("## A file", 1)[1]
+    where = re.search(r"Save it as `~/([^`]+)`", lead)
+    assert where is not None, "the page says where to save the file"
+    named = re.search(r"export SLUICER_CONFIG=~/([^`]+)`", lead)
+    assert named is not None and named.group(1) == where.group(1)
+    toml = re.search(r"```toml\n(.*?)```", lead, re.DOTALL).group(1)
+
+    home = tmp_path / "home"
+    saved = home / where.group(1)
+    saved.parent.mkdir(parents=True)
+    saved.write_text(toml, encoding="utf-8")
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    for name in ("SLUICER_CONFIG", "SLUICER_PROXY"):
+        monkeypatch.setenv(name, "")  # undone when the test ends
+        monkeypatch.delenv(name)
+    page_file = str(ROOT / "examples" / "brake-pads.html")
+
+    monkeypatch.setenv("SLUICER_CONFIG", str(saved))
+    read = CliRunner().invoke(main, ["extract", page_file])
+    assert read.exit_code == 0, read.stderr
+
+    monkeypatch.delenv("SLUICER_CONFIG")
+    (work / "sluicer.toml").write_text(toml, encoding="utf-8")
+    found = CliRunner().invoke(main, ["extract", page_file])
+    assert found.exit_code == 2
+    assert "only in a file you name" in found.stderr
+
+
+def test_the_extruct_page_s_calls_do_what_it_says_on_a_base_install(absent):
+    """docs/extruct.md called the move "one line", then listed the extra: on
+    an install without mf2py the one line raises. The page installs the extra
+    first, says the call raises without it, and gives the call that does not;
+    each is run here with mf2py absent."""
+    from sluicer import MicroformatsExtraMissing
+    from sluicer.compat import extruct
+
+    page = (ROOT / "docs" / "extruct.md").read_text(encoding="utf-8")
+    lead = page.split("\n## ", 1)[0]
+    install = re.search(r"```bash\n(.*?)```", lead, re.DOTALL).group(1)
+    assert install.strip() == 'pip install "sluicer[microformats]"'
+    one_line = re.search(r"^data = (extruct\.extract\(.*\))$", lead, re.MULTILINE)
+    base = re.search(r"`(extruct\.extract\(html, base_url=url, syntaxes=.*?\))`", lead)
+    assert one_line is not None and base is not None
+    names = {
+        "extruct": extruct,
+        "html": (ROOT / "examples" / "brake-pads.html").read_text(encoding="utf-8"),
+        "url": "https://example.com/p/bp-2210",
+    }
+
+    absent("mf2py")
+    assert "MicroformatsExtraMissing" in lead
+    with pytest.raises(MicroformatsExtraMissing):
+        eval(one_line.group(1), names)
+    data = eval(base.group(1), names)
+    assert "microformat" not in data
+    assert data["json-ld"][0]["@type"] == "Product"
+
+
+def test_the_extractors_guide_s_first_examples_run_on_examples_shop(
+    monkeypatch, tmp_path, capsys
+):
+    """docs/extractors.md opened with shop.example, which serves nothing, and
+    a Python block of names it never defined (`html_1`, `url_1`). Its heal
+    commands and its Python block run here as written, on ``examples/shop``,
+    and heal prints the moves the guide shows further down."""
+    import shutil
+
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    guide = (ROOT / "docs" / "extractors.md").read_text(encoding="utf-8")
+    first = guide.split("## Learn, replay, heal", 1)[1].split("\n## ", 1)[0]
+    shell = re.search(r"```bash\n(.*?)```", first, re.DOTALL).group(1)
+    program = re.search(r"```python\n(.*?)```", first, re.DOTALL).group(1)
+    printed = re.search(r"this prints .*?: `(.*?)`", " ".join(first.split()))
+    moves = guide.split("On the made-up shop in `examples/shop/`", 1)[1]
+    shown = re.search(r"```text\n(.*?)```", moves, re.DOTALL).group(1)
+
+    shutil.copytree(ROOT / "examples" / "shop", tmp_path / "examples" / "shop")
+    monkeypatch.chdir(tmp_path)
+    commands = [
+        (arguments, code)
+        for arguments, code in _commands(shell)
+        if any(argument.startswith("examples/shop/") for argument in arguments)
+    ]
+    assert [c[0][0] for c in commands] == ["compile", "heal"]
+    for arguments, code in commands:
+        result = CliRunner().invoke(main, arguments)
+        assert result.exit_code == code, (arguments, result.stderr)
+    said = [line for line in result.stderr.splitlines() if not line.startswith("Wrote")]
+    assert said == shown.splitlines()
+
+    capsys.readouterr()
+    exec(compile(program, "extractors.md", "exec"), {"__name__": "extractors_md"})
+    assert printed is not None
+    assert capsys.readouterr().out.strip() == printed.group(1)
+
+
+def test_the_audit_guide_s_file_example_prints_what_it_shows(monkeypatch, capsys):
+    """docs/audit.md's Python example audited https://example.com/product, a
+    404 page with no record, and printed nothing. It now audits the
+    repository's product page, and prints the lines the guide shows."""
+    from click.testing import CliRunner
+
+    from sluicer.cli import main
+
+    guide = (ROOT / "docs" / "audit.md").read_text(encoding="utf-8")
+    program, shown = re.search(
+        r"```python\n(.*?)```\n\nThat prints:\n\n```text\n(.*?)```", guide, re.DOTALL
+    ).groups()
+    monkeypatch.chdir(ROOT)
+    exec(compile(program, "audit.md", "exec"), {"__name__": "audit_md"})
+    assert capsys.readouterr().out == shown
+
+    line = re.search(r"^sluicer (audit examples/brake-pads\.html [^#]*)#", guide, re.M)
+    assert line is not None
+    assert "exits 3" in guide
+    assert CliRunner().invoke(main, line.group(1).split()).exit_code == 3

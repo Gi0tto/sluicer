@@ -11,37 +11,42 @@ is what the feature is.
 ## Map, crawl, batch
 
 ```bash
-sluicer map https://shop.example/                                  # its addresses, from its sitemaps
-sluicer map https://shop.example/ --plain | sluicer batch - -o pages.jsonl   # read each one
-sluicer crawl https://shop.example/ --max-pages 200 -o shop.jsonl  # follow its links instead
-sluicer crawl https://shop.example/ --max-pages 500 -o shop.jsonl --resume   # and continue later
+sluicer map https://books.toscrape.com/                          # its addresses, from its sitemaps
+sluicer map https://books.toscrape.com/ --plain | sluicer batch - -o pages.jsonl   # read each one
+sluicer crawl https://books.toscrape.com/ --max-pages 200 -o books.jsonl  # follow its links instead
+sluicer crawl https://books.toscrape.com/ --max-pages 500 -o books.jsonl --resume  # and continue later
 sluicer crawl https://shop.example/ --template sitemap -o pages.jsonl        # what its sitemaps list
 sluicer crawl https://shop.example/ --template shopify --format csv > products.csv   # a Shopify shop's products
 sluicer batch urls.txt --jobs 8 --format csv > pages.csv          # eight sites at once, as a table
 ```
+
+books.toscrape.com is a public sandbox made for trying scrapers on. It has no
+sitemap, so `map` reads the addresses its start page links to, and says so.
+`shop.example` stands for a site of your own: one with sitemaps, and a
+Shopify shop. `urls.txt` is one address a line.
 
 From Python:
 
 ```python
 from sluicer.crawl import crawl, extract_many, map_site
 
-site = map_site("https://shop.example/")
+site = map_site("https://books.toscrape.com/")
 print(site.source, len(site.urls), [read.error for read in site.sitemaps])
 
-run = crawl("https://shop.example/", max_pages=50, state="shop.jsonl")
+run = crawl("https://books.toscrape.com/", max_pages=50, state="books.jsonl")
 for page in run:
     if page.ok:
-        print(page.url, page.extraction.summary.get("price"))
+        print(page.url, page.extraction.summary.get("title"))
     else:
         print(page.url, page.error.code, page.error.message)
 print(run.stopped)  # "done", "max_pages" or "time_budget"
 
-for page in extract_many(["https://shop.example/p/1", "https://shop.example/p/2"]):
+for page in extract_many(["https://books.toscrape.com/", "https://quotes.toscrape.com/"]):
     ...
 
 from sluicer.crawl import shopify_products, sitemap_pages
 
-for product in shopify_products("https://shop.example/"):
+for product in shopify_products("https://shop.example/"):  # a Shopify shop of yours
     print(product.url, product.extraction.summary["price"].value)
 ```
 
@@ -361,8 +366,8 @@ and no-break spaces a spreadsheet may trim, and with a fullwidth `＝` or `＋`
 read as the sign it looks like. A table holds no page's links, so it cannot be resumed:
 `--resume` refuses it; crawl as JSON Lines and make the table after.
 `sluicer map --format csv` is a row per address: `url`, `lastmod`,
-`sitemap`. From Python, `sluicer.crawl.table.page_row()` flattens a page's
-line.
+`sitemap`. From Python, `page_row()`, after `from sluicer.crawl.table import page_row`,
+flattens a page's line.
 
 ## Exit codes
 

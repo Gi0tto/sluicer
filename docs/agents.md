@@ -9,7 +9,7 @@ uvx --with "sluicer[mcp]" sluicer mcp
 
 It needs [uv](https://docs.astral.sh/uv/) on the `PATH`; `uvx` fetches Sluicer
 and its `mcp` extra, which brings fetching and markdown, the first time.
-`sluicer-mcp`, after `uv pip install "sluicer[mcp]"`, is the same server.
+`sluicer-mcp`, after `pip install "sluicer[mcp]"`, is the same server.
 
 Every one of its twelve tools only reads -- the page it is given, or the web --
 and says so in its MCP annotations (`readOnlyHint`, not `destructiveHint`), so
@@ -274,7 +274,8 @@ environment: measured on 2026-09-24, `langchain-mcp-adapters` 0.3.1 resolves
 mcp 1.30 and fails to import against mcp 2.2, which `sluicer[mcp]` needs, so
 the two in one environment break the application. As separate processes they
 speak MCP to each other, and every one of these listed the ten tools it had
-before `select_values` and answered a page's price with its place:
+before `select_values` and answered a page's price with its place. Each block
+is a fragment to put in your own code, inside a coroutine where it awaits:
 
 LangChain (`langchain-mcp-adapters` 0.3.1, its client on mcp 1.30):
 
@@ -328,7 +329,9 @@ the page's own charset declaration is still in them -- with the address it
 came from and, when the tool keeps them, the response's headers: a `Link`
 header's canonical, an `X-Robots-Tag` and the charset are read from those.
 Each of these was run on 2026-09-24 against a local page, and each answered
-its price with its place and its canonical from the `Link` header:
+its price with its place and its canonical from the `Link` header. They are
+fragments: `url` is the page's address, and `page`, `response` and the others
+are what your code already has from that tool:
 
 ```python
 import sluicer

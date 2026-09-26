@@ -12,14 +12,15 @@ uv tool install "sluicer[markdown]"
 sluicer --version
 ```
 
-With pipx instead: `pipx install "sluicer[markdown]"`. As a library, in your
-project's environment:
+With pipx instead: `pipx install "sluicer[markdown]"`. To run it once without
+installing anything: `uvx --from "sluicer[markdown]" sluicer --version`. As a
+library, in your project's virtual environment:
 
 ```bash
-uv pip install "sluicer[markdown]"
+pip install "sluicer[markdown]"
 ```
 
-With pip instead: `pip install "sluicer[markdown]"`.
+In a uv project, `uv add "sluicer[markdown]"` does the same.
 
 The base install reads every page you have on disk and fetches pages from the
 web over plain HTTP, with nothing installed but `lxml`, `click`, `cssselect` and `protego`
@@ -175,8 +176,9 @@ sluicer fetch https://api.example.com/items -H "Authorization: Bearer $TOKEN"
 
 Pass bytes when you have them, as here: the page's own charset is then read
 from them. `sluicer.to_markdown(page)` gives the readable content, and
-`sluicer.fetch.fetch(url)` the page itself with what fetching it cost. Every
-public function is in the [Python reference](reference/python.md).
+`fetch(url)`, after `from sluicer.fetch import fetch`, the page itself with
+what fetching it cost. Every public function is in the
+[Python reference](reference/python.md).
 
 ### From a coroutine
 
@@ -217,10 +219,17 @@ Some pages carry no structured data at all: a category page of plain HTML, a
 shop that never added schema.org. Two ways in, both without a model:
 
 ```bash
-sluicer extract listing.html --induce              # the rows the markup repeats
-sluicer compile p1.html p2.html -o shop.json --want price=41.90 --want title="Brake pads"
-sluicer run shop.json https://shop.example/c?p=7   # replay it, checked on every page
+# The rows the markup repeats: here, the page's 20 books.
+sluicer extract https://books.toscrape.com/catalogue/page-1.html --induce
+
+# Learn where the values you name live, then replay it, checked on every page.
+sluicer compile https://books.toscrape.com/catalogue/page-1.html \
+  https://books.toscrape.com/catalogue/page-2.html \
+  --want title="A Light in the Attic" --want price=51.77 -o books.json
+sluicer run books.json https://books.toscrape.com/catalogue/page-3.html
 ```
+
+books.toscrape.com is a public sandbox made for trying scrapers on.
 
 `--induce` reads the rows a page repeats and marks every field it found that
 way `source="induced"`. `compile --want` learns where the values you name live,

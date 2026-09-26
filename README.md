@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <strong>Web scrapers that fail loudly when a site changes,<br>instead of quietly returning empty values.</strong><br>
+  <strong>Web scrapers that fail loudly when a site's layout changes,<br>instead of quietly returning empty values.</strong><br>
   No model, no API key, no bill.
 </p>
 
@@ -30,12 +30,14 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/demo.gif" alt="An extractor learnt from a software directory in January 2016 replays a page of February 2016 and exits 0; on the page of June 2024, after the site's redesign, it fails loudly with exit 3, and heal says where the listing and most of its fields went, with how many learnt values it found there" width="860">
+  <img src="https://raw.githubusercontent.com/Gi0tto/sluicer/main/docs/assets/demo.gif" alt="An extractor learnt from a software directory in January 2016 replays a page of February 2016 and exits 0; on the page of June 2024, after the site's redesign, it fails loudly with exit 3; heal then proposes new places for the listing and five of its ten fields, each resting on one of five learnt values, which is a reason to check each move by hand" width="860">
 </p>
 <p align="center"><em>
   A real site, as the Wayback Machine kept it. The extractor learnt in January
   2016 still fits in February. After the 2024 redesign it stops with exit code
-  3, and <code>heal</code> shows where the listing and most of its fields moved.
+  3. <code>heal</code> then proposes new places for the listing and five of its
+  ten fields, each move resting on one of five learnt values: moves to check,
+  not a repair.
 </em></p>
 
 Most scrapers break without a sound. The site changes its markup, and the
@@ -45,8 +47,9 @@ anyone notices.
 Sluicer works the other way round. Show it a value on a few pages of a site
 (a price, a title, a date) and it learns where that value lives. On every
 page it reads after that, it checks the page against what it learnt. If the
-layout has changed, the run fails with exit code 3 and names the field that
-broke, and `sluicer heal` tells you where each field moved.
+layout has changed, the run fails with exit code 3 and names the check that
+broke. `sluicer heal` then proposes where each field went, when the new page
+still shows values the extractor was learnt from.
 
 It also reads everything a page already declares about itself: JSON-LD,
 microdata, RDFa, OpenGraph and four more vocabularies, merged into one record
@@ -56,31 +59,71 @@ from. No model reads any page, so the same page always gives the same answer.
 ## Quick start
 
 ```bash
-uv pip install sluicer
+uv tool install sluicer   # or: pipx install sluicer
 
-# Learn an extractor from three pages built on one template, given one value from the first.
-sluicer compile p1.html p2.html p3.html --want price=41.90 -o shop.json
+# Learn where a book's title and price sit, from two pages of one template.
+sluicer compile https://books.toscrape.com/catalogue/page-1.html \
+  https://books.toscrape.com/catalogue/page-2.html \
+  --want title="A Light in the Attic" --want price=51.77 -o books.json
 
-# Replay it on any page of that template: the values as JSON, or exit 3 if the page changed.
-sluicer run shop.json https://shop.example/p/7
+# Replay it on another page of that template: 20 rows of title and price, exit 0.
+sluicer run books.json https://books.toscrape.com/catalogue/page-3.html
 
-# After a redesign: see what moved, and write the healed extractor.
-sluicer heal shop.json https://shop.example/p/1 -o shop.json
+# A page it was not learnt for: exit 3, naming the check that failed.
+sluicer run books.json https://quotes.toscrape.com/
 ```
+
+books.toscrape.com and quotes.toscrape.com are public sandboxes made for
+trying scrapers on. The last command prints `FAILED https://quotes.toscrape.com/:
+expected the listing at html>body>…>ol.row, got not found`, its path shortened
+here, and exits 3.
+
+After a redesign, `sluicer heal` looks on the new page for the values the
+extractor was learnt from, and proposes a new place for each field it finds
+them in. In a clone of this repository, `examples/shop/` holds a made-up shop
+before and after a redesign that renamed every class:
+
+```bash
+sluicer compile examples/shop/before-1.html examples/shop/before-2.html \
+  --want title="A Light in the Attic" --want price=51.77 -o shop.json
+sluicer run shop.json examples/shop/after.html   # exit 3: the listing is not found
+sluicer heal shop.json examples/shop/after.html -o shop-healed.json
+```
+
+```text
+container: html>body>div.page>ol.row -> html>body>main.content>div.page>section.grid
+member: li.product -> div.card
+moved: title -> h2.name>a (5 of 5 learnt values found there; the next best place had 0)
+moved: price -> div.cost (5 of 5 learnt values found there; the next best place had 0)
+Wrote shop-healed.json.
+```
+
+Each move says how many of the field's learnt values were found in its new
+place, and how many the next best place held. `heal` proposes; it does not
+repair. It can only move a field whose old values the new page still shows, so
+run it on a page you learnt from, or one listing the same items. On the
+[drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md) benchmark's
+21 real redesigns, 18 of the new pages shared no item with the old ones, and
+heal was fully right on none and partly right on 2. When a field or the listing
+is lost, it exits 3 and writes nothing unless given `--force`.
 
 Exit codes follow grep: 0 found -- a record or a summary answer, a `<title>`
 alone included -- 1 found nothing, 2 could not read the page, and 3 when a page
 broke its extractor's checks, a heal lost a field or left a move undecided, or
 an audit found a documented rule broken. `diff` exits 1 when something changed.
 
-The checks are about structure: a run fails when a field is no longer where it
-was learnt, no longer reads the way it did, or no longer has its shape. A change
-that keeps all three, such as a different number in the price's place, passes:
-on SWDE, 18% of the extractors' wrong answers were flagged.
+The checks are about structure, not truth: a run fails when a field is no
+longer where it was learnt, no longer reads the way it did, or no longer has
+its shape. A change that keeps all three, such as a different number in the
+price's place, passes. On SWDE, the checks flagged 18% of the extractors' wrong
+answers; the other 82% passed.
 
 Reading what a page declares needs no example at all. The product page read
 here is
-[`examples/brake-pads.html`](https://github.com/Gi0tto/sluicer/blob/main/examples/brake-pads.html):
+[`examples/brake-pads.html`](https://github.com/Gi0tto/sluicer/blob/main/examples/brake-pads.html),
+in a clone of this repository; without one, fetch it first with
+`mkdir -p examples && curl -o examples/brake-pads.html https://raw.githubusercontent.com/Gi0tto/sluicer/main/examples/brake-pads.html`.
+The library is imported from the Python you ran `pip install sluicer` in:
 
 ```python
 >>> import sluicer
@@ -104,12 +147,15 @@ page.html` shows the same reading laid out for a person.
 ## Install
 
 ```bash
-uv pip install "sluicer[browser,markdown,mcp]"
+uv tool install sluicer   # the sluicer command, in an environment of its own
+uvx sluicer --version     # or run it once, installing nothing
+pip install sluicer       # the library, in your project's virtual environment
 ```
 
-`pip install` works the same way, and `uv tool install` gives you the command
-in an environment of its own. The base install, `uv pip install sluicer`, reads
-HTML you already have and fetches pages over plain HTTP, with `lxml`, `click`,
+`pipx install sluicer` works as `uv tool install` does, and `uv add sluicer`
+adds the library to a uv project. Extras go in brackets, as in
+`uv tool install "sluicer[browser,markdown,mcp]"`. The base install reads HTML
+you already have and fetches pages over plain HTTP, with `lxml`, `click`,
 `cssselect` (CSS selectors) and `protego` (robots.txt) alone, and `tomli` on
 Python 3.10 to read a
 [configuration file](https://gi0tto.github.io/sluicer/configuration/): the

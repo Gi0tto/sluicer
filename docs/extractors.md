@@ -5,7 +5,9 @@ and the scraper keeps running and returns nulls, or the wrong column, for weeks
 before anyone notices. An extractor is built the other way round: it is learnt
 once from a few pages, kept in a small file, replayed for nothing, and every
 replay checks the page against what was learnt. A page that drifted is a failed
-run, never a quiet one. When it fails, `heal` says what moved and where.
+run, never a quiet one. When it fails, `heal` looks for the values it was
+learnt from on the new page and proposes where each field moved; it can move
+only a field whose old values the new page still shows.
 
 No model is involved at any step. The same pages always give the same extractor,
 and the same page always gives the same verdict.
@@ -14,32 +16,50 @@ and the same page always gives the same verdict.
 
 ```bash
 # Learn from two or three pages built from one template.
-sluicer compile https://shop.example/c/brakes?page=1 https://shop.example/c/brakes?page=2 -o brakes.json
+sluicer compile https://books.toscrape.com/catalogue/page-1.html \
+  https://books.toscrape.com/catalogue/page-2.html -o books.json
 
 # Replay it on any page of that template: rows as JSON, exit 3 if the page drifted.
-sluicer run brakes.json https://shop.example/c/brakes?page=7
+sluicer run books.json https://books.toscrape.com/catalogue/page-3.html
 
 # After a redesign: see what moved, and write the healed extractor.
-sluicer heal brakes.json https://shop.example/c/brakes?page=1 -o brakes.json
+# examples/shop/, in a clone of the repository, is a shop before and after one.
+sluicer compile examples/shop/before-1.html examples/shop/before-2.html -o shop.json
+sluicer heal shop.json examples/shop/after.html -o shop.json
 ```
+
+books.toscrape.com is a public sandbox made for trying scrapers on.
 
 From Python:
 
 ```python
-from sluicer.extractor import compile_extractor, run_extractor, heal
+from pathlib import Path
 
-extractor = compile_extractor([(html_1, url_1), (html_2, url_2)])
-open("brakes.json", "w").write(extractor.to_json())
+from sluicer.extractor import compile_extractor, heal, run_extractor
 
-run = run_extractor(extractor, html, url)
+
+def page(name):
+    """A page of examples/shop: its HTML, and the address it would have."""
+    return Path("examples/shop", name).read_bytes(), f"https://shop.example/{name}"
+
+
+extractor = compile_extractor([page("before-1.html"), page("before-2.html")])
+Path("shop.json").write_text(extractor.to_json(), encoding="utf-8")
+
+run = run_extractor(extractor, *page("after.html"))
 if not run.ok:
     for check in run.checks:
         if not check.ok:
             print(check.name, check.expected, "->", check.got)
 rows = run.rows  # a list of {field name: value}
 
-healed, changes = heal(extractor, [(new_html, new_url)])
+healed, changes = heal(extractor, [page("after.html")])
 ```
+
+A page is its HTML, as text or bytes, and the address it came from, or
+`None`. Run from a clone of the repository, this prints the one check the
+redesigned page fails: `listing the listing at html>body>div.page>ol.row ->
+not found`.
 
 An agent gets the same three steps as MCP tools: `compile_extractor`,
 `run_extractor` and `heal_extractor`. Their answers carry `ok`, false for a page
@@ -84,7 +104,7 @@ examples, it takes the listing whose rows hold them, and only the columns they
 name:
 
 ```bash
-sluicer compile page1.html page2.html -o books.json \
+sluicer compile https://books.toscrape.com/catalogue/page-1.html https://books.toscrape.com/catalogue/page-2.html -o books.json \
     --want title="A Light in the Attic" --want price=51.77
 ```
 
@@ -125,8 +145,9 @@ no column; point at the tags' links, or read the declaration with
 `extract()`:
 
 ```bash
-sluicer compile a-light-in-the-attic.html tipping-the-velvet.html -o book.json \
-    --want title="A Light in the Attic" --want price=51.77
+sluicer compile https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html \
+  https://books.toscrape.com/catalogue/tipping-the-velvet_999/index.html -o book.json \
+  --want title="A Light in the Attic" --want price=51.77
 ```
 
 - The place is the deepest element whose whole text is the example, or an
@@ -185,11 +206,11 @@ by example, and nothing is learnt of where it is:
 
 ```bash
 # Try a selector first: each value, a tab, and the XPath of its element.
-sluicer select https://shop.example/c/brakes 'li.product span.price::text'
+sluicer select https://books.toscrape.com/catalogue/page-1.html 'article.product_pod p.price_color::text'
 
-sluicer compile page1.html page2.html -o brakes.json --rows li.product \
-    --select title='h3 a::attr(title)' --select price='span.price::text' \
-    --select link='h3 a::attr(href)'
+sluicer compile https://books.toscrape.com/catalogue/page-1.html https://books.toscrape.com/catalogue/page-2.html -o books.json \
+    --rows article.product_pod --select title='h3 a::attr(title)' \
+    --select price='p.price_color::text' --select link='h3 a::attr(href)'
 ```
 
 - **A selector is CSS or XPath.** CSS takes Scrapy's `::text`, an element's
@@ -325,8 +346,9 @@ person looks. A listing that was lost stays in the healed extractor as it was,
 so even a forced one fails every page without it, rather than pass them all
 with no rows.
 
-On the shop fixture in the test suite, a redesign that renamed every class and
-wrapped the listing in a new element moves all four fields to their new places:
+On the made-up shop in `examples/shop/`, learnt from its two pages with no
+example, a redesign that renamed every class and wrapped the listing in a new
+element moves all four fields to their new places:
 
 ```text
 container: html>body>div.page>ol.row -> html>body>main.content>div.page>section.grid

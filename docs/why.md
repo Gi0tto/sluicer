@@ -19,7 +19,7 @@ another tool is the better choice. It is a map, not a race.
 | Says where every value came from | yes: reader, key and place on the page | per vocabulary | no | no | no |
 | Same page, same answer | yes | yes | yes | yes | no |
 | Notices when a site's layout changes | yes, exit 3 | no | no | no, returns nulls | no |
-| Says what moved after a redesign | yes, `heal` | no | no | no | no |
+| Says what moved after a redesign | `heal` proposes moves where it finds the old values again; see [drift](drift.md) for how often that is right | no | no | no | no |
 | Fetches JavaScript-rendered pages | yes, a browser when measured necessary | no | no | depends | depends |
 | Cost per page | CPU | CPU | CPU | CPU | tokens |
 
@@ -35,7 +35,7 @@ Crawl4AI and Firecrawl fetch and crawl, and Sluicer reads what any of them
 fetched ([with other tools](agents.md#with-other-tools)). A `?` is a cell that
 could not be checked from the project's own code or README.
 
-| | Sluicer 0.7.0 | Scrapling 0.4.15 | Crawl4AI 0.9.4 | Firecrawl | extruct 0.18.0 | trafilatura 2.2.0 |
+| | Sluicer 0.9.0 | Scrapling 0.4.15 | Crawl4AI 0.9.4 | Firecrawl | extruct 0.18.0 | trafilatura 2.2.0 |
 |---|---|---|---|---|---|---|
 | Built for | reading what a page declares | fetching past defences, and parsing | crawling into markdown for models | a hosted API to scrape, crawl and search | the structured data syntaxes | a page's main text and metadata |
 | Licence | MIT; two data files their own | BSD-3-Clause | Apache-2.0 | AGPL-3.0 | BSD-3-Clause | Apache-2.0 |
@@ -43,10 +43,10 @@ could not be checked from the project's own code or README.
 | Where each value came from | vocabulary, key and place | -- | -- | -- | its syntax | -- |
 | A model for structured output | never | never | optional; CSS and XPath strategies need none | for its JSON output | never | never |
 | robots.txt, by default | obeyed, and not fetched when it cannot be read | not obeyed unless `robots_txt_obey` | not checked unless `check_robots_txt` | obeyed in a crawl; a single scrape only under a team setting | does not fetch | obeyed by its spider |
-| Bot protection | none: it announces itself | its fetchers bypass anti-bot systems, its README says | a stealth mode, its README says | the service's job, its README says | does not fetch | does not fetch |
-| When a site's layout changes | fails loudly, exit 3; `heal` says what moved | relocates an element by similarity, when asked | ? | ? | -- | -- |
+| Bot protection | none by default: it announces itself; `--stealth` for one page, only when asked, never in a crawl | its fetchers bypass anti-bot systems, its README says | a stealth mode, its README says | the service's job, its README says | does not fetch | does not fetch |
+| When a site's layout changes | fails loudly, exit 3; `heal` proposes where fields moved, from the old values it finds again | relocates an element by similarity, when asked | ? | ? | -- | -- |
 | MCP server | twelve tools, each annotated read-only | yes | in its Docker server | yes | no | no |
-| Where it runs | your machine | your machine | your machine, or its Docker server | its cloud with a key, or self-hosted | your machine | your machine |
+| Where it runs | your machine, or its Docker image | your machine | your machine, or its Docker server | its cloud with a key, or self-hosted | your machine | your machine |
 
 Read from each project at one commit on 2026-09-24 -- Scrapling `0b85f7e`,
 Crawl4AI `86e6464`, Firecrawl `fd9c74c`, extruct `a31daaa`, trafilatura
@@ -57,8 +57,9 @@ Crawl4AI `86e6464`, Firecrawl `fd9c74c`, extruct `a31daaa`, trafilatura
 `controllers/v2/types.ts` (`ignoreRobotsTxt` defaulting to false),
 `scrapeURL/shouldCheckRobots.ts`, `scrapeURL/lib/extractMetadata.ts` and
 `scrapeURL/transformers/llmExtract.ts`, and trafilatura's `spider.py` and
-`metadata.py`. The bot-protection row repeats
-what each README claims; it was not tested here.
+`metadata.py`. Sluicer's column is 0.9.0's, checked against its code on
+2026-09-26. The bot-protection row repeats what each other project's README
+claims; it was not tested here.
 
 ## What Sluicer adds
 
@@ -92,9 +93,15 @@ it is.
 a template, replay it on any page of that template, and a page that drifted --
 the listing moved, a field emptied, a price slot now says "Add to basket" --
 fails with exit code 3 and the check that broke, instead of returning nulls
-for weeks. After a redesign, `heal` says which field moved where, how many of
-its old values were found in the new place, and keeps the column names your
-code reads. See [extractors](extractors.md).
+for weeks. The checks are about structure: a wrong value in the right place
+passes, and on SWDE they flagged 18% of the extractors' wrong answers. After a
+redesign, `heal` looks for the values the extractor was learnt from on the new
+page, and proposes a new place for each field whose values it finds there,
+with how many it found and how many the next best place held; moved fields
+keep the column names your code reads. It needs items the old and new pages
+share: on the [drift](drift.md) benchmark's 21 real redesigns, most of the new
+pages shared none, and heal was fully right on none of them and partly right
+on 2. See [extractors](extractors.md).
 
 **A fetch that announces itself.** Plain HTTP first, a browser only when a
 measurement says the cheap rung got a refusal, a challenge or an empty shell,

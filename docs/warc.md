@@ -11,7 +11,7 @@ Sluicer reads it the way it reads a page it fetched itself, headers included.
 ```sh
 sluicer warc crawl.warc.gz                   # one JSON line per page
 sluicer warc a.warc.gz b.warc > pages.jsonl  # several files, in order
-zcat crawl.warc.gz | sluicer warc -          # standard input
+gzip -dc crawl.warc.gz | sluicer warc -     # standard input
 ```
 
 ```python
@@ -70,8 +70,8 @@ away, so the answer says which capture it read, never just the date asked for:
   above is what changed since then. `audit` of a capture reads no robots.txt
   or llms.txt: today's files say nothing about a page of last year.
 
-From Python: `sluicer.fetch.archive.fetch_archived(url, "2024-01")` gives the
-`Fetched` page, with `archived` saying which capture it is. For an agent, the
+From Python: `fetch_archived(url, "2024-01")`, after
+`from sluicer.fetch.archive import fetch_archived`, gives the `Fetched` page, with `archived` saying which capture it is. For an agent, the
 MCP tools `extract_declared` and `page_markdown` take `at`; a page never
 captured answers `fetch_failed` with `retryable` false, since asking again
 will not make the archive have held it.
@@ -82,7 +82,9 @@ On python.org, `sluicer diff https://www.python.org/ https://www.python.org/
 ## Each line
 
 A line is what `sluicer extract` answers for one page, plus a `warc` object
-that says where in the archive the page came from:
+that says where in the archive the page came from, and `visible`, which is
+always there and always empty, `{}`: `sluicer warc` does not guess from the
+visible page.
 
 ```json
 {
@@ -96,10 +98,12 @@ that says where in the archive the page came from:
   },
   "summary": {},
   "normalised": {},
+  "conflicts": [],
   "records": [],
   "sources": [],
   "links": {},
-  "rights": {}
+  "rights": {},
+  "visible": {}
 }
 ```
 

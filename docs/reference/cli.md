@@ -116,8 +116,8 @@ Options:
                               robots.txt Crawl-delay wins when longer.  [default: 1.0;
                               x>=0]
   --retries INTEGER RANGE     Ask a page again this many times when it did not answer,
-                              or answered 429 or a 5xx, each time twice as late; never a
-                              4xx.  [default: 2; 0<=x<=10]
+                              or answered 429 or a 5xx, each time twice as late; never
+                              another 4xx.  [default: 2; 0<=x<=10]
   --jobs INTEGER RANGE        How many sites are asked at once, each still one request
                               at a time.  [default: 4; 1<=x<=32]
   --induce / --no-induce      Also read the rows a page repeats when it declares nothing
@@ -216,7 +216,7 @@ Options:
                                 x>=0]
   --retries INTEGER RANGE       Ask a page again this many times when it did not answer,
                                 or answered 429 or a 5xx, each time twice as late; never
-                                a 4xx.  [default: 2; 0<=x<=10]
+                                another 4xx.  [default: 2; 0<=x<=10]
   --jobs INTEGER RANGE          How many sites are asked at once, each still one request
                                 at a time.  [default: 4; 1<=x<=32]
   --induce / --no-induce        Also read the rows a page repeats when it declares

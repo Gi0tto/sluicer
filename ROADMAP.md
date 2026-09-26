@@ -44,8 +44,9 @@ few pages of one template and writes it as a small, readable JSON file;
 `sluicer run` replays it with no induction and checks every page against what
 was learnt -- the listing's place, the row count, the required fields, the shape
 of their values, the summary answers and the declared types -- and exits 3 when
-a page drifted. `sluicer heal` learns the page again and says which field moved
-where, keeping the old names. The same three steps are MCP tools. No model
+a page drifted. `sluicer heal` learns the page again and proposes where each
+field moved, when the new page still shows values it was learnt from, keeping
+the old names. The same three steps are MCP tools. No model
 anywhere, including the compile step. See [extractors](https://github.com/Gi0tto/sluicer/blob/main/docs/extractors.md).
 
 ## Shipped in 0.3.0
@@ -132,12 +133,62 @@ the site waits its `Retry-After`, or twice the site's delay.
 the metadata and for the main text. See
 [the scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-evaldata.md).
 
+## Shipped in 0.7.0
+
+**A guess from the visible page, kept apart.** `--visible` guesses the
+heading, byline and dates a page shows a reader, by fixed rules, and puts each
+guess in a field of its own, `visible`, never in the summary.
+
+**Extractors on a real benchmark.** A sixth scoreboard, SWDE: 80 sites,
+`compile --want` given three pages of each, beside Scrapling's adaptive
+selectors, with a held-out half of the sites split off before any result was
+read. A page field is read after its label when the pages it was learnt from
+contradict its place.
+
+## Shipped in 0.7.1
+
+**What is stable before 1.0**, written down in
+[stability](https://github.com/Gi0tto/sluicer/blob/main/docs/stability.md),
+and a proxy only when one is asked for, with `--proxy`, `fetch(proxy=...)` or
+`SLUICER_PROXY`: `HTTPS_PROXY` and `HTTP_PROXY` are no longer read.
+
+## Shipped in 0.8.0
+
+**Fetching in the base install.** Plain HTTP with Python's own client, and
+the browser and the stealth rung as the `browser` and `stealth` extras.
+`sluicer fetch` keeps a page as the ladder brought it back; headers and
+cookies go to the site asked and no other.
+
+**Selectors a person writes.** `sluicer select`, `sluicer.parse()` and the
+MCP tool `select_values`, CSS or XPath, and extractors written by selector,
+`compile --select`, held to the same checks as learnt ones.
+
+**The command line, set up once.** A `sluicer.toml` configuration file, shell
+completion, and `aextract` and `afetch` for a coroutine. A crawl asks a page
+again when it may answer later, asks several sites at once with `--jobs`,
+writes CSV, and reads a site's sitemaps with `--template sitemap`.
+
+**Beyond Python and stdio.** `sluicer serve` at `/mcp`, for n8n and Dify; an
+image on the GitHub Container Registry; `sluicer` on npm, the Python package
+run in Pyodide, and a page on the site that runs it in the browser; a GitHub
+Action for `sluicer audit`; the twelfth MCP tool, `extract_many`.
+
+## Shipped in 0.9.0
+
+**RDFa against its test suite.** Sluicer's two RDFa readers and extruct's,
+run on the W3C RDFa test suite, with what it found fixed. See
+[the RDFa scoreboard](https://github.com/Gi0tto/sluicer/blob/main/docs/scoreboard-rdfa.md).
+
+**What pages declare.** A count of what every HTML page of four Common Crawl
+files declares about itself, chosen by a rule fixed before any was downloaded:
+[the state of declared data](https://github.com/Gi0tto/sluicer/blob/main/docs/state-of-declared-data.md).
+
 ## Next
 
 **The proof, made bigger.** A first drift benchmark is in
 [drift](https://github.com/Gi0tto/sluicer/blob/main/docs/drift.md): 44 pairs of
 Wayback Machine captures on 25 sites, judged by an oracle that does not use the
-extractor's code, with Scrapling's adaptive selectors beside it. It found seven
+extractor's code, with Scrapling's adaptive selectors beside it. It found nine
 defects, all fixed, and now shows no silent failure and no false alarm; since
 then every one of its 25 sites learns the listing rather than page furniture.
 Next: more pairs, real shops among them, and pairs chosen so that A and B share

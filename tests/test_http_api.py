@@ -1108,3 +1108,32 @@ def test_the_command_without_the_extra_is_a_message_not_a_traceback(
 
     assert result.exit_code == 2
     assert 'uv pip install "sluicer[api]"' in result.stderr
+
+
+def test_the_page_s_example_answer_is_what_the_call_answers(client, monkeypatch):
+    """docs/http-api.md showed "Brake pad set" for https://example.com/product,
+    which is a 404 page titled "Example Domain": an answer written by hand.
+    The page's call is made here, with example.com's page as it was served
+    (``tests/fixtures/example-com.html``) in place of the network, and must
+    answer the page's JSON exactly, the seconds aside."""
+    import re
+    from pathlib import Path
+
+    from sluicer.fetch.result import Fetched
+
+    root = Path(__file__).resolve().parent.parent
+    page = (root / "docs" / "http-api.md").read_text(encoding="utf-8")
+    section = page.split("## Call it", 1)[1]
+    asked = json.loads(re.search(r"-d '(\{.*?\})'", section).group(1))
+    shown = json.loads(re.search(r"```json\n(.*?)```", section, re.DOTALL).group(1))
+    served = (root / "tests" / "fixtures" / "example-com.html").read_text(
+        encoding="utf-8"
+    )
+
+    def fetch(url, **_options):
+        return Fetched(url=url, html=served, status=200, rung="http", seconds=0.014)
+
+    monkeypatch.setattr("sluicer.fetch.fetch", fetch)
+    answer = client().post("/v1/tools/extract_declared", json=asked)
+    assert answer.status_code == 200
+    assert answer.json() == shown

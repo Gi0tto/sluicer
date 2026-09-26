@@ -89,6 +89,66 @@ Dates are the day the work landed. Anything not listed here did not happen.
   `--max-depth` ended "done" without a word, so a paginated listing looked
   shorter than it is. The closing line now says how many links the depth left
   out, and `crawl()`'s `Crawl` carries the same sentence as `notice`.
+- The README's quick start opened `p1.html`, a file that exists nowhere, and
+  replayed and healed pages of `shop.example`. It now learns from and runs on
+  books.toscrape.com, a public scraping sandbox, and heals on a made-up shop
+  before and after a redesign, shipped in `examples/shop/`; a test runs the
+  heal step as written.
+- The install line was `uv pip install sluicer`, which fails where no virtual
+  environment is active. The README now gives `uv tool install sluicer` for
+  the command, `uvx sluicer` to run it once, and `pip install sluicer` for the
+  library, and says how to get `examples/brake-pads.html` without a clone.
+- The README, the demo's caption and the why page said `heal` tells you where
+  each field moved. On the drift benchmark's 21 real redesigns it was fully
+  right on none and partly right on 2, since most new pages share no item
+  with the old ones. They now say it proposes moves from the old values it
+  finds again, and when that helps; a test reads those numbers from the drift
+  page.
+- The headline said extractors fail loudly "when a site changes"; it now says
+  when its layout changes, and the README says plainly that a wrong value in
+  the right place passes: the checks flagged 18% of wrong answers on SWDE.
+- The why page's comparison was of Sluicer 0.7.0; it is now 0.9.0's, with the
+  stealth rung and the Docker image in it.
+- The roadmap stopped at "Shipped in 0.6.0". It now says what 0.7.0, 0.7.1,
+  0.8.0 and 0.9.0 shipped, and a test holds it to the changelog's releases.
+- Getting started said `sluicer.fetch.fetch(url)` after `import sluicer`,
+  which raises `AttributeError`; it, the crawling page and the WARC page now
+  name the import each call needs, and a test looks every such call up after
+  `import sluicer` alone. Its install line for a library is `pip install`,
+  and its "declares nothing" example runs on books.toscrape.com instead of
+  files that do not exist.
+- The configuration page's first example sets a proxy, a header and a cache,
+  and the page only said to call it `sluicer.toml`: saved in the directory a
+  command runs in, it made every command exit 2. The page now says to save it
+  in `~/.config/sluicer/` and name it with `SLUICER_CONFIG` or `--config`, and
+  why a found file may not set those keys.
+- The HTTP API page's example answer was written by hand: it showed "Brake
+  pad set" for `https://example.com/product`, a 404 page titled "Example
+  Domain". It is now the whole real answer for `https://example.com/`, and a
+  test makes the page's call and compares.
+- The extruct page called the move from extruct "one line", but that line
+  raises `MicroformatsExtraMissing` without the `microformats` extra. The
+  page now installs the extra first, and gives the call that needs none.
+- The WARC page read standard input with `zcat`, which on macOS looks for a
+  `.Z` file and passes nothing on; it now uses `gzip -dc`. Its example line
+  now shows the `conflicts` and `visible` keys a real line has.
+- The extractors guide's examples compiled, ran and healed `shop.example`
+  and files that do not exist, and its Python example used names it never
+  defined. They now run on books.toscrape.com and on `examples/shop/`, and a
+  test runs the heal commands and the Python example as written.
+- The audit guide's examples audited `https://example.com/product`, a 404
+  page with no record, so its Python example printed nothing. They now audit
+  quotes.toscrape.com and the repository's product page, and the guide shows
+  what the Python example prints.
+- The crawling guide's commands and Python example read `shop.example`,
+  which serves nothing. They now read books.toscrape.com, except the two
+  templates that need a site of your own.
+- The agents page's framework and "other tools" snippets use names they do
+  not define and top-level `await`; the page now says they are fragments for
+  your own code. It also installs `sluicer-mcp` with `pip`, not `uv pip`.
+- The command line reference said `batch` and `crawl` never retry "a 4xx";
+  the commands say "never another 4xx" (a 429 is retried). The page is
+  regenerated, and a test now holds every option's help to it.
 
 ## 0.9.0 - 2026-09-26
 
