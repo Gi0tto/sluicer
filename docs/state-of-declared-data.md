@@ -8,7 +8,7 @@ by a rule fixed before any was downloaded. Each is read as
 `sluicer.extract` reads a page, with its provenance, and the conflicts
 between what one page declares twice are counted with the rest.
 
-Counted on 2026-09-25 by `bench/declared_report.py`, with Sluicer 0.9.0 at the last commit to `src/`, `10211f3` (lxml 6.1.3, libxml2 2.14.6, mf2py 2.0.2). Every number below is written by the script from its counts, `bench/declared-counts.json`,
+Counted on 2026-09-26 by `bench/declared_report.py`, with Sluicer 0.9.1 at the last commit to `src/`, `8a426a2` (lxml 6.1.3, libxml2 2.14.6, mf2py 2.0.2). Every number below is written by the script from its counts, `bench/declared-counts.json`,
 except Web Data Commons', which are cited where they stand.
 
 !!! warning "A few WARC files are not the web"
@@ -275,14 +275,14 @@ A conflict is a question the page answers twice with two meanings
 currencies, two publication or modification dates that are two days
 or two instants. `126` and `126.00` agree, and a value no rule can read
 disagrees with nothing. Sluicer compares these four questions only.
-Of the 86,029 pages, 355 (0.4% (0.4-0.5)) declare at least one conflict.
+Of the 86,029 pages, 364 (0.4% (0.4-0.5)) declare at least one conflict.
 
 | question | pages answering it | in conflict | share | the summary's answer / the other, most often |
 |---|---|---|---|---|
-| price | 8,051 | 122 | 1.5% (1.3-1.8) | JSON-LD / OpenGraph (92), microdata / OpenGraph (29), OpenGraph / OpenGraph (1) |
+| price | 8,051 | 125 | 1.6% (1.3-1.8) | JSON-LD / OpenGraph (92), microdata / OpenGraph (29), JSON-LD / microdata (3) |
 | currency | 8,714 | 22 | 0.3% (0.2-0.4) | JSON-LD / OpenGraph (22) |
-| published | 23,361 | 109 | 0.5% (0.4-0.6) | JSON-LD / OpenGraph (87), microdata / OpenGraph (15), JSON-LD / Dublin Core (5) |
-| modified | 21,403 | 145 | 0.7% (0.6-0.8) | JSON-LD / OpenGraph (117), microdata / OpenGraph (13), OpenGraph / OpenGraph (4) |
+| published | 23,361 | 113 | 0.5% (0.4-0.6) | JSON-LD / OpenGraph (87), microdata / OpenGraph (15), JSON-LD / Dublin Core (5) |
+| modified | 21,403 | 147 | 0.7% (0.6-0.8) | JSON-LD / OpenGraph (117), microdata / OpenGraph (13), OpenGraph / OpenGraph (4) |
 
 A title is not compared: a page's `<title>` adds the site's name, its
 `og:title` drops it, and the two are one title. How often they differ:
