@@ -469,6 +469,7 @@ def read_summary(
         else answer
         for answer in questions["title"]
     ]
+    questions["title"] = _as_the_heading_shows(questions["title"], doc)
 
     base = base_url(doc)
     summary: dict[str, SummaryField] = {}
@@ -1585,6 +1586,74 @@ def _without_site(found: SummaryField, site_names: set[str]) -> SummaryField | N
         if cut and head.strip() and tail.strip().casefold() in site_names:
             return replace(found, value=head.strip())
     return found
+
+
+# Where a declared title's own words end and the site's name begins. The
+# bullets and the guillemet are written between a page's title and its site
+# too: "Healthy Eating Plate \u2022 The Nutrition Source".
+_HEAD_SEPARATORS = (*_TITLE_SEPARATORS, " \u2022 ", " \u00bb ")
+# The most headings read, and the longest: a title is not a paragraph.
+_MOST_HEADINGS, _LONGEST_HEADING = 20, 300
+_NOT_A_LETTER = re.compile(r"[\W_]+")
+
+
+def _as_the_heading_shows(
+    answers: list[Answer], doc: Document
+) -> list[Answer]:
+    """The title answers, the one the page's heading shows first.
+
+    A page declares its title several ways -- a record's ``headline`` or
+    ``name``, ``og:title``, ``<title>`` -- and they often differ: a business's
+    name where the page is one of its services, a description written into
+    ``headline``, the site's name after a separator. The first answer, in the
+    summary's order, that is the text of one of the page's ``<h1>`` headings,
+    or whose words before a separator are ("Personal Training - UT
+    RecSports" under a heading "Personal Training"), is the title, cut there;
+    compared with letters and digits only, case folded. The answer is still
+    the declared text, never the heading's own: the heading only says which
+    declaration, and how much of it, is the title. With no heading, or none
+    that a declaration writes, the order is unchanged.
+    """
+    headings = _headings(doc)
+    if not headings:
+        return answers
+    for n, answer in enumerate(answers):
+        if not answer:
+            continue
+        if _letters(answer.value) in headings:
+            return [answer, *answers[:n], *answers[n + 1 :]]
+        head = _shown_head(answer.value, headings)
+        if head is not None:
+            return [replace(answer, value=head), *answers[:n], *answers[n + 1 :]]
+    return answers
+
+
+def _shown_head(title: str, headings: set[str]) -> str | None:
+    """The longest part of ``title`` before a separator that is a heading."""
+    heads: list[str] = []
+    for separator in _HEAD_SEPARATORS:
+        parts = title.split(separator)
+        heads += [separator.join(parts[:n]).strip() for n in range(1, len(parts))]
+    for head in sorted(heads, key=len, reverse=True):
+        if head and _letters(head) in headings:
+            return head
+    return None
+
+
+def _headings(doc: Document) -> set[str]:
+    """The page's ``<h1>`` texts, letters and digits only, case folded."""
+    found = set()
+    for heading in doc.tree.xpath(f"(//h1)[position() <= {_MOST_HEADINGS}]"):
+        text = heading.text_content()
+        if len(text) <= _LONGEST_HEADING * 4 and (letters := _letters(text)):
+            if len(letters) <= _LONGEST_HEADING:
+                found.add(letters)
+    return found
+
+
+def _letters(text: str) -> str:
+    """``text`` as headings are compared: letters and digits, case folded."""
+    return _NOT_A_LETTER.sub("", text.casefold())
 
 
 def _canonical(doc: Document, header: list[str]) -> SummaryField | None:
