@@ -6,7 +6,7 @@ bytes of the same pages as their servers sent them, scripts intact, and
 scored one way: which answers are right, which are wrong with nothing to
 say so, how much of the main text each keeps, and how much of the
 site's menus and footers comes with it.
-Regenerated on 2026-09-26 from commit `ed3b378` by
+Regenerated on 2026-09-26 from commit `5e97f6b` by
 `uv run bench/tools_compare.py`; what is asked and how it is scored were
 fixed in [`bench/PREREG.md`](https://github.com/Gi0tto/sluicer/blob/main/bench/PREREG.md) before any tool was run.
 
@@ -99,8 +99,8 @@ Hit rate, over the pages whose label is not empty:
 
 | tool | title | author | date |
 |---|---|---|---|
-| sluicer 0.9.0 | 0.708 (0.65–0.76) | 0.690 (0.60–0.77) | 0.780 (0.70–0.84) |
-| sluicer 0.9.0, declared then `--visible` | 0.708 (0.65–0.76) | 0.752 (0.67–0.82) | 0.855 (0.79–0.91) |
+| sluicer 0.10.0 | 0.708 (0.65–0.76) | 0.698 (0.61–0.78) | 0.780 (0.70–0.84) |
+| sluicer 0.10.0, declared then `--visible` | 0.708 (0.65–0.76) | 0.760 (0.67–0.83) | 0.855 (0.79–0.91) |
 | trafilatura 2.2.0 | 0.756 (0.70–0.80) | 0.860 (0.79–0.91) | 0.855 (0.79–0.91) |
 | newspaper4k 0.9.6 | 0.767 (0.72–0.81) | 0.705 (0.62–0.78) | 0.786 (0.71–0.85) |
 | markitdown 0.1.8 | 0.622 (0.57–0.68) | -- | -- |
@@ -111,8 +111,8 @@ Right when answering, over every answer given, inventions included:
 
 | tool | title | author | date |
 |---|---|---|---|
-| sluicer 0.9.0 | 0.708 (0.65–0.76) | 0.636 (0.55–0.72) | 0.734 (0.66–0.80) |
-| sluicer 0.9.0, declared then `--visible` | 0.708 (0.65–0.76) | 0.642 (0.56–0.72) | 0.701 (0.63–0.77) |
+| sluicer 0.10.0 | 0.708 (0.65–0.76) | 0.638 (0.55–0.72) | 0.734 (0.66–0.80) |
+| sluicer 0.10.0, declared then `--visible` | 0.708 (0.65–0.76) | 0.649 (0.57–0.73) | 0.701 (0.63–0.77) |
 | trafilatura 2.2.0 | 0.756 (0.70–0.80) | 0.575 (0.50–0.65) | 0.393 (0.34–0.45) |
 | newspaper4k 0.9.6 | 0.767 (0.72–0.81) | 0.569 (0.49–0.65) | 0.658 (0.58–0.73) |
 | markitdown 0.1.8 | 0.622 (0.57–0.68) | -- | -- |
@@ -130,8 +130,8 @@ heading alone and the shorter is under 0.6 of the longer.
 
 | tool | title | author | date | wrong, with a warning |
 |---|---|---|---|---|
-| sluicer 0.9.0 | 105 of 360: 0.292 (0.24–0.35) | 51 of 140: 0.364 (0.28–0.45) | 44 of 169: 0.260 (0.20–0.34) | 1 |
-| sluicer 0.9.0, declared then `--visible` | 105 of 360: 0.292 (0.24–0.35) | 54 of 151: 0.358 (0.28–0.44) | 57 of 194: 0.294 (0.23–0.37) | 1 |
+| sluicer 0.10.0 | 105 of 360: 0.292 (0.24–0.35) | 51 of 141: 0.362 (0.28–0.45) | 44 of 169: 0.260 (0.20–0.34) | 1 |
+| sluicer 0.10.0, declared then `--visible` | 105 of 360: 0.292 (0.24–0.35) | 53 of 151: 0.351 (0.27–0.43) | 57 of 194: 0.294 (0.23–0.37) | 1 |
 | trafilatura 2.2.0 | 88 of 360: 0.244 (0.20–0.30) | 82 of 193: 0.425 (0.35–0.50) | 210 of 346: 0.607 (0.55–0.66) | 0 |
 | newspaper4k 0.9.6 | 84 of 360: 0.233 (0.19–0.28) | 69 of 160: 0.431 (0.35–0.51) | 65 of 190: 0.342 (0.27–0.42) | 0 |
 | markitdown 0.1.8 | 136 of 360: 0.378 (0.32–0.43) | -- | -- | 0 |
@@ -151,7 +151,7 @@ on a page with main text.
 
 | tool | snippets found | snippets leaked | precision | recall | F1 | pages kept clean | silent empty | raised |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.9.0 | 1139/1457 | 56/1208 | 0.953 (0.93–0.97) | 0.782 (0.75–0.82) | 0.859 (0.83–0.88) | 0.897 (0.86–0.93) | 0 | 0 |
+| sluicer 0.10.0 | 1139/1457 | 56/1208 | 0.953 (0.93–0.97) | 0.782 (0.75–0.82) | 0.859 (0.83–0.88) | 0.897 (0.86–0.93) | 0 | 0 |
 | trafilatura 2.2.0 | 1145/1457 | 54/1208 | 0.955 (0.93–0.97) | 0.786 (0.75–0.82) | 0.862 (0.84–0.89) | 0.900 (0.86–0.93) | 0 | 0 |
 | newspaper4k 0.9.6 | 883/1457 | 21/1208 | 0.977 (0.96–0.99) | 0.606 (0.56–0.65) | 0.748 (0.71–0.78) | 0.950 (0.92–0.97) | 10 | 0 |
 | markitdown 0.1.8 | 1314/1457 | 1152/1208 | 0.533 (0.52–0.55) | 0.902 (0.88–0.93) | 0.670 (0.65–0.69) | 0.006 (0.00–0.03) | 0 | 0 |
@@ -159,7 +159,7 @@ on a page with main text.
 
 | tool | word precision | word recall | word F1 |
 |---|---|---|---|
-| sluicer 0.9.0 | 0.880 (0.85–0.91) | 0.883 (0.86–0.91) | 0.861 (0.83–0.89) |
+| sluicer 0.10.0 | 0.880 (0.85–0.91) | 0.883 (0.86–0.91) | 0.861 (0.83–0.89) |
 | trafilatura 2.2.0 | 0.884 (0.86–0.91) | 0.883 (0.86–0.91) | 0.863 (0.84–0.89) |
 | newspaper4k 0.9.6 | 0.889 (0.86–0.92) | 0.687 (0.65–0.73) | 0.732 (0.69–0.77) |
 | markitdown 0.1.8 | 0.586 (0.55–0.62) | 0.993 (0.99–1.00) | 0.702 (0.67–0.73) |
@@ -175,8 +175,8 @@ Hit rate, over the pages whose label is not empty:
 
 | tool | title | author | date |
 |---|---|---|---|
-| sluicer 0.9.0 | 0.776 (0.74–0.81) | 0.468 (0.42–0.52) | 0.585 (0.54–0.63) |
-| sluicer 0.9.0, declared then `--visible` | 0.776 (0.74–0.81) | 0.548 (0.50–0.59) | 0.701 (0.66–0.74) |
+| sluicer 0.10.0 | 0.776 (0.74–0.81) | 0.472 (0.43–0.52) | 0.588 (0.55–0.63) |
+| sluicer 0.10.0, declared then `--visible` | 0.776 (0.74–0.81) | 0.552 (0.50–0.60) | 0.701 (0.66–0.74) |
 | trafilatura 2.2.0 | 0.738 (0.70–0.77) | 0.669 (0.62–0.71) | 0.865 (0.83–0.89) |
 | newspaper4k 0.9.6 | 0.756 (0.72–0.79) | 0.507 (0.46–0.55) | 0.668 (0.63–0.71) |
 | markitdown 0.1.8 | 0.579 (0.54–0.62) | -- | -- |
@@ -187,8 +187,8 @@ Right when answering, over every answer given, inventions included:
 
 | tool | title | author | date |
 |---|---|---|---|
-| sluicer 0.9.0 | 0.771 (0.74–0.80) | 0.636 (0.58–0.69) | 0.793 (0.75–0.83) |
-| sluicer 0.9.0, declared then `--visible` | 0.771 (0.74–0.80) | 0.651 (0.60–0.70) | 0.802 (0.76–0.84) |
+| sluicer 0.10.0 | 0.771 (0.74–0.80) | 0.638 (0.58–0.69) | 0.799 (0.76–0.84) |
+| sluicer 0.10.0, declared then `--visible` | 0.771 (0.74–0.80) | 0.657 (0.61–0.70) | 0.806 (0.77–0.84) |
 | trafilatura 2.2.0 | 0.733 (0.70–0.77) | 0.647 (0.60–0.69) | 0.743 (0.71–0.78) |
 | newspaper4k 0.9.6 | 0.756 (0.72–0.79) | 0.597 (0.55–0.65) | 0.802 (0.76–0.84) |
 | markitdown 0.1.8 | 0.575 (0.54–0.61) | -- | -- |
@@ -206,8 +206,8 @@ heading alone and the shorter is under 0.6 of the longer.
 
 | tool | title | author | date | wrong, with a warning |
 |---|---|---|---|---|
-| sluicer 0.9.0 | 195 of 851: 0.229 (0.20–0.26) | 144 of 396: 0.364 (0.31–0.42) | 106 of 537: 0.197 (0.16–0.24) | 5 |
-| sluicer 0.9.0, declared then `--visible` | 195 of 851: 0.229 (0.20–0.26) | 158 of 453: 0.349 (0.30–0.40) | 121 of 636: 0.190 (0.16–0.23) | 5 |
+| sluicer 0.10.0 | 195 of 851: 0.229 (0.20–0.26) | 144 of 398: 0.362 (0.31–0.42) | 103 of 536: 0.192 (0.16–0.23) | 5 |
+| sluicer 0.10.0, declared then `--visible` | 195 of 851: 0.229 (0.20–0.26) | 155 of 452: 0.343 (0.30–0.39) | 118 of 633: 0.186 (0.15–0.22) | 5 |
 | trafilatura 2.2.0 | 227 of 851: 0.267 (0.23–0.30) | 196 of 556: 0.353 (0.31–0.40) | 218 of 848: 0.257 (0.22–0.29) | 0 |
 | newspaper4k 0.9.6 | 206 of 845: 0.244 (0.21–0.28) | 184 of 457: 0.403 (0.35–0.45) | 120 of 606: 0.198 (0.16–0.24) | 0 |
 | markitdown 0.1.8 | 361 of 850: 0.425 (0.39–0.46) | -- | -- | 0 |
@@ -227,7 +227,7 @@ on a page with main text.
 
 | tool | snippets found | snippets leaked | precision | recall | F1 | pages kept clean | silent empty | raised |
 |---|---|---|---|---|---|---|---|---|
-| sluicer 0.9.0 | 2758/2951 | 323/2966 | 0.895 (0.88–0.91) | 0.935 (0.92–0.95) | 0.914 (0.90–0.93) | 0.756 (0.72–0.79) | 0 | 0 |
+| sluicer 0.10.0 | 2758/2951 | 323/2966 | 0.895 (0.88–0.91) | 0.935 (0.92–0.95) | 0.914 (0.90–0.93) | 0.756 (0.72–0.79) | 0 | 0 |
 | trafilatura 2.2.0 | 2762/2951 | 321/2966 | 0.896 (0.88–0.91) | 0.936 (0.92–0.95) | 0.915 (0.90–0.93) | 0.758 (0.72–0.79) | 0 | 0 |
 | newspaper4k 0.9.6 | 2209/2951 | 161/2966 | 0.932 (0.92–0.95) | 0.749 (0.72–0.77) | 0.830 (0.81–0.85) | 0.873 (0.85–0.90) | 51 | 2 |
 | markitdown 0.1.8 | 2892/2951 | 2558/2966 | 0.531 (0.52–0.54) | 0.980 (0.97–0.99) | 0.688 (0.68–0.70) | 0.029 (0.02–0.05) | 0 | 0 |
@@ -240,8 +240,8 @@ on a page with main text.
 
 | tool | title | author | date | snippets found | snippets leaked |
 |---|---|---|---|---|---|
-| sluicer 0.9.0 | `Introducing System One Models & Jev - TypeSafe AI Blog` (right, from opengraph og:title) | no answer | no answer | 6 of 6 | 0 of 6 |
-| sluicer 0.9.0, declared then `--visible` | `Introducing System One Models & Jev - TypeSafe AI Blog` (right) | no answer | `2026-09-15` (right) | -- | -- |
+| sluicer 0.10.0 | `Introducing System One Models & Jev - TypeSafe AI Blog` (right, from opengraph og:title) | no answer | no answer | 6 of 6 | 0 of 6 |
+| sluicer 0.10.0, declared then `--visible` | `Introducing System One Models & Jev - TypeSafe AI Blog` (right) | no answer | `2026-09-15` (right) | -- | -- |
 | trafilatura 2.2.0 | `Introducing System One Models & Jev - TypeSafe AI Blog` (right) | no answer | `2026-09-21` (wrong) | 6 of 6 | 0 of 6 |
 | newspaper4k 0.9.6 | `Introducing System One Models & Jev` (right) | no answer | no answer | 5 of 6 | 0 of 6 |
 | markitdown 0.1.8 | `Introducing System One Models & Jev - TypeSafe AI Blog` (right) | -- | -- | 6 of 6 | 6 of 6 |
@@ -255,27 +255,27 @@ the label and the answer. All of them are in each tool's results.
 
 ### WCXB's test pages as served
 
-- **sluicer 0.9.0, title**: 105 silent wrong answers; the first by id:
+- **sluicer 0.10.0, title**: 105 silent wrong answers; the first by id:
   - `4015` <https://yogorillamats.com/?srsltid=AfmBOorSzHjzn508MwUjLZs-9yNjZot3FdDZcgVRWmaGV6mWrDCI82jI>: label `Best Large Exercise Mats and Yoga Mats for Your Home`, answered `Premium Large Exercise Mat`
   - `4026` <https://hike-summit.com/trekking-backpack-40l-lightweight-adventure-ready/>: label `Trekking Backpack 40L`, answered `Trekking Backpack 40L / Lightweight & Adventure-Ready`
   - `4035` <https://www.humanscale.com/products/monitor-arms?srsltid=AfmBOorWo4qFWcX0CYcBL2fZWbAhiO3F8Xs2tZ9wE1GKgmLXE_E4u2_W>: label `Monitor Arms`, answered `Humanscale M/Class Monitor Arms – Up to 79% More Weight Capacity`
-- **sluicer 0.9.0, author**: 51 silent wrong answers; the first by id:
+- **sluicer 0.10.0, author**: 51 silent wrong answers; the first by id:
   - `4060` <https://www.uclahealth.org/news/article/the-link-between-exercise-and-mental-health>: no label, answered `uclahealth`
   - `4108` <https://www.thegoodtrade.com/features/plus-size-ethical-fashion/>: no label, answered `Our Editors`
   - `4168` <https://www.lttlabs.com/products/keyboards/keychron-k2-wireless-mechanical-keyboard-version-2>: no label, answered `Labs Web Team`
-- **sluicer 0.9.0, date**: 44 silent wrong answers; the first by id:
+- **sluicer 0.10.0, date**: 44 silent wrong answers; the first by id:
   - `4048` <https://www.consumerreports.org/cars/hybrids-evs/buying-guide/>: label `2026-03-11`, answered `240221`
   - `4052` <https://www.topgear.com/car-news/electric/top-gears-top-20-electric-cars>: label `2026-03-11`, answered `2025-10-15T05:00:00+01:00`
   - `4219` <https://www.samsung.com/levant/tablets/galaxy-tab-s/galaxy-tab-s9-fe-wifi-gray-128gb-sm-x510nzaamea/>: no label, answered `2023-11-02`
-- **sluicer 0.9.0, declared then `--visible`, title**: 105 silent wrong answers; the first by id:
+- **sluicer 0.10.0, declared then `--visible`, title**: 105 silent wrong answers; the first by id:
   - `4015` <https://yogorillamats.com/?srsltid=AfmBOorSzHjzn508MwUjLZs-9yNjZot3FdDZcgVRWmaGV6mWrDCI82jI>: label `Best Large Exercise Mats and Yoga Mats for Your Home`, answered `Premium Large Exercise Mat`
   - `4026` <https://hike-summit.com/trekking-backpack-40l-lightweight-adventure-ready/>: label `Trekking Backpack 40L`, answered `Trekking Backpack 40L / Lightweight & Adventure-Ready`
   - `4035` <https://www.humanscale.com/products/monitor-arms?srsltid=AfmBOorWo4qFWcX0CYcBL2fZWbAhiO3F8Xs2tZ9wE1GKgmLXE_E4u2_W>: label `Monitor Arms`, answered `Humanscale M/Class Monitor Arms – Up to 79% More Weight Capacity`
-- **sluicer 0.9.0, declared then `--visible`, author**: 54 silent wrong answers; the first by id:
-  - `4048` <https://www.consumerreports.org/cars/hybrids-evs/buying-guide/>: label `Keith Barry`, answered `Senior Autos`
+- **sluicer 0.10.0, declared then `--visible`, author**: 53 silent wrong answers; the first by id:
   - `4060` <https://www.uclahealth.org/news/article/the-link-between-exercise-and-mental-health>: no label, answered `uclahealth`
   - `4108` <https://www.thegoodtrade.com/features/plus-size-ethical-fashion/>: no label, answered `Our Editors`
-- **sluicer 0.9.0, declared then `--visible`, date**: 57 silent wrong answers; the first by id:
+  - `4168` <https://www.lttlabs.com/products/keyboards/keychron-k2-wireless-mechanical-keyboard-version-2>: no label, answered `Labs Web Team`
+- **sluicer 0.10.0, declared then `--visible`, date**: 57 silent wrong answers; the first by id:
   - `4048` <https://www.consumerreports.org/cars/hybrids-evs/buying-guide/>: label `2026-03-11`, answered `240221`
   - `4052` <https://www.topgear.com/car-news/electric/top-gears-top-20-electric-cars>: label `2026-03-11`, answered `2025-10-15T05:00:00+01:00`
   - `4219` <https://www.samsung.com/levant/tablets/galaxy-tab-s/galaxy-tab-s9-fe-wifi-gray-128gb-sm-x510nzaamea/>: no label, answered `2023-11-02`
@@ -326,27 +326,27 @@ the label and the answer. All of them are in each tool's results.
 
 ### Trafilatura's evaluation set
 
-- **sluicer 0.9.0, title**: 195 silent wrong answers; the first by id:
+- **sluicer 0.10.0, title**: 195 silent wrong answers; the first by id:
   - `0a4a8ab61c054192b1ec70cc3570cf45.html` <https://www.zugreiseblog.de/db-lounge-zutritt-sparpreis/>: label `DB Lounge: Kein Zugang mehr mit Sparpreis-Ticket`, answered `DB Lounge: Kein Zutritt mehr mit Sparpreis-Tickets`
   - `0b4609a864eb4fa0bbcb2b395f6be9eb.html` <https://www.ardmediathek.de/swr/player/Y3JpZDovL3N3ci5kZS9hZXgvbzExNjIyMjY/nahrungsergaenzungsmittel-das-dubiose-geschaeft-mit-der-hoffnung>: label `betrifft: ...: Nahrungsergänzungsmittel - Das dubiose Geschäft mit der Hoffnung / Video de...`, answered `Nahrungsergänzungsmittel - Das dubiose Geschäft mit der Hoffnung / Video`
   - `24ora.com-internationalschol.html` <https://24ora.com/minister-president-presente-ne-trashion-fashion-show-di-international-school/>: label `MINISTER-PRESIDENT PRESENTE N’E “TRASHION FASHION SHOW” DI INTERNATIONAL SCHOOL`, answered `Minister-president presente n'e “Trashion Fashion Show” di International School - 24ora.co...`
-- **sluicer 0.9.0, author**: 144 silent wrong answers; the first by id:
+- **sluicer 0.10.0, author**: 144 silent wrong answers; the first by id:
   - `0a6291ebbce449b3b04256b43c73e39d.html` <https://wien.orf.at/stories/3017954/>: label `red, wien.ORF.at/Agenturen`, answered `ORF.at`
   - `24ora.com-internationalschol.html` <https://24ora.com/minister-president-presente-ne-trashion-fashion-show-di-international-school/>: no label, answered `Tango`
   - `Lebensmittelpraxis.de-Stadtzentrum.html` <https://lebensmittelpraxis.de/handel-aktuell/38519-olympische-spiele-in-paris-getraenke-per-schiff-ins-stadtzentrum.html>: no label, answered `Lebensmittel Praxis`
-- **sluicer 0.9.0, date**: 106 silent wrong answers; the first by id:
+- **sluicer 0.10.0, date**: 103 silent wrong answers; the first by id:
   - `0a12df42d1764095989ab078ee0f940b.html` <https://www.zeit.de/2019/43/klimaschutz-banken-unternehmen-fracking-oelfoerderung-fossile-brennstoffe>: label `2019-10-16`, answered `2019-10-19T19:08:22+02:00`
   - `0b96fc66e2c94f45a1b923ec9a31fcf2.html` <https://www.nachrichten.at/meine-welt/gesundheit/was-bringen-alternative-therapien-bei-krebs;art114,3177663>: label `2019-10-19`, answered `2019-10-18T22:04:00Z`
   - `24ora.com-internationalschol.html` <https://24ora.com/minister-president-presente-ne-trashion-fashion-show-di-international-school/>: label `2022-05-03`, answered `2022-05-04T03:37:37+00:00`
-- **sluicer 0.9.0, declared then `--visible`, title**: 195 silent wrong answers; the first by id:
+- **sluicer 0.10.0, declared then `--visible`, title**: 195 silent wrong answers; the first by id:
   - `0a4a8ab61c054192b1ec70cc3570cf45.html` <https://www.zugreiseblog.de/db-lounge-zutritt-sparpreis/>: label `DB Lounge: Kein Zugang mehr mit Sparpreis-Ticket`, answered `DB Lounge: Kein Zutritt mehr mit Sparpreis-Tickets`
   - `0b4609a864eb4fa0bbcb2b395f6be9eb.html` <https://www.ardmediathek.de/swr/player/Y3JpZDovL3N3ci5kZS9hZXgvbzExNjIyMjY/nahrungsergaenzungsmittel-das-dubiose-geschaeft-mit-der-hoffnung>: label `betrifft: ...: Nahrungsergänzungsmittel - Das dubiose Geschäft mit der Hoffnung / Video de...`, answered `Nahrungsergänzungsmittel - Das dubiose Geschäft mit der Hoffnung / Video`
   - `24ora.com-internationalschol.html` <https://24ora.com/minister-president-presente-ne-trashion-fashion-show-di-international-school/>: label `MINISTER-PRESIDENT PRESENTE N’E “TRASHION FASHION SHOW” DI INTERNATIONAL SCHOOL`, answered `Minister-president presente n'e “Trashion Fashion Show” di International School - 24ora.co...`
-- **sluicer 0.9.0, declared then `--visible`, author**: 158 silent wrong answers; the first by id:
+- **sluicer 0.10.0, declared then `--visible`, author**: 155 silent wrong answers; the first by id:
   - `0a6291ebbce449b3b04256b43c73e39d.html` <https://wien.orf.at/stories/3017954/>: label `red, wien.ORF.at/Agenturen`, answered `ORF.at`
   - `24ora.com-internationalschol.html` <https://24ora.com/minister-president-presente-ne-trashion-fashion-show-di-international-school/>: no label, answered `Tango`
   - `Lebensmittelpraxis.de-Stadtzentrum.html` <https://lebensmittelpraxis.de/handel-aktuell/38519-olympische-spiele-in-paris-getraenke-per-schiff-ins-stadtzentrum.html>: no label, answered `Lebensmittel Praxis`
-- **sluicer 0.9.0, declared then `--visible`, date**: 121 silent wrong answers; the first by id:
+- **sluicer 0.10.0, declared then `--visible`, date**: 118 silent wrong answers; the first by id:
   - `0a12df42d1764095989ab078ee0f940b.html` <https://www.zeit.de/2019/43/klimaschutz-banken-unternehmen-fracking-oelfoerderung-fossile-brennstoffe>: label `2019-10-16`, answered `2019-10-19T19:08:22+02:00`
   - `0b96fc66e2c94f45a1b923ec9a31fcf2.html` <https://www.nachrichten.at/meine-welt/gesundheit/was-bringen-alternative-therapien-bei-krebs;art114,3177663>: label `2019-10-19`, answered `2019-10-18T22:04:00Z`
   - `24ora.com-internationalschol.html` <https://24ora.com/minister-president-presente-ne-trashion-fashion-show-di-international-school/>: label `2022-05-03`, answered `2022-05-04T03:37:37+00:00`
@@ -409,16 +409,16 @@ the label and the answer. All of them are in each tool's results.
 Seconds per page are for everything the tool is asked here, on the
 360 pages as served; Sluicer's `--visible` is not timed.
 
-Measured on 2026-09-26 by `uv run bench/timing.py tools` at commit `ed3b378`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
+Measured on 2026-09-26 by `uv run bench/timing.py tools` at commit `5e97f6b`, on macOS-26.6.2-arm64-arm-64bit-Mach-O, Apple M4, 10 cores, 16 GiB of memory: 5 rounds, each running every tool once in a fresh process of its own environment, the order turned by one place each round. A process reads every page once untimed, then times one pass of the extraction call alone.
 
 | tool | runtime | seconds per page | seconds for all 360 pages, median (fastest–slowest) | pages per second | peak memory | install size | packages |
 |---|---|---|---|---|---|---|---|
-| sluicer 0.9.0 | Python 3.12.13 | 0.0380 | 13.66 (11.37–15.70) | 26 | 236.6 MiB | 58.7 MiB | 21 |
-| trafilatura 2.2.0 | Python 3.12.13 | 0.0841 | 30.26 (24.84–57.77) | 12 | 293.7 MiB | 58.2 MiB | 17 |
-| newspaper4k 0.9.6 | Python 3.12.13 | 0.0918 | 33.05 (31.15–43.50) | 11 | 333.1 MiB | 39.4 MiB | 22 |
-| markitdown 0.1.8 | Python 3.12.13 | 0.0407 | 14.65 (13.94–17.90) | 25 | 224.7 MiB | 129.3 MiB | 20 |
-| scrapling 0.4.15 | Python 3.12.13 | 0.0348 | 12.54 (10.14–19.34) | 29 | 353.6 MiB | 296.8 MiB | 26 |
-| metascraper 5.58.1 | Node 26.1.0 | 0.0130 | 4.69 (4.05–8.37) | 77 | 999.8 MiB | 55.5 MiB | 125 |
+| sluicer 0.10.0 | Python 3.12.13 | 0.0246 | 8.85 (8.82–8.86) | 41 | 241.0 MiB | 58.7 MiB | 21 |
+| trafilatura 2.2.0 | Python 3.12.13 | 0.0567 | 20.41 (20.36–20.51) | 18 | 287.1 MiB | 58.2 MiB | 17 |
+| newspaper4k 0.9.6 | Python 3.12.13 | 0.0641 | 23.07 (22.87–23.13) | 16 | 333.3 MiB | 39.4 MiB | 22 |
+| markitdown 0.1.8 | Python 3.12.13 | 0.0267 | 9.60 (9.52–10.12) | 37 | 223.1 MiB | 129.3 MiB | 20 |
+| scrapling 0.4.15 | Python 3.12.13 | 0.0201 | 7.23 (7.17–7.27) | 50 | 352.1 MiB | 296.8 MiB | 26 |
+| metascraper 5.58.1 | Node 26.1.0 | 0.0077 | 2.79 (2.77–2.83) | 129 | 990.3 MiB | 55.5 MiB | 125 |
 
 ## How sure, and what differs
 
@@ -429,70 +429,70 @@ tool, on every rate both answer, paired by page.
 
 | side | against | question | rate | difference (95% interval) | verdict |
 |---|---|---|---|---|---|
-| sluicer 0.9.0 | trafilatura 2.2.0 | title | hit rate | -0.047 (-0.095 to +0.003) | inconclusive |
-| sluicer 0.9.0 | trafilatura 2.2.0 | title | right when answering | -0.047 (-0.095 to +0.003) | inconclusive |
-| sluicer 0.9.0 | trafilatura 2.2.0 | author | hit rate | -0.171 (-0.241 to -0.103) | worse |
-| sluicer 0.9.0 | trafilatura 2.2.0 | author | right when answering | +0.061 (+0.005 to +0.117) | better |
-| sluicer 0.9.0 | trafilatura 2.2.0 | date | hit rate | -0.075 (-0.140 to -0.012) | worse |
-| sluicer 0.9.0 | trafilatura 2.2.0 | date | right when answering | +0.341 (+0.283 to +0.399) | better |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | title | hit rate | -0.058 (-0.109 to -0.008) | worse |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | title | right when answering | -0.058 (-0.109 to -0.008) | worse |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | author | hit rate | -0.016 (-0.055 to +0.023) | inconclusive |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | author | right when answering | +0.067 (+0.025 to +0.112) | better |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | date | hit rate | -0.006 (-0.040 to +0.026) | inconclusive |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | date | right when answering | +0.076 (+0.039 to +0.116) | better |
-| sluicer 0.9.0 | markitdown 0.1.8 | title | hit rate | +0.086 (+0.036 to +0.137) | better |
-| sluicer 0.9.0 | markitdown 0.1.8 | title | right when answering | +0.086 (+0.036 to +0.137) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | title | hit rate | +0.086 (+0.036 to +0.137) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | title | right when answering | +0.086 (+0.036 to +0.137) | better |
-| sluicer 0.9.0 | metascraper 5.58.1 | title | hit rate | +0.042 (0.000 to +0.084) | inconclusive |
-| sluicer 0.9.0 | metascraper 5.58.1 | title | right when answering | +0.042 (0.000 to +0.084) | inconclusive |
-| sluicer 0.9.0 | metascraper 5.58.1 | author | hit rate | -0.155 (-0.227 to -0.087) | worse |
-| sluicer 0.9.0 | metascraper 5.58.1 | author | right when answering | +0.153 (+0.101 to +0.210) | better |
-| sluicer 0.9.0 | metascraper 5.58.1 | date | hit rate | -0.031 (-0.080 to +0.014) | inconclusive |
-| sluicer 0.9.0 | metascraper 5.58.1 | date | right when answering | +0.160 (+0.113 to +0.211) | better |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | title | hit rate | -0.047 (-0.095 to +0.003) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | title | right when answering | -0.047 (-0.095 to +0.003) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | author | hit rate | -0.109 (-0.172 to -0.048) | worse |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | author | right when answering | +0.067 (+0.014 to +0.121) | better |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | date | hit rate | 0.000 (-0.060 to +0.062) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | date | right when answering | +0.308 (+0.256 to +0.362) | better |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | title | hit rate | -0.058 (-0.109 to -0.008) | worse |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | title | right when answering | -0.058 (-0.109 to -0.008) | worse |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | author | hit rate | +0.047 (+0.007 to +0.091) | better |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | author | right when answering | +0.074 (+0.031 to +0.118) | better |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | date | hit rate | +0.069 (+0.028 to +0.114) | better |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | date | right when answering | +0.043 (+0.011 to +0.077) | better |
-| sluicer 0.9.0, declared then `--visible` | markitdown 0.1.8 | title | hit rate | +0.086 (+0.036 to +0.137) | better |
-| sluicer 0.9.0, declared then `--visible` | markitdown 0.1.8 | title | right when answering | +0.086 (+0.036 to +0.137) | better |
-| sluicer 0.9.0, declared then `--visible` | scrapling 0.4.15 | title | hit rate | +0.086 (+0.036 to +0.137) | better |
-| sluicer 0.9.0, declared then `--visible` | scrapling 0.4.15 | title | right when answering | +0.086 (+0.036 to +0.137) | better |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | title | hit rate | +0.042 (0.000 to +0.084) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | title | right when answering | +0.042 (0.000 to +0.084) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | author | hit rate | -0.093 (-0.160 to -0.025) | worse |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | author | right when answering | +0.160 (+0.111 to +0.214) | better |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | date | hit rate | +0.044 (-0.013 to +0.100) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | date | right when answering | +0.128 (+0.083 to +0.175) | better |
-| sluicer 0.9.0 | trafilatura 2.2.0 | text | precision | -0.002 (-0.005 to -0.00004) | worse |
-| sluicer 0.9.0 | trafilatura 2.2.0 | text | recall | -0.004 (-0.012 to +0.003) | inconclusive |
-| sluicer 0.9.0 | trafilatura 2.2.0 | text | F1 | -0.003 (-0.009 to +0.001) | inconclusive |
-| sluicer 0.9.0 | trafilatura 2.2.0 | text | pages kept clean | -0.003 (-0.009 to 0.000) | inconclusive |
-| sluicer 0.9.0 | trafilatura 2.2.0 | text | word F1 | -0.002 (-0.006 to +0.001) | inconclusive |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | text | precision | -0.024 (-0.040 to -0.009) | worse |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | text | recall | +0.176 (+0.140 to +0.213) | better |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | text | F1 | +0.111 (+0.084 to +0.140) | better |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | text | pages kept clean | -0.053 (-0.087 to -0.022) | worse |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | text | word F1 | +0.130 (+0.102 to +0.158) | better |
-| sluicer 0.9.0 | markitdown 0.1.8 | text | precision | +0.420 (+0.402 to +0.438) | better |
-| sluicer 0.9.0 | markitdown 0.1.8 | text | recall | -0.120 (-0.146 to -0.095) | worse |
-| sluicer 0.9.0 | markitdown 0.1.8 | text | F1 | +0.189 (+0.170 to +0.207) | better |
-| sluicer 0.9.0 | markitdown 0.1.8 | text | pages kept clean | +0.891 (+0.858 to +0.923) | better |
-| sluicer 0.9.0 | markitdown 0.1.8 | text | word F1 | +0.160 (+0.140 to +0.180) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | text | precision | +0.411 (+0.392 to +0.429) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | text | recall | -0.116 (-0.143 to -0.090) | worse |
-| sluicer 0.9.0 | scrapling 0.4.15 | text | F1 | +0.183 (+0.163 to +0.201) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | text | pages kept clean | +0.880 (+0.845 to +0.912) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | text | word F1 | +0.143 (+0.123 to +0.163) | better |
+| sluicer 0.10.0 | trafilatura 2.2.0 | title | hit rate | -0.047 (-0.095 to +0.003) | inconclusive |
+| sluicer 0.10.0 | trafilatura 2.2.0 | title | right when answering | -0.047 (-0.095 to +0.003) | inconclusive |
+| sluicer 0.10.0 | trafilatura 2.2.0 | author | hit rate | -0.163 (-0.232 to -0.097) | worse |
+| sluicer 0.10.0 | trafilatura 2.2.0 | author | right when answering | +0.063 (+0.008 to +0.119) | better |
+| sluicer 0.10.0 | trafilatura 2.2.0 | date | hit rate | -0.075 (-0.140 to -0.012) | worse |
+| sluicer 0.10.0 | trafilatura 2.2.0 | date | right when answering | +0.341 (+0.283 to +0.399) | better |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | title | hit rate | -0.058 (-0.109 to -0.008) | worse |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | title | right when answering | -0.058 (-0.109 to -0.008) | worse |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | author | hit rate | -0.008 (-0.050 to +0.033) | inconclusive |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | author | right when answering | +0.070 (+0.026 to +0.116) | better |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | date | hit rate | -0.006 (-0.040 to +0.026) | inconclusive |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | date | right when answering | +0.076 (+0.039 to +0.116) | better |
+| sluicer 0.10.0 | markitdown 0.1.8 | title | hit rate | +0.086 (+0.036 to +0.137) | better |
+| sluicer 0.10.0 | markitdown 0.1.8 | title | right when answering | +0.086 (+0.036 to +0.137) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | title | hit rate | +0.086 (+0.036 to +0.137) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | title | right when answering | +0.086 (+0.036 to +0.137) | better |
+| sluicer 0.10.0 | metascraper 5.58.1 | title | hit rate | +0.042 (0.000 to +0.084) | inconclusive |
+| sluicer 0.10.0 | metascraper 5.58.1 | title | right when answering | +0.042 (0.000 to +0.084) | inconclusive |
+| sluicer 0.10.0 | metascraper 5.58.1 | author | hit rate | -0.147 (-0.221 to -0.076) | worse |
+| sluicer 0.10.0 | metascraper 5.58.1 | author | right when answering | +0.156 (+0.103 to +0.213) | better |
+| sluicer 0.10.0 | metascraper 5.58.1 | date | hit rate | -0.031 (-0.080 to +0.014) | inconclusive |
+| sluicer 0.10.0 | metascraper 5.58.1 | date | right when answering | +0.160 (+0.113 to +0.211) | better |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | title | hit rate | -0.047 (-0.095 to +0.003) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | title | right when answering | -0.047 (-0.095 to +0.003) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | author | hit rate | -0.101 (-0.163 to -0.042) | worse |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | author | right when answering | +0.074 (+0.022 to +0.126) | better |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | date | hit rate | 0.000 (-0.060 to +0.062) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | date | right when answering | +0.308 (+0.256 to +0.362) | better |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | title | hit rate | -0.058 (-0.109 to -0.008) | worse |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | title | right when answering | -0.058 (-0.109 to -0.008) | worse |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | author | hit rate | +0.054 (+0.013 to +0.102) | better |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | author | right when answering | +0.080 (+0.036 to +0.127) | better |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | date | hit rate | +0.069 (+0.028 to +0.114) | better |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | date | right when answering | +0.043 (+0.011 to +0.077) | better |
+| sluicer 0.10.0, declared then `--visible` | markitdown 0.1.8 | title | hit rate | +0.086 (+0.036 to +0.137) | better |
+| sluicer 0.10.0, declared then `--visible` | markitdown 0.1.8 | title | right when answering | +0.086 (+0.036 to +0.137) | better |
+| sluicer 0.10.0, declared then `--visible` | scrapling 0.4.15 | title | hit rate | +0.086 (+0.036 to +0.137) | better |
+| sluicer 0.10.0, declared then `--visible` | scrapling 0.4.15 | title | right when answering | +0.086 (+0.036 to +0.137) | better |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | title | hit rate | +0.042 (0.000 to +0.084) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | title | right when answering | +0.042 (0.000 to +0.084) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | author | hit rate | -0.085 (-0.153 to -0.016) | worse |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | author | right when answering | +0.167 (+0.117 to +0.223) | better |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | date | hit rate | +0.044 (-0.013 to +0.100) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | date | right when answering | +0.128 (+0.083 to +0.175) | better |
+| sluicer 0.10.0 | trafilatura 2.2.0 | text | precision | -0.002 (-0.005 to -0.00004) | worse |
+| sluicer 0.10.0 | trafilatura 2.2.0 | text | recall | -0.004 (-0.012 to +0.003) | inconclusive |
+| sluicer 0.10.0 | trafilatura 2.2.0 | text | F1 | -0.003 (-0.009 to +0.001) | inconclusive |
+| sluicer 0.10.0 | trafilatura 2.2.0 | text | pages kept clean | -0.003 (-0.009 to 0.000) | inconclusive |
+| sluicer 0.10.0 | trafilatura 2.2.0 | text | word F1 | -0.002 (-0.006 to +0.001) | inconclusive |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | text | precision | -0.024 (-0.040 to -0.009) | worse |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | text | recall | +0.176 (+0.140 to +0.213) | better |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | text | F1 | +0.111 (+0.084 to +0.140) | better |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | text | pages kept clean | -0.053 (-0.087 to -0.022) | worse |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | text | word F1 | +0.130 (+0.102 to +0.158) | better |
+| sluicer 0.10.0 | markitdown 0.1.8 | text | precision | +0.420 (+0.402 to +0.438) | better |
+| sluicer 0.10.0 | markitdown 0.1.8 | text | recall | -0.120 (-0.146 to -0.095) | worse |
+| sluicer 0.10.0 | markitdown 0.1.8 | text | F1 | +0.189 (+0.170 to +0.207) | better |
+| sluicer 0.10.0 | markitdown 0.1.8 | text | pages kept clean | +0.891 (+0.858 to +0.923) | better |
+| sluicer 0.10.0 | markitdown 0.1.8 | text | word F1 | +0.160 (+0.140 to +0.180) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | text | precision | +0.411 (+0.392 to +0.429) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | text | recall | -0.116 (-0.143 to -0.090) | worse |
+| sluicer 0.10.0 | scrapling 0.4.15 | text | F1 | +0.183 (+0.163 to +0.201) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | text | pages kept clean | +0.880 (+0.845 to +0.912) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | text | word F1 | +0.143 (+0.123 to +0.163) | better |
 
 The difference is the first side's rate minus the second's, over the
 same pages. Its interval is the 95% percentile interval of 10,000
@@ -507,66 +507,66 @@ better or worse, so read the verdicts as a table, not one at a time.
 
 | side | against | question | rate | difference (95% interval) | verdict |
 |---|---|---|---|---|---|
-| sluicer 0.9.0 | trafilatura 2.2.0 | title | hit rate | +0.038 (+0.012 to +0.064) | better |
-| sluicer 0.9.0 | trafilatura 2.2.0 | title | right when answering | +0.038 (+0.012 to +0.064) | better |
-| sluicer 0.9.0 | trafilatura 2.2.0 | author | hit rate | -0.201 (-0.238 to -0.163) | worse |
-| sluicer 0.9.0 | trafilatura 2.2.0 | author | right when answering | -0.011 (-0.043 to +0.022) | inconclusive |
-| sluicer 0.9.0 | trafilatura 2.2.0 | date | hit rate | -0.280 (-0.315 to -0.246) | worse |
-| sluicer 0.9.0 | trafilatura 2.2.0 | date | right when answering | +0.050 (+0.020 to +0.080) | better |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | title | hit rate | +0.020 (-0.008 to +0.048) | inconclusive |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | title | right when answering | +0.015 (-0.012 to +0.041) | inconclusive |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | author | hit rate | -0.039 (-0.072 to -0.007) | worse |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | author | right when answering | +0.039 (+0.002 to +0.076) | better |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | date | hit rate | -0.082 (-0.108 to -0.057) | worse |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | date | right when answering | -0.009 (-0.031 to +0.013) | inconclusive |
-| sluicer 0.9.0 | markitdown 0.1.8 | title | hit rate | +0.198 (+0.168 to +0.228) | better |
-| sluicer 0.9.0 | markitdown 0.1.8 | title | right when answering | +0.196 (+0.166 to +0.226) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | title | hit rate | +0.196 (+0.167 to +0.227) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | title | right when answering | +0.194 (+0.165 to +0.225) | better |
-| sluicer 0.9.0 | metascraper 5.58.1 | title | hit rate | +0.077 (+0.053 to +0.102) | better |
-| sluicer 0.9.0 | metascraper 5.58.1 | title | right when answering | +0.066 (+0.042 to +0.090) | better |
-| sluicer 0.9.0 | metascraper 5.58.1 | author | hit rate | -0.193 (-0.233 to -0.153) | worse |
-| sluicer 0.9.0 | metascraper 5.58.1 | author | right when answering | +0.061 (+0.025 to +0.098) | better |
-| sluicer 0.9.0 | metascraper 5.58.1 | date | hit rate | -0.078 (-0.106 to -0.051) | worse |
-| sluicer 0.9.0 | metascraper 5.58.1 | date | right when answering | +0.084 (+0.055 to +0.112) | better |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | title | hit rate | +0.038 (+0.012 to +0.064) | better |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | title | right when answering | +0.038 (+0.012 to +0.064) | better |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | author | hit rate | -0.121 (-0.158 to -0.082) | worse |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | author | right when answering | +0.004 (-0.027 to +0.035) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | date | hit rate | -0.165 (-0.196 to -0.135) | worse |
-| sluicer 0.9.0, declared then `--visible` | trafilatura 2.2.0 | date | right when answering | +0.059 (+0.031 to +0.086) | better |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | title | hit rate | +0.020 (-0.008 to +0.048) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | title | right when answering | +0.015 (-0.012 to +0.041) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | author | hit rate | +0.041 (+0.007 to +0.075) | better |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | author | right when answering | +0.054 (+0.018 to +0.090) | better |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | date | hit rate | +0.033 (+0.008 to +0.058) | better |
-| sluicer 0.9.0, declared then `--visible` | newspaper4k 0.9.6 | date | right when answering | 0.000 (-0.021 to +0.021) | inconclusive |
-| sluicer 0.9.0, declared then `--visible` | markitdown 0.1.8 | title | hit rate | +0.198 (+0.168 to +0.228) | better |
-| sluicer 0.9.0, declared then `--visible` | markitdown 0.1.8 | title | right when answering | +0.196 (+0.166 to +0.226) | better |
-| sluicer 0.9.0, declared then `--visible` | scrapling 0.4.15 | title | hit rate | +0.196 (+0.167 to +0.227) | better |
-| sluicer 0.9.0, declared then `--visible` | scrapling 0.4.15 | title | right when answering | +0.194 (+0.165 to +0.225) | better |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | title | hit rate | +0.077 (+0.053 to +0.102) | better |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | title | right when answering | +0.066 (+0.042 to +0.090) | better |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | author | hit rate | -0.113 (-0.151 to -0.075) | worse |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | author | right when answering | +0.076 (+0.042 to +0.110) | better |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | date | hit rate | +0.037 (+0.008 to +0.067) | better |
-| sluicer 0.9.0, declared then `--visible` | metascraper 5.58.1 | date | right when answering | +0.093 (+0.064 to +0.121) | better |
-| sluicer 0.9.0 | trafilatura 2.2.0 | text | precision | -0.001 (-0.003 to +0.002) | inconclusive |
-| sluicer 0.9.0 | trafilatura 2.2.0 | text | recall | -0.001 (-0.006 to +0.003) | inconclusive |
-| sluicer 0.9.0 | trafilatura 2.2.0 | text | F1 | -0.001 (-0.004 to +0.002) | inconclusive |
-| sluicer 0.9.0 | trafilatura 2.2.0 | text | pages kept clean | -0.002 (-0.009 to +0.004) | inconclusive |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | text | precision | -0.037 (-0.048 to -0.026) | worse |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | text | recall | +0.186 (+0.165 to +0.208) | better |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | text | F1 | +0.084 (+0.070 to +0.099) | better |
-| sluicer 0.9.0 | newspaper4k 0.9.6 | text | pages kept clean | -0.117 (-0.142 to -0.092) | worse |
-| sluicer 0.9.0 | markitdown 0.1.8 | text | precision | +0.365 (+0.352 to +0.377) | better |
-| sluicer 0.9.0 | markitdown 0.1.8 | text | recall | -0.045 (-0.057 to -0.034) | worse |
-| sluicer 0.9.0 | markitdown 0.1.8 | text | F1 | +0.226 (+0.217 to +0.235) | better |
-| sluicer 0.9.0 | markitdown 0.1.8 | text | pages kept clean | +0.726 (+0.698 to +0.754) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | text | precision | +0.363 (+0.350 to +0.375) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | text | recall | -0.042 (-0.055 to -0.030) | worse |
-| sluicer 0.9.0 | scrapling 0.4.15 | text | F1 | +0.225 (+0.216 to +0.234) | better |
-| sluicer 0.9.0 | scrapling 0.4.15 | text | pages kept clean | +0.718 (+0.689 to +0.746) | better |
+| sluicer 0.10.0 | trafilatura 2.2.0 | title | hit rate | +0.038 (+0.012 to +0.064) | better |
+| sluicer 0.10.0 | trafilatura 2.2.0 | title | right when answering | +0.038 (+0.012 to +0.064) | better |
+| sluicer 0.10.0 | trafilatura 2.2.0 | author | hit rate | -0.197 (-0.235 to -0.159) | worse |
+| sluicer 0.10.0 | trafilatura 2.2.0 | author | right when answering | -0.009 (-0.041 to +0.024) | inconclusive |
+| sluicer 0.10.0 | trafilatura 2.2.0 | date | hit rate | -0.277 (-0.312 to -0.244) | worse |
+| sluicer 0.10.0 | trafilatura 2.2.0 | date | right when answering | +0.056 (+0.025 to +0.085) | better |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | title | hit rate | +0.020 (-0.008 to +0.048) | inconclusive |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | title | right when answering | +0.015 (-0.012 to +0.041) | inconclusive |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | author | hit rate | -0.035 (-0.069 to -0.003) | worse |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | author | right when answering | +0.041 (+0.004 to +0.078) | better |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | date | hit rate | -0.080 (-0.105 to -0.055) | worse |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | date | right when answering | -0.003 (-0.025 to +0.017) | inconclusive |
+| sluicer 0.10.0 | markitdown 0.1.8 | title | hit rate | +0.198 (+0.168 to +0.228) | better |
+| sluicer 0.10.0 | markitdown 0.1.8 | title | right when answering | +0.196 (+0.166 to +0.226) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | title | hit rate | +0.196 (+0.167 to +0.227) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | title | right when answering | +0.194 (+0.165 to +0.225) | better |
+| sluicer 0.10.0 | metascraper 5.58.1 | title | hit rate | +0.077 (+0.053 to +0.102) | better |
+| sluicer 0.10.0 | metascraper 5.58.1 | title | right when answering | +0.066 (+0.042 to +0.090) | better |
+| sluicer 0.10.0 | metascraper 5.58.1 | author | hit rate | -0.190 (-0.229 to -0.150) | worse |
+| sluicer 0.10.0 | metascraper 5.58.1 | author | right when answering | +0.063 (+0.026 to +0.099) | better |
+| sluicer 0.10.0 | metascraper 5.58.1 | date | hit rate | -0.076 (-0.103 to -0.048) | worse |
+| sluicer 0.10.0 | metascraper 5.58.1 | date | right when answering | +0.089 (+0.062 to +0.117) | better |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | title | hit rate | +0.038 (+0.012 to +0.064) | better |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | title | right when answering | +0.038 (+0.012 to +0.064) | better |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | author | hit rate | -0.117 (-0.155 to -0.079) | worse |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | author | right when answering | +0.010 (-0.021 to +0.041) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | date | hit rate | -0.165 (-0.196 to -0.135) | worse |
+| sluicer 0.10.0, declared then `--visible` | trafilatura 2.2.0 | date | right when answering | +0.063 (+0.035 to +0.090) | better |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | title | hit rate | +0.020 (-0.008 to +0.048) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | title | right when answering | +0.015 (-0.012 to +0.041) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | author | hit rate | +0.045 (+0.010 to +0.079) | better |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | author | right when answering | +0.060 (+0.023 to +0.096) | better |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | date | hit rate | +0.033 (+0.008 to +0.058) | better |
+| sluicer 0.10.0, declared then `--visible` | newspaper4k 0.9.6 | date | right when answering | +0.004 (-0.017 to +0.024) | inconclusive |
+| sluicer 0.10.0, declared then `--visible` | markitdown 0.1.8 | title | hit rate | +0.198 (+0.168 to +0.228) | better |
+| sluicer 0.10.0, declared then `--visible` | markitdown 0.1.8 | title | right when answering | +0.196 (+0.166 to +0.226) | better |
+| sluicer 0.10.0, declared then `--visible` | scrapling 0.4.15 | title | hit rate | +0.196 (+0.167 to +0.227) | better |
+| sluicer 0.10.0, declared then `--visible` | scrapling 0.4.15 | title | right when answering | +0.194 (+0.165 to +0.225) | better |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | title | hit rate | +0.077 (+0.053 to +0.102) | better |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | title | right when answering | +0.066 (+0.042 to +0.090) | better |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | author | hit rate | -0.110 (-0.147 to -0.071) | worse |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | author | right when answering | +0.082 (+0.048 to +0.116) | better |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | date | hit rate | +0.037 (+0.008 to +0.067) | better |
+| sluicer 0.10.0, declared then `--visible` | metascraper 5.58.1 | date | right when answering | +0.096 (+0.068 to +0.124) | better |
+| sluicer 0.10.0 | trafilatura 2.2.0 | text | precision | -0.001 (-0.003 to +0.002) | inconclusive |
+| sluicer 0.10.0 | trafilatura 2.2.0 | text | recall | -0.001 (-0.006 to +0.003) | inconclusive |
+| sluicer 0.10.0 | trafilatura 2.2.0 | text | F1 | -0.001 (-0.004 to +0.002) | inconclusive |
+| sluicer 0.10.0 | trafilatura 2.2.0 | text | pages kept clean | -0.002 (-0.009 to +0.004) | inconclusive |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | text | precision | -0.037 (-0.048 to -0.026) | worse |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | text | recall | +0.186 (+0.165 to +0.208) | better |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | text | F1 | +0.084 (+0.070 to +0.099) | better |
+| sluicer 0.10.0 | newspaper4k 0.9.6 | text | pages kept clean | -0.117 (-0.142 to -0.092) | worse |
+| sluicer 0.10.0 | markitdown 0.1.8 | text | precision | +0.365 (+0.352 to +0.377) | better |
+| sluicer 0.10.0 | markitdown 0.1.8 | text | recall | -0.045 (-0.057 to -0.034) | worse |
+| sluicer 0.10.0 | markitdown 0.1.8 | text | F1 | +0.226 (+0.217 to +0.235) | better |
+| sluicer 0.10.0 | markitdown 0.1.8 | text | pages kept clean | +0.726 (+0.698 to +0.754) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | text | precision | +0.363 (+0.350 to +0.375) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | text | recall | -0.042 (-0.055 to -0.030) | worse |
+| sluicer 0.10.0 | scrapling 0.4.15 | text | F1 | +0.225 (+0.216 to +0.234) | better |
+| sluicer 0.10.0 | scrapling 0.4.15 | text | pages kept clean | +0.718 (+0.689 to +0.746) | better |
 
 The difference is the first side's rate minus the second's, over the
 same pages. Its interval is the 95% percentile interval of 10,000
